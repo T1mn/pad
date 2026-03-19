@@ -1,4 +1,4 @@
-/* Tmux Code Kanban TUI Styles */
+/* Tmux Code Kanban TUI Styles - Clean & Minimal */
 
 /* Main layout */
 Screen {
@@ -15,17 +15,17 @@ Screen {
 #panel-list-container {
     width: 40%;
     height: 100%;
-    border: solid $primary;
-    background: $surface-darken-1;
+    border: none;
+    background: $surface;
 }
 
 #panel-list-title {
     width: 100%;
     height: 1;
-    background: $primary;
-    color: $text;
-    content-align: center middle;
-    text-style: bold;
+    background: transparent;
+    color: $text-muted;
+    content-align: left middle;
+    padding: 0 1;
 }
 
 #panel-table {
@@ -33,21 +33,22 @@ Screen {
     height: 1fr;
     background: $surface;
     color: $text;
+    border: none;
 }
 
 /* Right panel - Preview */
 #preview-container {
     width: 60%;
     height: 100%;
-    border: solid $primary;
-    background: $surface-darken-1;
+    border-left: solid $primary-darken-2;
+    background: $surface;
 }
 
 #preview-title {
     width: 100%;
     height: 1;
-    background: $primary-darken-2;
-    color: $text;
+    background: transparent;
+    color: $text-muted;
     content-align: left middle;
     padding: 0 1;
 }
@@ -59,17 +60,19 @@ Screen {
     color: $text;
     padding: 0 1;
     overflow: auto scroll;
+    border: none;
 }
 
 /* Status Bar */
 #status-bar {
     width: 100%;
     height: 1;
-    background: $primary-darken-3;
+    background: $surface-darken-1;
     color: $text;
     content-align: left middle;
     padding: 0 1;
     dock: bottom;
+    border-top: solid $primary-darken-2;
 }
 
 .status-info {
@@ -96,7 +99,7 @@ Screen {
     width: 100%;
     height: auto;
     background: $surface-darken-2;
-    border: solid $primary;
+    border-top: solid $primary;
     padding: 0 1;
     display: none;
     dock: bottom;
@@ -110,12 +113,14 @@ Screen {
 /* Table styles */
 .data-table {
     background: $surface;
+    border: none;
 }
 
 .data-table > .datatable--header {
-    background: $primary-darken-1;
-    color: $text;
+    background: $surface-darken-1;
+    color: $text-muted;
     text-style: bold;
+    border-bottom: solid $primary-darken-2;
 }
 
 .data-table > .datatable--row {
@@ -124,11 +129,11 @@ Screen {
 }
 
 .data-table > .datatable--row-hover {
-    background: $primary-darken-2;
+    background: $primary-darken-3;
 }
 
 .data-table > .datatable--row-selected {
-    background: $primary;
+    background: $primary-darken-2;
     color: $text;
     text-style: bold;
 }

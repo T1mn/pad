@@ -20,22 +20,22 @@ class ThemeSelector(ModalScreen[str]):
         height: auto;
         max-height: 20;
         background: $surface;
-        border: solid $primary;
-        padding: 0 1;
+        border: none;
+        padding: 0;
     }
     
     ThemeSelector #theme-title {
         height: 1;
-        background: $primary;
-        color: $text;
+        background: $surface-darken-1;
+        color: $text-muted;
         content-align: center middle;
         text-style: bold;
-        margin: 0 -1;
+        border-bottom: solid $primary-darken-2;
     }
     
     ThemeSelector #theme-search {
         height: 1;
-        margin: 1 0 0 0;
+        margin: 1 1 0 1;
         display: none;
     }
     
@@ -46,7 +46,7 @@ class ThemeSelector(ModalScreen[str]):
     ThemeSelector #theme-list {
         height: auto;
         max-height: 15;
-        margin: 1 0;
+        margin: 0 1;
         border: none;
     }
     
@@ -58,6 +58,7 @@ class ThemeSelector(ModalScreen[str]):
         height: 1;
         color: $text-muted;
         content-align: center middle;
+        border-top: solid $primary-darken-2;
     }
     """
     

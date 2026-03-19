@@ -21,22 +21,22 @@ class SettingsModal(ModalScreen[dict]):
         height: auto;
         max-height: 25;
         background: $surface;
-        border: solid $primary;
-        padding: 0 1;
+        border: none;
+        padding: 0;
     }
     
     SettingsModal #settings-title {
         height: 1;
-        background: $primary;
-        color: $text;
+        background: $surface-darken-1;
+        color: $text-muted;
         content-align: center middle;
         text-style: bold;
-        margin: 0 -1;
+        border-bottom: solid $primary-darken-2;
     }
     
     SettingsModal #settings-search {
         height: 1;
-        margin: 1 0 0 0;
+        margin: 1 1 0 1;
         display: none;
     }
     
@@ -47,7 +47,7 @@ class SettingsModal(ModalScreen[dict]):
     SettingsModal #settings-list {
         height: auto;
         max-height: 18;
-        margin: 1 0;
+        margin: 0 1;
         border: none;
     }
     
@@ -59,8 +59,7 @@ class SettingsModal(ModalScreen[dict]):
         height: 1;
         color: $text-muted;
         content-align: center middle;
-        margin: 0 -1 -1 -1;
-        background: $surface-darken-1;
+        border-top: solid $primary-darken-2;
     }
     
     SettingsModal .setting-value {

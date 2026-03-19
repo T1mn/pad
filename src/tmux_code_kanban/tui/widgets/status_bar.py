@@ -61,6 +61,7 @@ class StatusBar(Static):
             parts.append("[bold green]⏎[/bold green] popup")
             parts.append("[bold green]s[/bold green] sess")
             parts.append("[bold green]r[/bold green] refresh")
+            parts.append("[bold green]F1[/bold green] settings")
             parts.append("[bold green]q[/bold green] quit")
             parts.append("|")
             
