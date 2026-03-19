@@ -22,6 +22,8 @@ from .widgets.panel_list import PanelList
 from .widgets.preview import PreviewPanel
 from .widgets.status_bar import StatusBar
 from .widgets.search_box import SearchBox
+from .widgets.settings_modal import SettingsModal
+from .widgets.theme_selector import ThemeSelector
 
 
 class KanbanApp(App):
@@ -67,6 +69,7 @@ class KanbanApp(App):
         Binding("G,end", "move_bottom", "Bottom", priority=True),
         Binding("plus", "next_page", "Next", priority=True),
         Binding("minus", "prev_page", "Prev", priority=True),
+        Binding("f1", "settings", "Settings", priority=True),
     ]
 
     # Reactive state
@@ -313,6 +316,31 @@ class KanbanApp(App):
     def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
+
+    def action_settings(self) -> None:
+        """Open settings modal."""
+        settings_screen = SettingsModal(
+            current_theme=self.theme_name,
+            auto_refresh=True,  # TODO: make this configurable
+            refresh_interval=self.refresh_interval,
+        )
+        self.push_screen(settings_screen, self._on_settings_closed)
+    
+    def _on_settings_closed(self, result: dict | None) -> None:
+        """Handle settings modal close."""
+        if result:
+            # Apply any changed settings
+            if result.get("theme") != self.theme_name:
+                self.theme_name = result["theme"]
+                self._apply_theme()
+                self.notify(f"Theme changed to: {self.theme_name}", severity="information")
+            # TODO: Handle other settings
+    
+    def on_settings_modal_theme_changed(self, event: SettingsModal.ThemeChanged) -> None:
+        """Handle theme change from settings modal."""
+        self.theme_name = event.theme
+        self._apply_theme()
+        self.notify(f"Theme changed to: {event.theme}", severity="information")
 
     async def action_refresh(self) -> None:
         """Manually refresh panels (async)."""
