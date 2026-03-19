@@ -96,16 +96,16 @@ class SettingsModal(ModalScreen[dict]):
     """
     
     BINDINGS = [
-        Binding("escape", "close", "Close"),
-        Binding("slash", "search", "Search"),
-        Binding("j,down", "move_down", "Down"),
-        Binding("k,up", "move_up", "Up"),
-        Binding("enter", "edit", "Edit"),
-        Binding("1", "jump_1", "Jump 1"),
-        Binding("2", "jump_2", "Jump 2"),
-        Binding("3", "jump_3", "Jump 3"),
-        Binding("4", "jump_4", "Jump 4"),
-        Binding("5", "jump_5", "Jump 5"),
+        Binding("escape", "dismiss", "Close", priority=True),
+        Binding("slash", "search", "Search", priority=True),
+        Binding("j,down", "move_down", "Down", priority=True),
+        Binding("k,up", "move_up", "Up", priority=True),
+        Binding("enter", "edit", "Edit", priority=True),
+        Binding("1", "jump_1", "Jump 1", priority=True),
+        Binding("2", "jump_2", "Jump 2", priority=True),
+        Binding("3", "jump_3", "Jump 3", priority=True),
+        Binding("4", "jump_4", "Jump 4", priority=True),
+        Binding("5", "jump_5", "Jump 5", priority=True),
     ]
     
     class ThemeChanged(Message):
@@ -300,7 +300,7 @@ class SettingsModal(ModalScreen[dict]):
             self._populate_list()
             self.post_message(self.ThemeChanged(theme_name))
     
-    def action_close(self) -> None:
+    def action_dismiss(self) -> None:
         result = {
             "theme": self.current_theme,
             "auto_refresh": self.auto_refresh,

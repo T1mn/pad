@@ -95,20 +95,20 @@ class ThemeSelector(ModalScreen[str]):
     """
     
     BINDINGS = [
-        Binding("escape", "cancel", "Cancel"),
-        Binding("slash", "search", "Search"),
-        Binding("j,down", "move_down", "Down"),
-        Binding("k,up", "move_up", "Up"),
-        Binding("enter", "select", "Select"),
-        Binding("1", "jump_1", "Jump 1"),
-        Binding("2", "jump_2", "Jump 2"),
-        Binding("3", "jump_3", "Jump 3"),
-        Binding("4", "jump_4", "Jump 4"),
-        Binding("5", "jump_5", "Jump 5"),
-        Binding("6", "jump_6", "Jump 6"),
-        Binding("7", "jump_7", "Jump 7"),
-        Binding("8", "jump_8", "Jump 8"),
-        Binding("9", "jump_9", "Jump 9"),
+        Binding("escape", "dismiss", "Cancel", priority=True),
+        Binding("slash", "search", "Search", priority=True),
+        Binding("j,down", "move_down", "Down", priority=True),
+        Binding("k,up", "move_up", "Up", priority=True),
+        Binding("enter", "select", "Select", priority=True),
+        Binding("1", "jump_1", "Jump 1", priority=True),
+        Binding("2", "jump_2", "Jump 2", priority=True),
+        Binding("3", "jump_3", "Jump 3", priority=True),
+        Binding("4", "jump_4", "Jump 4", priority=True),
+        Binding("5", "jump_5", "Jump 5", priority=True),
+        Binding("6", "jump_6", "Jump 6", priority=True),
+        Binding("7", "jump_7", "Jump 7", priority=True),
+        Binding("8", "jump_8", "Jump 8", priority=True),
+        Binding("9", "jump_9", "Jump 9", priority=True),
     ]
     
     THEMES = [
@@ -235,7 +235,7 @@ class ThemeSelector(ModalScreen[str]):
             name, textual_name, _ = theme
             self.dismiss(name)
     
-    def action_cancel(self) -> None:
+    def action_dismiss(self) -> None:
         self.dismiss(None)
     
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:

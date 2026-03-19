@@ -215,7 +215,7 @@ class KanbanApp(App):
             return
         
         panel = self.filtered_panels[self.selected_index]
-        content = capture_pane(panel.pane_id, start_line=-50)
+        content = capture_pane(panel.pane_id, start_line=-100, lines=0)
         
         # Calculate content hash
         content_hash = hashlib.md5(content.encode()).hexdigest()
@@ -294,7 +294,7 @@ class KanbanApp(App):
         title.update(title_text[:self.size.width - 10])
         
         # Update preview content
-        content = capture_pane(panel.pane_id, start_line=-50)
+        content = capture_pane(panel.pane_id, start_line=-100, lines=0)
         preview = self.query_one("#preview-content", PreviewPanel)
         preview.update_content(content, panel)
         

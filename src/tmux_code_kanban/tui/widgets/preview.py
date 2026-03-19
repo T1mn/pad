@@ -41,18 +41,36 @@ class PreviewPanel(Static):
         self.update(display_text)
         
         # Scroll to bottom to show latest content
-        # Use a small delay to ensure content is rendered before scrolling
-        import asyncio
-        async def scroll_to_bottom():
-            await asyncio.sleep(0.05)
-            self.scroll_end(animate=False)
-        asyncio.create_task(scroll_to_bottom())
+        self._scroll_to_bottom()
 
     def clear(self) -> None:
         """Clear the preview."""
         self._current_content = ""
         self._current_panel = None
         self.update("[dim]Select a panel to preview its content[/dim]")
+    
+    def _scroll_to_bottom(self) -> None:
+        """Scroll to the bottom of the preview."""
+        # Use call_after_refresh to ensure content is rendered
+        def do_scroll():
+            # Try scroll_end first
+            try:
+                self.scroll_end(animate=False)
+            except Exception:
+                pass
+            # Also try scrolling to a very large y value
+            try:
+                self.scroll_to(y=999999, animate=False)
+            except Exception:
+                pass
+        
+        # Schedule scroll after render
+        import asyncio
+        async def delayed_scroll():
+            await asyncio.sleep(0.1)
+            self.call_after_refresh(do_scroll)
+        
+        asyncio.create_task(delayed_scroll())
 
     def _process_content(self, content: str, panel: CodePanel) -> str:
         """Process raw tmux content for display.
