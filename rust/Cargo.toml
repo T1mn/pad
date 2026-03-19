@@ -1,9 +1,9 @@
 [package]
 name = "tmux-kanban-core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["T1mn <your.email@example.com>"]
-description = "High-performance core for tmux-ai-kanban"
+description = "High-performance core for tmux-code-kanban"
 license = "MIT"
 repository = "https://github.com/T1mn/tmux_kanban"
 

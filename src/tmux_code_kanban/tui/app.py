@@ -1,4 +1,4 @@
-"""TUI Application for tmux-ai-kanban."""
+"""TUI Application for tmux-code-kanban."""
 
 import asyncio
 import hashlib
@@ -14,8 +14,8 @@ from textual.timer import Timer
 from textual.widgets import Static, DataTable, Input, Label
 from textual.binding import Binding
 
-from ..models import AIType, AIPanel
-from ..detector_rust import scan_ai_panels, filter_panels
+from ..models import CodeType, CodePanel
+from ..detector_rust import scan_code_panels, filter_panels
 from ..tmux_client import is_tmux_running, capture_pane, switch_client, run_tmux
 
 from .widgets.panel_list import PanelList
@@ -25,7 +25,7 @@ from .widgets.search_box import SearchBox
 
 
 class KanbanApp(App):
-    """Tmux AI Kanban TUI Application."""
+    """Tmux Code Kanban TUI Application."""
 
     CSS_PATH = "styles.tcss"
     
@@ -54,8 +54,8 @@ class KanbanApp(App):
     ]
 
     # Reactive state
-    panels: reactive[List[AIPanel]] = reactive([])
-    filtered_panels: reactive[List[AIPanel]] = reactive([])
+    panels: reactive[List[CodePanel]] = reactive([])
+    filtered_panels: reactive[List[CodePanel]] = reactive([])
     selected_index: reactive[int] = reactive(0)
     search_query: reactive[str] = reactive("")
     is_searching: reactive[bool] = reactive(False)
@@ -71,7 +71,7 @@ class KanbanApp(App):
 
     def __init__(
         self,
-        filter_ai: Optional[AIType] = None,
+        filter_code: Optional[CodeType] = None,
         refresh_interval: int = 60,
         *args,
         **kwargs
@@ -79,11 +79,11 @@ class KanbanApp(App):
         """Initialize the Kanban App.
         
         Args:
-            filter_ai: Optional AI type filter
+            filter_code: Optional code type filter
             refresh_interval: Panel list refresh interval in seconds
         """
         super().__init__(*args, **kwargs)
-        self.filter_ai = filter_ai
+        self.filter_code = filter_code
         self.refresh_interval = refresh_interval
         self._pane_list_version = 0
 
@@ -96,7 +96,7 @@ class KanbanApp(App):
         with Horizontal(id="main-content"):
             # Left panel - List
             with Vertical(id="panel-list-container"):
-                yield Static("🔍 AI Panels", id="panel-list-title")
+                yield Static("🔍 Code Panels", id="panel-list-title")
                 yield PanelList(id="panel-table")
             
             # Right panel - Preview
@@ -109,7 +109,7 @@ class KanbanApp(App):
 
     async def on_mount(self) -> None:
         """Initialize on mount."""
-        self.title = "Tmux AI Kanban"
+        self.title = "Tmux Code Kanban"
         
         # Initialize thread pool
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -187,13 +187,13 @@ class KanbanApp(App):
             preview = self.query_one("#preview-content", PreviewPanel)
             preview.update_content(content, panel)
 
-    def _fetch_panels(self) -> List[AIPanel]:
-        """Fetch AI panels from tmux."""
+    def _fetch_panels(self) -> List[CodePanel]:
+        """Fetch code panels from tmux."""
         self.is_refreshing = True
         try:
-            panels = scan_ai_panels()
-            if self.filter_ai:
-                panels = filter_panels(panels, self.filter_ai)
+            panels = scan_code_panels()
+            if self.filter_code:
+                panels = filter_panels(panels, self.filter_code)
             return panels
         finally:
             self.is_refreshing = False
@@ -294,11 +294,11 @@ class KanbanApp(App):
             self.is_refreshing = False
             self._update_status_bar()
     
-    def _fetch_panels_sync(self) -> List[AIPanel]:
+    def _fetch_panels_sync(self) -> List[CodePanel]:
         """Synchronous wrapper for fetching and sorting panels."""
-        panels = scan_ai_panels()
-        if self.filter_ai:
-            panels = filter_panels(panels, self.filter_ai)
+        panels = scan_code_panels()
+        if self.filter_code:
+            panels = filter_panels(panels, self.filter_code)
         
         # Sort by last_activity (descending) - most recent first
         # Panels with last_activity=0 (no activity) go to the end
@@ -337,7 +337,7 @@ class KanbanApp(App):
         
         # Generate unique temporary session name
         import uuid
-        temp_session = f"tak-popup-{uuid.uuid4().hex[:8]}"
+        temp_session = f"pad-popup-{uuid.uuid4().hex[:8]}"
         
         try:
             # Step 1: Create a temporary detached session
@@ -399,7 +399,7 @@ class KanbanApp(App):
                 supports_title = False
             
             if supports_title:
-                cmd.extend(["-T", f"{panel.ai_type.value} @ {panel.full_id}"])
+                cmd.extend(["-T", f"{panel.code_type.value} @ {panel.full_id}"])
             
             # Step 5: Add the attach command
             # When user exits (Ctrl+B D or Ctrl+D), the popup closes
@@ -438,7 +438,7 @@ class KanbanApp(App):
         """Attach to selected panel by switching tmux client.
         
         Kanban will be detached to a background session.
-        User can return with 'tmux attach -t tak-kanban' or restart tak tui.
+        User can return with 'tmux attach -t pad-kanban' or restart pad.
         """
         if not self.filtered_panels or self.selected_index >= len(self.filtered_panels):
             self.notify("No panel selected", severity="error")
@@ -447,7 +447,7 @@ class KanbanApp(App):
         panel = self.filtered_panels[self.selected_index]
         
         # Create a detached session for kanban if not exists
-        kanban_session = "tak-kanban"
+        kanban_session = "pad-kanban"
         try:
             # Check if session exists
             result = subprocess.run(

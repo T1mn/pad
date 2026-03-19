@@ -1,12 +1,12 @@
-"""Data models for tmux AI kanban."""
+"""Data models for tmux code kanban."""
 
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional
 
 
-class AIType(str, Enum):
-    """AI tool types."""
+class CodeType(str, Enum):
+    """Code tool types."""
     CLAUDE = "claude"
     CODEX = "codex"
     KIMI = "kimi"
@@ -36,17 +36,17 @@ class GitInfo:
 
 
 @dataclass
-class AIPanel:
-    """AI panel information."""
+class CodePanel:
+    """Code panel information."""
     # Tmux identifiers
     session: str
     window: str
     pane: str
     pane_id: str
     
-    # AI info
-    ai_type: AIType
-    ai_version: Optional[str] = None
+    # Code tool info
+    code_type: CodeType
+    code_version: Optional[str] = None
     
     # Working directory
     working_dir: str = ""
@@ -94,4 +94,4 @@ class AIPanel:
         return " | ".join(parts)
     
     def __str__(self) -> str:
-        return f"{self.ai_type.value}@{self.full_id}"
+        return f"{self.code_type.value}@{self.full_id}"

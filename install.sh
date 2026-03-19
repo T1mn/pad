@@ -1,15 +1,15 @@
 #!/bin/bash
-# Universal installer for tmux-ai-kanban
+# Universal installer for tmux-code-kanban
 # Supports: uv, pip, and fallback to source
 
 set -e
 
 REPO="T1mn/tmux_kanban"
-PACKAGE="tmux-ai-kanban"
+PACKAGE="tmux-code-kanban"
 RUST_PACKAGE="tmux-kanban-core"
 
 echo "=============================================="
-echo "Tmux AI Kanban Installer"
+echo "Tmux Code Kanban Installer"
 echo "=============================================="
 
 # Colors
@@ -142,16 +142,16 @@ main() {
     # Verify installation
     echo ""
     echo "Verifying installation..."
-    if command -v tak &> /dev/null; then
+    if command -v pad &> /dev/null; then
         echo -e "${GREEN}✓ Installation successful!${NC}"
         echo ""
         echo "Usage:"
-        echo "  tak tui        # Launch interactive TUI"
-        echo "  tak list       # List AI panels"
-        echo "  tak --help     # Show help"
+        echo "  pad            # Launch interactive TUI"
+        echo "  pad tk         # Launch TUI (alias)"
+        echo "  pad --help     # Show help"
         echo ""
         echo "Quick start:"
-        echo "  1. Run: tak tui"
+        echo "  1. Run: pad"
         echo "  2. Use ↑/↓ or j/k to navigate"
         echo "  3. Press Enter to open a panel"
         echo "  4. Press q to quit"
@@ -164,19 +164,19 @@ main() {
 
 # Check for help flag
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-    echo "Tmux AI Kanban Installer"
+    echo "Tmux Code Kanban Installer"
     echo ""
     echo "This script will:"
     echo "  1. Check Python 3.9+ is installed"
     echo "  2. Detect the best package manager (uv > pip)"
-    echo "  3. Install tmux-ai-kanban"
+    echo "  3. Install tmux-code-kanban"
     echo "  4. Optionally install Rust core for better performance"
     echo ""
     echo "Options:"
     echo "  --help, -h     Show this help"
     echo ""
     echo "Manual installation:"
-    echo "  pip install tmux-ai-kanban"
+    echo "  pip install tmux-code-kanban"
     exit 0
 fi
 

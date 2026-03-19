@@ -5,18 +5,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::tmux::{capture_pane, get_all_child_processes, list_panes, PaneInfo};
 
 #[derive(Debug, Clone)]
-pub struct AIPanel {
+pub struct CodePanel {
     pub session: String,
     pub window: String,
     pub pane: String,
     pub pane_id: String,
-    pub ai_type: String,
+    pub code_type: String,
     pub working_dir: String,
     pub is_active: bool,
     pub last_activity: f64,
 }
 
-const AI_PATTERNS: &[(&str, &[&str])] = &[
+const CODE_PATTERNS: &[(&str, &[&str])] = &[
     ("claude", &["claude"]),
     ("codex", &["codex"]),
     ("kimi", &["Kimi", "kimi", "Kimi Code"]),
@@ -33,9 +33,9 @@ const ACTIVE_MARKERS: &[&str] = &[
     "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
 ];
 
-pub async fn scan_ai_panels() -> Vec<AIPanel> {
+pub async fn scan_code_panels() -> Vec<CodePanel> {
     let panes = list_panes().await;
-    let mut ai_panels = Vec::new();
+    let mut code_panels = Vec::new();
     
     // Process panes concurrently
     let tasks: Vec<_> = panes
@@ -45,17 +45,17 @@ pub async fn scan_ai_panels() -> Vec<AIPanel> {
     
     for task in tasks {
         if let Ok(Some(panel)) = task.await {
-            ai_panels.push(panel);
+            code_panels.push(panel);
         }
     }
     
     // Sort by last_activity (descending)
-    ai_panels.sort_by(|a, b| b.last_activity.partial_cmp(&a.last_activity).unwrap());
+    code_panels.sort_by(|a, b| b.last_activity.partial_cmp(&a.last_activity).unwrap());
     
-    ai_panels
+    code_panels
 }
 
-async fn process_pane(pane: PaneInfo) -> Option<AIPanel> {
+async fn process_pane(pane: PaneInfo) -> Option<CodePanel> {
     let pid = pane.pane_pid;
     if pid == 0 {
         return None;
@@ -65,13 +65,13 @@ async fn process_pane(pane: PaneInfo) -> Option<AIPanel> {
     let child_processes = get_all_child_processes(pid).await;
     let current_cmd = &pane.pane_current_command;
     
-    // Detect AI type
-    let ai_type = detect_ai_type(current_cmd, &child_processes);
-    if ai_type.is_none() {
+    // Detect code type
+    let code_type = detect_code_type(current_cmd, &child_processes);
+    if code_type.is_none() {
         return None;
     }
     
-    let ai_type = ai_type.unwrap();
+    let code_type = code_type.unwrap();
     
     // Capture pane content
     let content = capture_pane(&pane.pane_id).await;
@@ -87,29 +87,29 @@ async fn process_pane(pane: PaneInfo) -> Option<AIPanel> {
         0.0
     };
     
-    Some(AIPanel {
+    Some(CodePanel {
         session: pane.session_name,
         window: pane.window_name,
         pane: pane.pane_index.clone(),
         pane_id: pane.pane_id,
-        ai_type,
+        code_type,
         working_dir: pane.pane_current_path,
         is_active,
         last_activity,
     })
 }
 
-fn detect_ai_type(current_cmd: &str, child_processes: &[String]) -> Option<String> {
+fn detect_code_type(current_cmd: &str, child_processes: &[String]) -> Option<String> {
     let all_processes: HashSet<String> = std::iter::once(current_cmd.to_lowercase())
         .chain(child_processes.iter().map(|s| s.to_lowercase()))
         .collect();
     
     let process_str = all_processes.iter().cloned().collect::<Vec<_>>().join(" ");
     
-    for (ai_type, patterns) in AI_PATTERNS {
+    for (code_type, patterns) in CODE_PATTERNS {
         for pattern in *patterns {
             if process_str.contains(&pattern.to_lowercase()) {
-                return Some(ai_type.to_string());
+                return Some(code_type.to_string());
             }
         }
     }

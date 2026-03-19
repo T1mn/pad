@@ -3,7 +3,7 @@
 from textual.widgets import Static
 from textual.scroll_view import ScrollView
 
-from ...models import AIPanel
+from ...models import CodePanel
 
 
 class PreviewPanel(Static):
@@ -24,14 +24,14 @@ class PreviewPanel(Static):
         """Initialize the preview panel."""
         super().__init__("", *args, **kwargs)
         self._current_content = ""
-        self._current_panel: AIPanel | None = None
+        self._current_panel: CodePanel | None = None
 
-    def update_content(self, content: str, panel: AIPanel) -> None:
+    def update_content(self, content: str, panel: CodePanel) -> None:
         """Update the preview content.
         
         Args:
             content: Raw tmux pane content
-            panel: The AI panel being previewed
+            panel: The code panel being previewed
         """
         self._current_content = content
         self._current_panel = panel
@@ -46,14 +46,14 @@ class PreviewPanel(Static):
         self._current_panel = None
         self.update("[dim]Select a panel to preview its content[/dim]")
 
-    def _process_content(self, content: str, panel: AIPanel) -> str:
+    def _process_content(self, content: str, panel: CodePanel) -> str:
         """Process raw tmux content for display.
         
         Preserves formatting but handles edge cases.
         
         Args:
             content: Raw tmux content
-            panel: AI panel info
+            panel: Code panel info
             
         Returns:
             Processed content for display

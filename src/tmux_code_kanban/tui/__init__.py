@@ -1,4 +1,4 @@
-"""TUI module for tmux-ai-kanban."""
+"""TUI module for tmux-code-kanban."""
 
 from .app import KanbanApp
 

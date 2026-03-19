@@ -1,44 +1,44 @@
-"""AI panel detector - identify panes running AI tools."""
+"""Code panel detector - identify panes running code tools."""
 
 import re
 import time
 from typing import List, Optional
 
-from .models import AIType, AIPanel, GitInfo, GitStatus
+from .models import CodeType, CodePanel, GitInfo, GitStatus
 from .tmux_client import get_all_child_processes, list_panes, capture_pane
 from .git_info import get_git_info
 
 
-# AI tool process patterns
-AI_PATTERNS = {
-    AIType.CLAUDE: ["claude"],
-    AIType.CODEX: ["codex"],
-    AIType.KIMI: ["Kimi", "kimi", "Kimi Code"],
+# Code tool process patterns
+CODE_PATTERNS = {
+    CodeType.CLAUDE: ["claude"],
+    CodeType.CODEX: ["codex"],
+    CodeType.KIMI: ["Kimi", "kimi", "Kimi Code"],
 }
 
 
-def detect_ai_type(processes: List[str]) -> Optional[AIType]:
-    """Detect AI type from process list.
+def detect_code_type(processes: List[str]) -> Optional[CodeType]:
+    """Detect code type from process list.
     
     Args:
         processes: List of process command names
-    
+
     Returns:
-        Detected AI type or None
+        Detected code type or None
     """
     process_str = " ".join(processes).lower()
     
-    # Check each AI type
-    for ai_type, patterns in AI_PATTERNS.items():
+    # Check each code type
+    for code_type, patterns in CODE_PATTERNS.items():
         for pattern in patterns:
             if pattern.lower() in process_str:
-                return ai_type
+                return code_type
     
     return None
 
 
-def get_ai_version(ai_type: AIType, processes: List[str]) -> Optional[str]:
-    """Try to extract AI tool version.
+def get_code_version(code_type: CodeType, processes: List[str]) -> Optional[str]:
+    """Try to extract code tool version.
     
     For now, return simple identifier. Could be extended to parse --version.
     """
@@ -53,7 +53,7 @@ def extract_content_summary(content: str, max_lines: int = 5) -> str:
     Args:
         content: Full pane content
         max_lines: Maximum lines to include in summary
-    
+
     Returns:
         Truncated content with last non-empty lines
     """
@@ -158,18 +158,18 @@ def is_panel_active(content: str) -> bool:
     return any(marker in content_lower for marker in active_markers)
 
 
-def scan_ai_panels() -> List[AIPanel]:
-    """Scan all tmux panes and identify AI panels.
+def scan_code_panels() -> List[CodePanel]:
+    """Scan all tmux panes and identify code panels.
     
     Returns:
-        List of AIPanel objects
+        List of CodePanel objects
     """
-    ai_panels = []
+    code_panels = []
     
     try:
         panes = list_panes()
     except Exception:
-        return ai_panels
+        return code_panels
     
     for pane_info in panes:
         pid = pane_info.get("pane_pid", 0)
@@ -181,9 +181,9 @@ def scan_ai_panels() -> List[AIPanel]:
         current_cmd = pane_info.get("pane_current_command", "")
         all_processes = [current_cmd] + child_processes
         
-        # Detect AI type
-        ai_type = detect_ai_type(all_processes)
-        if not ai_type:
+        # Detect code type
+        code_type = detect_code_type(all_processes)
+        if not code_type:
             continue
         
         # Get pane content (capture more history)
@@ -208,13 +208,13 @@ def scan_ai_panels() -> List[AIPanel]:
         last_activity = time.time() if is_active else 0.0
         
         # Create panel object
-        panel = AIPanel(
+        panel = CodePanel(
             session=pane_info["session_name"],
             window=pane_info["window_name"],
             pane=pane_info["pane_index"],
             pane_id=pane_id,
-            ai_type=ai_type,
-            ai_version=get_ai_version(ai_type, all_processes),
+            code_type=code_type,
+            code_version=get_code_version(code_type, all_processes),
             working_dir=working_dir,
             git_info=git_info,
             last_content=extract_content_summary(content),
@@ -225,27 +225,27 @@ def scan_ai_panels() -> List[AIPanel]:
             process_count=len(all_processes),
         )
         
-        ai_panels.append(panel)
+        code_panels.append(panel)
     
-    return ai_panels
+    return code_panels
 
 
-def filter_panels(panels: List[AIPanel], ai_type: Optional[AIType] = None) -> List[AIPanel]:
+def filter_panels(panels: List[CodePanel], code_type: Optional[CodeType] = None) -> List[CodePanel]:
     """Filter panels by criteria.
     
     Args:
         panels: List of panels to filter
-        ai_type: Optional AI type to filter by
-    
+        code_type: Optional code type to filter by
+
     Returns:
         Filtered list
     """
-    if ai_type is None:
+    if code_type is None:
         return panels
-    return [p for p in panels if p.ai_type == ai_type]
+    return [p for p in panels if p.code_type == code_type]
 
 
-def group_panels_by_session(panels: List[AIPanel]) -> dict:
+def group_panels_by_session(panels: List[CodePanel]) -> dict:
     """Group panels by tmux session."""
     groups = {}
     for panel in panels:

@@ -1,4 +1,4 @@
-"""Panel list widget for displaying AI panels."""
+"""Panel list widget for displaying code panels."""
 
 from typing import List
 
@@ -7,14 +7,14 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.timer import Timer
 
-from ...models import AIPanel, AIType
+from ...models import CodePanel, CodeType
 
 # Spinner characters for active state
 SPINNER_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
 class PanelList(DataTable):
-    """Widget for displaying the list of AI panels."""
+    """Widget for displaying the list of code panels."""
 
     DEFAULT_CSS = """
     PanelList {
@@ -32,7 +32,7 @@ class PanelList(DataTable):
             super().__init__()
 
     # Track current panels for selection mapping
-    _panels: List[AIPanel] = []
+    _panels: List[CodePanel] = []
     _selected_index: int = 0
     
     # Spinner animation
@@ -50,21 +50,21 @@ class PanelList(DataTable):
         """Setup columns on mount."""
         self.add_columns(
             "#",        # Index for quick jump
-            "AI",       # AI type emoji
+            "Type",     # Code type emoji
             "Status",   # Active/Idle
             "Location", # session:window.pane
             "Directory",# Working directory (shortened)
             "Git",      # Branch@commit
         )
         
-        # Start spinner animation timer
-        self._spinner_timer = self.set_interval(0.1, self._update_spinner)
+        # Start spinner animation timer (slower to reduce flicker)
+        self._spinner_timer = self.set_interval(0.2, self._update_spinner)
 
-    def update_panels(self, panels: List[AIPanel], selected_index: int = 0) -> None:
+    def update_panels(self, panels: List[CodePanel], selected_index: int = 0) -> None:
         """Update the displayed panels.
         
         Args:
-            panels: List of AI panels to display
+            panels: List of code panels to display
             selected_index: Currently selected index
         """
         self._panels = panels
@@ -85,24 +85,33 @@ class PanelList(DataTable):
         """Update spinner animation for active panels."""
         # Only update if there are active panels visible
         has_active = any(p.is_active for p in self._panels)
-        if has_active:
+        if has_active and self.row_count > 0:
             self._spinner_index = (self._spinner_index + 1) % len(SPINNER_CHARS)
-            # Refresh the table to show new spinner state
-            self._refresh_spinner_cells()
+            # Use update_cell to only update status column without clearing table
+            self._update_spinner_cells_efficient()
     
-    def _refresh_spinner_cells(self) -> None:
-        """Refresh only the status cells with spinners."""
-        # For now, just re-render the whole table (simplest approach)
-        # In production, you might want to update only changed cells
-        if self._panels:
-            self.clear()
-            for idx, panel in enumerate(self._panels):
-                row = self._format_row(idx, panel)
-                self.add_row(*row)
-            if 0 <= self._selected_index < len(self._panels):
-                self.move_cursor(row=self._selected_index)
+    def _update_spinner_cells_efficient(self) -> None:
+        """Efficiently update only the status cells with spinners.
+        
+        This uses update_cell instead of clear/add_row to preserve cursor position.
+        """
+        # Status column is at index 2
+        STATUS_COL = 2
+        
+        for row_idx, panel in enumerate(self._panels):
+            if row_idx >= self.row_count:
+                break
+            
+            # Only update if panel is active (has spinner)
+            if panel.is_active:
+                status = SPINNER_CHARS[self._spinner_index]
+                try:
+                    self.update_cell_at((row_idx, STATUS_COL), status)
+                except Exception:
+                    # If update fails, skip this cell
+                    pass
     
-    def _get_status_icon(self, panel: AIPanel) -> str:
+    def _get_status_icon(self, panel: CodePanel) -> str:
         """Get status icon for a panel.
         
         Returns:
@@ -121,15 +130,13 @@ class PanelList(DataTable):
         """Handle blur event."""
         # Remove tint when not focused
         self.styles.background_tint = "transparent"
-    
 
-
-    def _format_row(self, idx: int, panel: AIPanel) -> tuple:
+    def _format_row(self, idx: int, panel: CodePanel) -> tuple:
         """Format a panel as a table row.
         
         Args:
             idx: Row index (0-based, displayed as 1-based)
-            panel: AI panel to format
+            panel: Code panel to format
             
         Returns:
             Tuple of column values
@@ -137,14 +144,14 @@ class PanelList(DataTable):
         # Index (1-9 displayed, 0 for others)
         display_idx = str(idx + 1) if idx < 9 else ""
         
-        # AI type with emoji
-        ai_emojis = {
-            AIType.CLAUDE: "🟣C",
-            AIType.CODEX: "🔵X",
-            AIType.KIMI: "🟢K",
-            AIType.UNKNOWN: "⚪?",
+        # Code type with emoji
+        type_emojis = {
+            CodeType.CLAUDE: "🟣C",
+            CodeType.CODEX: "🔵X",
+            CodeType.KIMI: "🟢K",
+            CodeType.UNKNOWN: "⚪?",
         }
-        ai_display = ai_emojis.get(panel.ai_type, "⚪?")
+        type_display = type_emojis.get(panel.code_type, "⚪?")
         
         # Status - spinner for active, checkmark for idle
         status = self._get_status_icon(panel)
@@ -158,7 +165,7 @@ class PanelList(DataTable):
         # Git: branch@commit(+changes)
         git_info = self._format_git(panel)
         
-        return (display_idx, ai_display, status, location, directory, git_info)
+        return (display_idx, type_display, status, location, directory, git_info)
 
     def _shorten_path(self, path: str, max_len: int = 20) -> str:
         """Shorten a path for display.
@@ -195,11 +202,11 @@ class PanelList(DataTable):
             return "..." + path[-(max_len-3):]
         return path
 
-    def _format_git(self, panel: AIPanel) -> str:
+    def _format_git(self, panel: CodePanel) -> str:
         """Format git info for display.
         
         Args:
-            panel: AI panel
+            panel: Code panel
             
         Returns:
             Formatted git string like main@a1b2c3(+2)
