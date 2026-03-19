@@ -52,7 +52,7 @@ class KanbanApp(App):
         Binding("r", "refresh", "Refresh", priority=True),
         Binding("slash", "search", "Search", priority=True),
         Binding("escape", "cancel_search", "Cancel", priority=True),
-        Binding("enter", "attach_popup", "Attach (Popup)", priority=True),
+        Binding("enter", "attach_popup", "Attach (Popup)"),
         Binding("s", "attach_session", "Attach (Session)", priority=True),
         Binding("j,down", "move_down", "Down"),
         Binding("k,up", "move_up", "Up"),

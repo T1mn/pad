@@ -1,8 +1,8 @@
 """Settings modal for configuring the application."""
 
 from textual.screen import ModalScreen
-from textual.widgets import Static, DataTable, Input, Switch
-from textual.containers import Vertical
+from textual.widgets import Static, DataTable, Input
+from textual.containers import Vertical, Horizontal
 from textual.reactive import reactive
 from textual.binding import Binding
 from textual.message import Message
@@ -17,58 +17,81 @@ class SettingsModal(ModalScreen[dict]):
     }
     
     SettingsModal > Vertical {
-        width: 60;
+        width: 50;
         height: auto;
-        max-height: 25;
+        max-height: 22;
         background: $surface;
-        border: none;
         padding: 0;
     }
     
-    SettingsModal #settings-title {
-        height: 1;
-        background: $surface-darken-1;
-        color: $text-muted;
+    SettingsModal #settings-header {
+        height: 3;
+        background: transparent;
         content-align: center middle;
+        margin: 1 0 0 0;
+    }
+    
+    SettingsModal #settings-title {
+        color: $text;
         text-style: bold;
-        border-bottom: solid $primary-darken-2;
+    }
+    
+    SettingsModal #settings-subtitle {
+        color: $text-muted;
     }
     
     SettingsModal #settings-search {
         height: 1;
-        margin: 1 1 0 1;
+        margin: 0 2 1 2;
         display: none;
+        border: none;
+        border-bottom: solid $primary-darken-2;
+        background: transparent;
     }
     
     SettingsModal #settings-search.visible {
         display: block;
     }
     
+    SettingsModal #settings-search:focus {
+        border-bottom: solid $accent;
+    }
+    
     SettingsModal #settings-list {
         height: auto;
-        max-height: 18;
-        margin: 0 1;
+        max-height: 12;
+        margin: 0 2;
         border: none;
+        background: transparent;
     }
     
     SettingsModal #settings-list:focus {
         border: none;
     }
     
+    SettingsModal #settings-list > .datatable--header {
+        display: none;
+    }
+    
+    SettingsModal #settings-list > .datatable--row {
+        height: 1;
+        background: transparent;
+    }
+    
+    SettingsModal #settings-list > .datatable--row-hover {
+        background: $primary-darken-3;
+    }
+    
+    SettingsModal #settings-list > .datatable--row-selected {
+        background: $accent-darken-2;
+        color: $text;
+    }
+    
     SettingsModal #settings-help {
         height: 1;
         color: $text-muted;
         content-align: center middle;
-        border-top: solid $primary-darken-2;
-    }
-    
-    SettingsModal .setting-value {
-        color: $accent;
-        text-style: bold;
-    }
-    
-    SettingsModal .setting-desc {
-        color: $text-muted;
+        margin: 1 0 1 0;
     }
     """
     
@@ -105,32 +128,22 @@ class SettingsModal(ModalScreen[dict]):
         *args,
         **kwargs
     ):
-        """Initialize settings modal.
-        
-        Args:
-            current_theme: Current theme name
-            auto_refresh: Whether auto refresh is enabled
-            refresh_interval: Refresh interval in seconds
-        """
         super().__init__(*args, **kwargs)
         self.current_theme = current_theme
         self.auto_refresh = auto_refresh
         self.refresh_interval = refresh_interval
         self.search_mode = False
         self.selected_index = 0
-        
-        # Build settings list
         self._all_settings = self._build_settings()
         self.filtered_settings = self._all_settings.copy()
     
     def _build_settings(self) -> list:
-        """Build the settings list."""
         return [
             {
                 "id": "theme",
                 "name": "Theme",
                 "value": self.current_theme,
-                "description": "Color scheme for the UI",
+                "description": "Color scheme",
                 "editable": True,
                 "type": "select",
             },
@@ -138,7 +151,7 @@ class SettingsModal(ModalScreen[dict]):
                 "id": "auto_refresh",
                 "name": "Auto Refresh",
                 "value": "On" if self.auto_refresh else "Off",
-                "description": "Automatically refresh panel list",
+                "description": "Auto-refresh panel list",
                 "editable": True,
                 "type": "toggle",
             },
@@ -146,7 +159,7 @@ class SettingsModal(ModalScreen[dict]):
                 "id": "refresh_interval",
                 "name": "Refresh Interval",
                 "value": f"{self.refresh_interval}s",
-                "description": "Seconds between automatic refreshes",
+                "description": "Seconds between refreshes",
                 "editable": False,
                 "type": "number",
             },
@@ -154,53 +167,49 @@ class SettingsModal(ModalScreen[dict]):
                 "id": "version",
                 "name": "Version",
                 "value": "0.2.0",
-                "description": "Current version of tmux-code-kanban",
+                "description": "tmux-code-kanban",
                 "editable": False,
                 "type": "text",
             },
         ]
     
     def compose(self):
-        """Compose the settings modal."""
         with Vertical():
-            yield Static("⚙ Settings (F1)", id="settings-title")
-            yield Input(placeholder="Search settings...", id="settings-search")
+            with Vertical(id="settings-header"):
+                yield Static("⚙  Settings", id="settings-title")
+                yield Static("Configuration", id="settings-subtitle")
+            yield Input(placeholder="Search...", id="settings-search")
             yield DataTable(id="settings-list")
-            yield Static("↑/k ↓/j  |  Enter to edit  |  / to search  |  Esc to close", id="settings-help")
+            yield Static("j/k move · enter edit · / search · esc close", id="settings-help")
     
     def on_mount(self) -> None:
-        """Initialize the settings list."""
         table = self.query_one("#settings-list", DataTable)
         table.cursor_type = "row"
-        table.show_header = True
-        table.add_columns("Setting", "Value", "Description")
+        table.show_header = False
+        table.add_columns("Setting", "Value")
         
         self._populate_list()
-        
-        # Focus the table
         table.focus()
     
     def _populate_list(self) -> None:
-        """Populate the settings list."""
         table = self.query_one("#settings-list", DataTable)
         table.clear()
         
-        for idx, setting in enumerate(self.filtered_settings):
+        for setting in self.filtered_settings:
             name = setting["name"]
             value = setting["value"]
-            desc = setting["description"]
             
-            # Style the value
-            value_display = f"[accent]{value}[/accent]"
+            if setting["editable"]:
+                value_display = f"[accent]{value}[/accent]  ›"
+            else:
+                value_display = f"[text-muted]{value}[/text-muted]"
             
-            table.add_row(name, value_display, desc)
+            table.add_row(name, value_display)
         
-        # Restore selection
         if self.selected_index < len(self.filtered_settings):
             table.move_cursor(row=self.selected_index)
     
     def _get_selected_setting(self) -> dict | None:
-        """Get the currently selected setting."""
         table = self.query_one("#settings-list", DataTable)
         cursor_row = table.cursor_row
         
@@ -209,21 +218,18 @@ class SettingsModal(ModalScreen[dict]):
         return None
     
     def action_move_down(self) -> None:
-        """Move selection down."""
         table = self.query_one("#settings-list", DataTable)
         if table.cursor_row < len(self.filtered_settings) - 1:
             table.move_cursor(row=table.cursor_row + 1)
             self.selected_index = table.cursor_row
     
     def action_move_up(self) -> None:
-        """Move selection up."""
         table = self.query_one("#settings-list", DataTable)
         if table.cursor_row > 0:
             table.move_cursor(row=table.cursor_row - 1)
             self.selected_index = table.cursor_row
     
     def action_jump(self, index: int) -> None:
-        """Jump to setting by index."""
         if index < len(self.filtered_settings):
             table = self.query_one("#settings-list", DataTable)
             table.move_cursor(row=index)
@@ -236,7 +242,6 @@ class SettingsModal(ModalScreen[dict]):
     def action_jump_5(self) -> None: self.action_jump(4)
     
     def action_search(self) -> None:
-        """Toggle search mode."""
         self.search_mode = not self.search_mode
         search_input = self.query_one("#settings-search", Input)
         
@@ -252,7 +257,6 @@ class SettingsModal(ModalScreen[dict]):
             table.focus()
     
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle search input changes."""
         if not self.search_mode:
             return
         
@@ -269,7 +273,6 @@ class SettingsModal(ModalScreen[dict]):
         self._populate_list()
     
     def action_edit(self) -> None:
-        """Edit the current setting."""
         setting = self._get_selected_setting()
         if not setting or not setting["editable"]:
             return
@@ -277,34 +280,27 @@ class SettingsModal(ModalScreen[dict]):
         setting_id = setting["id"]
         
         if setting_id == "theme":
-            # Push theme selector screen
             from .theme_selector import ThemeSelector
             self.app.push_screen(
                 ThemeSelector(current_theme=self.current_theme),
                 self._on_theme_selected
             )
         elif setting_id == "auto_refresh":
-            # Toggle auto refresh
             self.auto_refresh = not self.auto_refresh
             setting["value"] = "On" if self.auto_refresh else "Off"
             self._populate_list()
-            # Notify parent
             self.post_message(self.AutoRefreshChanged(self.auto_refresh))
     
     def _on_theme_selected(self, theme_name: str | None) -> None:
-        """Handle theme selection result."""
         if theme_name:
             self.current_theme = theme_name
-            # Update the setting display
             for s in self._all_settings:
                 if s["id"] == "theme":
                     s["value"] = theme_name
             self._populate_list()
-            # Notify parent
             self.post_message(self.ThemeChanged(theme_name))
     
     def action_close(self) -> None:
-        """Close settings modal."""
         result = {
             "theme": self.current_theme,
             "auto_refresh": self.auto_refresh,

@@ -20,45 +20,77 @@ class ThemeSelector(ModalScreen[str]):
         height: auto;
         max-height: 20;
         background: $surface;
-        border: none;
         padding: 0;
     }
     
-    ThemeSelector #theme-title {
-        height: 1;
-        background: $surface-darken-1;
-        color: $text-muted;
+    ThemeSelector #theme-header {
+        height: 3;
+        background: transparent;
         content-align: center middle;
+        margin: 1 0 0 0;
+    }
+    
+    ThemeSelector #theme-title {
+        color: $text;
         text-style: bold;
-        border-bottom: solid $primary-darken-2;
+    }
+    
+    ThemeSelector #theme-subtitle {
+        color: $text-muted;
     }
     
     ThemeSelector #theme-search {
         height: 1;
-        margin: 1 1 0 1;
+        margin: 0 2 1 2;
         display: none;
+        border: none;
+        border-bottom: solid $primary-darken-2;
+        background: transparent;
     }
     
     ThemeSelector #theme-search.visible {
         display: block;
     }
     
+    ThemeSelector #theme-search:focus {
+        border-bottom: solid $accent;
+    }
+    
     ThemeSelector #theme-list {
         height: auto;
-        max-height: 15;
-        margin: 0 1;
+        max-height: 12;
+        margin: 0 2;
         border: none;
+        background: transparent;
     }
     
     ThemeSelector #theme-list:focus {
         border: none;
     }
     
+    ThemeSelector #theme-list > .datatable--header {
+        display: none;
+    }
+    
+    ThemeSelector #theme-list > .datatable--row {
+        height: 1;
+        background: transparent;
+    }
+    
+    ThemeSelector #theme-list > .datatable--row-hover {
+        background: $primary-darken-3;
+    }
+    
+    ThemeSelector #theme-list > .datatable--row-selected {
+        background: $accent-darken-2;
+        color: $text;
+    }
+    
     ThemeSelector #theme-help {
         height: 1;
         color: $text-muted;
         content-align: center middle;
-        border-top: solid $primary-darken-2;
+        margin: 1 0 1 0;
     }
     """
     
@@ -79,28 +111,19 @@ class ThemeSelector(ModalScreen[str]):
         Binding("9", "jump_9", "Jump 9"),
     ]
     
-    # Available themes
     THEMES = [
-        ("default", "textual-dark", "Default dark theme"),
-        ("dark", "textual-dark", "Dark theme"),
-        ("light", "textual-light", "Light theme"),
-        ("dracula", "dracula", "Dracula dark theme"),
-        ("nord", "nord", "Nord color palette"),
-        ("gruvbox", "gruvbox", "Gruvbox retro"),
-        ("catppuccin", "catppuccin-mocha", "Catppuccin mocha"),
+        ("default", "textual-dark", "Default"),
+        ("dracula", "dracula", "Dracula"),
+        ("nord", "nord", "Nord"),
+        ("gruvbox", "gruvbox", "Gruvbox"),
+        ("catppuccin", "catppuccin-mocha", "Catppuccin"),
         ("tokyo-night", "tokyo-night", "Tokyo Night"),
-        ("monokai", "monokai", "Monokai classic"),
-        ("solarized-dark", "solarized-dark", "Solarized dark"),
-        ("solarized-light", "solarized-light", "Solarized light"),
+        ("monokai", "monokai", "Monokai"),
+        ("solarized-dark", "solarized-dark", "Solarized"),
         ("rose-pine", "rose-pine", "Rose Pine"),
     ]
     
     def __init__(self, current_theme: str = "default", *args, **kwargs):
-        """Initialize theme selector.
-        
-        Args:
-            current_theme: Currently selected theme name
-        """
         super().__init__(*args, **kwargs)
         self.current_theme = current_theme
         self.filtered_themes = self.THEMES.copy()
@@ -108,41 +131,38 @@ class ThemeSelector(ModalScreen[str]):
         self.selected_index = 0
     
     def compose(self):
-        """Compose the theme selector."""
         with Vertical():
-            yield Static("Select Theme", id="theme-title")
-            yield Input(placeholder="Search themes...", id="theme-search")
+            with Vertical(id="theme-header"):
+                yield Static("🎨  Theme", id="theme-title")
+                yield Static("Select color scheme", id="theme-subtitle")
+            yield Input(placeholder="Search...", id="theme-search")
             yield DataTable(id="theme-list")
-            yield Static("↑/k ↓/j  |  Enter to select  |  Esc to cancel", id="theme-help")
+            yield Static("j/k move · enter select · / search · esc cancel", id="theme-help")
     
     def on_mount(self) -> None:
-        """Initialize the theme list."""
         table = self.query_one("#theme-list", DataTable)
         table.cursor_type = "row"
         table.show_header = False
         table.add_columns("Name", "Description")
         
         self._populate_list()
-        
-        # Focus the table
         table.focus()
     
     def _populate_list(self) -> None:
-        """Populate the theme list."""
         table = self.query_one("#theme-list", DataTable)
         table.clear()
         
-        for idx, (name, textual_name, desc) in enumerate(self.filtered_themes):
-            # Mark current theme
-            display_name = f"● {name}" if name == self.current_theme else f"  {name}"
+        for name, textual_name, desc in self.filtered_themes:
+            if name == self.current_theme:
+                display_name = f"✓ [accent]{name}[/accent]"
+            else:
+                display_name = f"  {name}"
             table.add_row(display_name, desc)
         
-        # Restore selection
         if self.selected_index < len(self.filtered_themes):
             table.move_cursor(row=self.selected_index)
     
     def _get_selected_theme(self) -> tuple | None:
-        """Get the currently selected theme."""
         table = self.query_one("#theme-list", DataTable)
         cursor_row = table.cursor_row
         
@@ -151,21 +171,18 @@ class ThemeSelector(ModalScreen[str]):
         return None
     
     def action_move_down(self) -> None:
-        """Move selection down."""
         table = self.query_one("#theme-list", DataTable)
         if table.cursor_row < len(self.filtered_themes) - 1:
             table.move_cursor(row=table.cursor_row + 1)
             self.selected_index = table.cursor_row
     
     def action_move_up(self) -> None:
-        """Move selection up."""
         table = self.query_one("#theme-list", DataTable)
         if table.cursor_row > 0:
             table.move_cursor(row=table.cursor_row - 1)
             self.selected_index = table.cursor_row
     
     def action_jump(self, index: int) -> None:
-        """Jump to theme by index."""
         if index < len(self.filtered_themes):
             table = self.query_one("#theme-list", DataTable)
             table.move_cursor(row=index)
@@ -182,7 +199,6 @@ class ThemeSelector(ModalScreen[str]):
     def action_jump_9(self) -> None: self.action_jump(8)
     
     def action_search(self) -> None:
-        """Toggle search mode."""
         self.search_mode = not self.search_mode
         search_input = self.query_one("#theme-search", Input)
         
@@ -198,7 +214,6 @@ class ThemeSelector(ModalScreen[str]):
             table.focus()
     
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Handle search input changes."""
         if not self.search_mode:
             return
         
@@ -215,16 +230,13 @@ class ThemeSelector(ModalScreen[str]):
         self._populate_list()
     
     def action_select(self) -> None:
-        """Select the current theme."""
         theme = self._get_selected_theme()
         if theme:
             name, textual_name, _ = theme
             self.dismiss(name)
     
     def action_cancel(self) -> None:
-        """Cancel theme selection."""
         self.dismiss(None)
     
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Handle row selection via click/enter."""
         self.action_select()

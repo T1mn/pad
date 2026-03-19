@@ -40,10 +40,13 @@ class PreviewPanel(Static):
         display_text = self._process_content(content, panel)
         self.update(display_text)
         
-        # Scroll to bottom to show latest content (after refresh completes)
-        def scroll_to_bottom():
+        # Scroll to bottom to show latest content
+        # Use a small delay to ensure content is rendered before scrolling
+        import asyncio
+        async def scroll_to_bottom():
+            await asyncio.sleep(0.05)
             self.scroll_end(animate=False)
-        self.call_after_refresh(scroll_to_bottom)
+        asyncio.create_task(scroll_to_bottom())
 
     def clear(self) -> None:
         """Clear the preview."""
