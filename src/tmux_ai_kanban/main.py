@@ -8,7 +8,7 @@ from rich import print as rprint
 
 from . import __version__
 from .models import AIType
-from .detector import scan_ai_panels, filter_panels
+from .detector_rust import scan_ai_panels, filter_panels
 from .tmux_client import is_tmux_running, switch_client
 from .ui.table import display_panels
 

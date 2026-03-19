@@ -15,7 +15,7 @@ from textual.widgets import Static, DataTable, Input, Label
 from textual.binding import Binding
 
 from ..models import AIType, AIPanel
-from ..detector import scan_ai_panels, filter_panels
+from ..detector_rust import scan_ai_panels, filter_panels
 from ..tmux_client import is_tmux_running, capture_pane, switch_client, run_tmux
 
 from .widgets.panel_list import PanelList

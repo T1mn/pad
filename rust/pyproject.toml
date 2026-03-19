@@ -6,10 +6,8 @@ build-backend = "maturin"
 name = "tmux-kanban-core"
 version = "0.1.0"
 description = "High-performance Rust core for tmux-ai-kanban"
-readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 
 [tool.maturin]
-python-source = "../src"
 module-name = "tmux_kanban_core"

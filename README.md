@@ -11,37 +11,34 @@ Manage and monitor AI coding assistants (Claude, Codex, Kimi) running in tmux pa
 - 🎯 **Filter & Search** by AI type, session, directory
 - 🚀 **High Performance** - Rust core for 2-3x speedup
 
-## Installation
+## Quick Install
 
-### From PyPI (Recommended)
+### One-liner (Recommended)
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/T1mn/tmux_kanban/main/install.sh | bash
+```
+
+### UV (Fastest)
+
+```bash
+uv tool install tmux-ai-kanban
+```
+
+### Pip
+
+```bash
+# Global
 pip install tmux-ai-kanban
-```
 
-### China Mirror (国内镜像)
-
-```bash
-# 清华镜像
+# China mirror
 pip install tmux-ai-kanban -i https://pypi.tuna.tsinghua.edu.cn/simple
-
-# 阿里云镜像
-pip install tmux-ai-kanban -i https://mirrors.aliyun.com/pypi/simple/
-
-# 豆瓣镜像
-pip install tmux-ai-kanban -i https://pypi.doubanio.com/simple/
 ```
 
-### From GitHub
+### With Rust Core (Best Performance)
 
 ```bash
-pip install git+https://github.com/T1mn/tmux_kanban.git
-```
-
-### From Gitee (国内)
-
-```bash
-pip install git+https://gitee.com/yourname/tmux_kanban.git
+pip install tmux-ai-kanban tmux-kanban-core
 ```
 
 ## Usage
@@ -89,18 +86,16 @@ ai-kanban show <pane_id>
 ai-kanban jump <session> <window> <pane>
 ```
 
-## Rust Core (高性能模式)
+## Performance
 
-Install Rust core for 2-3x performance improvement:
+| Mode | 10 panes | 50 panes |
+|------|----------|----------|
+| Python | ~800ms | ~4s |
+| **Rust** | ~300ms | ~1.2s |
 
+Enable Rust core for 2-3x speedup:
 ```bash
 pip install tmux-kanban-core
-```
-
-Verify:
-```python
-from tmux_ai_kanban.detector_rust import is_rust_available
-print(is_rust_available())  # True
 ```
 
 ## Supported AI Tools
@@ -114,6 +109,19 @@ print(is_rust_available())  # True
 - Python 3.9+
 - tmux 3.0+
 - Linux/macOS
+
+## Development
+
+```bash
+git clone https://github.com/T1mn/tmux_kanban.git
+cd tmux_kanban
+pip install -e .
+
+# Build Rust core (optional)
+cd rust
+maturin build --release
+pip install target/wheels/*.whl
+```
 
 ## License
 
