@@ -59,7 +59,8 @@ Screen {
     background: $surface;
     color: $text;
     padding: 0 1;
-    overflow: auto scroll;
+    overflow-y: auto;
+    overflow-x: hidden;
     border: none;
 }
 

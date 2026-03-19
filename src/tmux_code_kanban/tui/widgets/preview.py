@@ -16,7 +16,9 @@ class PreviewPanel(Static):
         background: $surface;
         color: $text;
         padding: 0 1;
-        overflow: auto scroll;
+        overflow-y: auto;
+        overflow-x: hidden;
+        content-align-vertical: bottom;
     }
     """
 
@@ -50,40 +52,47 @@ class PreviewPanel(Static):
         self.update("[dim]Select a panel to preview its content[/dim]")
     
     def _scroll_to_bottom(self) -> None:
-        """Scroll to the bottom of the preview."""
-        # Use call_after_refresh to ensure content is rendered
-        def do_scroll():
-            # Get the actual scrollable height and scroll to bottom
-            try:
-                # Method 1: Use max_scroll_y
-                if hasattr(self, 'max_scroll_y') and self.max_scroll_y is not None:
-                    self.scroll_y = self.max_scroll_y
-                    return
-            except Exception:
-                pass
-            
-            # Method 2: Use scroll_end action
-            try:
-                self.action_scroll_end()
-                return
-            except Exception:
-                pass
-            
-            # Method 3: Try scroll_to with large value
-            try:
-                self.scroll_to(y=999999, animate=False)
-            except Exception:
-                pass
-        
-        # Schedule scroll after render with multiple attempts
+        """Scroll to the bottom of the preview to show latest content."""
         import asyncio
-        async def delayed_scroll():
-            # Try multiple times with increasing delays
-            for delay in [0.05, 0.1, 0.2]:
-                await asyncio.sleep(delay)
-                self.call_after_refresh(do_scroll)
         
-        asyncio.create_task(delayed_scroll())
+        async def do_scroll():
+            """Perform scroll with retries."""
+            # Wait for content to be rendered
+            await asyncio.sleep(0.05)
+            
+            # Try to scroll to bottom using multiple methods
+            for _ in range(3):
+                try:
+                    # Get the scrollable region
+                    if hasattr(self, 'scrollable_content_region'):
+                        region = self.scrollable_content_region
+                        if region:
+                            # Scroll to show the bottom of the content
+                            target_y = max(0, region.height - self.size.height)
+                            self.scroll_to(y=target_y, animate=False)
+                            return
+                except Exception:
+                    pass
+                
+                try:
+                    # Alternative: use max_scroll_y
+                    if hasattr(self, 'max_scroll_y'):
+                        self.scroll_y = self.max_scroll_y
+                        return
+                except Exception:
+                    pass
+                
+                try:
+                    # Last resort: action_scroll_end
+                    self.action_scroll_end()
+                    return
+                except Exception:
+                    pass
+                
+                await asyncio.sleep(0.05)
+        
+        # Run scroll task
+        asyncio.create_task(do_scroll())
 
     def _process_content(self, content: str, panel: CodePanel) -> str:
         """Process raw tmux content for display.

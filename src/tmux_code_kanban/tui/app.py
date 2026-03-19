@@ -108,6 +108,7 @@ class KanbanApp(App):
         self.refresh_interval = refresh_interval
         self.theme_name = theme
         self._pane_list_version = 0
+        self._settings_open = False
 
     def compose(self) -> ComposeResult:
         """Compose the UI layout."""
@@ -319,6 +320,9 @@ class KanbanApp(App):
 
     def action_settings(self) -> None:
         """Open settings modal."""
+        if self._settings_open:
+            return
+        self._settings_open = True
         settings_screen = SettingsModal(
             current_theme=self.theme_name,
             auto_refresh=True,  # TODO: make this configurable
@@ -328,6 +332,7 @@ class KanbanApp(App):
     
     def _on_settings_closed(self, result: dict | None) -> None:
         """Handle settings modal close."""
+        self._settings_open = False
         if result:
             # Apply any changed settings
             if result.get("theme") != self.theme_name:
