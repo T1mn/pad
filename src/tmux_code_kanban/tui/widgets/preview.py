@@ -39,6 +39,9 @@ class PreviewPanel(Static):
         # Process and display content
         display_text = self._process_content(content, panel)
         self.update(display_text)
+        
+        # Scroll to bottom to show latest content
+        self.scroll_end(animate=False)
 
     def clear(self) -> None:
         """Clear the preview."""
