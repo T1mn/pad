@@ -1,0 +1,175 @@
+/* Tmux AI Kanban TUI Styles */
+
+/* Main layout */
+Screen {
+    layout: vertical;
+}
+
+#main-content {
+    width: 100%;
+    height: 1fr;
+    layout: horizontal;
+}
+
+/* Left panel - AI Panel List */
+#panel-list-container {
+    width: 40%;
+    height: 100%;
+    border: solid $primary;
+    background: $surface-darken-1;
+}
+
+#panel-list-title {
+    width: 100%;
+    height: 1;
+    background: $primary;
+    color: $text;
+    content-align: center middle;
+    text-style: bold;
+}
+
+#panel-table {
+    width: 100%;
+    height: 1fr;
+    background: $surface;
+    color: $text;
+}
+
+/* Right panel - Preview */
+#preview-container {
+    width: 60%;
+    height: 100%;
+    border: solid $primary;
+    background: $surface-darken-1;
+}
+
+#preview-title {
+    width: 100%;
+    height: 1;
+    background: $primary-darken-2;
+    color: $text;
+    content-align: left middle;
+    padding: 0 1;
+}
+
+#preview-content {
+    width: 100%;
+    height: 1fr;
+    background: $surface;
+    color: $text;
+    padding: 0 1;
+    overflow: auto scroll;
+}
+
+/* Status Bar */
+#status-bar {
+    width: 100%;
+    height: 1;
+    background: $primary-darken-3;
+    color: $text;
+    content-align: left middle;
+    padding: 0 1;
+    dock: bottom;
+}
+
+.status-info {
+    color: $text;
+}
+
+.status-key {
+    color: $success;
+    text-style: bold;
+}
+
+.status-count {
+    color: $warning;
+    text-style: bold;
+}
+
+.status-refreshing {
+    color: $success;
+    text-style: blink;
+}
+
+/* Search Box */
+#search-container {
+    width: 100%;
+    height: auto;
+    background: $surface-darken-2;
+    border: solid $primary;
+    padding: 0 1;
+    display: none;
+    dock: bottom;
+    layer: overlay;
+}
+
+#search-container.visible {
+    display: block;
+}
+
+/* Table styles */
+.data-table {
+    background: $surface;
+}
+
+.data-table > .datatable--header {
+    background: $primary-darken-1;
+    color: $text;
+    text-style: bold;
+}
+
+.data-table > .datatable--row {
+    background: $surface;
+    color: $text;
+}
+
+.data-table > .datatable--row-hover {
+    background: $primary-darken-2;
+}
+
+.data-table > .datatable--row-selected {
+    background: $primary;
+    color: $text;
+    text-style: bold;
+}
+
+/* AI type colors */
+.ai-claude {
+    color: #9333ea;  /* purple-600 */
+}
+
+.ai-codex {
+    color: #2563eb;  /* blue-600 */
+}
+
+.ai-kimi {
+    color: #16a34a;  /* green-600 */
+}
+
+/* Status indicators */
+.status-active {
+    color: $success;
+    text-style: bold;
+}
+
+.status-idle {
+    color: $text-muted;
+}
+
+/* Path styling */
+.path-short {
+    color: $text-muted;
+}
+
+/* Git info */
+.git-clean {
+    color: $success;
+}
+
+.git-dirty {
+    color: $warning;
+}
+
+.git-no-git {
+    color: $text-muted;
+}
