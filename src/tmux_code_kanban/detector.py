@@ -140,22 +140,43 @@ def is_panel_active(content: str) -> bool:
     """Check if panel appears to be actively working.
     
     Heuristics:
-    - Contains loading indicators
-    - Recent activity markers
+    - AI-specific thinking indicators
+    - AI tool specific spinners
+    - Avoid generic terms like 'loading' which cause false positives
     """
-    active_markers = [
-        "thinking",
-        "loading",
-        "processing",
-        "generating",
-        "running",
-        "executing",
-        "⋯",
-        "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",  # spinner chars
+    content_lower = content.lower()
+    
+    # AI-specific thinking indicators (high confidence)
+    ai_thinking_markers = [
+        "thinking",           # Claude, Codex thinking state
+        "processing",         # Generic AI processing
+        "generating",         # AI generating response
+        "analyzing",          # AI analyzing code
+        " reasoning",         # AI reasoning (with space to avoid false match)
     ]
     
-    content_lower = content.lower()
-    return any(marker in content_lower for marker in active_markers)
+    for marker in ai_thinking_markers:
+        if marker in content_lower:
+            return True
+    
+    # AI-specific spinner characters
+    ai_spinners = [
+        "⋯",                  # Claude's thinking ellipsis (U+22EF)
+    ]
+    
+    for spinner in ai_spinners:
+        if spinner in content:
+            return True
+    
+    # Braille spinners - only if near AI context (to avoid npm/yarn loading)
+    braille_spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    if any(s in content for s in braille_spinners):
+        # Check if AI context exists (look for AI-related terms nearby)
+        ai_context = ["claude", "codex", "kimi", "assistant", "ai"]
+        if any(ctx in content_lower for ctx in ai_context):
+            return True
+    
+    return False
 
 
 def scan_code_panels() -> List[CodePanel]:

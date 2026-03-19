@@ -49,6 +49,10 @@ def main(
         60, "--refresh-interval", "-r",
         help="Panel list refresh interval in seconds"
     ),
+    theme: str = typer.Option(
+        "default", "--theme", "-t",
+        help="Color theme: default, dark, dracula, nord, gruvbox, catppuccin, tokyo-night, monokai, solarized-dark, rose-pine"
+    ),
 ):
     """Tmux Code Kanban - Manage your code panels in tmux.
     
@@ -77,7 +81,7 @@ def main(
             raise typer.Exit(1)
     
     # Run TUI
-    tui_app = KanbanApp(filter_code=code_type, refresh_interval=refresh_interval)
+    tui_app = KanbanApp(filter_code=code_type, refresh_interval=refresh_interval, theme=theme)
     tui_app.run()
 
 
@@ -85,6 +89,7 @@ def main(
 def tk_command(
     filter_code: Optional[str] = typer.Option(None, "--filter", "-f"),
     refresh_interval: int = typer.Option(60, "--refresh-interval", "-r"),
+    theme: str = typer.Option("default", "--theme", "-t"),
 ):
     """Launch TUI (alias)."""
     if not TUI_AVAILABLE:
@@ -105,7 +110,7 @@ def tk_command(
             raise typer.Exit(1)
     
     # Run TUI
-    tui_app = KanbanApp(filter_code=code_type, refresh_interval=refresh_interval)
+    tui_app = KanbanApp(filter_code=code_type, refresh_interval=refresh_interval, theme=theme)
     tui_app.run()
 
 

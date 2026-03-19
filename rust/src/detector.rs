@@ -1,4 +1,3 @@
-use regex::Regex;
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -22,16 +21,49 @@ const CODE_PATTERNS: &[(&str, &[&str])] = &[
     ("kimi", &["Kimi", "kimi", "Kimi Code"]),
 ];
 
-const ACTIVE_MARKERS: &[&str] = &[
-    "thinking",
-    "loading",
-    "processing",
-    "generating",
-    "running",
-    "executing",
-    "⋯",
-    "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
-];
+/// Check if panel appears to be actively working
+/// Focus on AI-specific indicators, avoid generic terms like "loading"
+fn is_panel_active(content: &str) -> bool {
+    let content_lower = content.to_lowercase();
+    
+    // AI-specific thinking indicators (high confidence)
+    let ai_thinking = [
+        "thinking",
+        "processing",
+        "generating",
+        "analyzing",
+        " reasoning",
+    ];
+    
+    for marker in &ai_thinking {
+        if content_lower.contains(marker) {
+            return true;
+        }
+    }
+    
+    // AI-specific spinner characters
+    let ai_spinners = ["⋯"];  // Claude's thinking ellipsis
+    for spinner in &ai_spinners {
+        if content.contains(spinner) {
+            return true;
+        }
+    }
+    
+    // Braille spinners - only if near AI context
+    let braille = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let has_braille = braille.iter().any(|&s| content.contains(s));
+    
+    if has_braille {
+        // Check for AI context to avoid npm/yarn loading
+        let ai_context = ["claude", "codex", "kimi", "assistant", "ai"];
+        let has_ai_context = ai_context.iter().any(|&ctx| content_lower.contains(ctx));
+        if has_ai_context {
+            return true;
+        }
+    }
+    
+    false
+}
 
 pub async fn scan_code_panels() -> Vec<CodePanel> {
     let panes = list_panes().await;
@@ -115,11 +147,6 @@ fn detect_code_type(current_cmd: &str, child_processes: &[String]) -> Option<Str
     }
     
     None
-}
-
-fn is_panel_active(content: &str) -> bool {
-    let content_lower = content.to_lowercase();
-    ACTIVE_MARKERS.iter().any(|marker| content_lower.contains(marker))
 }
 
 pub fn extract_content_summary(content: &str, max_lines: usize) -> String {

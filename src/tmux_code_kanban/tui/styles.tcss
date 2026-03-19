@@ -1,4 +1,4 @@
-/* Tmux AI Kanban TUI Styles */
+/* Tmux Code Kanban TUI Styles */
 
 /* Main layout */
 Screen {
@@ -11,7 +11,7 @@ Screen {
     layout: horizontal;
 }
 
-/* Left panel - AI Panel List */
+/* Left panel - Code Panel List */
 #panel-list-container {
     width: 40%;
     height: 100%;
@@ -133,22 +133,22 @@ Screen {
     text-style: bold;
 }
 
-/* AI type colors */
+/* Code type colors - using CSS variables for theme compatibility */
 .ai-claude {
-    color: #9333ea;  /* purple-600 */
+    color: $accent;
 }
 
 .ai-codex {
-    color: #2563eb;  /* blue-600 */
+    color: $primary-lighten-2;
 }
 
 .ai-kimi {
-    color: #16a34a;  /* green-600 */
+    color: $success;
 }
 
 /* Status indicators */
 .status-active {
-    color: $success;
+    color: $warning;
     text-style: bold;
 }
 

@@ -9,9 +9,6 @@ from textual.timer import Timer
 
 from ...models import CodePanel, CodeType
 
-# Spinner characters for active state
-SPINNER_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
 
 class PanelList(DataTable):
     """Widget for displaying the list of code panels."""
@@ -35,9 +32,9 @@ class PanelList(DataTable):
     _panels: List[CodePanel] = []
     _selected_index: int = 0
     
-    # Spinner animation
-    _spinner_index: int = 0
-    _spinner_timer: Timer = None
+    # Pulse animation for active state
+    _pulse_state: bool = False
+    _pulse_timer: Timer = None
 
     def __init__(self, *args, **kwargs):
         """Initialize the panel list."""
@@ -57,8 +54,8 @@ class PanelList(DataTable):
             "Git",      # Branch@commit
         )
         
-        # Start spinner animation timer (slower to reduce flicker)
-        self._spinner_timer = self.set_interval(0.2, self._update_spinner)
+        # Start pulse animation timer (slower, gentler pulse)
+        self._pulse_timer = self.set_interval(0.6, self._update_pulse)
 
     def update_panels(self, panels: List[CodePanel], selected_index: int = 0) -> None:
         """Update the displayed panels.
@@ -81,17 +78,17 @@ class PanelList(DataTable):
         if panels and 0 <= selected_index < len(panels):
             self.move_cursor(row=selected_index)
     
-    def _update_spinner(self) -> None:
-        """Update spinner animation for active panels."""
+    def _update_pulse(self) -> None:
+        """Update pulse animation for active panels."""
         # Only update if there are active panels visible
         has_active = any(p.is_active for p in self._panels)
         if has_active and self.row_count > 0:
-            self._spinner_index = (self._spinner_index + 1) % len(SPINNER_CHARS)
+            self._pulse_state = not self._pulse_state
             # Use update_cell to only update status column without clearing table
-            self._update_spinner_cells_efficient()
+            self._update_active_cells_efficient()
     
-    def _update_spinner_cells_efficient(self) -> None:
-        """Efficiently update only the status cells with spinners.
+    def _update_active_cells_efficient(self) -> None:
+        """Efficiently update only the active status cells.
         
         This uses update_cell instead of clear/add_row to preserve cursor position.
         """
@@ -102,24 +99,24 @@ class PanelList(DataTable):
             if row_idx >= self.row_count:
                 break
             
-            # Only update if panel is active (has spinner)
+            # Only update if panel is active
             if panel.is_active:
-                status = SPINNER_CHARS[self._spinner_index]
+                # Toggle between bright and dim for pulse effect
+                status = "[bold yellow]⚡[/bold yellow]" if self._pulse_state else "[dim yellow]⚡[/dim yellow]"
                 try:
                     self.update_cell_at((row_idx, STATUS_COL), status)
                 except Exception:
-                    # If update fails, skip this cell
                     pass
     
     def _get_status_icon(self, panel: CodePanel) -> str:
         """Get status icon for a panel.
         
         Returns:
-            Spinner char if active, checkmark if idle
+            Lightning bolt if active, circle if idle
         """
         if panel.is_active:
-            return SPINNER_CHARS[self._spinner_index]
-        return "✓"
+            return "[bold yellow]⚡[/bold yellow]"
+        return "[dim]○[/dim]"
     
     def on_focus(self) -> None:
         """Handle focus event."""
@@ -153,7 +150,7 @@ class PanelList(DataTable):
         }
         type_display = type_emojis.get(panel.code_type, "⚪?")
         
-        # Status - spinner for active, checkmark for idle
+        # Status - lightning for active, circle for idle
         status = self._get_status_icon(panel)
         
         # Location: session:window.pane

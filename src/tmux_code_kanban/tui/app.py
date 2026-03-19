@@ -29,6 +29,22 @@ class KanbanApp(App):
 
     CSS_PATH = "styles.tcss"
     
+    # Available themes mapping
+    THEMES = {
+        "default": "textual-dark",
+        "dark": "textual-dark",
+        "light": "textual-light",
+        "dracula": "dracula",
+        "nord": "nord",
+        "gruvbox": "gruvbox",
+        "catppuccin": "catppuccin-mocha",
+        "tokyo-night": "tokyo-night",
+        "monokai": "monokai",
+        "solarized-dark": "solarized-dark",
+        "solarized-light": "solarized-light",
+        "rose-pine": "rose-pine",
+    }
+    
     BINDINGS = [
         Binding("q,ctrl+c", "quit", "Quit", priority=True),
         Binding("r", "refresh", "Refresh", priority=True),
@@ -73,6 +89,7 @@ class KanbanApp(App):
         self,
         filter_code: Optional[CodeType] = None,
         refresh_interval: int = 60,
+        theme: str = "default",
         *args,
         **kwargs
     ):
@@ -81,10 +98,12 @@ class KanbanApp(App):
         Args:
             filter_code: Optional code type filter
             refresh_interval: Panel list refresh interval in seconds
+            theme: Color theme name
         """
         super().__init__(*args, **kwargs)
         self.filter_code = filter_code
         self.refresh_interval = refresh_interval
+        self.theme_name = theme
         self._pane_list_version = 0
 
     def compose(self) -> ComposeResult:
@@ -110,6 +129,9 @@ class KanbanApp(App):
     async def on_mount(self) -> None:
         """Initialize on mount."""
         self.title = "Tmux Code Kanban"
+        
+        # Apply theme
+        self._apply_theme()
         
         # Initialize thread pool
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -138,6 +160,22 @@ class KanbanApp(App):
             self.log("PanelList focused")
         except Exception as e:
             self.log(f"Failed to focus PanelList: {e}")
+    
+    def _apply_theme(self) -> None:
+        """Apply the selected color theme."""
+        theme_key = self.theme_name.lower()
+        textual_theme = self.THEMES.get(theme_key, "textual-dark")
+        
+        try:
+            self.theme = textual_theme
+            self.log(f"Applied theme: {textual_theme}")
+        except Exception as e:
+            self.log(f"Failed to apply theme {textual_theme}: {e}")
+            # Fallback to default
+            try:
+                self.theme = "textual-dark"
+            except Exception:
+                pass
     
     def watch_focused(self, focused) -> None:
         """Watch for focus changes and log them."""
