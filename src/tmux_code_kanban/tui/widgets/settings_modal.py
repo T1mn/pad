@@ -96,7 +96,9 @@ class SettingsModal(ModalScreen[dict]):
     """
     
     BINDINGS = [
-        Binding("escape", "dismiss", "Close", priority=True),
+        Binding("escape", "close", "Close", priority=True),
+        Binding("left", "close", "Back", priority=True),
+        Binding("right", "edit", "Enter", priority=True),
         Binding("slash", "search", "Search", priority=True),
         Binding("j,down", "move_down", "Down", priority=True),
         Binding("k,up", "move_up", "Up", priority=True),
@@ -300,7 +302,8 @@ class SettingsModal(ModalScreen[dict]):
             self._populate_list()
             self.post_message(self.ThemeChanged(theme_name))
     
-    def action_dismiss(self) -> None:
+    def action_close(self) -> None:
+        """Close settings modal."""
         result = {
             "theme": self.current_theme,
             "auto_refresh": self.auto_refresh,

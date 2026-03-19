@@ -53,22 +53,35 @@ class PreviewPanel(Static):
         """Scroll to the bottom of the preview."""
         # Use call_after_refresh to ensure content is rendered
         def do_scroll():
-            # Try scroll_end first
+            # Get the actual scrollable height and scroll to bottom
             try:
-                self.scroll_end(animate=False)
+                # Method 1: Use max_scroll_y
+                if hasattr(self, 'max_scroll_y') and self.max_scroll_y is not None:
+                    self.scroll_y = self.max_scroll_y
+                    return
             except Exception:
                 pass
-            # Also try scrolling to a very large y value
+            
+            # Method 2: Use scroll_end action
+            try:
+                self.action_scroll_end()
+                return
+            except Exception:
+                pass
+            
+            # Method 3: Try scroll_to with large value
             try:
                 self.scroll_to(y=999999, animate=False)
             except Exception:
                 pass
         
-        # Schedule scroll after render
+        # Schedule scroll after render with multiple attempts
         import asyncio
         async def delayed_scroll():
-            await asyncio.sleep(0.1)
-            self.call_after_refresh(do_scroll)
+            # Try multiple times with increasing delays
+            for delay in [0.05, 0.1, 0.2]:
+                await asyncio.sleep(delay)
+                self.call_after_refresh(do_scroll)
         
         asyncio.create_task(delayed_scroll())
 

@@ -95,7 +95,8 @@ class ThemeSelector(ModalScreen[str]):
     """
     
     BINDINGS = [
-        Binding("escape", "dismiss", "Cancel", priority=True),
+        Binding("escape", "cancel", "Cancel", priority=True),
+        Binding("left", "cancel", "Back", priority=True),
         Binding("slash", "search", "Search", priority=True),
         Binding("j,down", "move_down", "Down", priority=True),
         Binding("k,up", "move_up", "Up", priority=True),
@@ -235,7 +236,8 @@ class ThemeSelector(ModalScreen[str]):
             name, textual_name, _ = theme
             self.dismiss(name)
     
-    def action_dismiss(self) -> None:
+    def action_cancel(self) -> None:
+        """Cancel theme selection."""
         self.dismiss(None)
     
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
