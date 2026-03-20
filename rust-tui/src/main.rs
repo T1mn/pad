@@ -3,53 +3,76 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use ratatui::{
-    backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, Cell, Clear, HighlightSpacing, Paragraph, Row, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Table, TableState, Wrap,
-    },
-    Frame, Terminal,
+    backend::CrosstermBackend,
+    widgets::TableState,
+    Terminal,
 };
 use std::{
+    collections::HashMap,
     error::Error,
-    io,
+    io::{self, Read, Write},
     process::Command,
     time::{Duration, Instant},
 };
-use tokio::time::interval;
+use tokio::sync::mpsc;
 
+mod fuzzy;
 mod model;
 mod scanner;
 mod ui;
 
-use model::{CodePanel, CodeType};
+use fuzzy::fuzzy_select_directory;
+use model::CodePanel;
 use scanner::scan_panels;
+
+/// Settings configuration
+#[derive(Clone, Debug)]
+pub struct Settings {
+    pub theme: String,
+    pub auto_refresh: bool,
+    pub refresh_interval: Duration,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            theme: String::from("default"),
+            auto_refresh: true,
+            refresh_interval: Duration::from_secs(10),
+        }
+    }
+}
+
+/// Async scan result channel type
+type ScanResult = Result<Vec<CodePanel>, Box<dyn Error + Send + Sync>>;
 
 /// Application state
 struct App {
-    /// List of panels
     panels: Vec<CodePanel>,
-    /// Table state for selection
     table_state: TableState,
-    /// Current mode
     mode: Mode,
-    /// Last refresh time
     last_refresh: Instant,
-    /// Auto refresh interval
+    #[allow(dead_code)]
     refresh_interval: Duration,
-    /// Search query
     search_query: String,
-    /// Is searching
     is_searching: bool,
-    /// Preview content
     preview_content: String,
-    /// Settings modal open
+    preview_pane_id: Option<String>,
+    #[allow(dead_code)]
+    content_hashes: HashMap<String, String>,
     settings_open: bool,
-    /// Should quit
+    settings: Settings,
+    theme_selector_open: bool,
+    settings_selected: usize,
+    theme_selected: usize,
+    scan_in_progress: bool,
+    scan_rx: Option<mpsc::Receiver<ScanResult>>,
+    preview_update_in_progress: bool,
+    preview_rx: Option<mpsc::Receiver<(String, String)>>,
+    last_preview_update: Instant,
+    refresh_after_attach: bool,
     should_quit: bool,
 }
 
@@ -58,6 +81,7 @@ enum Mode {
     Normal,
     Search,
     Settings,
+    ThemeSelector,
 }
 
 impl App {
@@ -70,11 +94,23 @@ impl App {
             table_state,
             mode: Mode::Normal,
             last_refresh: Instant::now(),
-            refresh_interval: Duration::from_secs(2),
+            refresh_interval: Duration::from_secs(10),
             search_query: String::new(),
             is_searching: false,
             preview_content: String::from("Select a panel to preview"),
+            preview_pane_id: None,
+            content_hashes: HashMap::new(),
             settings_open: false,
+            settings: Settings::default(),
+            theme_selector_open: false,
+            settings_selected: 0,
+            theme_selected: 0,
+            scan_in_progress: false,
+            scan_rx: None,
+            preview_update_in_progress: false,
+            preview_rx: None,
+            last_preview_update: Instant::now(),
+            refresh_after_attach: false,
             should_quit: false,
         }
     }
@@ -91,7 +127,7 @@ impl App {
             None => 0,
         };
         self.table_state.select(Some(i));
-        self.update_preview();
+        self.preview_pane_id = None;
     }
 
     fn previous(&mut self) {
@@ -106,7 +142,14 @@ impl App {
             None => 0,
         };
         self.table_state.select(Some(i));
-        self.update_preview();
+        self.preview_pane_id = None;
+    }
+
+    fn jump_to(&mut self, index: usize) {
+        if index < self.filtered_panels().len() {
+            self.table_state.select(Some(index));
+            self.preview_pane_id = None;
+        }
     }
 
     fn filtered_panels(&self) -> Vec<&CodePanel> {
@@ -132,49 +175,372 @@ impl App {
             .and_then(|i| filtered.get(i).copied())
     }
 
-    fn update_preview(&mut self) {
-        if let Some(panel) = self.selected_panel() {
-            // Capture pane content
-            match capture_pane(&panel.pane_id, 50) {
-                Ok(content) => {
+    fn trigger_async_scan(&mut self) {
+        if self.scan_in_progress {
+            return;
+        }
+        
+        self.scan_in_progress = true;
+        let (tx, rx) = mpsc::channel::<ScanResult>(1);
+        self.scan_rx = Some(rx);
+        
+        tokio::task::spawn_blocking(move || {
+            let result = scan_panels();
+            let _ = tx.blocking_send(result);
+        });
+    }
+
+    fn check_scan_result(&mut self) {
+        if let Some(ref mut rx) = self.scan_rx {
+            match rx.try_recv() {
+                Ok(Ok(panels)) => {
+                    self.panels = panels;
+                    self.last_refresh = Instant::now();
+                    self.preview_pane_id = None;
+                    self.scan_in_progress = false;
+                    self.scan_rx = None;
+                }
+                Ok(Err(_)) => {
+                    self.scan_in_progress = false;
+                    self.scan_rx = None;
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {}
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.scan_in_progress = false;
+                    self.scan_rx = None;
+                }
+            }
+        }
+    }
+
+    fn trigger_async_preview_update(&mut self, pane_id: String) {
+        if self.preview_update_in_progress {
+            return;
+        }
+        
+        self.preview_update_in_progress = true;
+        let (tx, rx) = mpsc::channel::<(String, String)>(1);
+        self.preview_rx = Some(rx);
+        
+        tokio::task::spawn_blocking(move || {
+            let content = match capture_pane(&pane_id, 50) {
+                Ok(content) => content,
+                Err(_) => String::from("Failed to capture pane"),
+            };
+            let _ = tx.blocking_send((pane_id, content));
+        });
+    }
+
+    fn check_preview_result(&mut self) {
+        if let Some(ref mut rx) = self.preview_rx {
+            match rx.try_recv() {
+                Ok((pane_id, content)) => {
                     self.preview_content = content;
+                    self.preview_pane_id = Some(pane_id);
+                    self.preview_update_in_progress = false;
+                    self.preview_rx = None;
+                    self.last_preview_update = Instant::now();
                 }
-                Err(_) => {
-                    self.preview_content = String::from("Failed to capture pane");
+                Err(mpsc::error::TryRecvError::Empty) => {}
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.preview_update_in_progress = false;
+                    self.preview_rx = None;
                 }
+            }
+        }
+    }
+
+    fn check_preview_update(&mut self) {
+        if self.last_preview_update.elapsed() < Duration::from_millis(100) {
+            return;
+        }
+        
+        if self.preview_update_in_progress {
+            return;
+        }
+        
+        let pane_id = self.selected_panel().map(|p| p.pane_id.clone());
+        
+        if let Some(pane_id) = pane_id {
+            let needs_update = match &self.preview_pane_id {
+                None => true,
+                Some(id) if id != &pane_id => true,
+                _ => false,
+            };
+
+            if needs_update {
+                self.trigger_async_preview_update(pane_id);
             }
         }
     }
 
     fn refresh_panels(&mut self) {
-        match scan_panels() {
-            Ok(panels) => {
-                self.panels = panels;
-                self.last_refresh = Instant::now();
-                self.update_preview();
-            }
-            Err(e) => {
-                eprintln!("Failed to scan panels: {}", e);
-            }
+        if !self.scan_in_progress {
+            self.trigger_async_scan();
         }
     }
 
     fn toggle_settings(&mut self) {
         self.settings_open = !self.settings_open;
-    }
-
-    fn attach_to_selected(&self) {
-        if let Some(panel) = self.selected_panel() {
-            // Create temp session and popup
-            let temp_session = format!("pad-popup-{}", rand::random::<u32>());
-            
-            // This would spawn tmux commands
-            // For now, just a placeholder
-            let _ = Command::new("tmux")
-                .args(&["new-session", "-d", "-s", &temp_session])
-                .output();
+        if self.settings_open {
+            self.mode = Mode::Settings;
+            self.settings_selected = 0;
+        } else {
+            self.mode = Mode::Normal;
         }
     }
+
+    fn open_theme_selector(&mut self) {
+        self.theme_selector_open = true;
+        self.mode = Mode::ThemeSelector;
+        self.theme_selected = 0;
+    }
+
+    fn close_theme_selector(&mut self) {
+        self.theme_selector_open = false;
+        self.mode = Mode::Settings;
+    }
+
+    fn settings_items(&self) -> Vec<(&str, String, &str, bool)> {
+        vec![
+            ("Theme", self.settings.theme.clone(), "Color scheme", true),
+            (
+                "Auto Refresh",
+                if self.settings.auto_refresh {
+                    "On".to_string()
+                } else {
+                    "Off".to_string()
+                },
+                "Auto-refresh panel list",
+                true,
+            ),
+            (
+                "Refresh Interval",
+                format!("{}s", self.settings.refresh_interval.as_secs()),
+                "Seconds between panel list refreshes",
+                false,
+            ),
+            ("Version", "0.4.0".to_string(), "tmux-code-kanban (Rust)", false),
+        ]
+    }
+
+    fn available_themes() -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("default", "Default"),
+            ("dark", "Dark"),
+            ("dracula", "Dracula"),
+            ("nord", "Nord"),
+            ("gruvbox", "Gruvbox"),
+            ("catppuccin", "Catppuccin"),
+            ("tokyo-night", "Tokyo Night"),
+            ("monokai", "Monokai"),
+            ("solarized-dark", "Solarized Dark"),
+            ("rose-pine", "Rose Pine"),
+        ]
+    }
+}
+
+/// Create a new tmux session using native fuzzy finder to select path
+fn create_new_session_fuzzy() -> Result<(), Box<dyn Error>> {
+    // Use native fuzzy picker
+    match fuzzy_select_directory() {
+        Ok(Some(selected)) => {
+            create_session_in_path(&selected)?;
+        }
+        Ok(None) => {
+            // User cancelled
+        }
+        Err(e) => {
+            return Err(format!("Failed to show directory picker: {}", e).into());
+        }
+    }
+    
+    Ok(())
+}
+
+/// Create a new tmux session in the given path
+fn create_session_in_path(path: &str) -> Result<(), Box<dyn Error>> {
+    // Generate session name from path
+    let session_name = path
+        .replace("/", "_")
+        .replace(".", "_")
+        .replace("~", "home");
+    
+    // Check if session already exists
+    let check = Command::new("tmux")
+        .args(&["has-session", "-t", &session_name])
+        .output()?;
+    
+    if check.status.success() {
+        // Session exists, just switch to it
+        println!("Session '{}' already exists, attaching...", session_name);
+        Command::new("tmux")
+            .args(&["switch-client", "-t", &session_name])
+            .spawn()?;
+    } else {
+        // Create new session
+        println!("Creating new session '{}' in {}...", session_name, path);
+        Command::new("tmux")
+            .args(&["new-session", "-d", "-s", &session_name, "-c", path])
+            .output()?;
+    }
+    
+    Ok(())
+}
+
+/// Attach to a tmux pane using PTY (direct attach, not popup)
+fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
+    // Use window_index for reliable targeting (not window name which can be dynamic)
+    let target = format!("{}:{}", panel.session, panel.window_index);
+    
+    let pty_system = NativePtySystem::default();
+    
+    let (cols, rows) = crossterm::terminal::size()
+        .map(|(w, h)| (w as u16, h as u16))
+        .unwrap_or((80, 24));
+    
+    let pty = pty_system.openpty(PtySize {
+        rows,
+        cols,
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
+    
+    let mut cmd = CommandBuilder::new("tmux");
+    cmd.arg("attach-session");
+    cmd.arg("-t");
+    cmd.arg(&target);
+    
+    let mut child = pty.slave.spawn_command(cmd)?;
+    
+    let mut master_reader = pty.master.try_clone_reader()?;
+    let mut master_writer = pty.master.take_writer()?;
+    
+    // Set raw mode
+    let _guard = set_raw_mode()?;
+    
+    // Spawn thread to copy PTY output to stdout
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            let mut buf = [0u8; 1024];
+            let mut stdout = io::stdout();
+            loop {
+                match master_reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if stdout.write_all(&buf[..n]).is_err() {
+                            break;
+                        }
+                        let _ = stdout.flush();
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        
+        // Main thread: Read stdin, intercept F12 (ESC[24~)
+        let mut stdin = io::stdin();
+        let mut buf = [0u8; 32];
+        let mut pending = Vec::new(); // Buffer for escape sequence detection
+        
+        loop {
+            match stdin.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    pending.extend_from_slice(&buf[..n]);
+                    
+                    // Check for F12 escape sequence: ESC [ 2 4 ~
+                    if let Some(pos) = pending.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
+                        // Found start of F12 sequence, check if complete
+                        if pending.len() >= pos + 5 && pending[pos + 4] == b'~' {
+                            // F12 detected! Forward bytes before it, then detach
+                            if pos > 0 {
+                                let _ = master_writer.write_all(&pending[..pos]);
+                                let _ = master_writer.flush();
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // Also check for Ctrl+C (0x03) as emergency exit
+                    if let Some(pos) = pending.iter().position(|&b| b == 0x03) {
+                        if pos > 0 {
+                            let _ = master_writer.write_all(&pending[..pos]);
+                            let _ = master_writer.flush();
+                        }
+                        break;
+                    }
+                    
+                    // Forward data and clear pending buffer
+                    if master_writer.write_all(&pending).is_err() {
+                        break;
+                    }
+                    let _ = master_writer.flush();
+                    pending.clear();
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    
+    let _ = child.kill();
+    
+    // Reset terminal style
+    print!("\x1b[0m\x1b[24m\x1b[39m\x1b[49m");
+    let _ = io::stdout().flush();
+    
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_raw_mode() -> Result<RawModeGuard, Box<dyn Error>> {
+    use std::os::fd::AsRawFd;
+    
+    let stdin = io::stdin();
+    let fd = stdin.as_raw_fd();
+    
+    // Convert RawFd to BorrowedFd for nix 0.27+ API
+    let borrowed_fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
+    
+    let termios = nix::sys::termios::tcgetattr(borrowed_fd)?;
+    let original = termios.clone();
+    
+    let mut raw = termios;
+    nix::sys::termios::cfmakeraw(&mut raw);
+    nix::sys::termios::tcsetattr(borrowed_fd, nix::sys::termios::SetArg::TCSAFLUSH, &raw)?;
+    
+    Ok(RawModeGuard { fd, original })
+}
+
+#[cfg(not(unix))]
+fn set_raw_mode() -> Result<(), Box<dyn Error>> {
+    Ok(())
+}
+
+#[cfg(unix)]
+struct RawModeGuard {
+    fd: std::os::fd::RawFd,
+    original: nix::sys::termios::Termios,
+}
+
+#[cfg(unix)]
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let borrowed_fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.fd) };
+        let _ = nix::sys::termios::tcsetattr(
+            borrowed_fd,
+            nix::sys::termios::SetArg::TCSAFLUSH,
+            &self.original,
+        );
+    }
+}
+
+#[cfg(not(unix))]
+struct RawModeGuard;
+
+#[cfg(not(unix))]
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {}
 }
 
 fn capture_pane(pane_id: &str, lines: usize) -> Result<String, Box<dyn Error>> {
@@ -191,7 +557,6 @@ fn capture_pane(pane_id: &str, lines: usize) -> Result<String, Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Check for help argument
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && (args[1] == "--help" || args[1] == "-h") {
         println!("pad - Tmux Code Kanban (Rust Edition)");
@@ -205,33 +570,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Key bindings:");
         println!("  j/k or ↑/↓     Navigate panels");
         println!("  1-9            Jump to panel");
-        println!("  Enter          Attach to panel");
+        println!("  Enter          Attach to panel (F12 to detach)");
         println!("  /              Search");
         println!("  r              Refresh");
+        println!("  c              Create new session");
         println!("  F1             Settings");
         println!("  q              Quit");
         return Ok(());
     }
     
     if args.len() > 1 && (args[1] == "--version" || args[1] == "-V") {
-        println!("pad 0.3.0");
+        println!("pad 0.4.0");
         return Ok(());
     }
 
-    // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Create app and run
     let mut app = App::new();
-    app.refresh_panels();
+    if let Ok(panels) = scan_panels() {
+        app.panels = panels;
+    }
     
     let res = run_app(&mut terminal, &mut app).await;
 
-    // Restore terminal
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -247,11 +612,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
+async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<()> {
     let mut last_tick = Instant::now();
-    let tick_rate = Duration::from_millis(250);
+    let tick_rate = Duration::from_millis(16);
+    let mut last_preview_refresh = Instant::now();
 
     loop {
+        if app.refresh_after_attach {
+            app.refresh_after_attach = false;
+            app.refresh_panels();
+            app.preview_pane_id = None;
+        }
+        
+        app.check_scan_result();
+        app.check_preview_result();
+
+        if last_preview_refresh.elapsed() >= Duration::from_millis(500) {
+            app.check_preview_update();
+            last_preview_refresh = Instant::now();
+        }
+
         terminal.draw(|f| ui::draw(f, app))?;
 
         let timeout = tick_rate
@@ -275,17 +655,99 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
                                 app.mode = Mode::Search;
                                 app.is_searching = true;
                             }
-                            KeyCode::Char('1') => app.table_state.select(Some(0)),
-                            KeyCode::Char('2') => app.table_state.select(Some(1)),
-                            KeyCode::Char('3') => app.table_state.select(Some(2)),
-                            KeyCode::Char('4') => app.table_state.select(Some(3)),
-                            KeyCode::Char('5') => app.table_state.select(Some(4)),
-                            KeyCode::Char('6') => app.table_state.select(Some(5)),
-                            KeyCode::Char('7') => app.table_state.select(Some(6)),
-                            KeyCode::Char('8') => app.table_state.select(Some(7)),
-                            KeyCode::Char('9') => app.table_state.select(Some(8)),
+                            KeyCode::Char('1') => app.jump_to(0),
+                            KeyCode::Char('2') => app.jump_to(1),
+                            KeyCode::Char('3') => app.jump_to(2),
+                            KeyCode::Char('4') => app.jump_to(3),
+                            KeyCode::Char('5') => app.jump_to(4),
+                            KeyCode::Char('6') => app.jump_to(5),
+                            KeyCode::Char('7') => app.jump_to(6),
+                            KeyCode::Char('8') => app.jump_to(7),
+                            KeyCode::Char('9') => app.jump_to(8),
                             KeyCode::F(1) => app.toggle_settings(),
-                            KeyCode::Enter => app.attach_to_selected(),
+                            KeyCode::Enter => {
+                                if let Some(panel) = app.selected_panel() {
+                                    let panel = panel.clone();
+                                    
+                                    // Restore terminal
+                                    disable_raw_mode()?;
+                                    execute!(
+                                        terminal.backend_mut(),
+                                        LeaveAlternateScreen,
+                                        DisableMouseCapture
+                                    )?;
+                                    terminal.show_cursor()?;
+                                    
+                                    // Show hint in normal screen (not alternate)
+                                    print!("\x1b[2J\x1b[H"); // Clear screen
+                                    println!("Attaching to {} @ {} (window {})", 
+                                        panel.code_type, panel.pane_id, panel.window_index);
+                                    println!("Press F12 to return to pad (or Ctrl+C as emergency exit)\n");
+                                    io::stdout().flush()?;
+                                    
+                                    // Small delay to ensure message is visible
+                                    std::thread::sleep(Duration::from_millis(100));
+                                    
+                                    // PTY attach
+                                    if let Err(e) = attach_to_pane_pty(&panel) {
+                                        println!("Attach error: {}", e);
+                                        println!("Press any key to continue...");
+                                        io::stdout().flush()?;
+                                        // Wait for key press
+                                        let _ = crossterm::event::read();
+                                    }
+                                    
+                                    // Clear screen before returning to TUI
+                                    print!("\x1b[2J\x1b[H");
+                                    io::stdout().flush()?;
+                                    
+                                    // Re-setup terminal
+                                    enable_raw_mode()?;
+                                    execute!(
+                                        terminal.backend_mut(),
+                                        EnterAlternateScreen,
+                                        EnableMouseCapture
+                                    )?;
+                                    
+                                    app.refresh_after_attach = true;
+                                }
+                            }
+                            KeyCode::Char('c') | KeyCode::Char('C') => {
+                                // Restore terminal for fzf
+                                disable_raw_mode()?;
+                                execute!(
+                                    terminal.backend_mut(),
+                                    LeaveAlternateScreen,
+                                    DisableMouseCapture
+                                )?;
+                                terminal.show_cursor()?;
+                                
+                                // Clear screen
+                                print!("\x1b[2J\x1b[H");
+                                io::stdout().flush()?;
+                                
+                                // Run fzf path selection
+                                if let Err(e) = create_new_session_fuzzy() {
+                                    println!("Error: {}", e);
+                                    println!("\nPress any key to continue...");
+                                    let _ = crossterm::event::read();
+                                }
+                                
+                                // Clear screen before returning
+                                print!("\x1b[2J\x1b[H");
+                                io::stdout().flush()?;
+                                
+                                // Re-setup terminal
+                                enable_raw_mode()?;
+                                execute!(
+                                    terminal.backend_mut(),
+                                    EnterAlternateScreen,
+                                    EnableMouseCapture
+                                )?;
+                                
+                                // Refresh panels to show new session
+                                app.refresh_panels();
+                            }
                             _ => {}
                         },
                         Mode::Search => match key.code {
@@ -299,16 +761,78 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
                             }
                             KeyCode::Char(c) => {
                                 app.search_query.push(c);
+                                app.preview_pane_id = None;
                             }
                             KeyCode::Backspace => {
                                 app.search_query.pop();
+                                app.preview_pane_id = None;
                             }
                             _ => {}
                         },
                         Mode::Settings => match key.code {
                             KeyCode::Esc | KeyCode::F(1) => {
-                                app.mode = Mode::Normal;
                                 app.settings_open = false;
+                                app.mode = Mode::Normal;
+                            }
+                            KeyCode::Char('j') | KeyCode::Down => {
+                                let max = app.settings_items().len().saturating_sub(1);
+                                if app.settings_selected < max {
+                                    app.settings_selected += 1;
+                                }
+                            }
+                            KeyCode::Char('k') | KeyCode::Up => {
+                                if app.settings_selected > 0 {
+                                    app.settings_selected -= 1;
+                                }
+                            }
+                            KeyCode::Char('1') => app.settings_selected = 0,
+                            KeyCode::Char('2') => app.settings_selected = 1.min(app.settings_items().len().saturating_sub(1)),
+                            KeyCode::Char('3') => app.settings_selected = 2.min(app.settings_items().len().saturating_sub(1)),
+                            KeyCode::Char('4') => app.settings_selected = 3.min(app.settings_items().len().saturating_sub(1)),
+                            KeyCode::Enter => {
+                                let items = app.settings_items();
+                                if let Some((name, _, _, editable)) = items.get(app.settings_selected) {
+                                    if *editable {
+                                        match *name {
+                                            "Theme" => app.open_theme_selector(),
+                                            "Auto Refresh" => {
+                                                app.settings.auto_refresh = !app.settings.auto_refresh;
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        },
+                        Mode::ThemeSelector => match key.code {
+                            KeyCode::Esc => app.close_theme_selector(),
+                            KeyCode::Char('j') | KeyCode::Down => {
+                                let max = App::available_themes().len().saturating_sub(1);
+                                if app.theme_selected < max {
+                                    app.theme_selected += 1;
+                                }
+                            }
+                            KeyCode::Char('k') | KeyCode::Up => {
+                                if app.theme_selected > 0 {
+                                    app.theme_selected -= 1;
+                                }
+                            }
+                            KeyCode::Char('1') => app.theme_selected = 0,
+                            KeyCode::Char('2') => app.theme_selected = 1.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('3') => app.theme_selected = 2.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('4') => app.theme_selected = 3.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('5') => app.theme_selected = 4.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('6') => app.theme_selected = 5.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('7') => app.theme_selected = 6.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('8') => app.theme_selected = 7.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('9') => app.theme_selected = 8.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Enter => {
+                                let themes = App::available_themes();
+                                if let Some((name, _)) = themes.get(app.theme_selected) {
+                                    app.settings.theme = name.to_string();
+                                    app.close_theme_selector();
+                                }
                             }
                             _ => {}
                         },
@@ -317,10 +841,11 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::R
             }
         }
 
-        // Auto refresh
         if last_tick.elapsed() >= tick_rate {
-            if app.last_refresh.elapsed() >= app.refresh_interval {
-                app.refresh_panels();
+            if app.settings.auto_refresh && app.last_refresh.elapsed() >= app.settings.refresh_interval {
+                if !app.scan_in_progress {
+                    app.trigger_async_scan();
+                }
             }
             last_tick = Instant::now();
         }

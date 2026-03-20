@@ -1,11 +1,8 @@
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, Cell, Clear, HighlightSpacing, Paragraph, Row, Scrollbar,
-        ScrollbarOrientation, ScrollbarState, Table, TableState, Wrap,
-    },
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -31,9 +28,14 @@ pub fn draw(f: &mut Frame, app: &App) {
     // Bottom status bar
     draw_status_bar(f, app, main_layout[1]);
 
-    // Settings modal
+    // Settings modal (overlay)
     if app.settings_open {
         draw_settings_modal(f, app);
+    }
+
+    // Theme selector modal (overlay on top of settings)
+    if app.theme_selector_open {
+        draw_theme_selector(f, app);
     }
 }
 
@@ -90,8 +92,24 @@ fn draw_panel_list(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
+    // Get selected panel info for title
+    let title = if let Some(panel) = app.selected_panel() {
+        let git_info = if let Some(git) = &panel.git_info {
+            if let Some(branch) = &git.branch {
+                format!(" [{}]", branch)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        format!(" Preview: {}{}{} ", panel.pane_id, git_info, " ".repeat(100))
+    } else {
+        String::from(" Preview ")
+    };
+
     let block = Block::default()
-        .title(" Preview ")
+        .title(title)
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
 
@@ -176,10 +194,18 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             format!("SEARCH: {} | Enter: confirm | Esc: cancel", app.search_query),
             Style::default().fg(Color::Yellow),
         ),
+        Mode::Settings => (
+            String::from("j/k: move | Enter: edit | 1-4: jump | Esc: close"),
+            Style::default().fg(Color::Cyan),
+        ),
+        Mode::ThemeSelector => (
+            String::from("j/k: move | Enter: select | 1-9: jump | Esc: back"),
+            Style::default().fg(Color::Cyan),
+        ),
         _ => {
             let panel_count = app.filtered_panels().len();
             let status = format!(
-                "↑/k ↓/j | 1-9 jmp | / find | ⏎ popup | r refresh | F1 settings | q quit | {} panels",
+                "↑/k ↓/j | 1-9 jmp | / find | ⏎ attach | c create | r refresh | F1 settings | q quit | {} panels",
                 panel_count
             );
             (status, Style::default().fg(Color::White))
@@ -193,41 +219,137 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(status_bar, area);
 }
 
-fn draw_settings_modal(f: &mut Frame, _app: &App) {
-    let area = centered_rect(60, 60, f.size());
+fn draw_settings_modal(f: &mut Frame, app: &App) {
+    let area = centered_rect(50, 50, f.size());
 
+    // Clear background
+    f.render_widget(Clear, area);
+
+    // Draw border block
     let block = Block::default()
-        .title(" Settings ")
+        .title(" ⚙ Settings ")
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
-        .style(Style::default().bg(Color::Black));
+        .border_style(Style::default().fg(Color::Cyan));
+    f.render_widget(block, area);
 
-    let text = Text::from(vec![
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Theme: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw("default"),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Auto Refresh: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw("On"),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Version: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw("0.3.0 (Rust)"),
-        ]),
-        Line::from(""),
-        Line::from(Span::styled("Press ESC or F1 to close", Style::default().fg(Color::Gray))),
-    ]);
+    // Inner area for content
+    let inner = Rect {
+        x: area.x + 2,
+        y: area.y + 1,
+        width: area.width - 4,
+        height: area.height - 2,
+    };
 
-    let paragraph = Paragraph::new(text)
-        .block(block)
-        .alignment(Alignment::Left);
+    // Build settings rows
+    let items = app.settings_items();
+    let rows: Vec<Row> = items
+        .iter()
+        .enumerate()
+        .map(|(idx, (name, value, desc, editable))| {
+            let is_selected = idx == app.settings_selected;
+            
+            let name_style = if is_selected {
+                Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            
+            let value_style = if is_selected {
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(if *editable { Color::Cyan } else { Color::Gray })
+            } else {
+                Style::default().fg(if *editable { Color::Cyan } else { Color::Gray })
+            };
 
+            let editable_marker = if *editable { " ›" } else { "" };
+
+            Row::new(vec![
+                Cell::from(*name).style(name_style),
+                Cell::from(format!("{}{}", value, editable_marker)).style(value_style),
+                Cell::from(*desc).style(Style::default().fg(Color::DarkGray)),
+            ])
+        })
+        .collect();
+
+    let table = Table::new(rows)
+        .widths(&[
+            Constraint::Length(18),
+            Constraint::Length(15),
+            Constraint::Min(0),
+        ])
+        .header(
+            Row::new(vec!["Setting", "Value", "Description"])
+                .style(Style::default().add_modifier(Modifier::BOLD))
+                .bottom_margin(1)
+        );
+
+    f.render_widget(table, inner);
+}
+
+fn draw_theme_selector(f: &mut Frame, app: &App) {
+    let area = centered_rect(40, 60, f.size());
+
+    // Clear background
     f.render_widget(Clear, area);
-    f.render_widget(paragraph, area);
+
+    // Draw border block
+    let block = Block::default()
+        .title(" 🎨 Theme ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Magenta));
+    f.render_widget(block, area);
+
+    // Inner area for content
+    let inner = Rect {
+        x: area.x + 2,
+        y: area.y + 1,
+        width: area.width - 4,
+        height: area.height - 2,
+    };
+
+    // Build theme rows
+    let themes = App::available_themes();
+    let rows: Vec<Row> = themes
+        .iter()
+        .enumerate()
+        .map(|(idx, (name, desc))| {
+            let is_selected = idx == app.theme_selected;
+            let is_current = *name == app.settings.theme;
+            
+            let marker = if is_current { "✓ " } else { "  " };
+            
+            let name_style = if is_selected {
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD)
+            } else if is_current {
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            Row::new(vec![
+                Cell::from(format!("{}{}", marker, name)).style(name_style),
+                Cell::from(*desc).style(Style::default().fg(Color::Gray)),
+            ])
+        })
+        .collect();
+
+    let table = Table::new(rows)
+        .widths(&[Constraint::Length(20), Constraint::Min(0)])
+        .header(
+            Row::new(vec!["Theme", "Description"])
+                .style(Style::default().add_modifier(Modifier::BOLD))
+                .bottom_margin(1)
+        );
+
+    f.render_widget(table, inner);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

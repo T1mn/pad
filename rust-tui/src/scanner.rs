@@ -1,13 +1,13 @@
 use crate::model::{CodePanel, CodeType, GitInfo};
 use std::process::Command;
 
-pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error>> {
+pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("tmux")
         .args(&[
             "list-panes",
             "-a",
             "-F",
-            "#{session_name}|#{window_name}|#{pane_index}|#{pane_id}|#{pane_pid}|#{pane_current_command}|#{pane_current_path}",
+            "#{session_name}|#{window_name}|#{window_index}|#{pane_index}|#{pane_id}|#{pane_pid}|#{pane_current_command}|#{pane_current_path}",
         ])
         .output()?;
 
@@ -20,17 +20,18 @@ pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error>> {
 
     for line in stdout.lines() {
         let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() < 7 {
+        if parts.len() < 8 {
             continue;
         }
 
         let session = parts[0].to_string();
         let window = parts[1].to_string();
-        let pane = parts[2].to_string();
-        let pane_id = parts[3].to_string();
-        let pane_pid = parts[4];
-        let current_cmd = parts[5];
-        let working_dir = parts[6].to_string();
+        let window_index = parts[2].to_string();
+        let pane = parts[3].to_string();
+        let pane_id = parts[4].to_string();
+        let pane_pid = parts[5];
+        let current_cmd = parts[6];
+        let working_dir = parts[7].to_string();
 
         // Get child processes
         let child_processes = get_child_processes(pane_pid);
@@ -53,6 +54,7 @@ pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error>> {
         panels.push(CodePanel {
             session,
             window,
+            window_index,
             pane,
             pane_id,
             code_type,
@@ -98,7 +100,7 @@ fn get_child_processes(pid: &str) -> String {
     String::new()
 }
 
-fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("ps")
         .args(&["-p", pid, "-o", "comm=", "--no-headers"])
         .output()?;
@@ -140,7 +142,7 @@ fn check_active(pane_id: &str) -> bool {
     false
 }
 
-fn capture_pane_content(pane_id: &str, lines: usize) -> Result<String, Box<dyn std::error::Error>> {
+fn capture_pane_content(pane_id: &str, lines: usize) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("tmux")
         .args(&["capture-pane", "-p", "-t", pane_id, "-S", &format!("-{}", lines)])
         .output()?;

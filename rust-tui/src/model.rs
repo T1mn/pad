@@ -54,6 +54,7 @@ pub struct GitInfo {
 pub struct CodePanel {
     pub session: String,
     pub window: String,
+    pub window_index: String,
     pub pane: String,
     pub pane_id: String,
     pub code_type: CodeType,
@@ -63,6 +64,7 @@ pub struct CodePanel {
 }
 
 impl CodePanel {
+    #[allow(dead_code)]
     pub fn full_id(&self) -> String {
         format!("{}:{}.{}", self.session, self.window, self.pane)
     }
