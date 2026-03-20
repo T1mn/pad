@@ -13,6 +13,7 @@ use std::{
     collections::HashMap,
     error::Error,
     io::{self, Read, Write},
+    path::PathBuf,
     process::Command,
     time::{Duration, Instant},
 };
@@ -21,6 +22,7 @@ use tokio::sync::mpsc;
 mod fuzzy;
 mod model;
 mod scanner;
+mod tree;
 mod ui;
 
 use fuzzy::fuzzy_select_directory;
@@ -75,6 +77,8 @@ struct App {
     refresh_after_attach: bool,
     should_quit: bool,
     dirty: bool,
+    show_tree: bool,
+    file_tree: Option<tree::FileTree>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -114,10 +118,19 @@ impl App {
             refresh_after_attach: false,
             should_quit: false,
             dirty: true,
+            show_tree: false,
+            file_tree: None,
         }
     }
 
     fn next(&mut self) {
+        if self.show_tree {
+            if let Some(ref mut tree) = self.file_tree {
+                tree.select_next();
+                self.dirty = true;
+                return;
+            }
+        }
         let i = match self.table_state.selected() {
             Some(i) => {
                 if i >= self.filtered_panels().len().saturating_sub(1) {
@@ -130,10 +143,18 @@ impl App {
         };
         self.table_state.select(Some(i));
         self.preview_pane_id = None;
+        self.update_tree_for_selection();
         self.dirty = true;
     }
 
     fn previous(&mut self) {
+        if self.show_tree {
+            if let Some(ref mut tree) = self.file_tree {
+                tree.select_previous();
+                self.dirty = true;
+                return;
+            }
+        }
         let i = match self.table_state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -146,6 +167,7 @@ impl App {
         };
         self.table_state.select(Some(i));
         self.preview_pane_id = None;
+        self.update_tree_for_selection();
         self.dirty = true;
     }
 
@@ -178,6 +200,41 @@ impl App {
         self.table_state
             .selected()
             .and_then(|i| filtered.get(i).copied())
+    }
+
+    fn toggle_tree(&mut self) {
+        self.show_tree = !self.show_tree;
+        if self.show_tree {
+            // Initialize tree for selected panel's working directory
+            if let Some(panel) = self.selected_panel() {
+                let path = PathBuf::from(&panel.working_dir);
+                if path.exists() {
+                    self.file_tree = Some(tree::FileTree::new(path));
+                }
+            }
+        } else {
+            self.file_tree = None;
+        }
+        self.dirty = true;
+    }
+
+    fn update_tree_for_selection(&mut self) {
+        if self.show_tree {
+            if let Some(panel) = self.selected_panel() {
+                let path = PathBuf::from(&panel.working_dir);
+                if path.exists() {
+                    // Only update if path changed
+                    let should_update = match &self.file_tree {
+                        None => true,
+                        Some(tree) => tree.root_path != path,
+                    };
+                    if should_update {
+                        self.file_tree = Some(tree::FileTree::new(path));
+                        self.dirty = true;
+                    }
+                }
+            }
+        }
     }
 
     fn trigger_async_scan(&mut self) {
@@ -450,10 +507,49 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
             }
         });
         
-        // Main thread: Read stdin, intercept F12 (ESC[24~)
+        // Main thread: Read stdin, intercept F12 (ESC[24~) and Ctrl+Q
         let mut stdin = io::stdin();
-        let mut buf = [0u8; 32];
+        let mut buf = [0u8; 64];
         let mut pending = Vec::new(); // Buffer for escape sequence detection
+        
+        // Helper function to check if bytes contain a complete exit sequence
+        fn find_exit_sequence(pending: &[u8]) -> Option<(usize, &'static str)> {
+            // Check for F12: ESC[24~
+            if let Some(pos) = pending.windows(5).position(|w| w == &[0x1b, b'[', b'2', b'4', b'~']) {
+                return Some((pos, "F12"));
+            }
+            // Check for F12 variant with modifier: ESC[24;*~
+            if pending.len() >= 6 {
+                if let Some(pos) = pending.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
+                    if pending.len() > pos + 4 && pending[pos + 4] == b';' {
+                        // Look for closing ~
+                        if let Some(_end) = pending[pos + 5..].iter().position(|&b| b == b'~') {
+                            return Some((pos, "F12-modified"));
+                        }
+                    }
+                }
+            }
+            // Check for Ctrl+Q (0x11) or Ctrl+C (0x03)
+            if let Some(pos) = pending.iter().position(|&b| b == 0x11 || b == 0x03) {
+                return Some((pos, if pending[pos] == 0x11 { "Ctrl+Q" } else { "Ctrl+C" }));
+            }
+            None
+        }
+        
+        // Helper to find safe bytes to forward (not part of potential escape sequence)
+        fn find_safe_forward_point(pending: &[u8]) -> usize {
+            // Find last position that is definitely not part of an escape sequence
+            // Escape sequences start with ESC (0x1b) or CSI (0x9b)
+            if let Some(esc_pos) = pending.iter().rposition(|&b| b == 0x1b) {
+                // If we have ESC, only forward up to before it
+                // Unless there's enough data to determine it's not a sequence we care about
+                if esc_pos > 0 {
+                    return esc_pos;
+                }
+                return 0; // Don't forward anything, wait for more data
+            }
+            pending.len()
+        }
         
         loop {
             match stdin.read(&mut buf) {
@@ -461,34 +557,37 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
                 Ok(n) => {
                     pending.extend_from_slice(&buf[..n]);
                     
-                    // Check for F12 escape sequence: ESC [ 2 4 ~
-                    if let Some(pos) = pending.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
-                        // Found start of F12 sequence, check if complete
-                        if pending.len() >= pos + 5 && pending[pos + 4] == b'~' {
-                            // F12 detected! Forward bytes before it, then detach
-                            if pos > 0 {
-                                let _ = master_writer.write_all(&pending[..pos]);
-                                let _ = master_writer.flush();
-                            }
-                            break;
-                        }
-                    }
-                    
-                    // Also check for Ctrl+C (0x03) as emergency exit
-                    if let Some(pos) = pending.iter().position(|&b| b == 0x03) {
+                    // Check for exit sequences first
+                    if let Some((pos, key)) = find_exit_sequence(&pending) {
+                        // Forward bytes before the exit key
                         if pos > 0 {
                             let _ = master_writer.write_all(&pending[..pos]);
                             let _ = master_writer.flush();
                         }
+                        // Send the exit key to tmux first (so it can process it)
+                        let _ = master_writer.write_all(&pending[pos..pos + if key.starts_with("F12") { 5 } else { 1 }]);
+                        let _ = master_writer.flush();
+                        std::thread::sleep(Duration::from_millis(50)); // Brief delay for tmux
                         break;
                     }
                     
-                    // Forward data and clear pending buffer
-                    if master_writer.write_all(&pending).is_err() {
-                        break;
+                    // Forward safe bytes (not potential escape sequences)
+                    let safe_len = find_safe_forward_point(&pending);
+                    if safe_len > 0 {
+                        if master_writer.write_all(&pending[..safe_len]).is_err() {
+                            break;
+                        }
+                        let _ = master_writer.flush();
+                        pending.drain(..safe_len);
                     }
-                    let _ = master_writer.flush();
-                    pending.clear();
+                    
+                    // Prevent buffer overflow (shouldn't happen with normal input)
+                    if pending.len() > 100 {
+                        // Flush everything to avoid getting stuck
+                        let _ = master_writer.write_all(&pending);
+                        let _ = master_writer.flush();
+                        pending.clear();
+                    }
                 }
                 Err(_) => break,
             }
@@ -580,9 +679,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("  -V, --version  Show version");
         println!("");
         println!("Key bindings:");
-        println!("  j/k or ↑/↓     Navigate panels");
+        println!("  j/k or ↑/↓     Navigate panels / tree");
         println!("  1-9            Jump to panel");
-        println!("  Enter          Attach to panel (F12 to detach)");
+        println!("  Enter          Attach to panel (F12 or Ctrl+Q to detach)");
+        println!("  t              Toggle file tree explorer");
+        println!("  Space          Expand/collapse directory (in tree view)");
         println!("  /              Search");
         println!("  r              Refresh");
         println!("  c              Create new session");
@@ -686,6 +787,17 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                 app.toggle_settings();
                                 app.dirty = true;
                             }
+                            KeyCode::Char('t') | KeyCode::Char('T') => {
+                                app.toggle_tree();
+                            }
+                            KeyCode::Char(' ') => {
+                                if app.show_tree {
+                                    if let Some(ref mut tree) = app.file_tree {
+                                        tree.toggle_selected();
+                                    }
+                                    app.dirty = true;
+                                }
+                            }
                             KeyCode::Enter => {
                                 if let Some(panel) = app.selected_panel() {
                                     let panel = panel.clone();
@@ -703,7 +815,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                     print!("\x1b[2J\x1b[H"); // Clear screen
                                     println!("Attaching to {} @ {} (window {})", 
                                         panel.code_type, panel.pane_id, panel.window_index);
-                                    println!("Press F12 to return to pad (or Ctrl+C as emergency exit)\n");
+                                    println!("Press F12 or Ctrl+Q to return to pad (or Ctrl+C as emergency exit)\n");
                                     io::stdout().flush()?;
                                     
                                     // Small delay to ensure message is visible

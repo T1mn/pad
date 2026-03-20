@@ -14,16 +14,28 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .constraints(vec![Constraint::Min(0), Constraint::Length(1)])
         .split(f.size());
 
-    let body_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
-        .split(main_layout[0]);
+    // Adjust layout based on tree visibility
+    let body_layout = if app.show_tree {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(35), Constraint::Percentage(40)])
+            .split(main_layout[0])
+    } else {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(main_layout[0])
+    };
 
-    // Left panel - list
-    draw_panel_list(f, app, body_layout[0]);
-
-    // Right panel - preview
-    draw_preview(f, app, body_layout[1]);
+    // Draw tree if visible
+    if app.show_tree {
+        draw_file_tree(f, app, body_layout[0]);
+        draw_panel_list(f, app, body_layout[1]);
+        draw_preview(f, app, body_layout[2]);
+    } else {
+        draw_panel_list(f, app, body_layout[0]);
+        draw_preview(f, app, body_layout[1]);
+    }
 
     // Bottom status bar
     draw_status_bar(f, app, main_layout[1]);
@@ -190,6 +202,24 @@ fn format_line(line: &str) -> Vec<Span> {
     spans
 }
 
+fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
+    if let Some(ref mut tree) = app.file_tree {
+        let title = tree.root_path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Explorer".to_string());
+        tree.render(f, area, &title);
+    } else {
+        let block = Block::default()
+            .title(" Explorer ")
+            .title_alignment(Alignment::Center)
+            .borders(Borders::ALL);
+        let paragraph = Paragraph::new("No directory selected")
+            .block(block)
+            .alignment(Alignment::Center);
+        f.render_widget(paragraph, area);
+    }
+}
+
 fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
     let (msg, style) = match app.mode {
         Mode::Search => (
@@ -206,10 +236,12 @@ fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         _ => {
             let panel_count = app.filtered_panels().len();
-            let status = format!(
-                "↑/k ↓/j | 1-9 jmp | / find | ⏎ attach | c create | r refresh | F1 settings | q quit | {} panels",
-                panel_count
-            );
+            let base = if app.show_tree {
+                "↑/k ↓/j nav | space expand | t close | ⏎ attach | c create | r refresh | F1 settings | q quit"
+            } else {
+                "↑/k ↓/j nav | t tree | / find | ⏎ attach | c create | r refresh | F1 settings | q quit"
+            };
+            let status = format!("{} | {} panels", base, panel_count);
             (status, Style::default().fg(Color::White))
         }
     };
