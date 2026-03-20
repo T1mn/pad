@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{App, Mode};
 
-pub fn draw(f: &mut Frame, app: &App) {
+pub fn draw(f: &mut Frame, app: &mut App) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Min(0), Constraint::Length(1)])
@@ -39,7 +39,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     }
 }
 
-fn draw_panel_list(f: &mut Frame, app: &App, area: Rect) {
+fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::default()
         .title(" Code Panels ")
         .title_alignment(Alignment::Center)
@@ -89,6 +89,8 @@ fn draw_panel_list(f: &mut Frame, app: &App, area: Rect) {
 
     let mut table_state = app.table_state.clone();
     f.render_stateful_widget(table, area, &mut table_state);
+    // Persist the updated state back to app
+    app.table_state = table_state;
 }
 
 fn draw_preview(f: &mut Frame, app: &App, area: Rect) {

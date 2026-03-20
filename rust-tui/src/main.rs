@@ -74,6 +74,7 @@ struct App {
     last_preview_update: Instant,
     refresh_after_attach: bool,
     should_quit: bool,
+    dirty: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -112,6 +113,7 @@ impl App {
             last_preview_update: Instant::now(),
             refresh_after_attach: false,
             should_quit: false,
+            dirty: true,
         }
     }
 
@@ -128,6 +130,7 @@ impl App {
         };
         self.table_state.select(Some(i));
         self.preview_pane_id = None;
+        self.dirty = true;
     }
 
     fn previous(&mut self) {
@@ -143,12 +146,14 @@ impl App {
         };
         self.table_state.select(Some(i));
         self.preview_pane_id = None;
+        self.dirty = true;
     }
 
     fn jump_to(&mut self, index: usize) {
         if index < self.filtered_panels().len() {
             self.table_state.select(Some(index));
             self.preview_pane_id = None;
+            self.dirty = true;
         }
     }
 
@@ -199,6 +204,7 @@ impl App {
                     self.preview_pane_id = None;
                     self.scan_in_progress = false;
                     self.scan_rx = None;
+                    self.dirty = true;
                 }
                 Ok(Err(_)) => {
                     self.scan_in_progress = false;
@@ -240,6 +246,7 @@ impl App {
                     self.preview_update_in_progress = false;
                     self.preview_rx = None;
                     self.last_preview_update = Instant::now();
+                    self.dirty = true;
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -251,11 +258,13 @@ impl App {
     }
 
     fn check_preview_update(&mut self) {
-        if self.last_preview_update.elapsed() < Duration::from_millis(100) {
+        // Debounce: wait at least 500ms between preview updates
+        if self.last_preview_update.elapsed() < Duration::from_millis(500) {
             return;
         }
         
-        if self.preview_update_in_progress {
+        // Skip if already updating or scanning
+        if self.preview_update_in_progress || self.scan_in_progress {
             return;
         }
         
@@ -288,17 +297,20 @@ impl App {
         } else {
             self.mode = Mode::Normal;
         }
+        self.dirty = true;
     }
 
     fn open_theme_selector(&mut self) {
         self.theme_selector_open = true;
         self.mode = Mode::ThemeSelector;
         self.theme_selected = 0;
+        self.dirty = true;
     }
 
     fn close_theme_selector(&mut self) {
         self.theme_selector_open = false;
         self.mode = Mode::Settings;
+        self.dirty = true;
     }
 
     fn settings_items(&self) -> Vec<(&str, String, &str, bool)> {
@@ -632,7 +644,11 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
             last_preview_refresh = Instant::now();
         }
 
-        terminal.draw(|f| ui::draw(f, app))?;
+        // Only draw when there are changes
+        if app.dirty {
+            terminal.draw(|f| ui::draw(f, app))?;
+            app.dirty = false;
+        }
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -650,10 +666,12 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             KeyCode::Char('k') | KeyCode::Up => app.previous(),
                             KeyCode::Char('r') | KeyCode::Char('R') => {
                                 app.refresh_panels();
+                                app.dirty = true;
                             }
                             KeyCode::Char('/') => {
                                 app.mode = Mode::Search;
                                 app.is_searching = true;
+                                app.dirty = true;
                             }
                             KeyCode::Char('1') => app.jump_to(0),
                             KeyCode::Char('2') => app.jump_to(1),
@@ -664,7 +682,10 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             KeyCode::Char('7') => app.jump_to(6),
                             KeyCode::Char('8') => app.jump_to(7),
                             KeyCode::Char('9') => app.jump_to(8),
-                            KeyCode::F(1) => app.toggle_settings(),
+                            KeyCode::F(1) => {
+                                app.toggle_settings();
+                                app.dirty = true;
+                            }
                             KeyCode::Enter => {
                                 if let Some(panel) = app.selected_panel() {
                                     let panel = panel.clone();
@@ -709,7 +730,11 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                         EnableMouseCapture
                                     )?;
                                     
+                                    // Clear the terminal to ensure clean state
+                                    terminal.clear()?;
+                                    
                                     app.refresh_after_attach = true;
+                                    app.dirty = true;
                                 }
                             }
                             KeyCode::Char('c') | KeyCode::Char('C') => {
@@ -755,17 +780,21 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                 app.mode = Mode::Normal;
                                 app.is_searching = false;
                                 app.search_query.clear();
+                                app.dirty = true;
                             }
                             KeyCode::Enter => {
                                 app.mode = Mode::Normal;
+                                app.dirty = true;
                             }
                             KeyCode::Char(c) => {
                                 app.search_query.push(c);
                                 app.preview_pane_id = None;
+                                app.dirty = true;
                             }
                             KeyCode::Backspace => {
                                 app.search_query.pop();
                                 app.preview_pane_id = None;
+                                app.dirty = true;
                             }
                             _ => {}
                         },
@@ -773,22 +802,25 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                             KeyCode::Esc | KeyCode::F(1) => {
                                 app.settings_open = false;
                                 app.mode = Mode::Normal;
+                                app.dirty = true;
                             }
                             KeyCode::Char('j') | KeyCode::Down => {
                                 let max = app.settings_items().len().saturating_sub(1);
                                 if app.settings_selected < max {
                                     app.settings_selected += 1;
                                 }
+                                app.dirty = true;
                             }
                             KeyCode::Char('k') | KeyCode::Up => {
                                 if app.settings_selected > 0 {
                                     app.settings_selected -= 1;
                                 }
+                                app.dirty = true;
                             }
-                            KeyCode::Char('1') => app.settings_selected = 0,
-                            KeyCode::Char('2') => app.settings_selected = 1.min(app.settings_items().len().saturating_sub(1)),
-                            KeyCode::Char('3') => app.settings_selected = 2.min(app.settings_items().len().saturating_sub(1)),
-                            KeyCode::Char('4') => app.settings_selected = 3.min(app.settings_items().len().saturating_sub(1)),
+                            KeyCode::Char('1') => { app.settings_selected = 0; app.dirty = true; }
+                            KeyCode::Char('2') => { app.settings_selected = 1.min(app.settings_items().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('3') => { app.settings_selected = 2.min(app.settings_items().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('4') => { app.settings_selected = 3.min(app.settings_items().len().saturating_sub(1)); app.dirty = true; }
                             KeyCode::Enter => {
                                 let items = app.settings_items();
                                 if let Some((name, _, _, editable)) = items.get(app.settings_selected) {
@@ -802,37 +834,44 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                         }
                                     }
                                 }
+                                app.dirty = true;
                             }
                             _ => {}
                         },
                         Mode::ThemeSelector => match key.code {
-                            KeyCode::Esc => app.close_theme_selector(),
+                            KeyCode::Esc => {
+                                app.close_theme_selector();
+                                app.dirty = true;
+                            }
                             KeyCode::Char('j') | KeyCode::Down => {
                                 let max = App::available_themes().len().saturating_sub(1);
                                 if app.theme_selected < max {
                                     app.theme_selected += 1;
                                 }
+                                app.dirty = true;
                             }
                             KeyCode::Char('k') | KeyCode::Up => {
                                 if app.theme_selected > 0 {
                                     app.theme_selected -= 1;
                                 }
+                                app.dirty = true;
                             }
-                            KeyCode::Char('1') => app.theme_selected = 0,
-                            KeyCode::Char('2') => app.theme_selected = 1.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('3') => app.theme_selected = 2.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('4') => app.theme_selected = 3.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('5') => app.theme_selected = 4.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('6') => app.theme_selected = 5.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('7') => app.theme_selected = 6.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('8') => app.theme_selected = 7.min(App::available_themes().len().saturating_sub(1)),
-                            KeyCode::Char('9') => app.theme_selected = 8.min(App::available_themes().len().saturating_sub(1)),
+                            KeyCode::Char('1') => { app.theme_selected = 0; app.dirty = true; }
+                            KeyCode::Char('2') => { app.theme_selected = 1.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('3') => { app.theme_selected = 2.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('4') => { app.theme_selected = 3.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('5') => { app.theme_selected = 4.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('6') => { app.theme_selected = 5.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('7') => { app.theme_selected = 6.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('8') => { app.theme_selected = 7.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
+                            KeyCode::Char('9') => { app.theme_selected = 8.min(App::available_themes().len().saturating_sub(1)); app.dirty = true; }
                             KeyCode::Enter => {
                                 let themes = App::available_themes();
                                 if let Some((name, _)) = themes.get(app.theme_selected) {
                                     app.settings.theme = name.to_string();
                                     app.close_theme_selector();
                                 }
+                                app.dirty = true;
                             }
                             _ => {}
                         },
