@@ -457,8 +457,76 @@ fn create_session_in_path(path: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Find detach key in buffer using multiple encoding formats (like agent-deck)
+/// Returns the position of the key sequence, or None if not found
+/// 
+/// Supports:
+/// - Raw byte (e.g., 0x11 for Ctrl+Q)
+/// - xterm modifyOtherKeys: ESC[27;5;{keyCode}~
+/// - Kitty CSI u: ESC[{keyCode};5u
+/// - F12: ESC[24~
+fn find_detach_key(data: &[u8], detach_byte: u8) -> Option<usize> {
+    // 1. Check for raw byte
+    if let Some(pos) = data.iter().position(|&b| b == detach_byte) {
+        return Some(pos);
+    }
+    
+    // 2. Calculate key code for sequence formats
+    // Ctrl+A-Z (1-26) -> a-z (97-122)
+    // Ctrl+\, ], ^, _ (28-31) -> \, ], ^, _ (92-95)
+    let key_code = match detach_byte {
+        1..=26 => detach_byte + 96,
+        28..=31 => detach_byte + 64,
+        _ => 0,
+    };
+    
+    if key_code > 0 {
+        // 3. Check xterm modifyOtherKeys format: ESC[27;5;{keyCode}~
+        let xterm_seq = format!("\x1b[27;5;{}~", key_code);
+        if let Some(pos) = data.windows(xterm_seq.len()).position(|w| w == xterm_seq.as_bytes()) {
+            return Some(pos);
+        }
+        
+        // 4. Check Kitty CSI u format: ESC[{keyCode};5u
+        let kitty_seq = format!("\x1b[{};5u", key_code);
+        if let Some(pos) = data.windows(kitty_seq.len()).position(|w| w == kitty_seq.as_bytes()) {
+            return Some(pos);
+        }
+    }
+    
+    None
+}
+
+/// Find F12 key sequence
+fn find_f12_key(data: &[u8]) -> Option<usize> {
+    // Standard F12: ESC[24~
+    if let Some(pos) = data.windows(5).position(|w| w == &[0x1b, b'[', b'2', b'4', b'~']) {
+        return Some(pos);
+    }
+    
+    // F12 with modifier: ESC[24;*~ (e.g., ESC[24;2~ for Shift+F12)
+    if data.len() >= 6 {
+        if let Some(pos) = data.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
+            if data.len() > pos + 4 && data[pos + 4] == b';' {
+                // Look for closing ~ in the remaining data
+                for i in (pos + 5)..data.len() {
+                    if data[i] == b'~' {
+                        return Some(pos);
+                    }
+                }
+            }
+        }
+    }
+    
+    None
+}
+
 /// Attach to a tmux pane using PTY (direct attach, not popup)
+/// Based on agent-deck's implementation with multi-format key detection
 fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    
     // Use window_index for reliable targeting (not window name which can be dynamic)
     let target = format!("{}:{}", panel.session, panel.window_index);
     
@@ -485,8 +553,15 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
     let mut master_reader = pty.master.try_clone_reader()?;
     let mut master_writer = pty.master.take_writer()?;
     
-    // Set raw mode
+    // Set raw mode for stdin
     let _guard = set_raw_mode()?;
+    
+    // Shared flag for detach signal
+    let should_detach = Arc::new(AtomicBool::new(false));
+    let should_detach_reader = should_detach.clone();
+    
+    // Terminal style reset sequence (like agent-deck)
+    const TERMINAL_STYLE_RESET: &str = "\x1b]8;;\x1b\\\x1b[0m\x1b[24m\x1b[39m\x1b[49m";
     
     // Spawn thread to copy PTY output to stdout
     std::thread::scope(|s| {
@@ -494,6 +569,11 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
             let mut buf = [0u8; 1024];
             let mut stdout = io::stdout();
             loop {
+                // Check if we should detach
+                if should_detach_reader.load(Ordering::Relaxed) {
+                    break;
+                }
+                
                 match master_reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -507,49 +587,14 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
             }
         });
         
-        // Main thread: Read stdin, intercept F12 (ESC[24~) and Ctrl+Q
+        // Main thread: Read stdin, intercept detach keys
         let mut stdin = io::stdin();
         let mut buf = [0u8; 64];
-        let mut pending = Vec::new(); // Buffer for escape sequence detection
+        let mut pending: Vec<u8> = Vec::with_capacity(256);
         
-        // Helper function to check if bytes contain a complete exit sequence
-        fn find_exit_sequence(pending: &[u8]) -> Option<(usize, &'static str)> {
-            // Check for F12: ESC[24~
-            if let Some(pos) = pending.windows(5).position(|w| w == &[0x1b, b'[', b'2', b'4', b'~']) {
-                return Some((pos, "F12"));
-            }
-            // Check for F12 variant with modifier: ESC[24;*~
-            if pending.len() >= 6 {
-                if let Some(pos) = pending.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
-                    if pending.len() > pos + 4 && pending[pos + 4] == b';' {
-                        // Look for closing ~
-                        if let Some(_end) = pending[pos + 5..].iter().position(|&b| b == b'~') {
-                            return Some((pos, "F12-modified"));
-                        }
-                    }
-                }
-            }
-            // Check for Ctrl+Q (0x11) or Ctrl+C (0x03)
-            if let Some(pos) = pending.iter().position(|&b| b == 0x11 || b == 0x03) {
-                return Some((pos, if pending[pos] == 0x11 { "Ctrl+Q" } else { "Ctrl+C" }));
-            }
-            None
-        }
-        
-        // Helper to find safe bytes to forward (not part of potential escape sequence)
-        fn find_safe_forward_point(pending: &[u8]) -> usize {
-            // Find last position that is definitely not part of an escape sequence
-            // Escape sequences start with ESC (0x1b) or CSI (0x9b)
-            if let Some(esc_pos) = pending.iter().rposition(|&b| b == 0x1b) {
-                // If we have ESC, only forward up to before it
-                // Unless there's enough data to determine it's not a sequence we care about
-                if esc_pos > 0 {
-                    return esc_pos;
-                }
-                return 0; // Don't forward anything, wait for more data
-            }
-            pending.len()
-        }
+        // Initial control sequence timeout (ignore initial sequences from terminal)
+        let start_time = Instant::now();
+        const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(50);
         
         loop {
             match stdin.read(&mut buf) {
@@ -557,33 +602,74 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
                 Ok(n) => {
                     pending.extend_from_slice(&buf[..n]);
                     
-                    // Check for exit sequences first
-                    if let Some((pos, key)) = find_exit_sequence(&pending) {
-                        // Forward bytes before the exit key
+                    // Discard initial terminal control sequences
+                    if start_time.elapsed() < CONTROL_SEQ_TIMEOUT {
+                        pending.clear();
+                        continue;
+                    }
+                    
+                    // Check for detach keys: Ctrl+Q (0x11), Ctrl+C (0x03), or F12
+                    let mut detach_pos = None;
+                    
+                    // Check for Ctrl+Q (primary detach key)
+                    if let Some(pos) = find_detach_key(&pending, 0x11) {
+                        detach_pos = Some(pos);
+                    }
+                    // Check for F12 (secondary detach key)
+                    else if let Some(pos) = find_f12_key(&pending) {
+                        detach_pos = Some(pos);
+                    }
+                    // Check for Ctrl+C (emergency exit)
+                    else if let Some(pos) = find_detach_key(&pending, 0x03) {
+                        detach_pos = Some(pos);
+                    }
+                    
+                    if let Some(pos) = detach_pos {
+                        // Forward data before the detach key
                         if pos > 0 {
                             let _ = master_writer.write_all(&pending[..pos]);
                             let _ = master_writer.flush();
                         }
-                        // Send the exit key to tmux first (so it can process it)
-                        let _ = master_writer.write_all(&pending[pos..pos + if key.starts_with("F12") { 5 } else { 1 }]);
-                        let _ = master_writer.flush();
-                        std::thread::sleep(Duration::from_millis(50)); // Brief delay for tmux
+                        
+                        // DO NOT forward the detach key - just signal detach
+                        should_detach.store(true, Ordering::Relaxed);
+                        
+                        // Small delay to let output flush
+                        std::thread::sleep(Duration::from_millis(20));
                         break;
                     }
                     
-                    // Forward safe bytes (not potential escape sequences)
-                    let safe_len = find_safe_forward_point(&pending);
-                    if safe_len > 0 {
-                        if master_writer.write_all(&pending[..safe_len]).is_err() {
+                    // No detach key found - forward all safe data
+                    // Keep potential partial escape sequences in buffer
+                    let forward_len = if pending.contains(&0x1b) {
+                        // Find last complete escape sequence or non-ESC byte
+                        let mut last_safe = pending.len();
+                        for (i, &b) in pending.iter().enumerate().rev() {
+                            if b == 0x1b {
+                                last_safe = i;
+                                break;
+                            }
+                        }
+                        if last_safe == 0 && pending[0] == 0x1b {
+                            0 // Don't forward if we start with ESC
+                        } else {
+                            last_safe
+                        }
+                    } else {
+                        pending.len()
+                    };
+                    
+                    if forward_len > 0 {
+                        if master_writer.write_all(&pending[..forward_len]).is_err() {
                             break;
                         }
                         let _ = master_writer.flush();
-                        pending.drain(..safe_len);
+                        pending.drain(..forward_len);
                     }
                     
-                    // Prevent buffer overflow (shouldn't happen with normal input)
-                    if pending.len() > 100 {
-                        // Flush everything to avoid getting stuck
+                    // Prevent buffer overflow
+                    if pending.len() > 200 {
+                        // Too much pending data - flush it all
                         let _ = master_writer.write_all(&pending);
                         let _ = master_writer.flush();
                         pending.clear();
@@ -594,10 +680,11 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
         }
     });
     
+    // Clean up
     let _ = child.kill();
     
-    // Reset terminal style
-    print!("\x1b[0m\x1b[24m\x1b[39m\x1b[49m");
+    // Reset terminal style (like agent-deck does)
+    print!("{}", TERMINAL_STYLE_RESET);
     let _ = io::stdout().flush();
     
     Ok(())
