@@ -532,8 +532,23 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
     use std::os::fd::BorrowedFd;
     use nix::sys::termios;
     
+    // Terminal size structure for ioctl
+    #[repr(C)]
+    #[derive(Debug)]
+    struct Winsize {
+        ws_row: u16,
+        ws_col: u16,
+        ws_xpixel: u16,
+        ws_ypixel: u16,
+    }
+    
     // Use window_index for reliable targeting
     let target = format!("{}:{}", panel.session, panel.window_index);
+    
+    // Get current terminal size
+    let (cols, rows) = crossterm::terminal::size()
+        .map(|(w, h)| (w as u16, h as u16))
+        .unwrap_or((80, 24));
     
     // Terminal style reset sequence
     const TERMINAL_STYLE_RESET: &str = "\x1b]8;;\x1b\\\x1b[0m\x1b[24m\x1b[39m\x1b[49m";
@@ -546,8 +561,17 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
         Ok(mut master) => {
             // Parent process: handle I/O
             
-            // Get file descriptors for raw mode manipulation
+            // Set terminal size to match current terminal (critical!)
             let master_fd = master.as_raw_fd();
+            let winsize = Winsize {
+                ws_row: rows,
+                ws_col: cols,
+                ws_xpixel: 0,
+                ws_ypixel: 0,
+            };
+            unsafe {
+                libc::ioctl(master_fd, libc::TIOCSWINSZ, &winsize);
+            }
             let stdin = io::stdin();
             let stdin_fd = stdin.as_raw_fd();
             

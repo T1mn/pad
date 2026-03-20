@@ -11,6 +11,7 @@ repository = "https://github.com/T1mn/tmux_kanban"
 crossterm = "0.27"
 md5 = "0.7"
 nix = { version = "0.27", features = ["term"] }
+libc = "0.2"
 nucleo-matcher = "0.3"
 rand = "0.8"
 ratatui = "0.24"

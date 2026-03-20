@@ -243,6 +243,7 @@ name = "pad"
 version = "0.3.0"
 dependencies = [
  "crossterm",
+ "libc",
  "md5",
  "nix",
  "nucleo-matcher",
