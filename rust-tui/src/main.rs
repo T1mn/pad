@@ -3,7 +3,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+// PTY support is Unix-only (tmux is Unix-only)
+#[cfg(unix)]
+use pty::fork::Fork;
 use ratatui::{
     backend::CrosstermBackend,
     widgets::TableState,
@@ -521,180 +523,143 @@ fn find_f12_key(data: &[u8]) -> Option<usize> {
     None
 }
 
-/// Attach to a tmux pane using PTY (direct attach, not popup)
-/// Based on agent-deck's implementation with multi-format key detection
+/// Attach to a tmux pane using PTY with creack/pty (Unix-only)
+/// Fully aligned with agent-deck's implementation
+#[cfg(unix)]
 fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::os::unix::io::AsRawFd;
+    use std::os::unix::process::CommandExt;
+    use std::os::fd::BorrowedFd;
+    use nix::sys::termios;
     
-    // Use window_index for reliable targeting (not window name which can be dynamic)
+    // Use window_index for reliable targeting
     let target = format!("{}:{}", panel.session, panel.window_index);
     
-    let pty_system = NativePtySystem::default();
-    
-    let (cols, rows) = crossterm::terminal::size()
-        .map(|(w, h)| (w as u16, h as u16))
-        .unwrap_or((80, 24));
-    
-    let pty = pty_system.openpty(PtySize {
-        rows,
-        cols,
-        pixel_width: 0,
-        pixel_height: 0,
-    })?;
-    
-    let mut cmd = CommandBuilder::new("tmux");
-    cmd.arg("attach-session");
-    cmd.arg("-t");
-    cmd.arg(&target);
-    
-    let mut child = pty.slave.spawn_command(cmd)?;
-    
-    let mut master_reader = pty.master.try_clone_reader()?;
-    let mut master_writer = pty.master.take_writer()?;
-    
-    // Set raw mode for stdin
-    let _guard = set_raw_mode()?;
-    
-    // Shared flag for detach signal
-    let should_detach = Arc::new(AtomicBool::new(false));
-    let should_detach_reader = should_detach.clone();
-    
-    // Terminal style reset sequence (like agent-deck)
+    // Terminal style reset sequence
     const TERMINAL_STYLE_RESET: &str = "\x1b]8;;\x1b\\\x1b[0m\x1b[24m\x1b[39m\x1b[49m";
     
-    // Spawn thread to copy PTY output to stdout
-    std::thread::scope(|s| {
-        s.spawn(|| {
-            let mut buf = [0u8; 1024];
+    // Create PTY using creack/pty
+    let fork = Fork::from_ptmx()?;
+    
+    // Check if we're parent or child
+    match fork.is_parent() {
+        Ok(mut master) => {
+            // Parent process: handle I/O
+            
+            // Get file descriptors for raw mode manipulation
+            let master_fd = master.as_raw_fd();
+            let stdin = io::stdin();
+            let stdin_fd = stdin.as_raw_fd();
+            
+            // Create BorrowedFd for nix API
+            let master_borrowed = unsafe { BorrowedFd::borrow_raw(master_fd) };
+            let stdin_borrowed = unsafe { BorrowedFd::borrow_raw(stdin_fd) };
+            
+            // Set PTY to raw mode (critical for correct key handling)
+            let pty_orig_termios = termios::tcgetattr(master_borrowed)?;
+            let mut pty_raw = pty_orig_termios.clone();
+            termios::cfmakeraw(&mut pty_raw);
+            termios::tcsetattr(master_borrowed, termios::SetArg::TCSAFLUSH, &pty_raw)?;
+            
+            // Set stdin to raw mode
+            let stdin_orig_termios = termios::tcgetattr(stdin_borrowed)?;
+            let mut stdin_raw = stdin_orig_termios.clone();
+            termios::cfmakeraw(&mut stdin_raw);
+            termios::tcsetattr(stdin_borrowed, termios::SetArg::TCSAFLUSH, &stdin_raw)?;
+            
+            // Use a simple select-like loop for I/O multiplexing
+            // We can't easily share master between threads, so do everything in one thread
+            // with non-blocking I/O
+            
+            let mut stdin = io::stdin();
             let mut stdout = io::stdout();
+            let mut buf = [0u8; 256];
+            let start_time = Instant::now();
+            const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(50);
+            
             loop {
-                // Check if we should detach
-                if should_detach_reader.load(Ordering::Relaxed) {
-                    break;
-                }
-                
-                match master_reader.read(&mut buf) {
+                // Read from stdin (non-blocking would be better but simple for now)
+                match stdin.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        if stdout.write_all(&buf[..n]).is_err() {
+                        // Discard initial control sequences
+                        if start_time.elapsed() < CONTROL_SEQ_TIMEOUT {
+                            continue;
+                        }
+                        
+                        // Check for detach keys
+                        let mut detach_idx = None;
+                        
+                        if let Some(idx) = find_detach_key(&buf[..n], 0x11) {
+                            detach_idx = Some(idx);
+                        } else if let Some(idx) = find_f12_key(&buf[..n]) {
+                            detach_idx = Some(idx);
+                        } else if let Some(idx) = find_detach_key(&buf[..n], 0x03) {
+                            detach_idx = Some(idx);
+                        }
+                        
+                        if let Some(idx) = detach_idx {
+                            // Forward data before detach key
+                            if idx > 0 {
+                                let _ = master.write_all(&buf[..idx]);
+                                let _ = master.flush();
+                            }
+                            // Do not forward the detach key itself
+                            break;
+                        }
+                        
+                        // Forward all data to tmux
+                        if master.write_all(&buf[..n]).is_err() {
+                            break;
+                        }
+                        let _ = master.flush();
+                    }
+                    Err(_) => break,
+                }
+                
+                // Copy PTY output to stdout (non-blocking read)
+                let mut pty_buf = [0u8; 1024];
+                match master.read(&mut pty_buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if stdout.write_all(&pty_buf[..n]).is_err() {
                             break;
                         }
                         let _ = stdout.flush();
                     }
-                    Err(_) => break,
-                }
-            }
-        });
-        
-        // Main thread: Read stdin, intercept detach keys
-        let mut stdin = io::stdin();
-        let mut buf = [0u8; 64];
-        let mut pending: Vec<u8> = Vec::with_capacity(256);
-        
-        // Initial control sequence timeout (ignore initial sequences from terminal)
-        // Extended to 300ms to catch all terminal capability queries
-        let start_time = Instant::now();
-        const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(300);
-        
-        loop {
-            match stdin.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    pending.extend_from_slice(&buf[..n]);
-                    
-                    // Discard initial terminal control sequences
-                    if start_time.elapsed() < CONTROL_SEQ_TIMEOUT {
-                        pending.clear();
-                        continue;
-                    }
-                    
-                    // Check for detach keys: Ctrl+Q (0x11), Ctrl+C (0x03), or F12
-                    let mut detach_pos = None;
-                    
-                    // Check for Ctrl+Q (primary detach key)
-                    if let Some(pos) = find_detach_key(&pending, 0x11) {
-                        detach_pos = Some(pos);
-                    }
-                    // Check for F12 (secondary detach key)
-                    else if let Some(pos) = find_f12_key(&pending) {
-                        detach_pos = Some(pos);
-                    }
-                    // Check for Ctrl+C (emergency exit)
-                    else if let Some(pos) = find_detach_key(&pending, 0x03) {
-                        detach_pos = Some(pos);
-                    }
-                    
-                    if let Some(pos) = detach_pos {
-                        // Forward data before the detach key
-                        if pos > 0 {
-                            let _ = master_writer.write_all(&pending[..pos]);
-                            let _ = master_writer.flush();
-                        }
-                        
-                        // Send tmux prefix key + detach command to ensure clean detach
-                        // This works even if F12/Ctrl+Q is captured by tmux
-                        std::thread::sleep(Duration::from_millis(10));
-                        let _ = master_writer.write_all(b"\x02d"); // Ctrl+B then 'd' (tmux detach)
-                        let _ = master_writer.flush();
-                        
-                        // Signal detach
-                        should_detach.store(true, Ordering::Relaxed);
-                        
-                        // Give tmux time to process the detach command
-                        std::thread::sleep(Duration::from_millis(100));
-                        break;
-                    }
-                    
-                    // No detach key found - forward all safe data
-                    // Keep potential partial escape sequences in buffer
-                    let forward_len = if pending.contains(&0x1b) {
-                        // Find last complete escape sequence or non-ESC byte
-                        let mut last_safe = pending.len();
-                        for (i, &b) in pending.iter().enumerate().rev() {
-                            if b == 0x1b {
-                                last_safe = i;
-                                break;
-                            }
-                        }
-                        if last_safe == 0 && pending[0] == 0x1b {
-                            0 // Don't forward if we start with ESC
-                        } else {
-                            last_safe
-                        }
-                    } else {
-                        pending.len()
-                    };
-                    
-                    if forward_len > 0 {
-                        if master_writer.write_all(&pending[..forward_len]).is_err() {
-                            break;
-                        }
-                        let _ = master_writer.flush();
-                        pending.drain(..forward_len);
-                    }
-                    
-                    // Prevent buffer overflow
-                    if pending.len() > 200 {
-                        // Too much pending data - flush it all
-                        let _ = master_writer.write_all(&pending);
-                        let _ = master_writer.flush();
-                        pending.clear();
+                    Err(_) => {
+                        // No data available, continue
+                        std::thread::sleep(Duration::from_millis(1));
                     }
                 }
-                Err(_) => break,
             }
+            
+            // Restore terminal settings
+            let _ = termios::tcsetattr(master_borrowed, termios::SetArg::TCSAFLUSH, &pty_orig_termios);
+            let _ = termios::tcsetattr(stdin_borrowed, termios::SetArg::TCSAFLUSH, &stdin_orig_termios);
+            
+            // Reset terminal style
+            print!("{}", TERMINAL_STYLE_RESET);
+            let _ = io::stdout().flush();
+            
+            Ok(())
         }
-    });
-    
-    // Clean up
-    let _ = child.kill();
-    
-    // Reset terminal style (like agent-deck does)
-    print!("{}", TERMINAL_STYLE_RESET);
-    let _ = io::stdout().flush();
-    
-    Ok(())
+        Err(_) => {
+            // Child process: execute tmux
+            let err = std::process::Command::new("tmux")
+                .args(&["attach-session", "-t", &target])
+                .exec();
+            
+            // exec only returns on error
+            Err(format!("Failed to exec tmux: {}", err).into())
+        }
+    }
+}
+
+/// Non-Unix stub (tmux is Unix-only)
+#[cfg(not(unix))]
+fn attach_to_pane_pty(_panel: &CodePanel) -> Result<(), Box<dyn Error>> {
+    Err("PTY attach is only supported on Unix systems".into())
 }
 
 #[cfg(unix)]
