@@ -593,8 +593,9 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
         let mut pending: Vec<u8> = Vec::with_capacity(256);
         
         // Initial control sequence timeout (ignore initial sequences from terminal)
+        // Extended to 300ms to catch all terminal capability queries
         let start_time = Instant::now();
-        const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(50);
+        const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(300);
         
         loop {
             match stdin.read(&mut buf) {
@@ -631,11 +632,17 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
                             let _ = master_writer.flush();
                         }
                         
-                        // DO NOT forward the detach key - just signal detach
+                        // Send tmux prefix key + detach command to ensure clean detach
+                        // This works even if F12/Ctrl+Q is captured by tmux
+                        std::thread::sleep(Duration::from_millis(10));
+                        let _ = master_writer.write_all(b"\x02d"); // Ctrl+B then 'd' (tmux detach)
+                        let _ = master_writer.flush();
+                        
+                        // Signal detach
                         should_detach.store(true, Ordering::Relaxed);
                         
-                        // Small delay to let output flush
-                        std::thread::sleep(Duration::from_millis(20));
+                        // Give tmux time to process the detach command
+                        std::thread::sleep(Duration::from_millis(100));
                         break;
                     }
                     
@@ -768,7 +775,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Key bindings:");
         println!("  j/k or ↑/↓     Navigate panels / tree");
         println!("  1-9            Jump to panel");
-        println!("  Enter          Attach to panel (F12 or Ctrl+Q to detach)");
+        println!("  Enter          Attach to panel (F12 / Ctrl+Q / Ctrl+B d to detach)");
         println!("  t              Toggle file tree explorer");
         println!("  Space          Expand/collapse directory (in tree view)");
         println!("  /              Search");
@@ -902,7 +909,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mu
                                     print!("\x1b[2J\x1b[H"); // Clear screen
                                     println!("Attaching to {} @ {} (window {})", 
                                         panel.code_type, panel.pane_id, panel.window_index);
-                                    println!("Press F12 or Ctrl+Q to return to pad (or Ctrl+C as emergency exit)\n");
+                                    println!("Press F12, Ctrl+Q, or Ctrl+B then d to return to pad\n");
                                     io::stdout().flush()?;
                                     
                                     // Small delay to ensure message is visible
