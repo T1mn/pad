@@ -591,22 +591,62 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
             termios::cfmakeraw(&mut stdin_raw);
             termios::tcsetattr(stdin_borrowed, termios::SetArg::TCSAFLUSH, &stdin_raw)?;
             
-            // Use a simple select-like loop for I/O multiplexing
-            // We can't easily share master between threads, so do everything in one thread
-            // with non-blocking I/O
+            // Create shared state for cross-thread communication
+            use std::sync::atomic::{AtomicBool, Ordering};
+            use std::sync::Arc;
             
+            let should_exit = Arc::new(AtomicBool::new(false));
+            let should_exit_clone = should_exit.clone();
+            
+
+            
+            // Clone master for output thread
+            // We need to dup the fd since Master doesn't implement Clone
+            let master_fd_for_output = unsafe { libc::dup(master_fd) };
+            
+            // Spawn thread: PTY output -> stdout
+            std::thread::spawn(move || {
+                let mut pty_buf = [0u8; 1024];
+                let mut stdout = io::stdout();
+                
+                loop {
+                    if should_exit_clone.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    
+                    // Read from PTY master (using dup'd fd)
+                    let n = unsafe {
+                        libc::read(master_fd_for_output, 
+                                   pty_buf.as_mut_ptr() as *mut libc::c_void,
+                                   pty_buf.len())
+                    };
+                    
+                    if n <= 0 {
+                        std::thread::sleep(Duration::from_millis(1));
+                        continue;
+                    }
+                    
+                    let n = n as usize;
+                    if stdout.write_all(&pty_buf[..n]).is_err() {
+                        break;
+                    }
+                    let _ = stdout.flush();
+                }
+                
+                unsafe { libc::close(master_fd_for_output); }
+            });
+            
+            // Main thread: stdin -> PTY
             let mut stdin = io::stdin();
-            let mut stdout = io::stdout();
             let mut buf = [0u8; 256];
             let start_time = Instant::now();
             const CONTROL_SEQ_TIMEOUT: Duration = Duration::from_millis(50);
             
             loop {
-                // Read from stdin (non-blocking would be better but simple for now)
                 match stdin.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        // Discard initial control sequences
+                        // Discard initial control sequences (first 50ms)
                         if start_time.elapsed() < CONTROL_SEQ_TIMEOUT {
                             continue;
                         }
@@ -629,31 +669,20 @@ fn attach_to_pane_pty(panel: &CodePanel) -> Result<(), Box<dyn Error>> {
                                 let _ = master.flush();
                             }
                             // Do not forward the detach key itself
+                            should_exit.store(true, Ordering::Relaxed);
                             break;
                         }
                         
                         // Forward all data to tmux
                         if master.write_all(&buf[..n]).is_err() {
+                            should_exit.store(true, Ordering::Relaxed);
                             break;
                         }
                         let _ = master.flush();
                     }
-                    Err(_) => break,
-                }
-                
-                // Copy PTY output to stdout (non-blocking read)
-                let mut pty_buf = [0u8; 1024];
-                match master.read(&mut pty_buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if stdout.write_all(&pty_buf[..n]).is_err() {
-                            break;
-                        }
-                        let _ = stdout.flush();
-                    }
                     Err(_) => {
-                        // No data available, continue
-                        std::thread::sleep(Duration::from_millis(1));
+                        should_exit.store(true, Ordering::Relaxed);
+                        break;
                     }
                 }
             }
