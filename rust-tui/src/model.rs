@@ -1,44 +1,65 @@
 use std::fmt;
+use std::time::Instant;
 
 #[derive(Clone, Debug)]
-pub enum CodeType {
+pub enum AgentType {
     Claude,
     Codex,
     Kimi,
+    Gemini,
+    OpenCode,
+    Aider,
+    Cursor,
     Unknown,
 }
 
-impl fmt::Display for CodeType {
+impl fmt::Display for AgentType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CodeType::Claude => write!(f, "claude"),
-            CodeType::Codex => write!(f, "codex"),
-            CodeType::Kimi => write!(f, "kimi"),
-            CodeType::Unknown => write!(f, "unknown"),
+            AgentType::Claude => write!(f, "claude"),
+            AgentType::Codex => write!(f, "codex"),
+            AgentType::Kimi => write!(f, "kimi"),
+            AgentType::Gemini => write!(f, "gemini"),
+            AgentType::OpenCode => write!(f, "opencode"),
+            AgentType::Aider => write!(f, "aider"),
+            AgentType::Cursor => write!(f, "cursor"),
+            AgentType::Unknown => write!(f, "unknown"),
         }
     }
 }
 
-impl CodeType {
+impl AgentType {
     pub fn emoji(&self) -> &'static str {
         match self {
-            CodeType::Claude => "🟣C",
-            CodeType::Codex => "🔵X",
-            CodeType::Kimi => "🟢K",
-            CodeType::Unknown => "⚪?",
+            AgentType::Claude => "🟣C",
+            AgentType::Codex => "🔵X",
+            AgentType::Kimi => "🟢K",
+            AgentType::Gemini => "🔷G",
+            AgentType::OpenCode => "🟠O",
+            AgentType::Aider => "🟡A",
+            AgentType::Cursor => "🟤R",
+            AgentType::Unknown => "⚪?",
         }
     }
 
     pub fn from_processes(processes: &str) -> Self {
         let p = processes.to_lowercase();
         if p.contains("claude") {
-            CodeType::Claude
+            AgentType::Claude
         } else if p.contains("codex") {
-            CodeType::Codex
+            AgentType::Codex
         } else if p.contains("kimi") {
-            CodeType::Kimi
+            AgentType::Kimi
+        } else if p.contains("gemini") {
+            AgentType::Gemini
+        } else if p.contains("opencode") {
+            AgentType::OpenCode
+        } else if p.contains("aider") {
+            AgentType::Aider
+        } else if p.contains("cursor") {
+            AgentType::Cursor
         } else {
-            CodeType::Unknown
+            AgentType::Unknown
         }
     }
 }
@@ -51,19 +72,21 @@ pub struct GitInfo {
 }
 
 #[derive(Clone, Debug)]
-pub struct CodePanel {
+pub struct AgentPanel {
     pub session: String,
     pub window: String,
     pub window_index: String,
     pub pane: String,
     pub pane_id: String,
-    pub code_type: CodeType,
+    pub agent_type: AgentType,
     pub working_dir: String,
     pub is_active: bool,
     pub git_info: Option<GitInfo>,
+    pub pid: Option<String>,
+    pub start_time: Option<Instant>,
 }
 
-impl CodePanel {
+impl AgentPanel {
     #[allow(dead_code)]
     pub fn full_id(&self) -> String {
         format!("{}:{}.{}", self.session, self.window, self.pane)
@@ -90,7 +113,6 @@ impl CodePanel {
             return path;
         }
 
-        // Try to keep last 2 components
         let parts: Vec<&str> = path.split('/').collect();
         if parts.len() >= 2 {
             let short = format!("~/.../{}/{}", parts[parts.len() - 2], parts[parts.len() - 1]);
@@ -99,7 +121,12 @@ impl CodePanel {
             }
         }
 
-        format!("...{}", &path[path.len().saturating_sub(max_len - 3)..])
+        // 安全截断：确保在字符边界处截断
+        let start = path.char_indices().rev()
+            .find(|(i, _)| path.len() - i <= max_len - 3)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        format!("...{}", &path[start..])
     }
 
     pub fn git_display(&self) -> String {
@@ -107,12 +134,57 @@ impl CodePanel {
             let branch = git.branch.as_deref().unwrap_or("?");
             let commit = git.commit.as_deref().unwrap_or("?");
             if git.changed_files > 0 {
-                format!("{}@{}(+{})", branch, &commit[..commit.len().min(7)], git.changed_files)
+                format!(
+                    "{}@{}(+{})",
+                    branch,
+                    &commit[..commit.char_indices().nth(7).map(|(i, _)| i).unwrap_or(commit.len())],
+                    git.changed_files
+                )
             } else {
-                format!("{}@{}", branch, &commit[..commit.len().min(7)])
+                let commit_short = &commit[..commit.char_indices().nth(7).map(|(i, _)| i).unwrap_or(commit.len())];
+                format!("{}@{}", branch, commit_short)
             }
         } else {
             String::new()
         }
+    }
+
+    pub fn uptime_display(&self) -> String {
+        if let Some(pid) = &self.pid {
+            if let Some(secs) = get_process_uptime(pid) {
+                return format_duration(secs);
+            }
+        }
+        if let Some(start) = self.start_time {
+            return format_duration(start.elapsed().as_secs());
+        }
+        "?".to_string()
+    }
+}
+
+fn get_process_uptime(pid: &str) -> Option<u64> {
+    let output = std::process::Command::new("ps")
+        .args(["-p", pid, "-o", "etimes="])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse()
+            .ok()
+    } else {
+        None
+    }
+}
+
+fn format_duration(secs: u64) -> String {
+    if secs < 60 {
+        format!("{}s", secs)
+    } else if secs < 3600 {
+        format!("{}m", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h", secs / 3600)
+    } else {
+        format!("{}d", secs / 86400)
     }
 }

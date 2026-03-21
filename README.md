@@ -1,127 +1,72 @@
-# Tmux AI Kanban
+# pad
 
-Manage and monitor AI coding assistants (Claude, Codex, Kimi) running in tmux panes.
+Tmux Agent Panel Manager — monitor and manage AI coding assistants (Claude, Codex, Kimi, Gemini, OpenCode, Aider, Cursor) running in tmux.
 
 ## Features
 
-- 🔍 **Auto-detect** AI panels in tmux sessions
-- 📊 **TUI interface** with keyboard navigation
-- 🌿 **Git integration** - show branch, commit, status
-- ⚡ **Activity indicators** - spinner for active panels
-- 🎯 **Filter & Search** by AI type, session, directory
-- 🚀 **High Performance** - Rust core for 2-3x speedup
+- 🔍 Auto-detect AI agent panels across all tmux sessions
+- 📊 TUI with keyboard navigation and live preview
+- 🌿 Git integration — branch, commit, changed files
+- ⚡ Activity detection — spinners, "thinking" markers
+- 🔎 Search and filter panels
+- 🌲 File tree explorer with syntax-highlighted preview
+- 🚀 PTY attach — jump into any panel with F12/Ctrl+Q to return
+- 🎨 Theme selector (Dracula, Nord, Catppuccin, etc.)
+- 🤖 Agent launcher — start new AI agents from the tree view
 
-## Quick Install
+## Install
 
-### One-liner (Recommended)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/T1mn/tmux_kanban/main/install.sh | bash
-```
-
-### UV (Fastest)
+Requires: Rust toolchain, tmux, Linux/macOS.
 
 ```bash
-uv tool install tmux-ai-kanban
-```
+# From source
+git clone https://github.com/T1mn/tmux_kanban.git
+cd tmux_kanban/rust-tui
+cargo build --release
 
-### Pip
+# Install to ~/.local/bin
+cp target/release/pad ~/.local/bin/
 
-```bash
-# Global
-pip install tmux-ai-kanban
-
-# China mirror
-pip install tmux-ai-kanban -i https://pypi.tuna.tsinghua.edu.cn/simple
-```
-
-### With Rust Core (Best Performance)
-
-```bash
-pip install tmux-ai-kanban tmux-kanban-core
+# Or use the install script
+./install.sh
 ```
 
 ## Usage
 
-### Interactive TUI Mode
-
 ```bash
-# Launch TUI
-tak tui
-
-# or
-ai-kanban tui
-
-# Filter by AI type
-tak tui -f claude
+pad              # Launch TUI
+pad --help       # Show help
+pad --version    # Show version
 ```
 
-**Keyboard Shortcuts**:
-- `↑/↓` or `j/k` - Navigate
-- `1-9` - Jump to panel
-- `Enter` - Open panel in popup (zoomed)
-- `/` - Search
-- `r` - Refresh
-- `q` - Quit
+## Key Bindings
 
-### CLI Mode
+| Key | Action |
+|-----|--------|
+| `j/k` or `↑/↓` | Navigate panels |
+| `1-9` | Jump to panel |
+| `Enter` | Attach to panel |
+| `F12` / `Ctrl+Q` | Detach back to pad |
+| `/` | Search panels |
+| `?` | Help |
+| `t` | Toggle file tree |
+| `T` | Open tree at ~/ |
+| `Space` | Expand/collapse directory |
+| `c` | Create new session |
+| `d` | Delete panel |
+| `r` | Refresh |
+| `F1` | Settings |
+| `q` | Quit |
 
-```bash
-# List all AI panels
-ai-kanban list
+## Supported Agents
 
-# Watch mode (auto-refresh)
-ai-kanban list --watch
-
-# Filter by AI type
-ai-kanban list --filter claude
-
-# Show summary
-ai-kanban summary
-
-# Show pane content
-ai-kanban show <pane_id>
-
-# Jump to a pane
-ai-kanban jump <session> <window> <pane>
-```
-
-## Performance
-
-| Mode | 10 panes | 50 panes |
-|------|----------|----------|
-| Python | ~800ms | ~4s |
-| **Rust** | ~300ms | ~1.2s |
-
-Enable Rust core for 2-3x speedup:
-```bash
-pip install tmux-kanban-core
-```
-
-## Supported AI Tools
-
-- 🟣 Claude (claude)
-- 🔵 OpenAI Codex (codex)
-- 🟢 Kimi (kimi)
-
-## Requirements
-
-- Python 3.9+
-- tmux 3.0+
-- Linux/macOS
-
-## Development
-
-```bash
-git clone https://github.com/T1mn/tmux_kanban.git
-cd tmux_kanban
-pip install -e .
-
-# Build Rust core (optional)
-cd rust
-maturin build --release
-pip install target/wheels/*.whl
-```
+- 🟣 Claude (`claude`)
+- 🔵 Codex (`codex`)
+- 🟢 Kimi (`kimi-cli`)
+- 🔷 Gemini (`gemini-cli`)
+- 🟠 OpenCode (`opencode`)
+- 🟡 Aider (`aider`)
+- 🟤 Cursor (`cursor`)
 
 ## License
 

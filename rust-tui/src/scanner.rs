@@ -1,9 +1,9 @@
-use crate::model::{CodePanel, CodeType, GitInfo};
+use crate::model::{AgentPanel, AgentType, GitInfo};
 use std::process::Command;
 
-pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error + Send + Sync>> {
+pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("tmux")
-        .args(&[
+        .args([
             "list-panes",
             "-a",
             "-F",
@@ -33,66 +33,56 @@ pub fn scan_panels() -> Result<Vec<CodePanel>, Box<dyn std::error::Error + Send 
         let current_cmd = parts[6];
         let working_dir = parts[7].to_string();
 
-        // Get child processes
         let child_processes = get_child_processes(pane_pid);
         let all_processes = format!("{} {}", current_cmd, child_processes);
 
-        // Detect code type
-        let code_type = CodeType::from_processes(&all_processes);
+        let agent_type = AgentType::from_processes(&all_processes);
 
-        // Skip if not a code panel
-        if matches!(code_type, CodeType::Unknown) {
+        if matches!(agent_type, AgentType::Unknown) {
             continue;
         }
 
-        // Check if active
         let is_active = check_active(&pane_id);
-
-        // Get git info
         let git_info = get_git_info(&working_dir);
 
-        panels.push(CodePanel {
+        panels.push(AgentPanel {
             session,
             window,
             window_index,
             pane,
             pane_id,
-            code_type,
+            agent_type,
             working_dir,
             is_active,
             git_info,
+            pid: Some(pane_pid.to_string()),
+            start_time: Some(std::time::Instant::now()),
         });
     }
 
-    // Sort by activity (active first, then by last activity time if available)
-    panels.sort_by(|a, b| {
-        match (a.is_active, b.is_active) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => std::cmp::Ordering::Equal,
-        }
+    panels.sort_by(|a, b| match (a.is_active, b.is_active) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => std::cmp::Ordering::Equal,
     });
 
     Ok(panels)
 }
 
 fn get_child_processes(pid: &str) -> String {
-    let output = Command::new("pgrep")
-        .args(&["-P", pid])
-        .output()
-        .ok();
+    let output = Command::new("pgrep").args(["-P", pid]).output().ok();
 
     if let Some(output) = output {
         if output.status.success() {
             let child_pids = String::from_utf8_lossy(&output.stdout);
             let mut processes = Vec::new();
-            
+
             for child_pid in child_pids.lines() {
                 if let Ok(cmd) = get_process_cmd(child_pid) {
                     processes.push(cmd);
                 }
             }
-            
+
             return processes.join(" ");
         }
     }
@@ -102,9 +92,9 @@ fn get_child_processes(pid: &str) -> String {
 
 fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("ps")
-        .args(&["-p", pid, "-o", "comm=", "--no-headers"])
+        .args(["-p", pid, "-o", "comm=", "--no-headers"])
         .output()?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -113,7 +103,6 @@ fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send
 }
 
 fn check_active(pane_id: &str) -> bool {
-    // Capture recent content and check for active markers
     if let Ok(content) = capture_pane_content(pane_id, 20) {
         let content_lower = content.to_lowercase();
         let active_markers = [
@@ -124,50 +113,93 @@ fn check_active(pane_id: &str) -> bool {
             "⋯",
             "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
         ];
-        
-        // Check for AI-specific markers
+
         for marker in &active_markers {
             if content_lower.contains(marker) {
-                // Also check for AI context
-                if content_lower.contains("claude") 
+                if content_lower.contains("claude")
                     || content_lower.contains("codex")
                     || content_lower.contains("kimi")
-                    || content_lower.contains("assistant") {
+                    || content_lower.contains("gemini")
+                    || content_lower.contains("opencode")
+                    || content_lower.contains("aider")
+                    || content_lower.contains("cursor")
+                    || content_lower.contains("assistant")
+                {
                     return true;
                 }
             }
         }
     }
-    
+
     false
 }
 
-fn capture_pane_content(pane_id: &str, lines: usize) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+fn capture_pane_content(
+    pane_id: &str,
+    lines: usize,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("tmux")
-        .args(&["capture-pane", "-p", "-t", pane_id, "-S", &format!("-{}", lines)])
+        .args(["capture-pane", "-p", "-t", pane_id, "-S", &format!("-{}", lines)])
         .output()?;
-    
+
     if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        Ok(strip_ansi(&String::from_utf8_lossy(&output.stdout)))
     } else {
         Err("Failed to capture pane".into())
     }
 }
 
+/// Strip ANSI escape sequences and control characters from captured pane content
+pub fn strip_ansi(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip ESC [ ... final_byte (CSI sequences)
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&nc) = chars.peek() {
+                    chars.next();
+                    if nc.is_ascii_alphabetic() || nc == 'm' || nc == '~' {
+                        break;
+                    }
+                }
+            } else {
+                // Skip other ESC sequences (e.g. ESC ] for OSC)
+                if let Some(&nc) = chars.peek() {
+                    if nc == ']' {
+                        // OSC: skip until ST (ESC \ or BEL)
+                        chars.next();
+                        while let Some(oc) = chars.next() {
+                            if oc == '\x07' { break; }
+                            if oc == '\x1b' {
+                                if chars.peek() == Some(&'\\') { chars.next(); break; }
+                            }
+                        }
+                    } else {
+                        chars.next(); // skip single char after ESC
+                    }
+                }
+            }
+        } else if c == '\n' || c == '\t' || !c.is_control() {
+            result.push(c);
+        }
+    }
+    result
+}
+
 fn get_git_info(working_dir: &str) -> Option<GitInfo> {
-    // Check if git repo
     let output = Command::new("git")
-        .args(&["-C", working_dir, "rev-parse", "--git-dir"])
+        .args(["-C", working_dir, "rev-parse", "--git-dir"])
         .output()
         .ok()?;
-    
+
     if !output.status.success() {
         return None;
     }
 
-    // Get branch
     let branch = Command::new("git")
-        .args(&["-C", working_dir, "branch", "--show-current"])
+        .args(["-C", working_dir, "branch", "--show-current"])
         .output()
         .ok()
         .and_then(|o| {
@@ -178,9 +210,8 @@ fn get_git_info(working_dir: &str) -> Option<GitInfo> {
             }
         });
 
-    // Get commit
     let commit = Command::new("git")
-        .args(&["-C", working_dir, "rev-parse", "HEAD"])
+        .args(["-C", working_dir, "rev-parse", "HEAD"])
         .output()
         .ok()
         .and_then(|o| {
@@ -191,9 +222,8 @@ fn get_git_info(working_dir: &str) -> Option<GitInfo> {
             }
         });
 
-    // Get changed files count
     let changed_files = Command::new("git")
-        .args(&["-C", working_dir, "status", "--porcelain"])
+        .args(["-C", working_dir, "status", "--porcelain"])
         .output()
         .ok()
         .map(|o| {

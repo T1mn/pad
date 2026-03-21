@@ -120,7 +120,7 @@ impl FuzzyPicker {
     }
 
     pub fn draw(&self, f: &mut ratatui::Frame) {
-        let area = centered_rect(70, 70, f.size());
+        let area = centered_rect(70, 70, f.area());
         
         // Clear background
         f.render_widget(Clear, area);
@@ -132,7 +132,7 @@ impl FuzzyPicker {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan));
         
-        let inner = area.inner(&Margin::new(2, 1));
+        let inner = area.inner(Margin::new(2, 1));
         
         // Split into query area and list area
         let chunks = Layout::default()

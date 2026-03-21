@@ -1,20 +1,23 @@
 [package]
 name = "pad"
-version = "0.3.0"
+version = "0.5.0"
 edition = "2021"
-authors = ["T1mn <your.email@example.com>"]
-description = "Tmux Code Kanban - Rust TUI Edition"
+authors = ["T1mn <tinggofun@gmail.com>"]
+description = "pad - Tmux Agent Panel Manager"
 license = "MIT"
 repository = "https://github.com/T1mn/tmux_kanban"
 
 [dependencies]
-crossterm = "0.27"
+crossterm = "0.28"
+dirs = "5.0"
 md5 = "0.7"
 nix = { version = "0.27", features = ["term"] }
 libc = "0.2"
 nucleo-matcher = "0.3"
 rand = "0.8"
-ratatui = "0.24"
+ratatui = "0.30"
+tui-markdown = { version = "0.3", default-features = false }
+toml = "0.7"
 tokio = { version = "1.35", features = ["full"] }
 
 # Unix-only PTY support
