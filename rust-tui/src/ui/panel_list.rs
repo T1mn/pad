@@ -9,8 +9,9 @@ use ratatui::{
 
 pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let theme = &app.theme;
+    let l = app.locale;
     let block = Block::default()
-        .title(" Agent Panels ")
+        .title(format!(" {} ", crate::i18n::t(l, "panel.title")))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.border));
@@ -63,15 +64,20 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Length(3),  // Status
         Constraint::Length(20), // Location
     ];
-    let mut headers: Vec<&str> = vec!["#", "Type", "St", "Location"];
+    let mut headers: Vec<&str> = vec![
+        crate::i18n::t(l, "table.num"),
+        crate::i18n::t(l, "table.type"),
+        crate::i18n::t(l, "table.status"),
+        crate::i18n::t(l, "table.location"),
+    ];
 
     if show_dir {
         widths.push(Constraint::Length(20));
-        headers.push("Directory");
+        headers.push(crate::i18n::t(l, "table.dir"));
     }
     if show_git {
         widths.push(Constraint::Min(0));
-        headers.push("Git");
+        headers.push(crate::i18n::t(l, "table.git"));
     }
 
     let table = Table::new(rows, &widths)
@@ -104,27 +110,27 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
         let empty_msg = vec![
             Line::from(""),
             Line::from(Span::styled(
-                "No agent panels found",
+                crate::i18n::t(l, "panel.empty_title"),
                 Style::default()
                     .fg(theme.warning)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "Start an AI agent in a tmux pane:",
+                crate::i18n::t(l, "panel.empty_hint"),
                 Style::default().fg(theme.fg),
             )),
             Line::from(Span::styled(
-                "  claude, codex, kimi-cli",
+                crate::i18n::t(l, "panel.empty_agents"),
                 Style::default().fg(theme.accent),
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "Press 'c' to create a new session",
+                crate::i18n::t(l, "panel.empty_create"),
                 Style::default().fg(theme.fg),
             )),
             Line::from(Span::styled(
-                "Press 'r' to refresh",
+                crate::i18n::t(l, "panel.empty_refresh"),
                 Style::default().fg(theme.fg),
             )),
         ];
@@ -140,11 +146,12 @@ pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
         let theme = &app.theme;
         tree.render(f, area, theme);
     } else {
+        let l = app.locale;
         let block = Block::default()
-            .title(" Explorer ")
+            .title(format!(" {} ", crate::i18n::t(l, "tree.explorer")))
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL);
-        let paragraph = Paragraph::new("No directory selected")
+        let paragraph = Paragraph::new(crate::i18n::t(l, "tree.no_dir"))
             .block(block)
             .alignment(Alignment::Center);
         f.render_widget(paragraph, area);
@@ -152,9 +159,14 @@ pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn draw_agent_status_bar(f: &mut Frame, app: &App, area: Rect) {
+    let l = app.locale;
     let active = app.panels.iter().filter(|p| p.is_active).count();
     let total = app.panels.len();
-    let text = format!(" {} agents ({} active) ", total, active);
+    let tmpl = crate::i18n::t(l, "panel.agent_count");
+    let text = format!(" {} ",
+        tmpl.replacen("{}", &total.to_string(), 1)
+            .replacen("{}", &active.to_string(), 1)
+    );
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(app.theme.border));

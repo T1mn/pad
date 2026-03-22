@@ -91,7 +91,7 @@ impl App {
 
                 if preview_type.is_text() {
                     self.file_preview_path = Some(path.clone());
-                    self.file_preview_content = Self::load_text_file(path, 100);
+                    self.file_preview_content = Self::load_text_file(path, 500);
                     self.file_preview_scroll = 0;
                 } else if preview_type.is_image() {
                     self.file_preview_path = Some(path.clone());
@@ -242,44 +242,75 @@ impl App {
         self.dirty = true;
     }
 
-    pub fn settings_items(&self) -> Vec<(&str, String, &str, bool)> {
+    /// Returns (id, value, name_i18n_key, desc_i18n_key, editable)
+    pub fn settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
+        let l = self.locale;
         vec![
-            ("Theme", self.config.theme.clone(), "Color scheme", true),
+            ("theme", self.config.theme.clone(), "settings.theme", "settings.theme", true),
             (
-                "Auto Refresh",
+                "auto_refresh",
                 if self.config.auto_refresh {
-                    "On".to_string()
+                    crate::i18n::t(l, "settings.on").to_string()
                 } else {
-                    "Off".to_string()
+                    crate::i18n::t(l, "settings.off").to_string()
                 },
-                "Auto-refresh panel list",
+                "settings.auto_refresh",
+                "settings.auto_refresh",
                 true,
             ),
             (
-                "Relay/Proxy",
-                "Configure".to_string(),
-                "API relay/proxy endpoints",
+                "relay",
+                crate::i18n::t(l, "settings.configure").to_string(),
+                "settings.relay",
+                "settings.relay",
                 true,
             ),
             (
-                "Status Bar",
+                "status_bar",
                 self.config.status_bar.clone(),
-                "Tmux status bar mode",
+                "settings.status_bar",
+                "settings.status_bar",
                 true,
             ),
             (
-                "Refresh Interval",
+                "language",
+                self.locale.display_name().to_string(),
+                "settings.language",
+                "settings.language",
+                true,
+            ),
+            (
+                "refresh_interval",
                 format!("{}s", self.config.refresh_interval),
-                "Seconds between refreshes",
+                "settings.refresh_interval",
+                "settings.refresh_interval",
                 false,
             ),
             (
-                "Version",
+                "version",
                 "0.6.0".to_string(),
-                "pad - Agent Panel Manager",
+                "settings.version",
+                "settings.version",
                 false,
             ),
         ]
+    }
+
+    pub fn filtered_settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
+        let items = self.settings_items();
+        if self.settings_search.is_empty() {
+            return items;
+        }
+        let query = self.settings_search.to_lowercase();
+        let l = self.locale;
+        items.into_iter()
+            .filter(|(id, value, name_key, _, _)| {
+                let name = crate::i18n::t(l, name_key);
+                id.to_lowercase().contains(&query)
+                    || value.to_lowercase().contains(&query)
+                    || name.to_lowercase().contains(&query)
+            })
+            .collect()
     }
 
     pub fn available_themes() -> Vec<(&'static str, &'static str)> {
@@ -293,7 +324,12 @@ impl App {
             ("tokyo-night", "Tokyo Night"),
             ("monokai", "Monokai"),
             ("solarized-dark", "Solarized Dark"),
+            ("solarized-light", "Solarized Light"),
             ("rose-pine", "Rose Pine"),
+            ("one-dark", "One Dark"),
+            ("github-light", "GitHub Light"),
+            ("github-dark", "GitHub Dark"),
+            ("everforest", "Everforest"),
         ]
     }
 }

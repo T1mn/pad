@@ -42,6 +42,11 @@ impl Theme {
             "monokai" => Self::monokai(),
             "solarized-dark" => Self::solarized_dark(),
             "rose-pine" => Self::rose_pine(),
+            "solarized-light" => Self::solarized_light(),
+            "one-dark" => Self::one_dark(),
+            "github-light" => Self::github_light(),
+            "github-dark" => Self::github_dark(),
+            "everforest" => Self::everforest(),
             "dark" => Self::dark(),
             _ => Self::default_theme(),
         }
@@ -286,6 +291,126 @@ impl Theme {
             mode_tree_bg: Color::Rgb(156, 207, 216),
         }
     }
+
+    fn solarized_light() -> Self {
+        Self {
+            name: "solarized-light",
+            bg: Color::Rgb(253, 246, 227),
+            fg: Color::Rgb(101, 123, 131),
+            accent: Color::Rgb(38, 139, 210),
+            highlight_bg: Color::Rgb(238, 232, 213),
+            highlight_fg: Color::Rgb(7, 54, 66),
+            border: Color::Rgb(147, 161, 161),
+            border_focused: Color::Rgb(38, 139, 210),
+            status_fg: Color::Rgb(131, 148, 150),
+            error: Color::Rgb(220, 50, 47),
+            success: Color::Rgb(133, 153, 0),
+            warning: Color::Rgb(181, 137, 0),
+            comment: Color::Rgb(147, 161, 161),
+            keyword: Color::Rgb(108, 113, 196),
+            string_color: Color::Rgb(42, 161, 152),
+            number: Color::Rgb(211, 54, 130),
+            mode_normal_bg: Color::Rgb(38, 139, 210),
+            mode_search_bg: Color::Rgb(181, 137, 0),
+            mode_tree_bg: Color::Rgb(133, 153, 0),
+        }
+    }
+
+    fn one_dark() -> Self {
+        Self {
+            name: "one-dark",
+            bg: Color::Rgb(40, 44, 52),
+            fg: Color::Rgb(171, 178, 191),
+            accent: Color::Rgb(97, 175, 239),
+            highlight_bg: Color::Rgb(62, 68, 81),
+            highlight_fg: Color::Rgb(229, 192, 123),
+            border: Color::Rgb(92, 99, 112),
+            border_focused: Color::Rgb(97, 175, 239),
+            status_fg: Color::Rgb(92, 99, 112),
+            error: Color::Rgb(224, 108, 117),
+            success: Color::Rgb(152, 195, 121),
+            warning: Color::Rgb(229, 192, 123),
+            comment: Color::Rgb(92, 99, 112),
+            keyword: Color::Rgb(198, 120, 221),
+            string_color: Color::Rgb(152, 195, 121),
+            number: Color::Rgb(209, 154, 102),
+            mode_normal_bg: Color::Rgb(97, 175, 239),
+            mode_search_bg: Color::Rgb(229, 192, 123),
+            mode_tree_bg: Color::Rgb(152, 195, 121),
+        }
+    }
+
+    fn github_light() -> Self {
+        Self {
+            name: "github-light",
+            bg: Color::Rgb(255, 255, 255),
+            fg: Color::Rgb(36, 41, 46),
+            accent: Color::Rgb(3, 102, 214),
+            highlight_bg: Color::Rgb(241, 248, 255),
+            highlight_fg: Color::Rgb(36, 41, 46),
+            border: Color::Rgb(225, 228, 232),
+            border_focused: Color::Rgb(3, 102, 214),
+            status_fg: Color::Rgb(88, 96, 105),
+            error: Color::Rgb(215, 58, 73),
+            success: Color::Rgb(40, 167, 69),
+            warning: Color::Rgb(249, 130, 108),
+            comment: Color::Rgb(106, 115, 125),
+            keyword: Color::Rgb(215, 58, 73),
+            string_color: Color::Rgb(3, 47, 98),
+            number: Color::Rgb(0, 92, 197),
+            mode_normal_bg: Color::Rgb(3, 102, 214),
+            mode_search_bg: Color::Rgb(249, 130, 108),
+            mode_tree_bg: Color::Rgb(40, 167, 69),
+        }
+    }
+
+    fn github_dark() -> Self {
+        Self {
+            name: "github-dark",
+            bg: Color::Rgb(13, 17, 23),
+            fg: Color::Rgb(201, 209, 217),
+            accent: Color::Rgb(88, 166, 255),
+            highlight_bg: Color::Rgb(22, 27, 34),
+            highlight_fg: Color::Rgb(240, 246, 252),
+            border: Color::Rgb(48, 54, 61),
+            border_focused: Color::Rgb(88, 166, 255),
+            status_fg: Color::Rgb(139, 148, 158),
+            error: Color::Rgb(248, 81, 73),
+            success: Color::Rgb(63, 185, 80),
+            warning: Color::Rgb(210, 153, 34),
+            comment: Color::Rgb(139, 148, 158),
+            keyword: Color::Rgb(255, 123, 114),
+            string_color: Color::Rgb(165, 214, 255),
+            number: Color::Rgb(121, 192, 255),
+            mode_normal_bg: Color::Rgb(88, 166, 255),
+            mode_search_bg: Color::Rgb(210, 153, 34),
+            mode_tree_bg: Color::Rgb(63, 185, 80),
+        }
+    }
+
+    fn everforest() -> Self {
+        Self {
+            name: "everforest",
+            bg: Color::Rgb(45, 53, 59),
+            fg: Color::Rgb(211, 198, 170),
+            accent: Color::Rgb(167, 192, 128),
+            highlight_bg: Color::Rgb(61, 72, 77),
+            highlight_fg: Color::Rgb(211, 198, 170),
+            border: Color::Rgb(71, 82, 88),
+            border_focused: Color::Rgb(167, 192, 128),
+            status_fg: Color::Rgb(133, 146, 137),
+            error: Color::Rgb(230, 126, 128),
+            success: Color::Rgb(167, 192, 128),
+            warning: Color::Rgb(219, 188, 127),
+            comment: Color::Rgb(133, 146, 137),
+            keyword: Color::Rgb(214, 153, 182),
+            string_color: Color::Rgb(167, 192, 128),
+            number: Color::Rgb(214, 153, 182),
+            mode_normal_bg: Color::Rgb(167, 192, 128),
+            mode_search_bg: Color::Rgb(219, 188, 127),
+            mode_tree_bg: Color::Rgb(131, 192, 146),
+        }
+    }
 }
 
 /// Per-provider relay configuration
@@ -294,6 +419,10 @@ pub struct ProviderConfig {
     pub label: String,
     pub base_url: String,
     pub api_key: String,
+    /// Runtime-only: None=untested, Some(true)=ok, Some(false)=failed
+    pub test_status: Option<bool>,
+    /// Runtime-only: human-readable test result (model list or error)
+    pub test_result: Option<String>,
 }
 
 /// Per-agent configuration including relay/proxy settings
@@ -323,6 +452,7 @@ pub struct Config {
     pub refresh_interval: u64,
     pub agents: Vec<AgentConfig>,
     pub status_bar: String,
+    pub language: String,
 }
 
 impl Default for Config {
@@ -337,6 +467,7 @@ impl Default for Config {
                 AgentConfig { name: "gemini".into(), cmd: "gemini".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
             ],
             status_bar: "hidden".to_string(),
+            language: "zh-cn".to_string(),
         }
     }
 }
@@ -383,6 +514,9 @@ impl Config {
         if let Some(toml::Value::String(sb)) = table.get("status_bar") {
             config.status_bar = sb.clone();
         }
+        if let Some(toml::Value::String(lang)) = table.get("language") {
+            config.language = lang.clone();
+        }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
             let mut parsed = Vec::new();
             for agent in agents {
@@ -405,7 +539,7 @@ impl Config {
                                     let api_key = pt.get("api_key").and_then(|v| {
                                         if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
                                     }).unwrap_or_default();
-                                    providers.push(ProviderConfig { label, base_url, api_key });
+                                    providers.push(ProviderConfig { label, base_url, api_key, test_status: None, test_result: None });
                                 }
                             }
                         }
@@ -428,6 +562,8 @@ impl Config {
                                 label: "default".to_string(),
                                 base_url: legacy_url.clone().unwrap_or_default(),
                                 api_key: legacy_key.clone().unwrap_or_default(),
+                                test_status: None,
+                                test_result: None,
                             });
                             active_provider = Some(0);
                         }
@@ -462,6 +598,7 @@ impl Config {
         content.push_str(&format!("auto_refresh = {}\n", self.auto_refresh));
         content.push_str(&format!("refresh_interval = {}\n", self.refresh_interval));
         content.push_str(&format!("status_bar = \"{}\"\n", self.status_bar));
+        content.push_str(&format!("language = \"{}\"\n", self.language));
         content.push_str("\n");
         for agent in &self.agents {
             content.push_str("[[agents]]\n");

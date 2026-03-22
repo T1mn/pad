@@ -72,7 +72,9 @@ fn save_and_install_return_bindings(app: &mut App) {
         None => "tmux unbind-key -T root C-q".to_string(),
     };
 
-    // The return command: switch back to pad, then restore both keys
+    // The return command: switch back to pad, restore keys
+    // Note: status bar restore is handled by pad itself on FocusGained, not here,
+    // to avoid tmux resize delay in the run-shell chain.
     let return_cmd_f12 = format!(
         "tmux select-window -t '{}' && tmux select-pane -t '{}' && {} && {}",
         win_target, pad_pane_id, restore_f12, restore_cq
@@ -134,13 +136,18 @@ pub async fn run_app(
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(16);
     let mut last_preview_refresh = Instant::now();
+    let mut last_full_redraw = Instant::now();
 
     // Start tmux control pipe for event-driven refresh
     let mut pipe_rx = crate::pipe::start_control_pipe();
     let mut pipe_active = true;
-    let mut pipe_scan_pending = false;
-    let mut last_pipe_event = Instant::now();
-    let pipe_debounce = Duration::from_millis(500);
+    // Two-level debounce: fast for structural, slow for output
+    let mut pipe_fast_pending = false;
+    let mut pipe_slow_pending = false;
+    let mut last_pipe_fast = Instant::now();
+    let mut last_pipe_slow = Instant::now();
+    let debounce_fast = Duration::from_millis(100);
+    let debounce_slow = Duration::from_millis(500);
 
     loop {
         if app.refresh_after_attach {
@@ -152,6 +159,7 @@ pub async fn run_app(
         app.check_scan_result();
         app.check_preview_result();
         app.check_delayed_scan();
+        app.check_provider_test_result();
 
         // Drain tmux pipe events (non-blocking)
         loop {
@@ -159,11 +167,14 @@ pub async fn run_app(
                 Ok(ev) => {
                     match ev {
                         crate::pipe::TmuxEvent::WindowChanged
-                        | crate::pipe::TmuxEvent::SessionChanged
-                        | crate::pipe::TmuxEvent::PaneModeChanged
+                        | crate::pipe::TmuxEvent::SessionChanged => {
+                            pipe_fast_pending = true;
+                            last_pipe_fast = Instant::now();
+                        }
+                        crate::pipe::TmuxEvent::PaneModeChanged
                         | crate::pipe::TmuxEvent::OutputDetected => {
-                            pipe_scan_pending = true;
-                            last_pipe_event = Instant::now();
+                            pipe_slow_pending = true;
+                            last_pipe_slow = Instant::now();
                         }
                         crate::pipe::TmuxEvent::Disconnected => {
                             pipe_active = false;
@@ -179,18 +190,25 @@ pub async fn run_app(
             }
         }
 
-        // Fire debounced pipe-driven scan
-        if pipe_scan_pending && last_pipe_event.elapsed() >= pipe_debounce {
-            pipe_scan_pending = false;
-            if !app.scan_in_progress {
-                log_debug!("pipe: triggering scan from pipe event");
-                app.trigger_async_scan();
-            }
+        // Fire debounced pipe-driven scans
+        let should_scan = (pipe_fast_pending && last_pipe_fast.elapsed() >= debounce_fast)
+            || (pipe_slow_pending && last_pipe_slow.elapsed() >= debounce_slow);
+        if should_scan && !app.scan_in_progress {
+            pipe_fast_pending = false;
+            pipe_slow_pending = false;
+            log_debug!("pipe: triggering scan");
+            app.trigger_async_scan();
         }
 
         if last_preview_refresh.elapsed() >= Duration::from_millis(500) {
             app.check_preview_update();
             last_preview_refresh = Instant::now();
+        }
+
+        if app.needs_clear {
+            terminal.clear()?;
+            app.needs_clear = false;
+            app.dirty = true;
         }
 
         if app.dirty {
@@ -213,8 +231,15 @@ pub async fn run_app(
                         log_debug!("same_session_attached: pad regained focus, refreshing");
                         app.same_session_attached = false;
                         app.saved_tmux_bindings.clear(); // bindings already self-restored by tmux
+                        // Restore status bar (moved from tmux binding chain to avoid resize delay)
+                        if app.config.status_bar == "hidden" {
+                            let _ = std::process::Command::new("tmux")
+                                .args(["set", "status", "on"])
+                                .output();
+                        }
                         app.refresh_panels();
                         app.preview_pane_id = None;
+                        app.needs_clear = true;
                         app.dirty = true;
                     }
                     _ => {}
@@ -237,8 +262,14 @@ pub async fn run_app(
                         Mode::Help => handle_help_mode(app, key.code),
                         Mode::FuzzyPicker => handle_fuzzy_picker_mode(app, key),
                         Mode::RelaySettings => handle_relay_settings_mode(app, key.code),
+                        Mode::FilePreview => handle_file_preview_mode(app, key.code),
                     }
                 }
+            }
+
+            if let Event::Resize(_, _) = ev {
+                terminal.clear()?;
+                app.dirty = true;
             }
         }
 
@@ -251,6 +282,12 @@ pub async fn run_app(
                 if !app.scan_in_progress {
                     app.trigger_async_scan();
                 }
+            }
+            // Periodic full redraw to clear any accumulated rendering drift
+            if last_full_redraw.elapsed() >= Duration::from_secs(30) {
+                terminal.clear()?;
+                app.dirty = true;
+                last_full_redraw = Instant::now();
             }
             last_tick = Instant::now();
         }
@@ -373,6 +410,12 @@ fn handle_attach(
             log_debug!("attach: same session '{}', using select-window/select-pane", panel.session);
             save_and_install_return_bindings(app);
             app.same_session_attached = true;
+            // Hide tmux status bar if configured
+            if app.config.status_bar == "hidden" {
+                let _ = std::process::Command::new("tmux")
+                    .args(["set", "status", "off"])
+                    .output();
+            }
             let _ = std::process::Command::new("tmux")
                 .args(["select-window", "-t", &format!("{}:{}", panel.session, panel.window_index)])
                 .output();
@@ -390,6 +433,12 @@ fn handle_attach(
         }
 
         // Cross-session: use PTY attach
+        let hide_status = app.config.status_bar == "hidden";
+        if hide_status {
+            let _ = std::process::Command::new("tmux")
+                .args(["set", "status", "off"])
+                .output();
+        }
         disable_raw_mode()?;
         execute!(
             terminal.backend_mut(),
@@ -433,6 +482,12 @@ fn handle_attach(
 
         terminal.clear()?;
 
+        if hide_status {
+            let _ = std::process::Command::new("tmux")
+                .args(["set", "status", "on"])
+                .output();
+        }
+
         app.refresh_after_attach = true;
         app.dirty = true;
     } else {
@@ -463,6 +518,8 @@ fn handle_fuzzy_picker_mode(app: &mut App, key: crossterm::event::KeyEvent) {
 }
 
 fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
+    use crate::app::state::RelayView;
+
     if app.relay_editing {
         match key {
             KeyCode::Esc => {
@@ -471,7 +528,6 @@ fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
                 app.dirty = true;
             }
             KeyCode::Enter => {
-                // Save the edit to the selected provider's field
                 let agent_idx = app.relay_selected_agent;
                 let prov_idx = app.relay_selected_provider;
                 let field = app.relay_edit_field;
@@ -504,118 +560,148 @@ fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
         return;
     }
 
-    match key {
-        KeyCode::Esc => {
-            app.mode = Mode::Settings;
-            app.dirty = true;
-        }
-        // Navigate agents with H/L
-        KeyCode::Char('h') | KeyCode::Left => {
-            if app.relay_selected_agent > 0 {
-                app.relay_selected_agent -= 1;
+    match app.relay_view {
+        RelayView::AgentList => match key {
+            KeyCode::Esc => {
+                app.mode = Mode::Settings;
+                app.dirty = true;
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                let max = app.config.agents.len().saturating_sub(1);
+                if app.relay_selected_agent < max {
+                    app.relay_selected_agent += 1;
+                }
+                app.dirty = true;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if app.relay_selected_agent > 0 {
+                    app.relay_selected_agent -= 1;
+                }
+                app.dirty = true;
+            }
+            KeyCode::Enter => {
+                app.relay_view = RelayView::ProviderList;
                 app.relay_selected_provider = 0;
+                app.dirty = true;
             }
-            app.dirty = true;
-        }
-        KeyCode::Char('l') | KeyCode::Right => {
-            let max = app.config.agents.len().saturating_sub(1);
-            if app.relay_selected_agent < max {
-                app.relay_selected_agent += 1;
-                app.relay_selected_provider = 0;
+            _ => {}
+        },
+        RelayView::ProviderList => match key {
+            KeyCode::Esc => {
+                app.relay_view = RelayView::AgentList;
+                app.dirty = true;
             }
-            app.dirty = true;
-        }
-        // Navigate providers with j/k
-        KeyCode::Char('j') | KeyCode::Down => {
-            if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                let max = agent.providers.len().saturating_sub(1);
-                if app.relay_selected_provider < max {
-                    app.relay_selected_provider += 1;
-                }
-            }
-            app.dirty = true;
-        }
-        KeyCode::Char('k') | KeyCode::Up => {
-            if app.relay_selected_provider > 0 {
-                app.relay_selected_provider -= 1;
-            }
-            app.dirty = true;
-        }
-        // Tab cycles edit field (label -> url -> key)
-        KeyCode::Tab => {
-            app.relay_edit_field = (app.relay_edit_field + 1) % 3;
-            app.dirty = true;
-        }
-        // Enter: edit selected provider field
-        KeyCode::Enter => {
-            if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                if let Some(prov) = agent.providers.get(app.relay_selected_provider) {
-                    app.relay_edit_buffer = match app.relay_edit_field {
-                        0 => prov.label.clone(),
-                        1 => prov.base_url.clone(),
-                        2 => prov.api_key.clone(),
-                        _ => String::new(),
-                    };
-                    app.relay_editing = true;
-                }
-            }
-            app.dirty = true;
-        }
-        // Space: activate selected provider
-        KeyCode::Char(' ') => {
-            let agent_idx = app.relay_selected_agent;
-            let prov_idx = app.relay_selected_provider;
-            if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                if prov_idx < agent.providers.len() {
-                    // Toggle: if already active, deactivate; otherwise activate
-                    if agent.active_provider == Some(prov_idx) {
-                        agent.active_provider = None;
-                    } else {
-                        agent.active_provider = Some(prov_idx);
+            KeyCode::Char('j') | KeyCode::Down => {
+                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
+                    let max = agent.providers.len().saturating_sub(1);
+                    if app.relay_selected_provider < max {
+                        app.relay_selected_provider += 1;
                     }
-                    app.config.save();
-                    // Auto-apply to native config
-                    relay::apply_relay_configs(&app.config.agents);
                 }
+                app.dirty = true;
             }
-            app.dirty = true;
-        }
-        // 'a': add new provider
-        KeyCode::Char('a') => {
-            use crate::theme::ProviderConfig;
-            if let Some(agent) = app.config.agents.get_mut(app.relay_selected_agent) {
-                agent.providers.push(ProviderConfig {
-                    label: format!("provider-{}", agent.providers.len() + 1),
-                    base_url: String::new(),
-                    api_key: String::new(),
-                });
-                app.relay_selected_provider = agent.providers.len() - 1;
-                app.config.save();
+            KeyCode::Char('k') | KeyCode::Up => {
+                if app.relay_selected_provider > 0 {
+                    app.relay_selected_provider -= 1;
+                }
+                app.dirty = true;
             }
-            app.dirty = true;
-        }
-        // 'd': delete selected provider
-        KeyCode::Char('d') => {
-            let agent_idx = app.relay_selected_agent;
-            let prov_idx = app.relay_selected_provider;
-            if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                if prov_idx < agent.providers.len() {
-                    agent.providers.remove(prov_idx);
-                    // Fix active_provider index
-                    match agent.active_provider {
-                        Some(i) if i == prov_idx => agent.active_provider = None,
-                        Some(i) if i > prov_idx => agent.active_provider = Some(i - 1),
-                        _ => {}
+            KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                // Enter detail pane for field editing
+                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
+                    if !agent.providers.is_empty() {
+                        app.relay_view = RelayView::DetailPane;
+                        app.relay_edit_field = 0;
                     }
-                    if app.relay_selected_provider > 0 && app.relay_selected_provider >= agent.providers.len() {
-                        app.relay_selected_provider = agent.providers.len().saturating_sub(1);
+                }
+                app.dirty = true;
+            }
+            KeyCode::Char(' ') => {
+                let agent_idx = app.relay_selected_agent;
+                let prov_idx = app.relay_selected_provider;
+                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
+                    if prov_idx < agent.providers.len() {
+                        if agent.active_provider == Some(prov_idx) {
+                            agent.active_provider = None;
+                        } else {
+                            agent.active_provider = Some(prov_idx);
+                        }
+                        app.config.save();
+                        relay::apply_relay_configs(&app.config.agents);
                     }
+                }
+                app.dirty = true;
+            }
+            KeyCode::Char('a') => {
+                use crate::theme::ProviderConfig;
+                if let Some(agent) = app.config.agents.get_mut(app.relay_selected_agent) {
+                    agent.providers.push(ProviderConfig {
+                        label: format!("provider-{}", agent.providers.len() + 1),
+                        base_url: String::new(),
+                        api_key: String::new(),
+                        test_status: None,
+                        test_result: None,
+                    });
+                    app.relay_selected_provider = agent.providers.len() - 1;
                     app.config.save();
                 }
+                app.dirty = true;
             }
-            app.dirty = true;
-        }
-        _ => {}
+            KeyCode::Char('d') => {
+                let agent_idx = app.relay_selected_agent;
+                let prov_idx = app.relay_selected_provider;
+                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
+                    if prov_idx < agent.providers.len() {
+                        agent.providers.remove(prov_idx);
+                        match agent.active_provider {
+                            Some(i) if i == prov_idx => agent.active_provider = None,
+                            Some(i) if i > prov_idx => agent.active_provider = Some(i - 1),
+                            _ => {}
+                        }
+                        if app.relay_selected_provider > 0 && app.relay_selected_provider >= agent.providers.len() {
+                            app.relay_selected_provider = agent.providers.len().saturating_sub(1);
+                        }
+                        app.config.save();
+                    }
+                }
+                app.dirty = true;
+            }
+            _ => {}
+        },
+        RelayView::DetailPane => match key {
+            KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
+                app.relay_view = RelayView::ProviderList;
+                app.dirty = true;
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                app.relay_edit_field = (app.relay_edit_field + 1) % 3;
+                app.dirty = true;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                app.relay_edit_field = (app.relay_edit_field + 2) % 3;
+                app.dirty = true;
+            }
+            KeyCode::Enter => {
+                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
+                    if let Some(prov) = agent.providers.get(app.relay_selected_provider) {
+                        app.relay_edit_buffer = match app.relay_edit_field {
+                            0 => prov.label.clone(),
+                            1 => prov.base_url.clone(),
+                            2 => prov.api_key.clone(),
+                            _ => String::new(),
+                        };
+                        app.relay_editing = true;
+                    }
+                }
+                app.dirty = true;
+            }
+            KeyCode::Char(' ') => {
+                // Test provider connectivity
+                app.trigger_provider_test(app.relay_selected_agent, app.relay_selected_provider);
+                app.dirty = true;
+            }
+            _ => {}
+        },
     }
 }
 
@@ -646,14 +732,47 @@ fn handle_search_mode(app: &mut App, key: KeyCode) {
 }
 
 fn handle_settings_mode(app: &mut App, key: KeyCode) {
+    if app.settings_searching {
+        match key {
+            KeyCode::Esc => {
+                app.settings_searching = false;
+                app.settings_search.clear();
+                app.dirty = true;
+            }
+            KeyCode::Enter => {
+                app.settings_searching = false;
+                app.dirty = true;
+            }
+            KeyCode::Char(c) => {
+                app.settings_search.push(c);
+                app.settings_selected = 0;
+                app.dirty = true;
+            }
+            KeyCode::Backspace => {
+                app.settings_search.pop();
+                app.settings_selected = 0;
+                app.dirty = true;
+            }
+            _ => {}
+        }
+        return;
+    }
+
     match key {
         KeyCode::Esc | KeyCode::F(1) => {
             app.settings_open = false;
             app.mode = Mode::Normal;
+            app.settings_search.clear();
+            app.settings_searching = false;
+            app.dirty = true;
+        }
+        KeyCode::Char('/') => {
+            app.settings_searching = true;
+            app.settings_search.clear();
             app.dirty = true;
         }
         KeyCode::Char('j') | KeyCode::Down => {
-            let max = app.settings_items().len().saturating_sub(1);
+            let max = app.filtered_settings_items().len().saturating_sub(1);
             if app.settings_selected < max {
                 app.settings_selected += 1;
             }
@@ -670,42 +789,48 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
             app.dirty = true;
         }
         KeyCode::Char('2') => {
-            app.settings_selected = 1.min(app.settings_items().len().saturating_sub(1));
+            app.settings_selected = 1.min(app.filtered_settings_items().len().saturating_sub(1));
             app.dirty = true;
         }
         KeyCode::Char('3') => {
-            app.settings_selected = 2.min(app.settings_items().len().saturating_sub(1));
+            app.settings_selected = 2.min(app.filtered_settings_items().len().saturating_sub(1));
             app.dirty = true;
         }
         KeyCode::Char('4') => {
-            app.settings_selected = 3.min(app.settings_items().len().saturating_sub(1));
+            app.settings_selected = 3.min(app.filtered_settings_items().len().saturating_sub(1));
             app.dirty = true;
         }
         KeyCode::Enter => {
-            let items = app.settings_items();
-            if let Some((name, _, _, editable)) = items.get(app.settings_selected) {
+            let items = app.filtered_settings_items();
+            if let Some((id, _, _, _, editable)) = items.get(app.settings_selected) {
                 if *editable {
-                    match *name {
-                        "Theme" => app.open_theme_selector(),
-                        "Auto Refresh" => {
+                    match *id {
+                        "theme" => app.open_theme_selector(),
+                        "auto_refresh" => {
                             app.config.auto_refresh = !app.config.auto_refresh;
                             app.config.save();
                         }
-                        "Relay/Proxy" => {
+                        "relay" => {
                             app.settings_open = false;
                             app.relay_selected_agent = 0;
                             app.relay_selected_provider = 0;
                             app.relay_edit_field = 0;
                             app.relay_editing = false;
                             app.relay_edit_buffer.clear();
+                            app.relay_view = crate::app::state::RelayView::AgentList;
                             app.mode = Mode::RelaySettings;
                         }
-                        "Status Bar" => {
+                        "status_bar" => {
                             app.config.status_bar = if app.config.status_bar == "hidden" {
                                 "notify".to_string()
                             } else {
                                 "hidden".to_string()
                             };
+                            app.config.save();
+                        }
+                        "language" => {
+                            app.locale = app.locale.next();
+                            app.config.language = app.locale.as_str().to_string();
                             app.config.save();
                         }
                         _ => {}
@@ -793,8 +918,14 @@ fn handle_tree_mode(app: &mut App, key: KeyCode) {
             KeyCode::Enter => {
                 let entry_name = tree.selected().map(|e| e.name.clone()).unwrap_or_default();
                 log_debug!("tree_mode enter: entry={}", entry_name);
-                tree.enter();
-                app.update_file_preview();
+                let selected_is_dir = tree.selected().map(|e| e.is_dir).unwrap_or(false);
+                if selected_is_dir {
+                    tree.enter();
+                    app.update_file_preview();
+                } else {
+                    app.mode = Mode::FilePreview;
+                    app.file_preview_scroll = 0;
+                }
                 app.dirty = true;
             }
             KeyCode::Backspace => {
@@ -841,6 +972,48 @@ fn handle_tree_mode(app: &mut App, key: KeyCode) {
             }
             _ => {}
         }
+    }
+}
+
+fn handle_file_preview_mode(app: &mut App, key: KeyCode) {
+    match key {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.mode = Mode::Tree;
+            app.dirty = true;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_add(1);
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_sub(1);
+            app.dirty = true;
+        }
+        KeyCode::Char('J') => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_add(3);
+            app.dirty = true;
+        }
+        KeyCode::Char('K') => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_sub(3);
+            app.dirty = true;
+        }
+        KeyCode::PageDown => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_add(20);
+            app.dirty = true;
+        }
+        KeyCode::PageUp => {
+            app.file_preview_scroll = app.file_preview_scroll.saturating_sub(20);
+            app.dirty = true;
+        }
+        KeyCode::Home => {
+            app.file_preview_scroll = 0;
+            app.dirty = true;
+        }
+        KeyCode::End => {
+            app.file_preview_scroll = u16::MAX;
+            app.dirty = true;
+        }
+        _ => {}
     }
 }
 

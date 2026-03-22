@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 
     if let Some(ref launcher) = app.agent_launcher {
-        modals::draw_agent_launcher(f, launcher, f.area());
+        modals::draw_agent_launcher(f, app, launcher, f.area());
     }
 
     if app.mode == Mode::DeleteConfirm {
@@ -50,7 +50,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 
     if app.mode == Mode::Help {
-        modals::draw_help(f, &app.theme, f.area());
+        modals::draw_help(f, app, f.area());
     }
 
     // Render FuzzyPicker modal overlay

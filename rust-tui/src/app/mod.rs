@@ -9,7 +9,7 @@ use crate::theme::{Config, Theme};
 use crate::tree;
 use async_ops::ScanResult;
 use ratatui::widgets::TableState;
-use state::Mode;
+use state::{Mode, RelayView};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -29,6 +29,7 @@ pub struct App {
     pub content_hashes: HashMap<String, String>,
     pub settings_open: bool,
     pub config: Config,
+    pub locale: crate::i18n::Locale,
     pub theme: Theme,
     pub theme_selector_open: bool,
     pub settings_selected: usize,
@@ -61,8 +62,16 @@ pub struct App {
     pub relay_editing: bool,
     pub relay_edit_field: usize,   // 0=label, 1=base_url, 2=api_key
     pub relay_edit_buffer: String,
+    pub relay_view: RelayView,
+    pub settings_search: String,
+    pub settings_searching: bool,
     /// Scheduled delayed scan — Some(Instant) means scan after this time
     pub delayed_scan_at: Option<Instant>,
+    /// Whether terminal needs a full clear before next draw
+    pub needs_clear: bool,
+    // Provider connectivity test
+    pub provider_test_in_progress: bool,
+    pub provider_test_rx: Option<mpsc::Receiver<(usize, usize, bool, String)>>,
 }
 
 impl App {
@@ -71,6 +80,7 @@ impl App {
         table_state.select(Some(0));
 
         let config = Config::load();
+        let locale = crate::i18n::Locale::from_str(&config.language);
         let theme = Theme::by_name(&config.theme);
 
         Self {
@@ -85,6 +95,7 @@ impl App {
             content_hashes: HashMap::new(),
             settings_open: false,
             config,
+            locale,
             theme,
             theme_selector_open: false,
             settings_selected: 0,
@@ -115,7 +126,13 @@ impl App {
             relay_editing: false,
             relay_edit_field: 0,
             relay_edit_buffer: String::new(),
+            relay_view: RelayView::AgentList,
+            settings_search: String::new(),
+            settings_searching: false,
             delayed_scan_at: None,
+            needs_clear: false,
+            provider_test_in_progress: false,
+            provider_test_rx: None,
         }
     }
 

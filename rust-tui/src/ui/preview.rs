@@ -11,6 +11,7 @@ use ratatui::{
 
 pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
+    let l = app.locale;
     let title = if let Some(panel) = app.selected_panel() {
         let git_info = if let Some(git) = &panel.git_info {
             if let Some(branch) = &git.branch {
@@ -21,9 +22,9 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
         } else {
             String::new()
         };
-        format!(" Preview: {}{} ", panel.pane_id, git_info)
+        format!(" {}: {}{} ", crate::i18n::t(l, "preview.title"), panel.pane_id, git_info)
     } else {
-        String::from(" Preview ")
+        format!(" {} ", crate::i18n::t(l, "preview.title"))
     };
 
     let block = Block::default()
@@ -37,27 +38,27 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
         let welcome = vec![
             Line::from(""),
             Line::from(Span::styled(
-                "Welcome to pad",
+                crate::i18n::t(l, "preview.welcome"),
                 Style::default()
                     .fg(theme.accent)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from(Span::styled(
-                "Tmux Agent Panel Manager",
+                crate::i18n::t(l, "preview.subtitle"),
                 Style::default().fg(theme.fg),
             )),
             Line::from(""),
-            Line::from(Span::styled("Key bindings:", Style::default().fg(theme.warning))),
-            Line::from(Span::styled("  j/k or ↑/↓  Navigate panels", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  Enter        Attach to panel", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  /            Search panels", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  t            Toggle file tree", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  c            Create session", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  d            Delete panel", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  ?            Help", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  F1           Settings", Style::default().fg(theme.fg))),
-            Line::from(Span::styled("  q            Quit", Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.keybindings"), Style::default().fg(theme.warning))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.nav_panels"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.attach"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.search"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.tree"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.create"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.delete"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.help"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.settings"), Style::default().fg(theme.fg))),
+            Line::from(Span::styled(crate::i18n::t(l, "preview.quit"), Style::default().fg(theme.fg))),
         ];
         let paragraph = Paragraph::new(welcome)
             .block(block)
@@ -97,7 +98,11 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
                     },
                 ),
                 Span::styled(
-                    if panel.is_active { " active" } else { " idle" },
+                    if panel.is_active {
+                        format!(" {}", crate::i18n::t(l, "preview.active"))
+                    } else {
+                        format!(" {}", crate::i18n::t(l, "preview.idle"))
+                    },
                     Style::default().fg(theme.fg),
                 ),
                 Span::styled(" │ ", Style::default().fg(theme.comment)),
@@ -199,6 +204,7 @@ pub fn draw_file_preview(f: &mut Frame, app: &App, area: Rect) {
     use crate::tree::PreviewType;
 
     let theme = &app.theme;
+    let l = app.locale;
     let title = if let Some(ref path) = app.file_preview_path {
         let file_name = path
             .file_name()
@@ -217,14 +223,19 @@ pub fn draw_file_preview(f: &mut Frame, app: &App, area: Rect) {
 
         format!(" {} {} ", type_icon, file_name)
     } else {
-        String::from(" File Preview ")
+        format!(" {} ", crate::i18n::t(l, "preview.file_title"))
     };
 
+    let border_color = if app.mode == crate::app::state::Mode::FilePreview {
+        theme.border_focused
+    } else {
+        theme.border
+    };
     let block = Block::default()
         .title(title)
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.border));
+        .border_style(Style::default().fg(border_color));
 
     // Markdown rendering via tui-markdown
     if let Some(ref path) = app.file_preview_path {
