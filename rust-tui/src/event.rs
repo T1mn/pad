@@ -135,6 +135,13 @@ pub async fn run_app(
     let tick_rate = Duration::from_millis(16);
     let mut last_preview_refresh = Instant::now();
 
+    // Start tmux control pipe for event-driven refresh
+    let mut pipe_rx = crate::pipe::start_control_pipe();
+    let mut pipe_active = true;
+    let mut pipe_scan_pending = false;
+    let mut last_pipe_event = Instant::now();
+    let pipe_debounce = Duration::from_millis(500);
+
     loop {
         if app.refresh_after_attach {
             app.refresh_after_attach = false;
@@ -144,6 +151,42 @@ pub async fn run_app(
 
         app.check_scan_result();
         app.check_preview_result();
+        app.check_delayed_scan();
+
+        // Drain tmux pipe events (non-blocking)
+        loop {
+            match pipe_rx.try_recv() {
+                Ok(ev) => {
+                    match ev {
+                        crate::pipe::TmuxEvent::WindowChanged
+                        | crate::pipe::TmuxEvent::SessionChanged
+                        | crate::pipe::TmuxEvent::PaneModeChanged
+                        | crate::pipe::TmuxEvent::OutputDetected => {
+                            pipe_scan_pending = true;
+                            last_pipe_event = Instant::now();
+                        }
+                        crate::pipe::TmuxEvent::Disconnected => {
+                            pipe_active = false;
+                            log_debug!("pipe: disconnected, falling back to polling");
+                        }
+                    }
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    pipe_active = false;
+                    break;
+                }
+            }
+        }
+
+        // Fire debounced pipe-driven scan
+        if pipe_scan_pending && last_pipe_event.elapsed() >= pipe_debounce {
+            pipe_scan_pending = false;
+            if !app.scan_in_progress {
+                log_debug!("pipe: triggering scan from pipe event");
+                app.trigger_async_scan();
+            }
+        }
 
         if last_preview_refresh.elapsed() >= Duration::from_millis(500) {
             app.check_preview_update();
@@ -200,7 +243,8 @@ pub async fn run_app(
         }
 
         if last_tick.elapsed() >= tick_rate {
-            if app.config.auto_refresh
+            // Fallback polling: only when pipe is not active
+            if !pipe_active && app.config.auto_refresh
                 && app.last_refresh.elapsed()
                     >= std::time::Duration::from_secs(app.config.refresh_interval)
             {
@@ -427,16 +471,19 @@ fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
                 app.dirty = true;
             }
             KeyCode::Enter => {
-                // Save the edit
+                // Save the edit to the selected provider's field
                 let agent_idx = app.relay_selected_agent;
-                let field_idx = app.relay_selected_field;
+                let prov_idx = app.relay_selected_provider;
+                let field = app.relay_edit_field;
                 let value = app.relay_edit_buffer.clone();
                 if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                    let val = if value.is_empty() { None } else { Some(value) };
-                    match field_idx {
-                        0 => agent.base_url = val,
-                        1 => agent.api_key = val,
-                        _ => {}
+                    if let Some(prov) = agent.providers.get_mut(prov_idx) {
+                        match field {
+                            0 => prov.label = value,
+                            1 => prov.base_url = value,
+                            2 => prov.api_key = value,
+                            _ => {}
+                        }
                     }
                 }
                 app.config.save();
@@ -462,38 +509,110 @@ fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
             app.mode = Mode::Settings;
             app.dirty = true;
         }
-        KeyCode::Char('j') | KeyCode::Down => {
+        // Navigate agents with H/L
+        KeyCode::Char('h') | KeyCode::Left => {
+            if app.relay_selected_agent > 0 {
+                app.relay_selected_agent -= 1;
+                app.relay_selected_provider = 0;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('l') | KeyCode::Right => {
             let max = app.config.agents.len().saturating_sub(1);
             if app.relay_selected_agent < max {
                 app.relay_selected_agent += 1;
+                app.relay_selected_provider = 0;
+            }
+            app.dirty = true;
+        }
+        // Navigate providers with j/k
+        KeyCode::Char('j') | KeyCode::Down => {
+            if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
+                let max = agent.providers.len().saturating_sub(1);
+                if app.relay_selected_provider < max {
+                    app.relay_selected_provider += 1;
+                }
             }
             app.dirty = true;
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            if app.relay_selected_agent > 0 {
-                app.relay_selected_agent -= 1;
+            if app.relay_selected_provider > 0 {
+                app.relay_selected_provider -= 1;
             }
             app.dirty = true;
         }
+        // Tab cycles edit field (label -> url -> key)
         KeyCode::Tab => {
-            app.relay_selected_field = (app.relay_selected_field + 1) % 2;
+            app.relay_edit_field = (app.relay_edit_field + 1) % 3;
             app.dirty = true;
         }
+        // Enter: edit selected provider field
         KeyCode::Enter => {
-            // Start editing the selected field
             if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                app.relay_edit_buffer = match app.relay_selected_field {
-                    0 => agent.base_url.clone().unwrap_or_default(),
-                    1 => agent.api_key.clone().unwrap_or_default(),
-                    _ => String::new(),
-                };
+                if let Some(prov) = agent.providers.get(app.relay_selected_provider) {
+                    app.relay_edit_buffer = match app.relay_edit_field {
+                        0 => prov.label.clone(),
+                        1 => prov.base_url.clone(),
+                        2 => prov.api_key.clone(),
+                        _ => String::new(),
+                    };
+                    app.relay_editing = true;
+                }
             }
-            app.relay_editing = true;
             app.dirty = true;
         }
+        // Space: activate selected provider
+        KeyCode::Char(' ') => {
+            let agent_idx = app.relay_selected_agent;
+            let prov_idx = app.relay_selected_provider;
+            if let Some(agent) = app.config.agents.get_mut(agent_idx) {
+                if prov_idx < agent.providers.len() {
+                    // Toggle: if already active, deactivate; otherwise activate
+                    if agent.active_provider == Some(prov_idx) {
+                        agent.active_provider = None;
+                    } else {
+                        agent.active_provider = Some(prov_idx);
+                    }
+                    app.config.save();
+                    // Auto-apply to native config
+                    relay::apply_relay_configs(&app.config.agents);
+                }
+            }
+            app.dirty = true;
+        }
+        // 'a': add new provider
         KeyCode::Char('a') => {
-            // Apply relay configs to native config files
-            relay::apply_relay_configs(&app.config.agents);
+            use crate::theme::ProviderConfig;
+            if let Some(agent) = app.config.agents.get_mut(app.relay_selected_agent) {
+                agent.providers.push(ProviderConfig {
+                    label: format!("provider-{}", agent.providers.len() + 1),
+                    base_url: String::new(),
+                    api_key: String::new(),
+                });
+                app.relay_selected_provider = agent.providers.len() - 1;
+                app.config.save();
+            }
+            app.dirty = true;
+        }
+        // 'd': delete selected provider
+        KeyCode::Char('d') => {
+            let agent_idx = app.relay_selected_agent;
+            let prov_idx = app.relay_selected_provider;
+            if let Some(agent) = app.config.agents.get_mut(agent_idx) {
+                if prov_idx < agent.providers.len() {
+                    agent.providers.remove(prov_idx);
+                    // Fix active_provider index
+                    match agent.active_provider {
+                        Some(i) if i == prov_idx => agent.active_provider = None,
+                        Some(i) if i > prov_idx => agent.active_provider = Some(i - 1),
+                        _ => {}
+                    }
+                    if app.relay_selected_provider > 0 && app.relay_selected_provider >= agent.providers.len() {
+                        app.relay_selected_provider = agent.providers.len().saturating_sub(1);
+                    }
+                    app.config.save();
+                }
+            }
             app.dirty = true;
         }
         _ => {}
@@ -575,10 +694,19 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                         "Relay/Proxy" => {
                             app.settings_open = false;
                             app.relay_selected_agent = 0;
-                            app.relay_selected_field = 0;
+                            app.relay_selected_provider = 0;
+                            app.relay_edit_field = 0;
                             app.relay_editing = false;
                             app.relay_edit_buffer.clear();
                             app.mode = Mode::RelaySettings;
+                        }
+                        "Status Bar" => {
+                            app.config.status_bar = if app.config.status_bar == "hidden" {
+                                "notify".to_string()
+                            } else {
+                                "hidden".to_string()
+                            };
+                            app.config.save();
                         }
                         _ => {}
                     }
@@ -791,7 +919,8 @@ fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                         });
                     }
 
-                    app.refresh_panels();
+                    // Schedule a delayed scan so the new session/window has time to start
+                    app.schedule_delayed_scan(800);
                 }
             }
             _ => {}

@@ -71,6 +71,24 @@ pub struct GitInfo {
     pub changed_files: usize,
 }
 
+/// Agent state detected from pane content
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AgentState {
+    Idle,
+    Busy,
+    Waiting,
+}
+
+impl AgentState {
+    pub fn icon(&self) -> &'static str {
+        match self {
+            AgentState::Idle => "○",
+            AgentState::Busy => "●",
+            AgentState::Waiting => "◆",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AgentPanel {
     pub session: String,
@@ -81,6 +99,7 @@ pub struct AgentPanel {
     pub agent_type: AgentType,
     pub working_dir: String,
     pub is_active: bool,
+    pub state: AgentState,
     pub git_info: Option<GitInfo>,
     pub pid: Option<String>,
     pub start_time: Option<Instant>,
@@ -93,11 +112,7 @@ impl AgentPanel {
     }
 
     pub fn status_icon(&self) -> &'static str {
-        if self.is_active {
-            "⚡"
-        } else {
-            "○"
-        }
+        self.state.icon()
     }
 
     pub fn shortened_path(&self, max_len: usize) -> String {

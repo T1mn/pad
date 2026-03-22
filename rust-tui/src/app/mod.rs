@@ -57,9 +57,12 @@ pub struct App {
     pub fuzzy_from_normal: bool,
     // Relay settings state
     pub relay_selected_agent: usize,
-    pub relay_selected_field: usize,
+    pub relay_selected_provider: usize,
     pub relay_editing: bool,
+    pub relay_edit_field: usize,   // 0=label, 1=base_url, 2=api_key
     pub relay_edit_buffer: String,
+    /// Scheduled delayed scan — Some(Instant) means scan after this time
+    pub delayed_scan_at: Option<Instant>,
 }
 
 impl App {
@@ -108,9 +111,11 @@ impl App {
             fuzzy_picker: None,
             fuzzy_from_normal: false,
             relay_selected_agent: 0,
-            relay_selected_field: 0,
+            relay_selected_provider: 0,
             relay_editing: false,
+            relay_edit_field: 0,
             relay_edit_buffer: String::new(),
+            delayed_scan_at: None,
         }
     }
 

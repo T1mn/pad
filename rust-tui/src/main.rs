@@ -8,11 +8,13 @@ use std::error::Error;
 use std::io;
 
 mod app;
+mod detector;
 mod event;
 mod fuzzy;
 #[macro_use]
 mod logger;
 mod model;
+mod pipe;
 pub mod pty;
 mod scanner;
 mod relay;
@@ -55,7 +57,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("pad 0.5.0");
+        println!("pad 0.6.0");
         return Ok(());
     }
 

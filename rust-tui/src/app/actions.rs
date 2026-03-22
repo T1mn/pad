@@ -262,6 +262,12 @@ impl App {
                 true,
             ),
             (
+                "Status Bar",
+                self.config.status_bar.clone(),
+                "Tmux status bar mode",
+                true,
+            ),
+            (
                 "Refresh Interval",
                 format!("{}s", self.config.refresh_interval),
                 "Seconds between refreshes",
@@ -269,7 +275,7 @@ impl App {
             ),
             (
                 "Version",
-                "0.5.0".to_string(),
+                "0.6.0".to_string(),
                 "pad - Agent Panel Manager",
                 false,
             ),

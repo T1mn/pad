@@ -1,4 +1,4 @@
-use crate::model::{AgentPanel, AgentType, GitInfo};
+use crate::model::{AgentPanel, AgentState, AgentType, GitInfo};
 use std::process::Command;
 
 pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
@@ -42,7 +42,13 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             continue;
         }
 
-        let is_active = check_active(&pane_id);
+        // Detect three-state from pane content
+        let state = if let Ok(content) = capture_pane_content(&pane_id, 20) {
+            crate::detector::detect_state(&content)
+        } else {
+            AgentState::Idle
+        };
+        let is_active = state == AgentState::Busy;
         let git_info = get_git_info(&working_dir);
 
         panels.push(AgentPanel {
@@ -54,16 +60,23 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             agent_type,
             working_dir,
             is_active,
+            state,
             git_info,
             pid: Some(pane_pid.to_string()),
             start_time: Some(std::time::Instant::now()),
         });
     }
 
-    panels.sort_by(|a, b| match (a.is_active, b.is_active) {
-        (true, false) => std::cmp::Ordering::Less,
-        (false, true) => std::cmp::Ordering::Greater,
-        _ => std::cmp::Ordering::Equal,
+    // Sort: Waiting > Busy > Idle
+    panels.sort_by(|a, b| {
+        let state_ord = |s: &AgentState| -> u8 {
+            match s {
+                AgentState::Waiting => 0,
+                AgentState::Busy => 1,
+                AgentState::Idle => 2,
+            }
+        };
+        state_ord(&a.state).cmp(&state_ord(&b.state))
     });
 
     Ok(panels)
@@ -100,38 +113,6 @@ fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send
     } else {
         Err("Failed to get process cmd".into())
     }
-}
-
-fn check_active(pane_id: &str) -> bool {
-    if let Ok(content) = capture_pane_content(pane_id, 20) {
-        let content_lower = content.to_lowercase();
-        let active_markers = [
-            "thinking",
-            "processing",
-            "generating",
-            "analyzing",
-            "⋯",
-            "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
-        ];
-
-        for marker in &active_markers {
-            if content_lower.contains(marker) {
-                if content_lower.contains("claude")
-                    || content_lower.contains("codex")
-                    || content_lower.contains("kimi")
-                    || content_lower.contains("gemini")
-                    || content_lower.contains("opencode")
-                    || content_lower.contains("aider")
-                    || content_lower.contains("cursor")
-                    || content_lower.contains("assistant")
-                {
-                    return true;
-                }
-            }
-        }
-    }
-
-    false
 }
 
 fn capture_pane_content(

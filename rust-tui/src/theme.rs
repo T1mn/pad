@@ -288,13 +288,31 @@ impl Theme {
     }
 }
 
+/// Per-provider relay configuration
+#[derive(Clone, Debug)]
+pub struct ProviderConfig {
+    pub label: String,
+    pub base_url: String,
+    pub api_key: String,
+}
+
 /// Per-agent configuration including relay/proxy settings
 #[derive(Clone, Debug)]
 pub struct AgentConfig {
     pub name: String,
     pub cmd: String,
+    pub providers: Vec<ProviderConfig>,
+    pub active_provider: Option<usize>,
+    // Legacy fields kept for backward compat during migration
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+}
+
+impl AgentConfig {
+    /// Get the currently active provider, if any
+    pub fn active(&self) -> Option<&ProviderConfig> {
+        self.active_provider.and_then(|i| self.providers.get(i))
+    }
 }
 
 /// Config file management
@@ -304,6 +322,7 @@ pub struct Config {
     pub auto_refresh: bool,
     pub refresh_interval: u64,
     pub agents: Vec<AgentConfig>,
+    pub status_bar: String,
 }
 
 impl Default for Config {
@@ -313,14 +332,11 @@ impl Default for Config {
             auto_refresh: true,
             refresh_interval: 10,
             agents: vec![
-                AgentConfig { name: "claude".into(), cmd: "claude".into(), base_url: None, api_key: None },
-                AgentConfig { name: "codex".into(), cmd: "codex".into(), base_url: None, api_key: None },
-                AgentConfig { name: "kimi-cli".into(), cmd: "kimi".into(), base_url: None, api_key: None },
-                AgentConfig { name: "gemini-cli".into(), cmd: "gemini".into(), base_url: None, api_key: None },
-                AgentConfig { name: "opencode".into(), cmd: "opencode".into(), base_url: None, api_key: None },
-                AgentConfig { name: "aider".into(), cmd: "aider".into(), base_url: None, api_key: None },
-                AgentConfig { name: "cursor".into(), cmd: "cursor".into(), base_url: None, api_key: None },
+                AgentConfig { name: "claude".into(), cmd: "claude".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
+                AgentConfig { name: "codex".into(), cmd: "codex".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
+                AgentConfig { name: "gemini".into(), cmd: "gemini".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
             ],
+            status_bar: "hidden".to_string(),
         }
     }
 }
@@ -364,6 +380,9 @@ impl Config {
         if let Some(toml::Value::Integer(interval)) = table.get("refresh_interval") {
             config.refresh_interval = *interval as u64;
         }
+        if let Some(toml::Value::String(sb)) = table.get("status_bar") {
+            config.status_bar = sb.clone();
+        }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
             let mut parsed = Vec::new();
             for agent in agents {
@@ -371,17 +390,55 @@ impl Config {
                     if let (Some(toml::Value::String(name)), Some(toml::Value::String(cmd))) =
                         (t.get("name"), t.get("cmd"))
                     {
-                        let base_url = t.get("base_url").and_then(|v| {
+                        // Parse providers array if present
+                        let mut providers = Vec::new();
+                        let mut active_provider = None;
+                        if let Some(toml::Value::Array(provs)) = t.get("providers") {
+                            for prov in provs {
+                                if let toml::Value::Table(pt) = prov {
+                                    let label = pt.get("label").and_then(|v| {
+                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                                    }).unwrap_or_default();
+                                    let base_url = pt.get("base_url").and_then(|v| {
+                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                                    }).unwrap_or_default();
+                                    let api_key = pt.get("api_key").and_then(|v| {
+                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                                    }).unwrap_or_default();
+                                    providers.push(ProviderConfig { label, base_url, api_key });
+                                }
+                            }
+                        }
+                        if let Some(toml::Value::Integer(idx)) = t.get("active_provider") {
+                            let idx = *idx as usize;
+                            if idx < providers.len() {
+                                active_provider = Some(idx);
+                            }
+                        }
+
+                        // Legacy migration: old base_url/api_key -> single provider
+                        let legacy_url = t.get("base_url").and_then(|v| {
                             if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
                         });
-                        let api_key = t.get("api_key").and_then(|v| {
+                        let legacy_key = t.get("api_key").and_then(|v| {
                             if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
                         });
+                        if providers.is_empty() && (legacy_url.is_some() || legacy_key.is_some()) {
+                            providers.push(ProviderConfig {
+                                label: "default".to_string(),
+                                base_url: legacy_url.clone().unwrap_or_default(),
+                                api_key: legacy_key.clone().unwrap_or_default(),
+                            });
+                            active_provider = Some(0);
+                        }
+
                         parsed.push(AgentConfig {
                             name: name.clone(),
                             cmd: cmd.clone(),
-                            base_url,
-                            api_key,
+                            providers,
+                            active_provider,
+                            base_url: legacy_url,
+                            api_key: legacy_key,
                         });
                     }
                 }
@@ -404,16 +461,20 @@ impl Config {
         content.push_str(&format!("theme = \"{}\"\n", self.theme));
         content.push_str(&format!("auto_refresh = {}\n", self.auto_refresh));
         content.push_str(&format!("refresh_interval = {}\n", self.refresh_interval));
+        content.push_str(&format!("status_bar = \"{}\"\n", self.status_bar));
         content.push_str("\n");
         for agent in &self.agents {
             content.push_str("[[agents]]\n");
             content.push_str(&format!("name = \"{}\"\n", agent.name));
             content.push_str(&format!("cmd = \"{}\"\n", agent.cmd));
-            if let Some(ref url) = agent.base_url {
-                content.push_str(&format!("base_url = \"{}\"\n", url));
+            if let Some(idx) = agent.active_provider {
+                content.push_str(&format!("active_provider = {}\n", idx));
             }
-            if let Some(ref key) = agent.api_key {
-                content.push_str(&format!("api_key = \"{}\"\n", key));
+            for prov in &agent.providers {
+                content.push_str("\n[[agents.providers]]\n");
+                content.push_str(&format!("label = \"{}\"\n", prov.label));
+                content.push_str(&format!("base_url = \"{}\"\n", prov.base_url));
+                content.push_str(&format!("api_key = \"{}\"\n", prov.api_key));
             }
             content.push('\n');
         }

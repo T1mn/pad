@@ -48,6 +48,21 @@ impl App {
         }
     }
 
+    pub fn schedule_delayed_scan(&mut self, delay_ms: u64) {
+        self.delayed_scan_at = Some(Instant::now() + std::time::Duration::from_millis(delay_ms));
+    }
+
+    pub fn check_delayed_scan(&mut self) {
+        if let Some(at) = self.delayed_scan_at {
+            if Instant::now() >= at {
+                self.delayed_scan_at = None;
+                if !self.scan_in_progress {
+                    self.trigger_async_scan();
+                }
+            }
+        }
+    }
+
     pub fn trigger_async_preview_update(&mut self, pane_id: String) {
         if self.preview_update_in_progress {
             return;

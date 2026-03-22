@@ -12,7 +12,7 @@ use ratatui::{
 
 pub fn draw_settings_modal(f: &mut Frame, app: &App) {
     let theme = &app.theme;
-    let area = centered_rect(50, 50, f.area());
+    let area = centered_rect(35, 40, f.area());
 
     f.render_widget(Clear, area);
 
@@ -26,15 +26,15 @@ pub fn draw_settings_modal(f: &mut Frame, app: &App) {
     let inner = Rect {
         x: area.x + 2,
         y: area.y + 1,
-        width: area.width - 4,
-        height: area.height - 2,
+        width: area.width.saturating_sub(4),
+        height: area.height.saturating_sub(2),
     };
 
     let items = app.settings_items();
     let rows: Vec<Row> = items
         .iter()
         .enumerate()
-        .map(|(idx, (name, value, desc, editable))| {
+        .map(|(idx, (name, value, _desc, editable))| {
             let is_selected = idx == app.settings_selected;
 
             let name_style = if is_selected {
@@ -59,18 +59,16 @@ pub fn draw_settings_modal(f: &mut Frame, app: &App) {
             Row::new(vec![
                 Cell::from(*name).style(name_style),
                 Cell::from(format!("{}{}", value, editable_marker)).style(value_style),
-                Cell::from(*desc).style(Style::default().fg(theme.comment)),
             ])
         })
         .collect();
 
     let table = Table::new(rows, [
-            Constraint::Length(18),
-            Constraint::Length(15),
+            Constraint::Length(16),
             Constraint::Min(0),
         ])
         .header(
-            Row::new(vec!["Setting", "Value", "Description"])
+            Row::new(vec!["Setting", "Value"])
                 .style(Style::default().add_modifier(Modifier::BOLD))
                 .bottom_margin(1),
         );
@@ -298,7 +296,7 @@ pub fn draw_help(f: &mut Frame, theme: &Theme, area: Rect) {
 
 pub fn draw_relay_settings(f: &mut Frame, app: &App) {
     let theme = &app.theme;
-    let area = centered_rect(70, 60, f.area());
+    let area = centered_rect(75, 65, f.area());
 
     f.render_widget(Clear, area);
 
@@ -310,100 +308,122 @@ pub fn draw_relay_settings(f: &mut Frame, app: &App) {
     f.render_widget(block, area);
 
     let inner = Rect {
-        x: area.x + 2,
+        x: area.x + 1,
         y: area.y + 1,
-        width: area.width.saturating_sub(4),
-        height: area.height.saturating_sub(4),
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(3),
     };
 
-    let rows: Vec<Row> = app
-        .config
-        .agents
-        .iter()
-        .enumerate()
-        .map(|(idx, agent)| {
-            let is_selected = idx == app.relay_selected_agent;
+    // Three-column layout: agents | providers | details
+    let agent_w = 14u16;
+    let detail_w = inner.width.saturating_sub(agent_w + 2) / 2;
+    let prov_w = inner.width.saturating_sub(agent_w + detail_w + 2);
 
-            let name_style = if is_selected {
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.highlight_fg)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(theme.fg)
+    // === Left column: Agent list ===
+    let agent_area = Rect { x: inner.x, y: inner.y, width: agent_w, height: inner.height };
+    let agent_rows: Vec<Row> = app.config.agents.iter().enumerate().map(|(i, agent)| {
+        let selected = i == app.relay_selected_agent;
+        let prefix = if selected { "❯ " } else { "  " };
+        let style = if selected {
+            Style::default().bg(theme.highlight_bg).fg(theme.highlight_fg).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.fg)
+        };
+        Row::new(vec![Cell::from(format!("{}{}", prefix, agent.name))]).style(style)
+    }).collect();
+    let agent_table = Table::new(agent_rows, [Constraint::Min(0)])
+        .block(Block::default().title(" Agent ").borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+    f.render_widget(agent_table, agent_area);
+
+    // === Middle column: Provider list for selected agent ===
+    let prov_area = Rect { x: inner.x + agent_w + 1, y: inner.y, width: prov_w, height: inner.height };
+    let selected_agent = app.config.agents.get(app.relay_selected_agent);
+    let prov_rows: Vec<Row> = if let Some(agent) = selected_agent {
+        if agent.providers.is_empty() {
+            vec![Row::new(vec![Cell::from("  (empty)")]).style(Style::default().fg(theme.comment))]
+        } else {
+            agent.providers.iter().enumerate().map(|(i, prov)| {
+                let is_active = agent.active_provider == Some(i);
+                let selected = i == app.relay_selected_provider;
+                let marker = if is_active { "✓ " } else { "  " };
+                let style = if selected {
+                    Style::default().bg(theme.highlight_bg).fg(if is_active { theme.success } else { theme.highlight_fg }).add_modifier(Modifier::BOLD)
+                } else if is_active {
+                    Style::default().fg(theme.success).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.fg)
+                };
+                Row::new(vec![Cell::from(format!("{}{}", marker, prov.label))]).style(style)
+            }).collect()
+        }
+    } else {
+        vec![]
+    };
+    let prov_table = Table::new(prov_rows, [Constraint::Min(0)])
+        .block(Block::default().title(" Providers ").borders(Borders::ALL).border_style(Style::default().fg(theme.border)));
+    f.render_widget(prov_table, prov_area);
+
+    // === Right column: Details of selected provider ===
+    let detail_area = Rect { x: inner.x + agent_w + prov_w + 2, y: inner.y, width: detail_w, height: inner.height };
+    let detail_lines: Vec<Line> = if let Some(agent) = selected_agent {
+        if let Some(prov) = agent.providers.get(app.relay_selected_provider) {
+            let field = app.relay_edit_field;
+            let editing = app.relay_editing;
+            let make_val = |idx: usize, val: &str| -> String {
+                if editing && field == idx {
+                    format!("{}|", app.relay_edit_buffer)
+                } else if val.is_empty() {
+                    "-".to_string()
+                } else {
+                    val.to_string()
+                }
             };
-
-            let base_url_display = if app.relay_editing && is_selected && app.relay_selected_field == 0 {
+            let field_style = |idx: usize| -> Style {
+                if field == idx {
+                    Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.fg)
+                }
+            };
+            let key_display = if editing && field == 2 {
                 format!("{}|", app.relay_edit_buffer)
+            } else if prov.api_key.is_empty() {
+                "-".to_string()
+            } else if prov.api_key.len() > 12 {
+                format!("{}...", &prov.api_key[..12])
             } else {
-                agent.base_url.clone().unwrap_or_else(|| "-".to_string())
+                prov.api_key.clone()
             };
+            vec![
+                Line::from(Span::styled("Label:", Style::default().fg(theme.comment))),
+                Line::from(Span::styled(make_val(0, &prov.label), field_style(0))),
+                Line::from(""),
+                Line::from(Span::styled("Base URL:", Style::default().fg(theme.comment))),
+                Line::from(Span::styled(make_val(1, &prov.base_url), field_style(1))),
+                Line::from(""),
+                Line::from(Span::styled("API Key:", Style::default().fg(theme.comment))),
+                Line::from(Span::styled(key_display, field_style(2))),
+            ]
+        } else {
+            vec![
+                Line::from(""),
+                Line::from(Span::styled("No provider selected", Style::default().fg(theme.comment))),
+                Line::from(""),
+                Line::from(Span::styled("Press 'a' to add", Style::default().fg(theme.comment))),
+            ]
+        }
+    } else {
+        vec![]
+    };
+    let detail_block = Block::default().title(" Details ").borders(Borders::ALL).border_style(Style::default().fg(theme.border));
+    let detail_para = Paragraph::new(detail_lines).block(detail_block).wrap(Wrap { trim: false });
+    f.render_widget(detail_para, detail_area);
 
-            let api_key_display = if app.relay_editing && is_selected && app.relay_selected_field == 1 {
-                format!("{}|", app.relay_edit_buffer)
-            } else {
-                agent.api_key.as_ref().map(|k| {
-                    if k.len() > 8 {
-                        format!("{}...", &k[..8])
-                    } else {
-                        k.clone()
-                    }
-                }).unwrap_or_else(|| "-".to_string())
-            };
-
-            let url_style = if is_selected && app.relay_selected_field == 0 {
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.accent)
-            } else if is_selected {
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.fg)
-            } else {
-                Style::default().fg(theme.fg)
-            };
-
-            let key_style = if is_selected && app.relay_selected_field == 1 {
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.accent)
-            } else if is_selected {
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.fg)
-            } else {
-                Style::default().fg(theme.fg)
-            };
-
-            Row::new(vec![
-                Cell::from(agent.name.clone()).style(name_style),
-                Cell::from(base_url_display).style(url_style),
-                Cell::from(api_key_display).style(key_style),
-            ])
-        })
-        .collect();
-
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Length(14),
-            Constraint::Min(20),
-            Constraint::Length(14),
-        ],
-    )
-    .header(
-        Row::new(vec!["Agent", "base_url", "api_key"])
-            .style(Style::default().add_modifier(Modifier::BOLD))
-            .bottom_margin(1),
-    );
-
-    f.render_widget(table, inner);
-
-    // Footer with keybinds
+    // Footer
     let footer_text = if app.relay_editing {
         "Type to edit | Enter: save | Esc: cancel"
     } else {
-        "j/k: navigate | Tab: switch field | Enter: edit | a: apply to configs | Esc: back"
+        "h/l: agent | j/k: provider | Tab: field | Enter: edit | Space: activate | a: add | d: del | Esc: back"
     };
     let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
