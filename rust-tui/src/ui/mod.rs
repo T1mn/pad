@@ -61,5 +61,13 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     // Render RelaySettings modal overlay
     if app.mode == Mode::RelaySettings {
         modals::draw_relay_settings(f, app);
+        // DetailPane is a third-level popup on top of relay settings
+        if app.relay_view == crate::app::state::RelayView::DetailPane {
+            modals::draw_relay_detail(f, app);
+        }
+    }
+
+    if app.mode == Mode::LanguageSelector {
+        modals::draw_language_selector(f, app);
     }
 }

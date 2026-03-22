@@ -5,6 +5,7 @@ pub enum Mode {
     Search,
     Settings,
     ThemeSelector,
+    LanguageSelector,
     Tree,
     TreeSearch,
     AgentLauncher,

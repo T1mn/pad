@@ -242,6 +242,25 @@ impl App {
         self.dirty = true;
     }
 
+    pub fn available_locales() -> Vec<crate::i18n::Locale> {
+        use crate::i18n::Locale;
+        vec![Locale::ZhCN, Locale::ZhTW, Locale::En, Locale::Ja, Locale::De, Locale::Fr]
+    }
+
+    pub fn open_language_selector(&mut self) {
+        let locales = Self::available_locales();
+        self.language_selected = locales.iter().position(|l| *l == self.locale).unwrap_or(0);
+        self.mode = Mode::LanguageSelector;
+        self.dirty = true;
+    }
+
+    pub fn close_language_selector(&mut self) {
+        // Revert to saved locale
+        self.locale = crate::i18n::Locale::from_str(&self.config.language);
+        self.mode = Mode::Settings;
+        self.dirty = true;
+    }
+
     /// Returns (id, value, name_i18n_key, desc_i18n_key, editable)
     pub fn settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
         let l = self.locale;

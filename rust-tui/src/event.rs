@@ -72,9 +72,8 @@ fn save_and_install_return_bindings(app: &mut App) {
         None => "tmux unbind-key -T root C-q".to_string(),
     };
 
-    // The return command: switch back to pad, restore keys
-    // Note: status bar restore is handled by pad itself on FocusGained, not here,
-    // to avoid tmux resize delay in the run-shell chain.
+    // The return command: switch back to pad, restore keys.
+    // Status bar restore is deferred to pad's draw loop to avoid resize-induced black screen.
     let return_cmd_f12 = format!(
         "tmux select-window -t '{}' && tmux select-pane -t '{}' && {} && {}",
         win_target, pad_pane_id, restore_f12, restore_cq
@@ -216,6 +215,16 @@ pub async fn run_app(
             app.dirty = false;
         }
 
+        // Deferred status bar restore: runs AFTER first draw so user sees UI immediately.
+        // The subsequent tmux resize will trigger Resize event → clear → redraw at correct size.
+        if app.pending_status_restore {
+            app.pending_status_restore = false;
+            log_debug!("pending_status_restore: restoring tmux status bar");
+            let _ = std::process::Command::new("tmux")
+                .args(["set", "status", "on"])
+                .output();
+        }
+
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
@@ -224,25 +233,20 @@ pub async fn run_app(
             let ev = event::read()?;
 
             // If we returned from same-session attach (F12/C-q self-restored the bindings
-            // in tmux), detect that pad has focus again and refresh
+            // in tmux), detect that pad has focus again and refresh.
+            // Accept ANY event type (FocusGained, Key, Resize, Mouse, etc.) as a signal.
             if app.same_session_attached {
-                match &ev {
-                    Event::FocusGained | Event::Key(_) => {
-                        log_debug!("same_session_attached: pad regained focus, refreshing");
-                        app.same_session_attached = false;
-                        app.saved_tmux_bindings.clear(); // bindings already self-restored by tmux
-                        // Restore status bar (moved from tmux binding chain to avoid resize delay)
-                        if app.config.status_bar == "hidden" {
-                            let _ = std::process::Command::new("tmux")
-                                .args(["set", "status", "on"])
-                                .output();
-                        }
-                        app.refresh_panels();
-                        app.preview_pane_id = None;
-                        app.needs_clear = true;
-                        app.dirty = true;
-                    }
-                    _ => {}
+                log_debug!("same_session_attached: pad regained focus via {:?}, refreshing", ev);
+                app.same_session_attached = false;
+                app.saved_tmux_bindings.clear();
+                app.refresh_panels();
+                app.preview_pane_id = None;
+                app.needs_clear = true;
+                app.dirty = true;
+                // Defer status bar restore until AFTER first draw, to avoid
+                // resize-induced black screen flash
+                if app.config.status_bar == "hidden" {
+                    app.pending_status_restore = true;
                 }
             }
 
@@ -255,6 +259,7 @@ pub async fn run_app(
                         Mode::Search => handle_search_mode(app, key.code),
                         Mode::Settings => handle_settings_mode(app, key.code),
                         Mode::ThemeSelector => handle_theme_selector_mode(app, key.code),
+                        Mode::LanguageSelector => handle_language_selector_mode(app, key.code),
                         Mode::Tree => handle_tree_mode(app, key.code),
                         Mode::TreeSearch => handle_tree_search_mode(app, key.code),
                         Mode::AgentLauncher => handle_agent_launcher_mode(app, key.code),
@@ -270,6 +275,17 @@ pub async fn run_app(
             if let Event::Resize(_, _) = ev {
                 terminal.clear()?;
                 app.dirty = true;
+            }
+
+            // Handle paste events (for relay editing, search, etc.)
+            if let Event::Paste(ref text) = ev {
+                if app.relay_editing {
+                    app.relay_edit_buffer.push_str(text);
+                    app.dirty = true;
+                } else if app.mode == Mode::Search {
+                    app.search_query.push_str(text);
+                    app.dirty = true;
+                }
             }
         }
 
@@ -811,7 +827,6 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                             app.config.save();
                         }
                         "relay" => {
-                            app.settings_open = false;
                             app.relay_selected_agent = 0;
                             app.relay_selected_provider = 0;
                             app.relay_edit_field = 0;
@@ -822,16 +837,14 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                         }
                         "status_bar" => {
                             app.config.status_bar = if app.config.status_bar == "hidden" {
-                                "notify".to_string()
+                                "show".to_string()
                             } else {
                                 "hidden".to_string()
                             };
                             app.config.save();
                         }
                         "language" => {
-                            app.locale = app.locale.next();
-                            app.config.language = app.locale.as_str().to_string();
-                            app.config.save();
+                            app.open_language_selector();
                         }
                         _ => {}
                     }
@@ -886,6 +899,45 @@ fn handle_theme_selector_mode(app: &mut App, key: KeyCode) {
                 app.theme_selector_open = false;
                 app.mode = crate::app::state::Mode::Settings;
             }
+            app.dirty = true;
+        }
+        _ => {}
+    }
+}
+
+fn handle_language_selector_mode(app: &mut App, key: KeyCode) {
+    let locales = App::available_locales();
+    match key {
+        KeyCode::Esc => {
+            app.close_language_selector();
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            let max = locales.len().saturating_sub(1);
+            if app.language_selected < max {
+                app.language_selected += 1;
+            }
+            // Hot-reload preview
+            if let Some(l) = locales.get(app.language_selected) {
+                app.locale = *l;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.language_selected > 0 {
+                app.language_selected -= 1;
+            }
+            if let Some(l) = locales.get(app.language_selected) {
+                app.locale = *l;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Enter => {
+            if let Some(l) = locales.get(app.language_selected) {
+                app.locale = *l;
+                app.config.language = l.as_str().to_string();
+                app.config.save();
+            }
+            app.mode = crate::app::state::Mode::Settings;
             app.dirty = true;
         }
         _ => {}
@@ -1074,6 +1126,9 @@ fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
 
                     app.close_agent_launcher();
                     app.dirty = true;
+
+                    // Ensure relay config is applied before spawning agent
+                    relay::apply_relay_configs(&app.config.agents);
 
                     if from_fuzzy {
                         // From Normal mode 'c' key: create a new tmux session with agent

@@ -28,22 +28,12 @@ pub fn split_tree_left(area: Rect) -> Vec<Rect> {
         .to_vec()
 }
 
-pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(vec![
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(vec![
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
+/// Compute a centered popup Rect from content dimensions.
+/// Adds 2 for borders. Clamps to terminal bounds with margin.
+pub fn popup_area(content_w: u16, content_h: u16, terminal: Rect) -> Rect {
+    let w = (content_w + 2).min(terminal.width.saturating_sub(2));
+    let h = (content_h + 2).min(terminal.height.saturating_sub(2));
+    let x = terminal.x + (terminal.width.saturating_sub(w)) / 2;
+    let y = terminal.y + (terminal.height.saturating_sub(h)) / 2;
+    Rect::new(x, y, w, h)
 }

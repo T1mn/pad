@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture},
+    event::{DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste, EnableFocusChange, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Install panic hook to restore terminal and log panic info
     std::panic::set_hook(Box::new(|info| {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture, DisableFocusChange);
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture, DisableFocusChange, DisableBracketedPaste);
         let msg = format!("PANIC: {}", info);
         eprintln!("{}", msg);
         logger::log(&msg);
@@ -79,7 +79,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, EnableFocusChange)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, EnableFocusChange, EnableBracketedPaste)?;
+    // Ensure tmux sends focus events to the terminal
+    let _ = std::process::Command::new("tmux").args(["set", "-g", "focus-events", "on"]).output();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -108,7 +110,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture,
-        DisableFocusChange
+        DisableFocusChange,
+        DisableBracketedPaste
     )?;
     terminal.show_cursor()?;
 
