@@ -15,6 +15,7 @@ mod logger;
 mod model;
 pub mod pty;
 mod scanner;
+mod relay;
 mod session;
 mod theme;
 mod tree;

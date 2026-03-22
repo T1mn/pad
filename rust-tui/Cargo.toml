@@ -17,6 +17,8 @@ nucleo-matcher = "0.3"
 rand = "0.8"
 ratatui = "0.30"
 tui-markdown = { version = "0.3", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = "0.7"
 tokio = { version = "1.35", features = ["full"] }
 
@@ -27,3 +29,12 @@ pty = "0.2"
 [profile.release]
 opt-level = 3
 lto = true
+
+# 更激进的优化配置（用于分发）
+[profile.dist]
+inherits = "release"
+opt-level = "z"      # 优化体积而非速度
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

@@ -288,13 +288,22 @@ impl Theme {
     }
 }
 
+/// Per-agent configuration including relay/proxy settings
+#[derive(Clone, Debug)]
+pub struct AgentConfig {
+    pub name: String,
+    pub cmd: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+}
+
 /// Config file management
 #[derive(Clone, Debug)]
 pub struct Config {
     pub theme: String,
     pub auto_refresh: bool,
     pub refresh_interval: u64,
-    pub agents: Vec<(String, String)>,
+    pub agents: Vec<AgentConfig>,
 }
 
 impl Default for Config {
@@ -304,13 +313,13 @@ impl Default for Config {
             auto_refresh: true,
             refresh_interval: 10,
             agents: vec![
-                ("claude".to_string(), "claude".to_string()),
-                ("codex".to_string(), "codex".to_string()),
-                ("kimi-cli".to_string(), "kimi".to_string()),
-                ("gemini-cli".to_string(), "gemini".to_string()),
-                ("opencode".to_string(), "opencode".to_string()),
-                ("aider".to_string(), "aider".to_string()),
-                ("cursor".to_string(), "cursor".to_string()),
+                AgentConfig { name: "claude".into(), cmd: "claude".into(), base_url: None, api_key: None },
+                AgentConfig { name: "codex".into(), cmd: "codex".into(), base_url: None, api_key: None },
+                AgentConfig { name: "kimi-cli".into(), cmd: "kimi".into(), base_url: None, api_key: None },
+                AgentConfig { name: "gemini-cli".into(), cmd: "gemini".into(), base_url: None, api_key: None },
+                AgentConfig { name: "opencode".into(), cmd: "opencode".into(), base_url: None, api_key: None },
+                AgentConfig { name: "aider".into(), cmd: "aider".into(), base_url: None, api_key: None },
+                AgentConfig { name: "cursor".into(), cmd: "cursor".into(), base_url: None, api_key: None },
             ],
         }
     }
@@ -362,7 +371,18 @@ impl Config {
                     if let (Some(toml::Value::String(name)), Some(toml::Value::String(cmd))) =
                         (t.get("name"), t.get("cmd"))
                     {
-                        parsed.push((name.clone(), cmd.clone()));
+                        let base_url = t.get("base_url").and_then(|v| {
+                            if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                        });
+                        let api_key = t.get("api_key").and_then(|v| {
+                            if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                        });
+                        parsed.push(AgentConfig {
+                            name: name.clone(),
+                            cmd: cmd.clone(),
+                            base_url,
+                            api_key,
+                        });
                     }
                 }
             }
@@ -385,11 +405,17 @@ impl Config {
         content.push_str(&format!("auto_refresh = {}\n", self.auto_refresh));
         content.push_str(&format!("refresh_interval = {}\n", self.refresh_interval));
         content.push_str("\n");
-        for (name, cmd) in &self.agents {
-            content.push_str(&format!(
-                "[[agents]]\nname = \"{}\"\ncmd = \"{}\"\n\n",
-                name, cmd
-            ));
+        for agent in &self.agents {
+            content.push_str("[[agents]]\n");
+            content.push_str(&format!("name = \"{}\"\n", agent.name));
+            content.push_str(&format!("cmd = \"{}\"\n", agent.cmd));
+            if let Some(ref url) = agent.base_url {
+                content.push_str(&format!("base_url = \"{}\"\n", url));
+            }
+            if let Some(ref key) = agent.api_key {
+                content.push_str(&format!("api_key = \"{}\"\n", key));
+            }
+            content.push('\n');
         }
 
         let _ = std::fs::write(&path, content);

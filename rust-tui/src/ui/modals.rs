@@ -295,3 +295,124 @@ pub fn draw_help(f: &mut Frame, theme: &Theme, area: Rect) {
 
     f.render_widget(paragraph, popup_area);
 }
+
+pub fn draw_relay_settings(f: &mut Frame, app: &App) {
+    let theme = &app.theme;
+    let area = centered_rect(70, 60, f.area());
+
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" Relay/Proxy Settings ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent));
+    f.render_widget(block, area);
+
+    let inner = Rect {
+        x: area.x + 2,
+        y: area.y + 1,
+        width: area.width.saturating_sub(4),
+        height: area.height.saturating_sub(4),
+    };
+
+    let rows: Vec<Row> = app
+        .config
+        .agents
+        .iter()
+        .enumerate()
+        .map(|(idx, agent)| {
+            let is_selected = idx == app.relay_selected_agent;
+
+            let name_style = if is_selected {
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.highlight_fg)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg)
+            };
+
+            let base_url_display = if app.relay_editing && is_selected && app.relay_selected_field == 0 {
+                format!("{}|", app.relay_edit_buffer)
+            } else {
+                agent.base_url.clone().unwrap_or_else(|| "-".to_string())
+            };
+
+            let api_key_display = if app.relay_editing && is_selected && app.relay_selected_field == 1 {
+                format!("{}|", app.relay_edit_buffer)
+            } else {
+                agent.api_key.as_ref().map(|k| {
+                    if k.len() > 8 {
+                        format!("{}...", &k[..8])
+                    } else {
+                        k.clone()
+                    }
+                }).unwrap_or_else(|| "-".to_string())
+            };
+
+            let url_style = if is_selected && app.relay_selected_field == 0 {
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.accent)
+            } else if is_selected {
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.fg)
+            } else {
+                Style::default().fg(theme.fg)
+            };
+
+            let key_style = if is_selected && app.relay_selected_field == 1 {
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.accent)
+            } else if is_selected {
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.fg)
+            } else {
+                Style::default().fg(theme.fg)
+            };
+
+            Row::new(vec![
+                Cell::from(agent.name.clone()).style(name_style),
+                Cell::from(base_url_display).style(url_style),
+                Cell::from(api_key_display).style(key_style),
+            ])
+        })
+        .collect();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(14),
+            Constraint::Min(20),
+            Constraint::Length(14),
+        ],
+    )
+    .header(
+        Row::new(vec!["Agent", "base_url", "api_key"])
+            .style(Style::default().add_modifier(Modifier::BOLD))
+            .bottom_margin(1),
+    );
+
+    f.render_widget(table, inner);
+
+    // Footer with keybinds
+    let footer_text = if app.relay_editing {
+        "Type to edit | Enter: save | Esc: cancel"
+    } else {
+        "j/k: navigate | Tab: switch field | Enter: edit | a: apply to configs | Esc: back"
+    };
+    let footer = Paragraph::new(footer_text)
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.comment));
+    let footer_area = Rect {
+        x: area.x,
+        y: area.y + area.height.saturating_sub(2),
+        width: area.width,
+        height: 1,
+    };
+    f.render_widget(footer, footer_area);
+}

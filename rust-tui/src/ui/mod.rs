@@ -52,4 +52,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.mode == Mode::Help {
         modals::draw_help(f, &app.theme, f.area());
     }
+
+    // Render FuzzyPicker modal overlay
+    if let Some(ref picker) = app.fuzzy_picker {
+        picker.draw(f);
+    }
+
+    // Render RelaySettings modal overlay
+    if app.mode == Mode::RelaySettings {
+        modals::draw_relay_settings(f, app);
+    }
 }

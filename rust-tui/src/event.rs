@@ -2,7 +2,8 @@ use crate::app::App;
 use crate::app::state::Mode;
 use crate::log_debug;
 use crate::pty::attach_to_pane_pty;
-use crate::session::create_new_session_fuzzy;
+use crate::relay;
+use crate::session;
 use crate::ui;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
@@ -191,6 +192,8 @@ pub async fn run_app(
                         Mode::AgentLauncher => handle_agent_launcher_mode(app, key.code),
                         Mode::DeleteConfirm => handle_delete_confirm_mode(app, key.code),
                         Mode::Help => handle_help_mode(app, key.code),
+                        Mode::FuzzyPicker => handle_fuzzy_picker_mode(app, key),
+                        Mode::RelaySettings => handle_relay_settings_mode(app, key.code),
                     }
                 }
             }
@@ -277,7 +280,8 @@ fn handle_normal_mode(
             handle_attach(terminal, app)?;
         }
         KeyCode::Char('c') | KeyCode::Char('C') => {
-            handle_create_session(terminal, app)?;
+            // Open fuzzy picker as in-TUI modal instead of leaving alternate screen
+            app.open_fuzzy_picker();
         }
         KeyCode::PageDown => {
             app.preview_scroll = app.preview_scroll.saturating_add(10);
@@ -393,39 +397,107 @@ fn handle_attach(
     Ok(())
 }
 
-fn handle_create_session(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut App,
-) -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+fn handle_fuzzy_picker_mode(app: &mut App, key: crossterm::event::KeyEvent) {
+    if let Some(ref mut picker) = app.fuzzy_picker {
+        match picker.handle_input(key) {
+            None => {
+                // No action, continue
+                app.dirty = true;
+            }
+            Some(None) => {
+                // Esc — cancelled
+                app.close_fuzzy_picker();
+            }
+            Some(Some(path)) => {
+                // Directory selected — clear picker, open agent launcher
+                app.fuzzy_picker = None;
+                app.open_agent_launcher(std::path::PathBuf::from(path));
+                // Keep fuzzy_from_normal = true so agent launcher knows the flow
+            }
+        }
+    }
+}
 
-    print!("\x1b[2J\x1b[H");
-    io::stdout().flush()?;
-
-    if let Err(e) = create_new_session_fuzzy() {
-        println!("Error: {}", e);
-        println!("\nPress any key to continue...");
-        let _ = crossterm::event::read();
+fn handle_relay_settings_mode(app: &mut App, key: KeyCode) {
+    if app.relay_editing {
+        match key {
+            KeyCode::Esc => {
+                app.relay_editing = false;
+                app.relay_edit_buffer.clear();
+                app.dirty = true;
+            }
+            KeyCode::Enter => {
+                // Save the edit
+                let agent_idx = app.relay_selected_agent;
+                let field_idx = app.relay_selected_field;
+                let value = app.relay_edit_buffer.clone();
+                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
+                    let val = if value.is_empty() { None } else { Some(value) };
+                    match field_idx {
+                        0 => agent.base_url = val,
+                        1 => agent.api_key = val,
+                        _ => {}
+                    }
+                }
+                app.config.save();
+                app.relay_editing = false;
+                app.relay_edit_buffer.clear();
+                app.dirty = true;
+            }
+            KeyCode::Char(c) => {
+                app.relay_edit_buffer.push(c);
+                app.dirty = true;
+            }
+            KeyCode::Backspace => {
+                app.relay_edit_buffer.pop();
+                app.dirty = true;
+            }
+            _ => {}
+        }
+        return;
     }
 
-    print!("\x1b[2J\x1b[H");
-    io::stdout().flush()?;
-
-    enable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        EnterAlternateScreen,
-        EnableMouseCapture
-    )?;
-
-    app.refresh_panels();
-    Ok(())
+    match key {
+        KeyCode::Esc => {
+            app.mode = Mode::Settings;
+            app.dirty = true;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            let max = app.config.agents.len().saturating_sub(1);
+            if app.relay_selected_agent < max {
+                app.relay_selected_agent += 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.relay_selected_agent > 0 {
+                app.relay_selected_agent -= 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Tab => {
+            app.relay_selected_field = (app.relay_selected_field + 1) % 2;
+            app.dirty = true;
+        }
+        KeyCode::Enter => {
+            // Start editing the selected field
+            if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
+                app.relay_edit_buffer = match app.relay_selected_field {
+                    0 => agent.base_url.clone().unwrap_or_default(),
+                    1 => agent.api_key.clone().unwrap_or_default(),
+                    _ => String::new(),
+                };
+            }
+            app.relay_editing = true;
+            app.dirty = true;
+        }
+        KeyCode::Char('a') => {
+            // Apply relay configs to native config files
+            relay::apply_relay_configs(&app.config.agents);
+            app.dirty = true;
+        }
+        _ => {}
+    }
 }
 
 fn handle_search_mode(app: &mut App, key: KeyCode) {
@@ -499,6 +571,14 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                         "Auto Refresh" => {
                             app.config.auto_refresh = !app.config.auto_refresh;
                             app.config.save();
+                        }
+                        "Relay/Proxy" => {
+                            app.settings_open = false;
+                            app.relay_selected_agent = 0;
+                            app.relay_selected_field = 0;
+                            app.relay_editing = false;
+                            app.relay_edit_buffer.clear();
+                            app.mode = Mode::RelaySettings;
                         }
                         _ => {}
                     }
@@ -667,8 +747,11 @@ fn handle_tree_search_mode(app: &mut App, key: KeyCode) {
 }
 
 fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
+    // Capture whether this launch came from the fuzzy picker (Normal mode 'c' flow)
+    let from_fuzzy = app.fuzzy_from_normal;
+
     if let Some(ref mut launcher) = app.agent_launcher {
-        log_debug!("agent_launcher key={:?} selected={}", key, launcher.selected);
+        log_debug!("agent_launcher key={:?} selected={} from_fuzzy={}", key, launcher.selected, from_fuzzy);
         match key {
             KeyCode::Esc => {
                 app.close_agent_launcher();
@@ -691,12 +774,24 @@ fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                     app.close_agent_launcher();
                     app.dirty = true;
 
-                    std::thread::spawn(move || {
-                        let _ = std::process::Command::new("tmux")
-                            .args(["new-window", "-c", &target_dir.to_string_lossy()])
-                            .arg(&agent_cmd)
-                            .spawn();
-                    });
+                    if from_fuzzy {
+                        // From Normal mode 'c' key: create a new tmux session with agent
+                        let dir_str = target_dir.to_string_lossy().to_string();
+                        let cmd = agent_cmd.clone();
+                        std::thread::spawn(move || {
+                            let _ = session::create_session_with_agent(&dir_str, &cmd);
+                        });
+                    } else {
+                        // From Tree mode: open new window in current session
+                        std::thread::spawn(move || {
+                            let _ = std::process::Command::new("tmux")
+                                .args(["new-window", "-c", &target_dir.to_string_lossy()])
+                                .arg(&agent_cmd)
+                                .spawn();
+                        });
+                    }
+
+                    app.refresh_panels();
                 }
             }
             _ => {}

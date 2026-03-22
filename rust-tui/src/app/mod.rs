@@ -3,6 +3,7 @@ pub mod async_ops;
 pub mod navigation;
 pub mod state;
 
+use crate::fuzzy::FuzzyPicker;
 use crate::model::AgentPanel;
 use crate::theme::{Config, Theme};
 use crate::tree;
@@ -51,6 +52,14 @@ pub struct App {
     pub preview_scroll: u16,
     pub same_session_attached: bool,
     pub saved_tmux_bindings: Vec<String>,
+    pub fuzzy_picker: Option<FuzzyPicker>,
+    /// Whether the fuzzy picker was opened from Normal mode (for 'c' key flow)
+    pub fuzzy_from_normal: bool,
+    // Relay settings state
+    pub relay_selected_agent: usize,
+    pub relay_selected_field: usize,
+    pub relay_editing: bool,
+    pub relay_edit_buffer: String,
 }
 
 impl App {
@@ -96,6 +105,12 @@ impl App {
             preview_scroll: 0,
             same_session_attached: false,
             saved_tmux_bindings: Vec::new(),
+            fuzzy_picker: None,
+            fuzzy_from_normal: false,
+            relay_selected_agent: 0,
+            relay_selected_field: 0,
+            relay_editing: false,
+            relay_edit_buffer: String::new(),
         }
     }
 

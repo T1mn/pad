@@ -903,6 +903,8 @@ dependencies = [
  "pty",
  "rand",
  "ratatui",
+ "serde",
+ "serde_json",
  "tokio",
  "toml",
  "tui-markdown",

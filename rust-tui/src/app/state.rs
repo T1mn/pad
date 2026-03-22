@@ -10,4 +10,6 @@ pub enum Mode {
     AgentLauncher,
     DeleteConfirm,
     Help,
+    FuzzyPicker,
+    RelaySettings,
 }
