@@ -285,10 +285,10 @@ impl App {
                 true,
             ),
             (
-                "status_bar",
-                self.config.status_bar.clone(),
-                "settings.status_bar",
-                "settings.status_bar",
+                "agent_style",
+                crate::i18n::t(l, "settings.configure").to_string(),
+                "settings.agent_style",
+                "settings.agent_style",
                 true,
             ),
             (

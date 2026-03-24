@@ -79,12 +79,29 @@ pub enum AgentState {
     Waiting,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentStateSource {
+    Scanner,
+    Hook,
+}
+
 impl AgentState {
-    pub fn icon(&self) -> &'static str {
+    pub fn icon(&self, animation_frame: usize) -> &'static str {
         match self {
-            AgentState::Idle => "○",
-            AgentState::Busy => "●",
-            AgentState::Waiting => "◆",
+            AgentState::Idle => " ",
+            AgentState::Busy => match animation_frame % 10 {
+                0 => "⠋",
+                1 => "⠙",
+                2 => "⠹",
+                3 => "⠸",
+                4 => "⠼",
+                5 => "⠴",
+                6 => "⠦",
+                7 => "⠧",
+                8 => "⠇",
+                _ => "⠏",
+            },
+            AgentState::Waiting => "●",
         }
     }
 }
@@ -100,9 +117,13 @@ pub struct AgentPanel {
     pub working_dir: String,
     pub is_active: bool,
     pub state: AgentState,
+    pub state_source: AgentStateSource,
     pub git_info: Option<GitInfo>,
     pub pid: Option<String>,
     pub start_time: Option<Instant>,
+    pub agent_session_id: Option<String>,
+    pub last_user_prompt: Option<String>,
+    pub last_assistant_message: Option<String>,
 }
 
 impl AgentPanel {
@@ -111,8 +132,8 @@ impl AgentPanel {
         format!("{}:{}.{}", self.session, self.window, self.pane)
     }
 
-    pub fn status_icon(&self) -> &'static str {
-        self.state.icon()
+    pub fn status_icon(&self, animation_frame: usize) -> &'static str {
+        self.state.icon(animation_frame)
     }
 
     pub fn shortened_path(&self, max_len: usize) -> String {

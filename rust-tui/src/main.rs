@@ -11,10 +11,12 @@ mod app;
 mod detector;
 mod event;
 mod fuzzy;
+mod hook;
 mod i18n;
 #[macro_use]
 mod logger;
 mod model;
+mod paths;
 mod pipe;
 pub mod pty;
 mod scanner;
@@ -39,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Options:");
         println!("  -h, --help     显示帮助信息");
         println!("  -V, --version  显示版本号");
-        println!("  -d, --debug    调试模式 (日志写入 ~/.config/pad/pad.log)");
+        println!("  -d, --debug    调试模式 (日志写入 ~/.pad/logs/pad.log)");
         println!();
         println!("快捷键:");
         println!("  j/k or ↑/↓     上下导航");
@@ -63,9 +65,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let debug = args.iter().any(|a| a == "--debug" || a == "-d");
+    paths::ensure_runtime_layout()?;
+    // Always init logger so cargo run / dev builds produce logs
+    logger::init()?;
     if debug {
-        logger::init()?;
         logger::log("pad 启动 (debug mode)");
+    } else {
+        logger::log("pad 启动");
     }
 
     // Install panic hook to restore terminal and log panic info
@@ -86,6 +92,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
+    app.hook_rx = Some(hook::start_hook_listener());
     log_debug!("配置加载: theme={}, auto_refresh={}", app.config.theme, app.config.auto_refresh);
 
     match scan_panels() {

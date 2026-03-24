@@ -14,6 +14,7 @@ pub enum Mode {
     FuzzyPicker,
     RelaySettings,
     FilePreview,
+    AgentStyleSettings,
 }
 
 /// Relay settings sub-view

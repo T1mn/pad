@@ -4,7 +4,8 @@ pub mod navigation;
 pub mod state;
 
 use crate::fuzzy::FuzzyPicker;
-use crate::model::AgentPanel;
+use crate::hook::HookEvent;
+use crate::model::{AgentPanel, AgentState, AgentStateSource};
 use crate::theme::{Config, Theme};
 use crate::tree;
 use async_ops::ScanResult;
@@ -40,6 +41,7 @@ pub struct App {
     pub preview_update_in_progress: bool,
     pub preview_rx: Option<mpsc::Receiver<(String, String)>>,
     pub last_preview_update: Instant,
+    pub hook_rx: Option<mpsc::Receiver<HookEvent>>,
     pub refresh_after_attach: bool,
     pub should_quit: bool,
     pub dirty: bool,
@@ -52,9 +54,11 @@ pub struct App {
     pub file_preview_path: Option<PathBuf>,
     pub file_preview_scroll: u16,
     pub preview_scroll: u16,
+    pub preview_follow_bottom: bool,
     pub same_session_attached: bool,
     pub pending_status_restore: bool,
     pub saved_tmux_bindings: Vec<String>,
+    pub saved_tmux_status: Option<String>,
     pub fuzzy_picker: Option<FuzzyPicker>,
     /// Whether the fuzzy picker was opened from Normal mode (for 'c' key flow)
     pub fuzzy_from_normal: bool,
@@ -74,6 +78,10 @@ pub struct App {
     // Provider connectivity test
     pub provider_test_in_progress: bool,
     pub provider_test_rx: Option<mpsc::Receiver<(usize, usize, bool, String)>>,
+    // Agent style settings
+    pub agent_style_selected: usize,
+    pub busy_animation_frame: usize,
+    pub last_busy_animation_tick: Instant,
 }
 
 impl App {
@@ -108,6 +116,7 @@ impl App {
             preview_update_in_progress: false,
             preview_rx: None,
             last_preview_update: Instant::now(),
+            hook_rx: None,
             refresh_after_attach: false,
             should_quit: false,
             dirty: true,
@@ -120,9 +129,11 @@ impl App {
             file_preview_path: None,
             file_preview_scroll: 0,
             preview_scroll: 0,
+            preview_follow_bottom: true,
             same_session_attached: false,
             pending_status_restore: false,
             saved_tmux_bindings: Vec::new(),
+            saved_tmux_status: None,
             fuzzy_picker: None,
             fuzzy_from_normal: false,
             relay_selected_agent: 0,
@@ -137,6 +148,9 @@ impl App {
             needs_clear: false,
             provider_test_in_progress: false,
             provider_test_rx: None,
+            agent_style_selected: 0,
+            busy_animation_frame: 0,
+            last_busy_animation_tick: Instant::now(),
         }
     }
 
@@ -151,5 +165,35 @@ impl App {
     pub fn preview_theme(&mut self, name: &str) {
         self.theme = Theme::by_name(name);
         self.dirty = true;
+    }
+
+    pub fn apply_hook_event(&mut self, event: HookEvent) {
+        let pane_id = match event.tmux.pane_id.clone() {
+            Some(id) => id,
+            None => return,
+        };
+
+        if let Some(panel) = self.panels.iter_mut().find(|p| p.pane_id == pane_id) {
+            panel.agent_session_id = event.session_id.clone();
+            match event.event.as_str() {
+                "session_start" => {}
+                "user_prompt_submit" => {
+                    panel.state = AgentState::Busy;
+                    panel.state_source = AgentStateSource::Hook;
+                    panel.is_active = true;
+                    panel.last_user_prompt = event.prompt.clone();
+                }
+                "stop" => {
+                    panel.state = AgentState::Waiting;
+                    panel.state_source = AgentStateSource::Hook;
+                    panel.is_active = false;
+                    if event.last_assistant_message.is_some() {
+                        panel.last_assistant_message = event.last_assistant_message.clone();
+                    }
+                }
+                _ => {}
+            }
+            self.dirty = true;
+        }
     }
 }

@@ -32,11 +32,16 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
                 } else {
                     String::new()
                 };
+                let status_style = match panel.state {
+                    crate::model::AgentState::Busy => Style::default().fg(theme.warning),
+                    crate::model::AgentState::Waiting => Style::default().fg(theme.success),
+                    crate::model::AgentState::Idle => Style::default().fg(theme.comment),
+                };
 
                 let mut cells = vec![
                     Cell::from(index_str).style(Style::default().fg(theme.comment)),
                     Cell::from(panel.agent_type.emoji()),
-                    Cell::from(panel.status_icon()),
+                    Cell::from(panel.status_icon(app.busy_animation_frame)).style(status_style),
                     Cell::from(format!("{}:{}.{}", panel.session, panel.window, panel.pane)),
                 ];
 

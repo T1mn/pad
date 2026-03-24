@@ -1,5 +1,6 @@
 use super::App;
-use crate::model::AgentPanel;
+use crate::log_debug;
+use crate::model::{AgentPanel, AgentState, AgentStateSource};
 use crate::scanner::scan_panels;
 use std::error::Error;
 use std::time::Instant;
@@ -27,7 +28,31 @@ impl App {
     pub fn check_scan_result(&mut self) {
         if let Some(ref mut rx) = self.scan_rx {
             match rx.try_recv() {
-                Ok(Ok(panels)) => {
+                Ok(Ok(mut panels)) => {
+                    log_debug!("async_ops: 扫描完成，检测到 {} 个面板", panels.len());
+
+                    // Preserve hook-driven state/session info by pane_id
+                    for panel in &mut panels {
+                        if let Some(existing) = self.panels.iter().find(|p| p.pane_id == panel.pane_id) {
+                            if existing.agent_session_id.is_some() {
+                                panel.agent_session_id = existing.agent_session_id.clone();
+                            }
+                            if existing.last_user_prompt.is_some() {
+                                panel.last_user_prompt = existing.last_user_prompt.clone();
+                            }
+                            if existing.last_assistant_message.is_some() {
+                                panel.last_assistant_message = existing.last_assistant_message.clone();
+                            }
+                            if existing.state_source == AgentStateSource::Hook
+                                && matches!(existing.state, AgentState::Busy | AgentState::Waiting)
+                            {
+                                panel.state = existing.state.clone();
+                                panel.state_source = existing.state_source.clone();
+                                panel.is_active = existing.is_active;
+                            }
+                        }
+                    }
+
                     self.panels = panels;
                     self.last_refresh = Instant::now();
                     self.preview_pane_id = None;
@@ -35,12 +60,14 @@ impl App {
                     self.scan_rx = None;
                     self.dirty = true;
                 }
-                Ok(Err(_)) => {
+                Ok(Err(e)) => {
+                    log_debug!("async_ops: 扫描失败: {}", e);
                     self.scan_in_progress = false;
                     self.scan_rx = None;
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
+                    log_debug!("async_ops: 扫描 channel 断开");
                     self.scan_in_progress = false;
                     self.scan_rx = None;
                 }
@@ -88,6 +115,7 @@ impl App {
                     self.preview_content = content;
                     self.preview_pane_id = Some(pane_id);
                     self.preview_scroll = 0;
+                    self.preview_follow_bottom = true;
                     self.preview_update_in_progress = false;
                     self.preview_rx = None;
                     self.last_preview_update = Instant::now();

@@ -70,4 +70,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.mode == Mode::LanguageSelector {
         modals::draw_language_selector(f, app);
     }
+
+    if app.mode == Mode::AgentStyleSettings {
+        modals::draw_agent_style_modal(f, app);
+    }
 }

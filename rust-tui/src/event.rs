@@ -14,118 +14,346 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-/// Save current F12/C-q root bindings, then install temporary bindings that switch back to pad's pane.
-/// The return binding itself restores the original bindings, so no need for pad to restore them.
-fn save_and_install_return_bindings(app: &mut App) {
+fn summarize_log_text(text: &str) -> String {
+    let single_line = text.trim().replace('\n', "\\n").replace('\r', "\\r");
+    if single_line.is_empty() {
+        return "-".to_string();
+    }
+
+    let mut shortened: String = single_line.chars().take(160).collect();
+    if single_line.chars().count() > 160 {
+        shortened.push('…');
+    }
+    shortened
+}
+
+fn run_tmux_logged(context: &str, args: Vec<String>) -> Option<std::process::Output> {
+    log_debug!("tmux:{}: cmd=tmux {}", context, args.join(" "));
+
+    let output = std::process::Command::new("tmux")
+        .args(args.iter().map(String::as_str))
+        .output()
+        .ok()?;
+
+    log_debug!(
+        "tmux:{}: exit={} stdout={} stderr={}",
+        context,
+        output.status,
+        summarize_log_text(&String::from_utf8_lossy(&output.stdout)),
+        summarize_log_text(&String::from_utf8_lossy(&output.stderr))
+    );
+
+    Some(output)
+}
+
+/// Install F12/C-q return bindings for same-session attach.
+/// Snapshots zoom and status bar state, modifies them for the attach,
+/// and encodes restoration into the return command.
+fn install_return_bindings(app: &mut App, target_pane_id: &str, _session: &str) -> bool {
     let pad_pane_id = match std::env::var("TMUX_PANE") {
-        Ok(id) => id,   // e.g. "%280"
+        Ok(id) => id,
         Err(_) => {
-            log_debug!("save_and_install_return_bindings: TMUX_PANE not set");
-            return;
+            log_debug!("install_return_bindings: TMUX_PANE not set");
+            return false;
         }
     };
 
-    // Get pad's session:window target for select-window
+    log_debug!(
+        "install_return_bindings: start target_pane={} pad_pane={}",
+        target_pane_id,
+        pad_pane_id
+    );
+
+    // Get pad's session:window_index for cross-window return
     let pad_win_target = std::process::Command::new("tmux")
         .args(["display-message", "-t", &pad_pane_id, "-p", "#{session_name}:#{window_index}"])
         .output()
         .ok()
         .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
 
-    let win_target = match pad_win_target {
-        Some(t) => t,
-        None => {
-            log_debug!("save_and_install_return_bindings: cannot determine pad window target");
-            return;
-        }
-    };
-
-    // Get current root key table bindings for F12 and C-q
-    let output = std::process::Command::new("tmux")
-        .args(["list-keys", "-T", "root"])
-        .output();
-
-    let mut saved_f12: Option<String> = None;
-    let mut saved_cq: Option<String> = None;
-    if let Ok(out) = output {
-        let lines = String::from_utf8_lossy(&out.stdout);
-        for line in lines.lines() {
-            // Each line looks like: bind-key -T root F12 <cmd...>
-            let trimmed = line.trim();
-            if trimmed.contains(" F12 ") {
-                saved_f12 = Some(trimmed.to_string());
-            }
-            if trimmed.contains(" C-q ") {
-                saved_cq = Some(trimmed.to_string());
-            }
-        }
+    if pad_win_target.is_empty() {
+        log_debug!("install_return_bindings: pad_win_target empty, pad_pane_id={}", pad_pane_id);
+        return false;
     }
 
-    // Build restore commands that the return binding will execute
-    let restore_f12 = match &saved_f12 {
-        Some(line) => format!("tmux {}", line),
-        None => "tmux unbind-key -T root F12".to_string(),
-    };
-    let restore_cq = match &saved_cq {
-        Some(line) => format!("tmux {}", line),
-        None => "tmux unbind-key -T root C-q".to_string(),
+    // --- Zoom: respect desired_agent_style.zoom config ---
+    let zoom_info = std::process::Command::new("tmux")
+        .args(["display-message", "-t", target_pane_id, "-p", "#{window_zoomed_flag} #{window_panes}"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+
+    let mut parts = zoom_info.split_whitespace();
+    let already_zoomed = parts.next().unwrap_or("0") == "1";
+    let pane_count: usize = parts.next().unwrap_or("1").parse().unwrap_or(1);
+    let want_zoom = app.config.desired_agent_style.zoom == "auto";
+    let should_zoom = want_zoom && pane_count > 1 && !already_zoomed;
+
+    let restore_zoom_cmd = if should_zoom {
+        // Do NOT zoom here — zoom happens after select-pane so user sees it instantly
+        format!("tmux resize-pane -Z -t '{}'", target_pane_id)
+    } else {
+        String::new()
     };
 
-    // The return command: switch back to pad, restore keys.
-    // Status bar restore is deferred to pad's draw loop to avoid resize-induced black screen.
-    let return_cmd_f12 = format!(
-        "tmux select-window -t '{}' && tmux select-pane -t '{}' && {} && {}",
-        win_target, pad_pane_id, restore_f12, restore_cq
+    let saved_f12 = current_root_binding("F12");
+    let saved_cq = current_root_binding("C-q");
+    app.saved_tmux_bindings.clear();
+    if let Some(line) = &saved_f12 {
+        app.saved_tmux_bindings.push(line.clone());
+    }
+    if let Some(line) = &saved_cq {
+        app.saved_tmux_bindings.push(line.clone());
+    }
+
+    log_debug!(
+        "install_return_bindings: saved_bindings f12={} cq={}",
+        saved_f12
+            .as_deref()
+            .map(summarize_log_text)
+            .unwrap_or_else(|| "-".to_string()),
+        saved_cq
+            .as_deref()
+            .map(summarize_log_text)
+            .unwrap_or_else(|| "-".to_string())
     );
-    let return_cmd_cq = return_cmd_f12.clone();
 
-    let _ = std::process::Command::new("tmux")
-        .args(["bind-key", "-T", "root", "F12", "run-shell", &return_cmd_f12])
-        .output();
-    let _ = std::process::Command::new("tmux")
-        .args(["bind-key", "-T", "root", "C-q", "run-shell", &return_cmd_cq])
-        .output();
+    // --- Status bar: respect desired_agent_style.status config ---
+    let status_val = tmux_status_value();
+    let desired_status = app.config.desired_agent_style.status.as_str();
+    let status_restore_value = apply_desired_status(desired_status, &status_val);
+    app.saved_tmux_status = status_restore_value.clone();
+    let restore_status_cmd = status_restore_value
+        .as_ref()
+        .map(|status| format!("tmux set status '{}'", status))
+        .unwrap_or_default();
 
-    // Save info for pad's own cleanup (crash/quit while attached)
-    app.saved_tmux_bindings = Vec::new();
-    if let Some(line) = saved_f12 { app.saved_tmux_bindings.push(line); }
-    if let Some(line) = saved_cq { app.saved_tmux_bindings.push(line); }
+    log_debug!(
+        "install_return_bindings: target={} panes={} zoomed={} should_zoom={} status={} desired_status={} status_restore={} pad_win={}",
+        target_pane_id,
+        pane_count,
+        already_zoomed,
+        should_zoom,
+        status_val,
+        desired_status,
+        status_restore_value.as_deref().unwrap_or("-"),
+        pad_win_target
+    );
 
-    log_debug!("installed self-restoring return bindings: F12/C-q -> select-window + restore");
+    // Build return command: restore zoom + status, then navigate back to pad
+    let mut restore_parts: Vec<String> = Vec::new();
+    restore_parts.push(restore_binding_cmd(saved_f12.as_deref(), "F12"));
+    restore_parts.push(restore_binding_cmd(saved_cq.as_deref(), "C-q"));
+    if !restore_zoom_cmd.is_empty() {
+        restore_parts.push(shell_log_cmd(&format!("before_unzoom target_pane={}", target_pane_id)));
+        restore_parts.push(restore_zoom_cmd);
+        restore_parts.push(shell_log_cmd(&format!("after_unzoom target_pane={}", target_pane_id)));
+        restore_parts.push(wait_for_zoom_flag_cmd(target_pane_id, "0", "after_unzoom_wait"));
+    }
+    if !restore_status_cmd.is_empty() {
+        restore_parts.push(restore_status_cmd);
+    }
+    restore_parts.push(shell_log_cmd(&format!(
+        "before_return_select pad_window={} pad_pane={}",
+        pad_win_target, pad_pane_id
+    )));
+    restore_parts.push(format!("tmux select-window -t '{}'", pad_win_target));
+    restore_parts.push(format!("tmux select-pane -t '{}'", pad_pane_id));
+    restore_parts.push(shell_log_cmd(&format!(
+        "after_return_select pad_window={} pad_pane={}",
+        pad_win_target, pad_pane_id
+    )));
+
+    let return_cmd = restore_parts.join("; ");
+
+    let _ = run_tmux_logged(
+        "install_return_bindings.bind_f12",
+        vec![
+            "bind-key".to_string(),
+            "-T".to_string(),
+            "root".to_string(),
+            "F12".to_string(),
+            "run-shell".to_string(),
+            return_cmd.clone(),
+        ],
+    );
+    let _ = run_tmux_logged(
+        "install_return_bindings.bind_cq",
+        vec![
+            "bind-key".to_string(),
+            "-T".to_string(),
+            "root".to_string(),
+            "C-q".to_string(),
+            "run-shell".to_string(),
+            return_cmd.clone(),
+        ],
+    );
+
+    log_debug!("install_return_bindings: return_cmd={}", return_cmd);
+    should_zoom
 }
 
-/// Restore original tmux bindings — only used as safety net on pad quit/crash,
-/// since normal return via F12/C-q self-restores.
+/// Clean up F12/C-q root bindings and restore status bar — safety net for pad quit/crash.
 pub fn restore_tmux_bindings(app: &mut App) {
-    let mut restored_f12 = false;
-    let mut restored_cq = false;
+    let saved_f12 = app.saved_tmux_bindings.iter().find(|line| line.contains(" F12 ")).cloned();
+    let saved_cq = app.saved_tmux_bindings.iter().find(|line| line.contains(" C-q ")).cloned();
 
-    for line in &app.saved_tmux_bindings {
-        let _ = std::process::Command::new("tmux")
-            .args(line.split_whitespace().collect::<Vec<&str>>())
-            .output();
-        if line.contains(" F12 ") {
-            restored_f12 = true;
-        }
-        if line.contains(" C-q ") {
-            restored_cq = true;
-        }
-    }
+    let _ = std::process::Command::new("sh")
+        .args(["-lc", &restore_binding_cmd(saved_f12.as_deref(), "F12")])
+        .output();
+    let _ = std::process::Command::new("sh")
+        .args(["-lc", &restore_binding_cmd(saved_cq.as_deref(), "C-q")])
+        .output();
 
-    if !restored_f12 {
+    if let Some(status) = app.saved_tmux_status.as_deref() {
         let _ = std::process::Command::new("tmux")
-            .args(["unbind-key", "-T", "root", "F12"])
-            .output();
-    }
-    if !restored_cq {
-        let _ = std::process::Command::new("tmux")
-            .args(["unbind-key", "-T", "root", "C-q"])
+            .args(["set", "status", status])
             .output();
     }
 
-    log_debug!("restore_tmux_bindings: cleaned up (f12={}, cq={})", restored_f12, restored_cq);
+    log_debug!("restore_tmux_bindings: restored root bindings and status");
     app.saved_tmux_bindings.clear();
+    app.saved_tmux_status = None;
+}
+
+fn current_root_binding(key: &str) -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args(["list-keys", "-T", "root"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| line.contains(&format!(" {} ", key)))
+        .map(|line| line.to_string())
+}
+
+fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> String {
+    saved_binding
+        .map(|line| format!("tmux {}", line))
+        .unwrap_or_else(|| format!("tmux unbind-key -T root {}", key))
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn shell_log_cmd(message: &str) -> String {
+    let log_path = crate::paths::log_path().to_string_lossy().to_string();
+    format!(
+        "printf '%s\\n' {} >> {}",
+        shell_single_quote(&format!("[return] {}", message)),
+        shell_single_quote(&log_path)
+    )
+}
+
+fn wait_for_zoom_flag_cmd(target_pane_id: &str, expected_zoomed: &str, label: &str) -> String {
+    let log_path = crate::paths::log_path().to_string_lossy().to_string();
+    format!(
+        concat!(
+            "_pad_wait_i=0; _pad_zoom=''; ",
+            "while [ $_pad_wait_i -lt 30 ]; do ",
+            "_pad_zoom=$(tmux display-message -t {} -p '#{{window_zoomed_flag}}' 2>/dev/null | tr -d '\\r\\n'); ",
+            "[ \"$_pad_zoom\" = {} ] && break; ",
+            "_pad_wait_i=$((_pad_wait_i + 1)); ",
+            "sleep 0.01; ",
+            "done; ",
+            "printf '%s\\n' \"[return] {} target_pane={} zoomed=${{_pad_zoom:-?}} tries=${{_pad_wait_i}}\" >> {}"
+        ),
+        shell_single_quote(target_pane_id),
+        shell_single_quote(expected_zoomed),
+        label,
+        target_pane_id,
+        shell_single_quote(&log_path)
+    )
+}
+
+fn tmux_status_value() -> String {
+    std::process::Command::new("tmux")
+        .args(["show", "-v", "status"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+fn apply_desired_status(desired_status: &str, current_status: &str) -> Option<String> {
+    if current_status.is_empty() {
+        return None;
+    }
+
+    match desired_status {
+        "show" if current_status != "on" => {
+            let _ = std::process::Command::new("tmux").args(["set", "status", "on"]).output();
+            Some(current_status.to_string())
+        }
+        "hide" if current_status != "off" => {
+            let _ = std::process::Command::new("tmux").args(["set", "status", "off"]).output();
+            Some(current_status.to_string())
+        }
+        _ => None,
+    }
+}
+
+fn current_tmux_pane_id() -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args(["display-message", "-p", "#{pane_id}"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn current_tmux_window_target() -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args(["display-message", "-p", "#{session_name}:#{window_index}"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn tmux_target_snapshot(target: &str) -> Option<String> {
+    let output = std::process::Command::new("tmux")
+        .args([
+            "display-message",
+            "-t",
+            target,
+            "-p",
+            "window=#{session_name}:#{window_index} pane=#{pane_id} active=#{pane_active} zoomed=#{window_zoomed_flag} layout=#{window_layout} visible=#{window_visible_layout}",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn pad_focus_state() -> Option<(String, String)> {
+    let pad_pane_id = std::env::var("TMUX_PANE").ok()?;
+    let current_pane_id = current_tmux_pane_id()?;
+    Some((pad_pane_id, current_pane_id))
 }
 
 pub async fn run_app(
@@ -139,7 +367,6 @@ pub async fn run_app(
 
     // Start tmux control pipe for event-driven refresh
     let mut pipe_rx = crate::pipe::start_control_pipe();
-    let mut pipe_active = true;
     // Two-level debounce: fast for structural, slow for output
     let mut pipe_fast_pending = false;
     let mut pipe_slow_pending = false;
@@ -160,6 +387,24 @@ pub async fn run_app(
         app.check_delayed_scan();
         app.check_provider_test_result();
 
+        // Drain hook events (non-blocking)
+        let mut pending_hook_events = Vec::new();
+        if let Some(ref mut hook_rx) = app.hook_rx {
+            loop {
+                match hook_rx.try_recv() {
+                    Ok(ev) => pending_hook_events.push(ev),
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        app.hook_rx = None;
+                        break;
+                    }
+                }
+            }
+        }
+        for ev in pending_hook_events {
+            app.apply_hook_event(ev);
+        }
+
         // Drain tmux pipe events (non-blocking)
         loop {
             match pipe_rx.try_recv() {
@@ -176,16 +421,12 @@ pub async fn run_app(
                             last_pipe_slow = Instant::now();
                         }
                         crate::pipe::TmuxEvent::Disconnected => {
-                            pipe_active = false;
-                            log_debug!("pipe: disconnected, falling back to polling");
+                            log_debug!("pipe: disconnected");
                         }
                     }
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                    pipe_active = false;
-                    break;
-                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
 
@@ -215,15 +456,8 @@ pub async fn run_app(
             app.dirty = false;
         }
 
-        // Deferred status bar restore: runs AFTER first draw so user sees UI immediately.
-        // The subsequent tmux resize will trigger Resize event → clear → redraw at correct size.
-        if app.pending_status_restore {
-            app.pending_status_restore = false;
-            log_debug!("pending_status_restore: restoring tmux status bar");
-            let _ = std::process::Command::new("tmux")
-                .args(["set", "status", "on"])
-                .output();
-        }
+        // Deferred status bar restore removed — status is now managed via
+        // snapshot/restore in install_return_bindings and the F12 return command.
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -233,20 +467,35 @@ pub async fn run_app(
             let ev = event::read()?;
 
             // If we returned from same-session attach (F12/C-q self-restored the bindings
-            // in tmux), detect that pad has focus again and refresh.
-            // Accept ANY event type (FocusGained, Key, Resize, Mouse, etc.) as a signal.
+            // in tmux), refresh only after tmux actually switches the active pane back to pad.
+            // This avoids treating the initial FocusLost from switching away as a return signal.
             if app.same_session_attached {
-                log_debug!("same_session_attached: pad regained focus via {:?}, refreshing", ev);
-                app.same_session_attached = false;
-                app.saved_tmux_bindings.clear();
-                app.refresh_panels();
-                app.preview_pane_id = None;
-                app.needs_clear = true;
-                app.dirty = true;
-                // Defer status bar restore until AFTER first draw, to avoid
-                // resize-induced black screen flash
-                if app.config.status_bar == "hidden" {
-                    app.pending_status_restore = true;
+                let focus_state = pad_focus_state();
+                if let Some((pad_pane_id, current_pane_id)) = focus_state {
+                    if current_pane_id == pad_pane_id {
+                        log_debug!(
+                            "same_session_attached: pad pane active via {:?}, current_pane={} pad_pane={}, refreshing",
+                            ev,
+                            current_pane_id,
+                            pad_pane_id
+                        );
+                        app.same_session_attached = false;
+                        app.saved_tmux_bindings.clear();
+                        app.saved_tmux_status = None;
+                        app.refresh_panels();
+                        app.preview_pane_id = None;
+                        app.needs_clear = true;
+                        app.dirty = true;
+                    } else if matches!(&ev, Event::FocusLost | Event::FocusGained | Event::Resize(_, _)) {
+                        log_debug!(
+                            "same_session_attached: waiting return event={:?} current_pane={} pad_pane={}",
+                            ev,
+                            current_pane_id,
+                            pad_pane_id
+                        );
+                    }
+                } else if matches!(&ev, Event::FocusLost | Event::FocusGained | Event::Resize(_, _)) {
+                    log_debug!("same_session_attached: waiting return event={:?} focus_state=unknown", ev);
                 }
             }
 
@@ -268,6 +517,7 @@ pub async fn run_app(
                         Mode::FuzzyPicker => handle_fuzzy_picker_mode(app, key),
                         Mode::RelaySettings => handle_relay_settings_mode(app, key.code),
                         Mode::FilePreview => handle_file_preview_mode(app, key.code),
+                        Mode::AgentStyleSettings => handle_agent_style_mode(app, key.code),
                     }
                 }
             }
@@ -290,8 +540,17 @@ pub async fn run_app(
         }
 
         if last_tick.elapsed() >= tick_rate {
-            // Fallback polling: only when pipe is not active
-            if !pipe_active && app.config.auto_refresh
+            if app.panels.iter().any(|panel| matches!(panel.state, crate::model::AgentState::Busy))
+                && app.last_busy_animation_tick.elapsed() >= Duration::from_millis(80)
+            {
+                app.busy_animation_frame = app.busy_animation_frame.wrapping_add(1);
+                app.last_busy_animation_tick = Instant::now();
+                app.dirty = true;
+            }
+            // Keep interval polling even when control-mode pipe is active.
+            // This preserves scanner-driven status refresh without relying on
+            // noisy tmux %output notifications.
+            if app.config.auto_refresh
                 && app.last_refresh.elapsed()
                     >= std::time::Duration::from_secs(app.config.refresh_interval)
             {
@@ -380,20 +639,33 @@ fn handle_normal_mode(
             // Open fuzzy picker as in-TUI modal instead of leaving alternate screen
             app.open_fuzzy_picker();
         }
+        KeyCode::Char('J') => {
+            app.preview_follow_bottom = false;
+            app.preview_scroll = app.preview_scroll.saturating_add(3);
+            app.dirty = true;
+        }
+        KeyCode::Char('K') => {
+            app.preview_follow_bottom = false;
+            app.preview_scroll = app.preview_scroll.saturating_sub(3);
+            app.dirty = true;
+        }
         KeyCode::PageDown => {
+            app.preview_follow_bottom = false;
             app.preview_scroll = app.preview_scroll.saturating_add(10);
             app.dirty = true;
         }
         KeyCode::PageUp => {
+            app.preview_follow_bottom = false;
             app.preview_scroll = app.preview_scroll.saturating_sub(10);
             app.dirty = true;
         }
         KeyCode::Home => {
+            app.preview_follow_bottom = false;
             app.preview_scroll = 0;
             app.dirty = true;
         }
         KeyCode::End => {
-            app.preview_scroll = u16::MAX;
+            app.preview_follow_bottom = true;
             app.dirty = true;
         }
         _ => {}
@@ -421,23 +693,72 @@ fn handle_attach(
             None
         });
 
+        log_debug!(
+            "attach: current_session={} target_session={} current_window={} current_pane={}",
+            current_session.as_deref().unwrap_or("-"),
+            panel.session,
+            current_tmux_window_target().as_deref().unwrap_or("-"),
+            current_tmux_pane_id().as_deref().unwrap_or("-")
+        );
+
         if current_session.as_deref() == Some(&panel.session) {
-            // Same session: install self-restoring F12/Ctrl+Q bindings, then switch
-            log_debug!("attach: same session '{}', using select-window/select-pane", panel.session);
-            save_and_install_return_bindings(app);
+            // Same session: install F12/C-q return bindings (zoom + status bar snapshot/restore)
+            let target_window = format!("{}:{}", panel.session, panel.window_index);
+            log_debug!(
+                "attach.same_session: start target_window={} target_pane={} current_window={} current_pane={} target_snapshot={}",
+                target_window,
+                panel.pane_id,
+                current_tmux_window_target().as_deref().unwrap_or("-"),
+                current_tmux_pane_id().as_deref().unwrap_or("-"),
+                tmux_target_snapshot(&panel.pane_id).as_deref().unwrap_or("-")
+            );
+            let should_zoom = install_return_bindings(app, &panel.pane_id, &panel.session);
             app.same_session_attached = true;
-            // Hide tmux status bar if configured
-            if app.config.status_bar == "hidden" {
-                let _ = std::process::Command::new("tmux")
-                    .args(["set", "status", "off"])
-                    .output();
+            log_debug!("attach.same_session: same_session_attached=true should_zoom={}", should_zoom);
+            let _ = run_tmux_logged(
+                "attach.same_session.select_window",
+                vec!["select-window".to_string(), "-t".to_string(), target_window.clone()],
+            );
+            log_debug!(
+                "attach.same_session: after select-window current_window={} current_pane={} target_snapshot={}",
+                current_tmux_window_target().as_deref().unwrap_or("-"),
+                current_tmux_pane_id().as_deref().unwrap_or("-"),
+                tmux_target_snapshot(&panel.pane_id).as_deref().unwrap_or("-")
+            );
+            let _ = run_tmux_logged(
+                "attach.same_session.select_pane",
+                vec!["select-pane".to_string(), "-t".to_string(), panel.pane_id.clone()],
+            );
+            log_debug!(
+                "attach.same_session: after select-pane current_window={} current_pane={} target_snapshot={}",
+                current_tmux_window_target().as_deref().unwrap_or("-"),
+                current_tmux_pane_id().as_deref().unwrap_or("-"),
+                tmux_target_snapshot(&panel.pane_id).as_deref().unwrap_or("-")
+            );
+            // Zoom AFTER select-pane so the user sees the resize happen in-place
+            if should_zoom {
+                let _ = run_tmux_logged(
+                    "attach.same_session.resize_zoom",
+                    vec![
+                        "resize-pane".to_string(),
+                        "-Z".to_string(),
+                        "-t".to_string(),
+                        panel.pane_id.clone(),
+                    ],
+                );
+                log_debug!(
+                    "attach.same_session: after resize-pane current_window={} current_pane={} target_snapshot={}",
+                    current_tmux_window_target().as_deref().unwrap_or("-"),
+                    current_tmux_pane_id().as_deref().unwrap_or("-"),
+                    tmux_target_snapshot(&panel.pane_id).as_deref().unwrap_or("-")
+                );
             }
-            let _ = std::process::Command::new("tmux")
-                .args(["select-window", "-t", &format!("{}:{}", panel.session, panel.window_index)])
-                .output();
-            let _ = std::process::Command::new("tmux")
-                .args(["select-pane", "-t", &panel.pane_id])
-                .output();
+            log_debug!(
+                "attach.same_session: handoff complete target_window={} target_pane={} target_snapshot={}",
+                target_window,
+                panel.pane_id,
+                tmux_target_snapshot(&panel.pane_id).as_deref().unwrap_or("-")
+            );
             app.dirty = true;
             return Ok(());
         }
@@ -449,12 +770,10 @@ fn handle_attach(
         }
 
         // Cross-session: use PTY attach
-        let hide_status = app.config.status_bar == "hidden";
-        if hide_status {
-            let _ = std::process::Command::new("tmux")
-                .args(["set", "status", "off"])
-                .output();
-        }
+        // Respect desired status for the attach and restore afterwards.
+        let status_before = tmux_status_value();
+        let desired_status = app.config.desired_agent_style.status.as_str();
+        let status_restore_value = apply_desired_status(desired_status, &status_before);
         disable_raw_mode()?;
         execute!(
             terminal.backend_mut(),
@@ -498,9 +817,10 @@ fn handle_attach(
 
         terminal.clear()?;
 
-        if hide_status {
+        // Restore status bar to its original state
+        if let Some(status) = status_restore_value.as_deref() {
             let _ = std::process::Command::new("tmux")
-                .args(["set", "status", "on"])
+                .args(["set", "status", status])
                 .output();
         }
 
@@ -835,13 +1155,9 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                             app.relay_view = crate::app::state::RelayView::AgentList;
                             app.mode = Mode::RelaySettings;
                         }
-                        "status_bar" => {
-                            app.config.status_bar = if app.config.status_bar == "hidden" {
-                                "show".to_string()
-                            } else {
-                                "hidden".to_string()
-                            };
-                            app.config.save();
+                        "agent_style" => {
+                            app.agent_style_selected = 0;
+                            app.mode = Mode::AgentStyleSettings;
                         }
                         "language" => {
                             app.open_language_selector();
@@ -1134,8 +1450,12 @@ fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                         // From Normal mode 'c' key: create a new tmux session with agent
                         let dir_str = target_dir.to_string_lossy().to_string();
                         let cmd = agent_cmd.clone();
+                        log_debug!("agent_launcher: from_fuzzy=true, spawning create_session_with_agent dir={} cmd={}", dir_str, cmd);
                         std::thread::spawn(move || {
-                            let _ = session::create_session_with_agent(&dir_str, &cmd);
+                            match session::create_session_with_agent(&dir_str, &cmd) {
+                                Ok(()) => log_debug!("agent_launcher: create_session_with_agent 成功"),
+                                Err(e) => log_debug!("agent_launcher: create_session_with_agent 失败: {}", e),
+                            }
                         });
                     } else {
                         // From Tree mode: open new window in current session
@@ -1177,6 +1497,51 @@ fn handle_help_mode(app: &mut App, key: KeyCode) {
     match key {
         KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
             app.mode = Mode::Normal;
+            app.dirty = true;
+        }
+        _ => {}
+    }
+}
+
+fn handle_agent_style_mode(app: &mut App, key: KeyCode) {
+    match key {
+        KeyCode::Esc => {
+            app.mode = Mode::Settings;
+            app.dirty = true;
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if app.agent_style_selected < 1 {
+                app.agent_style_selected += 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.agent_style_selected > 0 {
+                app.agent_style_selected -= 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            match app.agent_style_selected {
+                0 => {
+                    // Toggle zoom: auto -> keep -> auto
+                    app.config.desired_agent_style.zoom = if app.config.desired_agent_style.zoom == "auto" {
+                        "keep".to_string()
+                    } else {
+                        "auto".to_string()
+                    };
+                }
+                1 => {
+                    // Cycle status: show -> hide -> keep -> show
+                    app.config.desired_agent_style.status = match app.config.desired_agent_style.status.as_str() {
+                        "show" => "hide".to_string(),
+                        "hide" => "keep".to_string(),
+                        _ => "show".to_string(),
+                    };
+                }
+                _ => {}
+            }
+            app.config.save();
             app.dirty = true;
         }
         _ => {}

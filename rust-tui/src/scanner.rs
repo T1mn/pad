@@ -1,4 +1,4 @@
-use crate::model::{AgentPanel, AgentState, AgentType, GitInfo};
+use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, GitInfo};
 use std::process::Command;
 
 pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
@@ -16,6 +16,9 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let total_panes = stdout.lines().count();
+    log_debug!("scanner: list-panes 返回 {} 行", total_panes);
+
     let mut panels = Vec::new();
 
     for line in stdout.lines() {
@@ -30,13 +33,24 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         let pane = parts[3].to_string();
         let pane_id = parts[4].to_string();
         let pane_pid = parts[5];
-        let current_cmd = parts[6];
+        let _current_cmd = parts[6];
         let working_dir = parts[7].to_string();
 
-        let child_processes = get_child_processes(pane_pid);
-        let all_processes = format!("{} {}", current_cmd, child_processes);
+        let main_process = get_process_cmd(pane_pid).unwrap_or_default();
+        let mut agent_type = AgentType::from_processes(&main_process);
+        let child_processes = if matches!(agent_type, AgentType::Unknown) {
+            get_child_processes(pane_pid)
+        } else {
+            String::new()
+        };
+        if matches!(agent_type, AgentType::Unknown) {
+            agent_type = AgentType::from_processes(&child_processes);
+        }
 
-        let agent_type = AgentType::from_processes(&all_processes);
+        log_debug!(
+            "scanner: pane={} session={} main=[{}] children=[{}] -> agent={:?}",
+            pane_id, session, main_process, child_processes, agent_type
+        );
 
         if matches!(agent_type, AgentType::Unknown) {
             continue;
@@ -51,6 +65,11 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         let is_active = state == AgentState::Busy;
         let git_info = get_git_info(&working_dir);
 
+        log_debug!(
+            "scanner: 检测到智能体面板 pane={} agent={:?} state={:?} dir={}",
+            pane_id, agent_type, state, working_dir
+        );
+
         panels.push(AgentPanel {
             session,
             window,
@@ -61,11 +80,17 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             working_dir,
             is_active,
             state,
+            state_source: AgentStateSource::Scanner,
             git_info,
             pid: Some(pane_pid.to_string()),
             start_time: Some(std::time::Instant::now()),
+            agent_session_id: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
         });
     }
+
+    log_debug!("scanner: 共检测到 {} 个智能体面板", panels.len());
 
     // Sort: Waiting > Busy > Idle
     panels.sort_by(|a, b| {
@@ -91,7 +116,10 @@ fn get_child_processes(pid: &str) -> String {
             let mut processes = Vec::new();
 
             for child_pid in child_pids.lines() {
+                let child_pid = child_pid.trim();
+                if child_pid.is_empty() { continue; }
                 if let Ok(cmd) = get_process_cmd(child_pid) {
+                    log_debug!("scanner: child pid={} cmd={}", child_pid, cmd);
                     processes.push(cmd);
                 }
             }
@@ -104,8 +132,9 @@ fn get_child_processes(pid: &str) -> String {
 }
 
 fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // Use 'args=' instead of 'comm=' to get full command path (avoids macOS 15-char truncation)
     let output = Command::new("ps")
-        .args(["-p", pid, "-o", "comm=", "--no-headers"])
+        .args(["-p", pid, "-o", "args="])
         .output()?;
 
     if output.status.success() {

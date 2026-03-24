@@ -637,3 +637,85 @@ pub fn draw_relay_detail(f: &mut Frame, app: &App) {
     };
     f.render_widget(footer, footer_area);
 }
+
+pub fn draw_agent_style_modal(f: &mut Frame, app: &App) {
+    use crate::i18n::t;
+    let theme = &app.theme;
+    let l = app.locale;
+    let style = &app.config.desired_agent_style;
+
+    let zoom_desc = if style.zoom == "auto" { "agent_style.desc_zoom_auto" } else { "agent_style.desc_zoom_keep" };
+    let status_desc = match style.status.as_str() {
+        "show" => "agent_style.desc_status_show",
+        "hide" => "agent_style.desc_status_hide",
+        _ => "agent_style.desc_status_keep",
+    };
+
+    let items: &[(&str, &str, &str)] = &[
+        ("agent_style.zoom",   &style.zoom,   zoom_desc),
+        ("agent_style.status", &style.status, status_desc),
+    ];
+
+    let area = super::layout::popup_area(62, items.len() as u16 + 4, f.area());
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(format!(" ✦ {} ", t(l, "agent_style.title")))
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent));
+    f.render_widget(block, area);
+
+    let inner = Rect {
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(3),
+    };
+
+    let rows: Vec<Row> = items.iter().enumerate().map(|(idx, (name_key, cur_val, desc_key))| {
+        let is_selected = idx == app.agent_style_selected;
+        let name_style = if is_selected {
+            Style::default().bg(theme.highlight_bg).fg(theme.highlight_fg).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.fg)
+        };
+        let val_style = if is_selected {
+            Style::default().bg(theme.highlight_bg).fg(theme.accent).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.accent)
+        };
+
+        let val_display = match *cur_val {
+            "auto"  => t(l, "agent_style.zoom_auto"),
+            "show"  => t(l, "agent_style.status_show"),
+            "hide"  => t(l, "agent_style.status_hide"),
+            "keep"  => if *name_key == "agent_style.zoom" { t(l, "agent_style.zoom_keep") } else { t(l, "agent_style.status_keep") },
+            other   => other,
+        };
+
+        Row::new(vec![
+            Cell::from(t(l, name_key)).style(name_style),
+            Cell::from(format!("‹ {} ›", val_display)).style(val_style),
+            Cell::from(t(l, desc_key)).style(Style::default().fg(theme.comment)),
+        ])
+    }).collect();
+
+    let table = ratatui::widgets::Table::new(rows, [
+        Constraint::Length(12),
+        Constraint::Length(12),
+        Constraint::Min(0),
+    ]);
+    f.render_widget(table, inner);
+
+    let footer = Paragraph::new(t(l, "agent_style.footer"))
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(theme.comment));
+    let footer_area = Rect {
+        x: area.x,
+        y: area.y + area.height.saturating_sub(2),
+        width: area.width,
+        height: 1,
+    };
+    f.render_widget(footer, footer_area);
+}

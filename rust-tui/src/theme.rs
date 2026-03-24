@@ -444,6 +444,24 @@ impl AgentConfig {
     }
 }
 
+/// Desired state for the agent pane when attaching
+#[derive(Clone, Debug, PartialEq)]
+pub struct DesiredAgentStyle {
+    /// "auto" = zoom if multi-pane and not already zoomed; "keep" = do nothing
+    pub zoom: String,
+    /// "show" = force status on; "hide" = force status off; "keep" = do nothing
+    pub status: String,
+}
+
+impl Default for DesiredAgentStyle {
+    fn default() -> Self {
+        Self {
+            zoom: "auto".to_string(),
+            status: "show".to_string(),
+        }
+    }
+}
+
 /// Config file management
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -451,8 +469,8 @@ pub struct Config {
     pub auto_refresh: bool,
     pub refresh_interval: u64,
     pub agents: Vec<AgentConfig>,
-    pub status_bar: String,
     pub language: String,
+    pub desired_agent_style: DesiredAgentStyle,
 }
 
 impl Default for Config {
@@ -466,31 +484,29 @@ impl Default for Config {
                 AgentConfig { name: "codex".into(), cmd: "codex".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
                 AgentConfig { name: "gemini".into(), cmd: "gemini".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
             ],
-            status_bar: "hidden".to_string(),
             language: "zh-cn".to_string(),
+            desired_agent_style: DesiredAgentStyle::default(),
         }
     }
 }
 
 impl Config {
     pub fn config_path() -> PathBuf {
-        let mut path = dirs::config_dir().unwrap_or_else(|| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
-        });
-        path.push("pad");
-        path.push("config.toml");
-        path
+        crate::paths::config_path()
     }
 
     pub fn load() -> Self {
         let path = Self::config_path();
-        if !path.exists() {
+        let legacy_path = crate::paths::legacy_config_path();
+        let load_path = if path.exists() {
+            path
+        } else if legacy_path.exists() {
+            legacy_path
+        } else {
             return Self::default();
-        }
+        };
 
-        let content = match std::fs::read_to_string(&path) {
+        let content = match std::fs::read_to_string(&load_path) {
             Ok(c) => c,
             Err(_) => return Self::default(),
         };
@@ -511,11 +527,23 @@ impl Config {
         if let Some(toml::Value::Integer(interval)) = table.get("refresh_interval") {
             config.refresh_interval = *interval as u64;
         }
-        if let Some(toml::Value::String(sb)) = table.get("status_bar") {
-            config.status_bar = sb.clone();
-        }
         if let Some(toml::Value::String(lang)) = table.get("language") {
             config.language = lang.clone();
+        }
+        if let Some(toml::Value::String(sb)) = table.get("status_bar") {
+            config.desired_agent_style.status = match sb.as_str() {
+                "hidden" => "hide".to_string(),
+                "show" => "show".to_string(),
+                other => other.to_string(),
+            };
+        }
+        if let Some(toml::Value::Table(das)) = table.get("desired_agent_style") {
+            if let Some(toml::Value::String(z)) = das.get("zoom") {
+                config.desired_agent_style.zoom = z.clone();
+            }
+            if let Some(toml::Value::String(s)) = das.get("status") {
+                config.desired_agent_style.status = s.clone();
+            }
         }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
             let mut parsed = Vec::new();
@@ -597,9 +625,11 @@ impl Config {
         content.push_str(&format!("theme = \"{}\"\n", self.theme));
         content.push_str(&format!("auto_refresh = {}\n", self.auto_refresh));
         content.push_str(&format!("refresh_interval = {}\n", self.refresh_interval));
-        content.push_str(&format!("status_bar = \"{}\"\n", self.status_bar));
         content.push_str(&format!("language = \"{}\"\n", self.language));
-        content.push_str("\n");
+        content.push_str("\n[desired_agent_style]\n");
+        content.push_str(&format!("zoom = \"{}\"\n", self.desired_agent_style.zoom));
+        content.push_str(&format!("status = \"{}\"\n", self.desired_agent_style.status));
+        content.push('\n');
         for agent in &self.agents {
             content.push_str("[[agents]]\n");
             content.push_str(&format!("name = \"{}\"\n", agent.name));

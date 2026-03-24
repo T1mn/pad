@@ -9,8 +9,8 @@ use ratatui::{
     layout::Rect,
 };
 
-pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
-    let theme = &app.theme;
+pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
+    let theme = app.theme.clone();
     let l = app.locale;
     let title = if let Some(panel) = app.selected_panel() {
         let git_info = if let Some(git) = &panel.git_info {
@@ -83,6 +83,16 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
         if let Some(panel) = app.selected_panel() {
             let uptime = panel.uptime_display();
             let pid_str = panel.pid.as_deref().unwrap_or("?");
+            let status_label = match panel.state {
+                crate::model::AgentState::Busy => crate::i18n::t(l, "preview.working"),
+                crate::model::AgentState::Waiting => crate::i18n::t(l, "preview.waiting"),
+                crate::model::AgentState::Idle => "",
+            };
+            let status_style = match panel.state {
+                crate::model::AgentState::Busy => Style::default().fg(theme.warning),
+                crate::model::AgentState::Waiting => Style::default().fg(theme.success),
+                crate::model::AgentState::Idle => Style::default().fg(theme.comment),
+            };
             let info_spans = vec![
                 Span::styled(
                     format!(" {} {} ", panel.agent_type.emoji(), panel.agent_type),
@@ -90,18 +100,14 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
                 ),
                 Span::styled("│ ", Style::default().fg(theme.comment)),
                 Span::styled(
-                    panel.status_icon(),
-                    if panel.is_active {
-                        Style::default().fg(theme.success)
-                    } else {
-                        Style::default().fg(theme.fg)
-                    },
+                    panel.status_icon(app.busy_animation_frame),
+                    status_style,
                 ),
                 Span::styled(
-                    if panel.is_active {
-                        format!(" {}", crate::i18n::t(l, "preview.active"))
+                    if status_label.is_empty() {
+                        String::new()
                     } else {
-                        format!(" {}", crate::i18n::t(l, "preview.idle"))
+                        format!(" {}", status_label)
                     },
                     Style::default().fg(theme.fg),
                 ),
@@ -116,30 +122,106 @@ pub fn draw_preview(f: &mut Frame, app: &App, area: Rect) {
         }
 
         // Preview content
+        let scroll = resolve_preview_scroll(app, split[1]);
         let lines: Vec<Line> = app
             .preview_content
             .lines()
-            .map(|line| Line::from(format_line(line, theme)))
+            .map(|line| Line::from(format_line(line, &theme)))
             .collect();
 
         let paragraph = Paragraph::new(Text::from(lines))
             .wrap(Wrap { trim: false })
-            .scroll((app.preview_scroll, 0));
+            .scroll((scroll, 0));
 
         f.render_widget(paragraph, split[1]);
     } else {
+        let inner = block.inner(area);
+        let scroll = resolve_preview_scroll(app, inner);
         let lines: Vec<Line> = app
             .preview_content
             .lines()
-            .map(|line| Line::from(format_line(line, theme)))
+            .map(|line| Line::from(format_line(line, &theme)))
             .collect();
 
         let paragraph = Paragraph::new(Text::from(lines))
             .block(block)
             .wrap(Wrap { trim: false })
-            .scroll((app.preview_scroll, 0));
+            .scroll((scroll, 0));
 
         f.render_widget(paragraph, area);
+    }
+}
+
+fn resolve_preview_scroll(app: &mut App, viewport: Rect) -> u16 {
+    let max_scroll = precise_preview_max_scroll(&app.preview_content, viewport.width, viewport.height);
+    let scroll = if app.preview_follow_bottom {
+        max_scroll
+    } else {
+        app.preview_scroll.min(max_scroll)
+    };
+    app.preview_scroll = scroll;
+    scroll
+}
+
+fn precise_preview_max_scroll(content: &str, viewport_width: u16, viewport_height: u16) -> u16 {
+    if viewport_width == 0 || viewport_height == 0 {
+        return 0;
+    }
+
+    let wrapped_rows = wrapped_row_count(content, viewport_width as usize);
+    let max_scroll = wrapped_rows.saturating_sub(viewport_height as usize);
+    max_scroll.min(u16::MAX as usize) as u16
+}
+
+fn wrapped_row_count(content: &str, viewport_width: usize) -> usize {
+    if viewport_width == 0 {
+        return 0;
+    }
+
+    let mut total = 0usize;
+    for line in content.lines() {
+        let width = display_width(line);
+        let rows = if width == 0 {
+            1
+        } else {
+            width.div_ceil(viewport_width)
+        };
+        total += rows.max(1);
+    }
+
+    if total == 0 { 1 } else { total }
+}
+
+fn display_width(s: &str) -> usize {
+    s.chars().map(char_display_width).sum()
+}
+
+fn char_display_width(c: char) -> usize {
+    if c == '\t' {
+        return 4;
+    }
+    if c.is_control() {
+        return 0;
+    }
+
+    let code = c as u32;
+    if matches!(
+        code,
+        0x1100..=0x115F
+            | 0x2329..=0x232A
+            | 0x2E80..=0xA4CF
+            | 0xAC00..=0xD7A3
+            | 0xF900..=0xFAFF
+            | 0xFE10..=0xFE19
+            | 0xFE30..=0xFE6F
+            | 0xFF00..=0xFF60
+            | 0xFFE0..=0xFFE6
+            | 0x1F300..=0x1FAFF
+            | 0x20000..=0x3FFFD
+    ) {
+        2
+    } else {
+        1
     }
 }
 
@@ -198,6 +280,32 @@ fn format_line<'a>(line: &'a str, theme: &Theme) -> Vec<Span<'a>> {
 
     spans.push(Span::raw(line));
     spans
+}
+
+#[cfg(test)]
+mod tests {
+    use super::precise_preview_max_scroll;
+
+    #[test]
+    fn bottom_scroll_accounts_for_wrapped_lines() {
+        let content = "12345\n67890";
+        let scroll = precise_preview_max_scroll(content, 3, 2);
+        assert_eq!(scroll, 2);
+    }
+
+    #[test]
+    fn short_content_does_not_scroll_past_top() {
+        let content = "hi";
+        let scroll = precise_preview_max_scroll(content, 20, 5);
+        assert_eq!(scroll, 0);
+    }
+
+    #[test]
+    fn cjk_width_counts_as_double_width() {
+        let content = "你好\n世界";
+        let scroll = precise_preview_max_scroll(content, 3, 1);
+        assert_eq!(scroll, 3);
+    }
 }
 
 pub fn draw_file_preview(f: &mut Frame, app: &App, area: Rect) {

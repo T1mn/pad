@@ -1,4 +1,4 @@
-use crate::log_debug;
+use std::collections::HashSet;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::mpsc;
@@ -17,6 +17,18 @@ pub enum TmuxEvent {
     OutputDetected,
     /// Pipe disconnected
     Disconnected,
+}
+
+#[derive(Debug)]
+enum ParsedControlEvent<'a> {
+    Emit {
+        raw_type: &'a str,
+        event: TmuxEvent,
+    },
+    Ignore {
+        raw_type: &'a str,
+        reason: &'static str,
+    },
 }
 
 /// Start the tmux control mode pipe listener.
@@ -74,7 +86,16 @@ async fn run_pipe(tx: &mpsc::Sender<TmuxEvent>) -> Result<(), Box<dyn std::error
     }
 
     let mut child = TokioCommand::new("tmux")
-        .args(["-C", "attach-session", "-t", &session_name, "-r"])
+        // no-output disables noisy %output notifications; pad only needs
+        // structural/session/mode events from control mode.
+        .args([
+            "-C",
+            "attach-session",
+            "-t",
+            &session_name,
+            "-f",
+            "read-only,ignore-size,no-output",
+        ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
@@ -82,6 +103,7 @@ async fn run_pipe(tx: &mpsc::Sender<TmuxEvent>) -> Result<(), Box<dyn std::error
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
     let mut reader = BufReader::new(stdout).lines();
+    let mut seen_ignored_types = HashSet::new();
 
     log_debug!("tmux_pipe: connected to session '{}'", session_name);
 
@@ -91,29 +113,21 @@ async fn run_pipe(tx: &mpsc::Sender<TmuxEvent>) -> Result<(), Box<dyn std::error
             break;
         }
 
-        // tmux control mode events start with %
-        let event = if line.starts_with("%window-add")
-            || line.starts_with("%window-close")
-            || line.starts_with("%window-renamed")
-        {
-            Some(TmuxEvent::WindowChanged)
-        } else if line.starts_with("%session-changed")
-            || line.starts_with("%session-renamed")
-            || line.starts_with("%sessions-changed")
-        {
-            Some(TmuxEvent::SessionChanged)
-        } else if line.starts_with("%pane-mode-changed") {
-            Some(TmuxEvent::PaneModeChanged)
-        } else if line.starts_with("%output") {
-            Some(TmuxEvent::OutputDetected)
-        } else {
-            None
-        };
-
-        if let Some(ev) = event {
-            log_debug!("tmux_pipe: event {:?}", ev);
-            if tx.send(ev).await.is_err() {
-                break;
+        if let Some(parsed) = parse_control_event(&line) {
+            match parsed {
+                ParsedControlEvent::Emit { raw_type, event } => {
+                    if !matches!(event, TmuxEvent::OutputDetected) {
+                        log_debug!("tmux_pipe: event type={} mapped={:?}", raw_type, event);
+                    }
+                    if tx.send(event).await.is_err() {
+                        break;
+                    }
+                }
+                ParsedControlEvent::Ignore { raw_type, reason } => {
+                    if seen_ignored_types.insert(raw_type.to_string()) {
+                        log_debug!("tmux_pipe: ignoring type={} reason={}", raw_type, reason);
+                    }
+                }
             }
         }
     }
@@ -121,4 +135,61 @@ async fn run_pipe(tx: &mpsc::Sender<TmuxEvent>) -> Result<(), Box<dyn std::error
     // Clean up child process
     let _ = child.kill().await;
     Ok(())
+}
+
+fn parse_control_event(line: &str) -> Option<ParsedControlEvent<'_>> {
+    let raw_type = line.split_whitespace().next()?;
+    if !raw_type.starts_with('%') {
+        return None;
+    }
+
+    match raw_type {
+        "%window-add"
+        | "%window-close"
+        | "%window-renamed"
+        | "%window-pane-changed"
+        | "%layout-change" => Some(ParsedControlEvent::Emit {
+            raw_type,
+            event: TmuxEvent::WindowChanged,
+        }),
+        "%session-changed"
+        | "%session-renamed"
+        | "%sessions-changed"
+        | "%session-window-changed" => Some(ParsedControlEvent::Emit {
+            raw_type,
+            event: TmuxEvent::SessionChanged,
+        }),
+        "%pane-mode-changed" => Some(ParsedControlEvent::Emit {
+            raw_type,
+            event: TmuxEvent::PaneModeChanged,
+        }),
+        "%output" | "%extended-output" => Some(ParsedControlEvent::Emit {
+            raw_type,
+            event: TmuxEvent::OutputDetected,
+        }),
+        "%begin" | "%end" | "%error" => Some(ParsedControlEvent::Ignore {
+            raw_type,
+            reason: "protocol frame",
+        }),
+        "%message"
+        | "%client-detached"
+        | "%client-session-changed"
+        | "%config-error"
+        | "%continue"
+        | "%pause"
+        | "%paste-buffer-changed"
+        | "%paste-buffer-deleted"
+        | "%subscription-changed"
+        | "%unlinked-window-add"
+        | "%unlinked-window-close"
+        | "%unlinked-window-renamed"
+        | "%exit" => Some(ParsedControlEvent::Ignore {
+            raw_type,
+            reason: "not relevant to panel scan",
+        }),
+        _ => Some(ParsedControlEvent::Ignore {
+            raw_type,
+            reason: "unrecognized control notification",
+        }),
+    }
 }
