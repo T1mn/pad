@@ -11,8 +11,16 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
         if prov.base_url.is_empty() && prov.api_key.is_empty() {
             continue;
         }
-        let base_url = if prov.base_url.is_empty() { None } else { Some(prov.base_url.as_str()) };
-        let api_key = if prov.api_key.is_empty() { None } else { Some(prov.api_key.as_str()) };
+        let base_url = if prov.base_url.is_empty() {
+            None
+        } else {
+            Some(prov.base_url.as_str())
+        };
+        let api_key = if prov.api_key.is_empty() {
+            None
+        } else {
+            Some(prov.api_key.as_str())
+        };
         match agent.name.as_str() {
             "claude" => apply_claude_config(base_url, api_key),
             "codex" => apply_codex_config(base_url, api_key),
@@ -47,7 +55,10 @@ fn apply_claude_config(base_url: Option<&str>, api_key: Option<&str>) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, serde_json::to_string_pretty(&obj).unwrap_or_default());
+    let _ = std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&obj).unwrap_or_default(),
+    );
 }
 
 fn apply_codex_config(base_url: Option<&str>, api_key: Option<&str>) {
@@ -100,7 +111,10 @@ fn apply_gemini_config(base_url: Option<&str>, api_key: Option<&str>) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, serde_json::to_string_pretty(&obj).unwrap_or_default());
+    let _ = std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&obj).unwrap_or_default(),
+    );
 }
 
 /// Simple helper to set a key=value in a TOML string

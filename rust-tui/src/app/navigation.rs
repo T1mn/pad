@@ -25,7 +25,8 @@ impl App {
         };
         log_debug!("nav: next (panel) index={}", i);
         self.table_state.select(Some(i));
-        self.preview_pane_id = None;
+        self.clear_unread_stop_for_selected_panel();
+        self.invalidate_preview();
         self.update_tree_for_selection();
         self.dirty = true;
     }
@@ -51,7 +52,8 @@ impl App {
         };
         log_debug!("nav: previous (panel) index={}", i);
         self.table_state.select(Some(i));
-        self.preview_pane_id = None;
+        self.clear_unread_stop_for_selected_panel();
+        self.invalidate_preview();
         self.update_tree_for_selection();
         self.dirty = true;
     }
@@ -59,7 +61,8 @@ impl App {
     pub fn jump_to(&mut self, index: usize) {
         if index < self.filtered_panels().len() {
             self.table_state.select(Some(index));
-            self.preview_pane_id = None;
+            self.clear_unread_stop_for_selected_panel();
+            self.invalidate_preview();
             self.dirty = true;
         }
     }

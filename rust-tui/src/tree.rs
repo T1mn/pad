@@ -19,12 +19,12 @@ pub enum TreeMode {
 /// File preview type
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum PreviewType {
-    Text,       // Source code, config files
-    Markdown,   // Markdown files
-    Image,      // Image files (PNG, JPG, etc)
-    Binary,     // Binary files (cannot preview)
-    Directory,  // Directory
-    Unknown,    // Unknown type
+    Text,      // Source code, config files
+    Markdown,  // Markdown files
+    Image,     // Image files (PNG, JPG, etc)
+    Binary,    // Binary files (cannot preview)
+    Directory, // Directory
+    Unknown,   // Unknown type
 }
 
 impl PreviewType {
@@ -33,51 +33,78 @@ impl PreviewType {
         if path.is_dir() {
             return PreviewType::Directory;
         }
-        
-        let name = path.file_name()
+
+        let name = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("")
             .to_lowercase();
-        
+
         if name.ends_with(".md") || name.ends_with(".markdown") {
             PreviewType::Markdown
-        } else if name.ends_with(".png") || name.ends_with(".jpg") || 
-                  name.ends_with(".jpeg") || name.ends_with(".gif") ||
-                  name.ends_with(".bmp") || name.ends_with(".webp") {
+        } else if name.ends_with(".png")
+            || name.ends_with(".jpg")
+            || name.ends_with(".jpeg")
+            || name.ends_with(".gif")
+            || name.ends_with(".bmp")
+            || name.ends_with(".webp")
+        {
             PreviewType::Image
-        } else if name.ends_with(".exe") || name.ends_with(".dll") ||
-                  name.ends_with(".so") || name.ends_with(".dylib") ||
-                  name.ends_with(".bin") {
+        } else if name.ends_with(".exe")
+            || name.ends_with(".dll")
+            || name.ends_with(".so")
+            || name.ends_with(".dylib")
+            || name.ends_with(".bin")
+        {
             PreviewType::Binary
-        } else if name.ends_with(".rs") || name.ends_with(".py") ||
-                  name.ends_with(".js") || name.ends_with(".ts") ||
-                  name.ends_with(".go") || name.ends_with(".java") ||
-                  name.ends_with(".c") || name.ends_with(".cpp") ||
-                  name.ends_with(".h") || name.ends_with(".hpp") ||
-                  name.ends_with(".rb") || name.ends_with(".php") ||
-                  name.ends_with(".swift") || name.ends_with(".kt") ||
-                  name.ends_with(".scala") || name.ends_with(".r") ||
-                  name.ends_with(".sh") || name.ends_with(".bash") ||
-                  name.ends_with(".zsh") || name.ends_with(".fish") ||
-                  name.ends_with(".json") || name.ends_with(".toml") ||
-                  name.ends_with(".yaml") || name.ends_with(".yml") ||
-                  name.ends_with(".xml") || name.ends_with(".html") ||
-                  name.ends_with(".css") || name.ends_with(".sql") ||
-                  name.ends_with(".txt") || name.ends_with(".log") ||
-                  name.ends_with(".conf") || name.ends_with(".config") ||
-                  name.ends_with(".ini") || name.ends_with(".env") ||
-                  name.ends_with(".gitignore") || name.ends_with(".dockerignore") {
+        } else if name.ends_with(".rs")
+            || name.ends_with(".py")
+            || name.ends_with(".js")
+            || name.ends_with(".ts")
+            || name.ends_with(".go")
+            || name.ends_with(".java")
+            || name.ends_with(".c")
+            || name.ends_with(".cpp")
+            || name.ends_with(".h")
+            || name.ends_with(".hpp")
+            || name.ends_with(".rb")
+            || name.ends_with(".php")
+            || name.ends_with(".swift")
+            || name.ends_with(".kt")
+            || name.ends_with(".scala")
+            || name.ends_with(".r")
+            || name.ends_with(".sh")
+            || name.ends_with(".bash")
+            || name.ends_with(".zsh")
+            || name.ends_with(".fish")
+            || name.ends_with(".json")
+            || name.ends_with(".toml")
+            || name.ends_with(".yaml")
+            || name.ends_with(".yml")
+            || name.ends_with(".xml")
+            || name.ends_with(".html")
+            || name.ends_with(".css")
+            || name.ends_with(".sql")
+            || name.ends_with(".txt")
+            || name.ends_with(".log")
+            || name.ends_with(".conf")
+            || name.ends_with(".config")
+            || name.ends_with(".ini")
+            || name.ends_with(".env")
+            || name.ends_with(".gitignore")
+            || name.ends_with(".dockerignore")
+        {
             PreviewType::Text
         } else {
             PreviewType::Unknown
         }
     }
-    
+
     /// Check if file can be previewed as text
     pub fn is_text(&self) -> bool {
         matches!(self, PreviewType::Text | PreviewType::Markdown)
     }
-    
+
     /// Check if file is an image
     pub fn is_image(&self) -> bool {
         matches!(self, PreviewType::Image)
@@ -182,7 +209,10 @@ impl FileTree {
                 if name.starts_with('.') && matches!(name.as_str(), ".git" | ".svn" | ".hg") {
                     continue;
                 }
-                if matches!(name.as_str(), "node_modules" | "target" | "__pycache__" | "dist" | "build") {
+                if matches!(
+                    name.as_str(),
+                    "node_modules" | "target" | "__pycache__" | "dist" | "build"
+                ) {
                     continue;
                 }
 
@@ -207,7 +237,9 @@ impl FileTree {
 
     /// Navigate into selected directory
     pub fn enter(&mut self) {
-        let entry_info = self.selected().map(|e| (e.is_dir, e.name.clone(), e.path.clone()));
+        let entry_info = self
+            .selected()
+            .map(|e| (e.is_dir, e.name.clone(), e.path.clone()));
         if let Some((is_dir, name, path)) = entry_info {
             if is_dir {
                 if name == ".." {
@@ -235,7 +267,9 @@ impl FileTree {
 
     /// Toggle directory expansion (for in-place expansion, currently not used)
     pub fn toggle(&mut self) {
-        let entry_info = self.selected().map(|e| (e.is_dir, e.name.clone(), e.path.clone()));
+        let entry_info = self
+            .selected()
+            .map(|e| (e.is_dir, e.name.clone(), e.path.clone()));
         if let Some((is_dir, name, path)) = entry_info {
             if is_dir && name != ".." {
                 if self.expanded.contains(&path) {
@@ -308,7 +342,7 @@ impl FileTree {
     fn filter_entries(&mut self) {
         let query = self.search_query.to_lowercase();
         let all_entries = self.scan_directory(&self.current_path);
-        
+
         self.entries = all_entries
             .into_iter()
             .filter(|e| {
@@ -319,7 +353,7 @@ impl FileTree {
                 e.name.to_lowercase().contains(&query)
             })
             .collect();
-        
+
         // Reset selection
         self.state.select(Some(0));
     }
@@ -348,7 +382,11 @@ impl FileTree {
                 "☕"
             } else if name.ends_with(".md") {
                 "📝"
-            } else if name.ends_with(".json") || name.ends_with(".toml") || name.ends_with(".yaml") || name.ends_with(".yml") {
+            } else if name.ends_with(".json")
+                || name.ends_with(".toml")
+                || name.ends_with(".yaml")
+                || name.ends_with(".yml")
+            {
                 "⚙️"
             } else if name.ends_with(".sh") || name.ends_with(".bash") || name.ends_with(".zsh") {
                 "🐚"
@@ -387,14 +425,12 @@ impl FileTree {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(theme.border_focused));
 
-        let list = List::new(items)
-            .block(block)
-            .highlight_style(
-                Style::default()
-                    .bg(theme.highlight_bg)
-                    .fg(theme.highlight_fg)
-                    .add_modifier(Modifier::BOLD),
-            );
+        let list = List::new(items).block(block).highlight_style(
+            Style::default()
+                .bg(theme.highlight_bg)
+                .fg(theme.highlight_fg)
+                .add_modifier(Modifier::BOLD),
+        );
 
         f.render_stateful_widget(list, area, &mut self.state);
     }
@@ -486,13 +522,11 @@ impl AgentLauncher {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan));
 
-        let list = List::new(items)
-            .block(block)
-            .highlight_style(
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .add_modifier(Modifier::BOLD),
-            );
+        let list = List::new(items).block(block).highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        );
 
         // Use a dummy state since we're managing selection ourselves
         let mut state = ListState::default();
@@ -505,14 +539,17 @@ impl AgentLauncher {
     pub fn launch(&self, session: &str) -> Result<(), Box<dyn std::error::Error>> {
         if let Some((_, cmd)) = self.selected_agent() {
             let target_dir = self.target_dir.to_string_lossy();
-            
+
             // Build tmux command: new-window -t session -c dir -n agent cmd
             let output = std::process::Command::new("tmux")
                 .args(&[
                     "new-window",
-                    "-t", session,
-                    "-c", &target_dir,
-                    "-n", cmd,
+                    "-t",
+                    session,
+                    "-c",
+                    &target_dir,
+                    "-n",
+                    cmd,
                     cmd,
                 ])
                 .output()?;

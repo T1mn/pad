@@ -4,11 +4,11 @@ pub mod panel_list;
 pub mod preview;
 pub mod status_bar;
 
-use crate::app::App;
 use crate::app::state::Mode;
-use ratatui::Frame;
+use crate::app::App;
 use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders};
+use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     // Apply global background color from theme
@@ -17,7 +17,13 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .style(Style::default().bg(app.theme.bg));
     f.render_widget(bg_block, f.area());
 
-    let (main_layout, body_layout) = layout::compute_layout(f.area(), app.show_tree);
+    let preferred_left_width = if app.show_tree {
+        None
+    } else {
+        Some(panel_list::preferred_panel_width(app))
+    };
+    let (main_layout, body_layout) =
+        layout::compute_layout(f.area(), app.show_tree, preferred_left_width);
 
     if app.show_tree {
         // Tree mode: left column = file tree + agent status bar, right = file preview

@@ -48,10 +48,7 @@ pub fn find_f12_key(data: &[u8]) -> Option<usize> {
     }
 
     if data.len() >= 6 {
-        if let Some(pos) = data
-            .windows(4)
-            .position(|w| w == &[0x1b, b'[', b'2', b'4'])
-        {
+        if let Some(pos) = data.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
             if data.len() > pos + 4 && data[pos + 4] == b';' {
                 for i in (pos + 5)..data.len() {
                     if data[i] == b'~' {
@@ -68,11 +65,20 @@ pub fn find_f12_key(data: &[u8]) -> Option<usize> {
 /// Capture tmux pane content
 pub fn capture_pane(pane_id: &str, lines: usize) -> Result<String, Box<dyn Error>> {
     let output = Command::new("tmux")
-        .args(["capture-pane", "-p", "-t", pane_id, "-S", &format!("-{}", lines)])
+        .args([
+            "capture-pane",
+            "-p",
+            "-t",
+            pane_id,
+            "-S",
+            &format!("-{}", lines),
+        ])
         .output()?;
 
     if output.status.success() {
-        Ok(crate::scanner::strip_ansi(&String::from_utf8_lossy(&output.stdout)))
+        Ok(crate::scanner::strip_ansi(&String::from_utf8_lossy(
+            &output.stdout,
+        )))
     } else {
         Err("Failed to capture pane".into())
     }
@@ -81,11 +87,11 @@ pub fn capture_pane(pane_id: &str, lines: usize) -> Result<String, Box<dyn Error
 /// Attach to a tmux pane using PTY with creack/pty (Unix-only)
 #[cfg(unix)]
 pub fn attach_to_pane_pty(panel: &AgentPanel) -> Result<(), Box<dyn Error>> {
+    use nix::sys::termios;
     use pty::fork::Fork;
     use std::os::fd::BorrowedFd;
     use std::os::unix::io::AsRawFd;
     use std::os::unix::process::CommandExt;
-    use nix::sys::termios;
 
     #[repr(C)]
     #[derive(Debug)]

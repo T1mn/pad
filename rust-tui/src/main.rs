@@ -1,5 +1,8 @@
 use crossterm::{
-    event::{DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste, EnableFocusChange, EnableMouseCapture},
+    event::{
+        DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+        EnableFocusChange, EnableMouseCapture,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -18,10 +21,12 @@ mod logger;
 mod model;
 mod paths;
 mod pipe;
+mod preview_source;
 pub mod pty;
-mod scanner;
 mod relay;
+mod scanner;
 mod session;
+mod session_cache;
 mod theme;
 mod tree;
 mod ui;
@@ -77,7 +82,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Install panic hook to restore terminal and log panic info
     std::panic::set_hook(Box::new(|info| {
         let _ = disable_raw_mode();
-        let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture, DisableFocusChange, DisableBracketedPaste);
+        let _ = execute!(
+            io::stdout(),
+            LeaveAlternateScreen,
+            DisableMouseCapture,
+            DisableFocusChange,
+            DisableBracketedPaste
+        );
         let msg = format!("PANIC: {}", info);
         eprintln!("{}", msg);
         logger::log(&msg);
@@ -85,20 +96,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, EnableFocusChange, EnableBracketedPaste)?;
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableMouseCapture,
+        EnableFocusChange,
+        EnableBracketedPaste
+    )?;
     // Ensure tmux sends focus events to the terminal
-    let _ = std::process::Command::new("tmux").args(["set", "-g", "focus-events", "on"]).output();
+    let _ = std::process::Command::new("tmux")
+        .args(["set", "-g", "focus-events", "on"])
+        .output();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
     app.hook_rx = Some(hook::start_hook_listener());
-    log_debug!("配置加载: theme={}, auto_refresh={}", app.config.theme, app.config.auto_refresh);
+    log_debug!(
+        "配置加载: theme={}, auto_refresh={}",
+        app.config.theme,
+        app.config.auto_refresh
+    );
 
     match scan_panels() {
         Ok(panels) => {
             log_debug!("扫描到 {} 个面板", panels.len());
             app.panels = panels;
+            if let Err(err) = session_cache::preload_panels(&mut app.panels) {
+                log_debug!("session_cache: preload failed: {}", err);
+            }
         }
         Err(e) => {
             log_debug!("扫描失败: {}", e);

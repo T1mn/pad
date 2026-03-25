@@ -1,12 +1,13 @@
-use super::App;
 use super::state::Mode;
-use crate::fuzzy::{FuzzyPicker, scan_directories};
+use super::App;
+use crate::fuzzy::{scan_directories, FuzzyPicker};
 use crate::tree;
 use std::path::PathBuf;
 
 impl App {
     pub fn toggle_tree(&mut self) {
         self.show_tree = !self.show_tree;
+        self.focus_panel();
         if self.show_tree {
             if let Some(panel) = self.selected_panel() {
                 let path = PathBuf::from(&panel.working_dir);
@@ -28,6 +29,7 @@ impl App {
     pub fn open_tree_in_home(&mut self) {
         if let Some(home) = dirs::home_dir() {
             self.show_tree = true;
+            self.focus_panel();
             self.file_tree = Some(tree::FileTree::new(home));
             self.mode = Mode::Tree;
             self.update_file_preview();
@@ -37,6 +39,7 @@ impl App {
 
     pub fn close_tree(&mut self) {
         self.show_tree = false;
+        self.focus_panel();
         self.file_tree = None;
         self.agent_launcher = None;
         self.mode = Mode::Normal;
@@ -44,11 +47,13 @@ impl App {
     }
 
     pub fn open_agent_launcher(&mut self, target_dir: PathBuf) {
-        let agent_tuples: Vec<(String, String)> = self.config.agents.iter()
+        let agent_tuples: Vec<(String, String)> = self
+            .config
+            .agents
+            .iter()
             .map(|a| (a.name.clone(), a.cmd.clone()))
             .collect();
-        self.agent_launcher =
-            Some(tree::AgentLauncher::with_agents(target_dir, agent_tuples));
+        self.agent_launcher = Some(tree::AgentLauncher::with_agents(target_dir, agent_tuples));
         self.mode = Mode::AgentLauncher;
         self.dirty = true;
     }
@@ -244,7 +249,14 @@ impl App {
 
     pub fn available_locales() -> Vec<crate::i18n::Locale> {
         use crate::i18n::Locale;
-        vec![Locale::ZhCN, Locale::ZhTW, Locale::En, Locale::Ja, Locale::De, Locale::Fr]
+        vec![
+            Locale::ZhCN,
+            Locale::ZhTW,
+            Locale::En,
+            Locale::Ja,
+            Locale::De,
+            Locale::Fr,
+        ]
     }
 
     pub fn open_language_selector(&mut self) {
@@ -264,8 +276,19 @@ impl App {
     /// Returns (id, value, name_i18n_key, desc_i18n_key, editable)
     pub fn settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
         let l = self.locale;
+        let preview_mode = match self.config.preview.mode.as_str() {
+            "tmux" => crate::i18n::t(l, "settings.preview_mode_tmux"),
+            "session" => crate::i18n::t(l, "settings.preview_mode_session"),
+            _ => crate::i18n::t(l, "settings.preview_mode_auto"),
+        };
         vec![
-            ("theme", self.config.theme.clone(), "settings.theme", "settings.theme", true),
+            (
+                "theme",
+                self.config.theme.clone(),
+                "settings.theme",
+                "settings.theme",
+                true,
+            ),
             (
                 "auto_refresh",
                 if self.config.auto_refresh {
@@ -292,6 +315,13 @@ impl App {
                 true,
             ),
             (
+                "preview_mode",
+                preview_mode.to_string(),
+                "settings.preview_mode",
+                "settings.preview_mode",
+                true,
+            ),
+            (
                 "language",
                 self.locale.display_name().to_string(),
                 "settings.language",
@@ -315,14 +345,17 @@ impl App {
         ]
     }
 
-    pub fn filtered_settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
+    pub fn filtered_settings_items(
+        &self,
+    ) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
         let items = self.settings_items();
         if self.settings_search.is_empty() {
             return items;
         }
         let query = self.settings_search.to_lowercase();
         let l = self.locale;
-        items.into_iter()
+        items
+            .into_iter()
             .filter(|(id, value, name_key, _, _)| {
                 let name = crate::i18n::t(l, name_key);
                 id.to_lowercase().contains(&query)

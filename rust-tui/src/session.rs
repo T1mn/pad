@@ -10,26 +10,31 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
         .replace('.', "_")
         .replace('~', "home");
 
-    log_debug!("session: create_session_with_agent path={} cmd={} session_name={}", path, agent_cmd, session_name);
+    log_debug!(
+        "session: create_session_with_agent path={} cmd={} session_name={}",
+        path,
+        agent_cmd,
+        session_name
+    );
 
     let check = Command::new("tmux")
         .args(["has-session", "-t", &session_name])
         .output()?;
 
     if check.status.success() {
-        log_debug!("session: session '{}' already exists, opening new window", session_name);
+        log_debug!(
+            "session: session '{}' already exists, opening new window",
+            session_name
+        );
         // Session exists, open a new window with the agent
         let out = Command::new("tmux")
-            .args([
-                "new-window",
-                "-t",
-                &session_name,
-                "-c",
-                path,
-                agent_cmd,
-            ])
+            .args(["new-window", "-t", &session_name, "-c", path, agent_cmd])
             .output()?;
-        log_debug!("session: new-window status={} stderr={}", out.status, String::from_utf8_lossy(&out.stderr).trim());
+        log_debug!(
+            "session: new-window status={} stderr={}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
     } else {
         log_debug!("session: creating new session '{}'", session_name);
         // Create new session with agent
@@ -44,14 +49,24 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
                 agent_cmd,
             ])
             .output()?;
-        log_debug!("session: new-session status={} stderr={}", out.status, String::from_utf8_lossy(&out.stderr).trim());
+        log_debug!(
+            "session: new-session status={} stderr={}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
     }
 
     // Get the pad pane id so we can install a return binding
     let pad_pane = std::env::var("TMUX_PANE").ok();
     let pad_win = pad_pane.as_deref().and_then(|pane_id| {
         Command::new("tmux")
-            .args(["display-message", "-p", "-t", pane_id, "#{session_name}:#{window_index}"])
+            .args([
+                "display-message",
+                "-p",
+                "-t",
+                pane_id,
+                "#{session_name}:#{window_index}",
+            ])
             .output()
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -68,7 +83,11 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
         let bind_result = Command::new("tmux")
             .args(["bind-key", "-T", "root", "F12", "run-shell", &return_cmd])
             .output();
-        log_debug!("session: installed F12 return binding -> {} (result={:?})", return_cmd, bind_result.map(|o| o.status));
+        log_debug!(
+            "session: installed F12 return binding -> {} (result={:?})",
+            return_cmd,
+            bind_result.map(|o| o.status)
+        );
 
         let _ = Command::new("tmux")
             .args(["bind-key", "-T", "root", "C-q", "run-shell", &return_cmd])
@@ -81,7 +100,11 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
     let sw = Command::new("tmux")
         .args(["switch-client", "-t", &session_name])
         .output();
-    log_debug!("session: switch-client -t {} result={:?}", session_name, sw.map(|o| o.status));
+    log_debug!(
+        "session: switch-client -t {} result={:?}",
+        session_name,
+        sw.map(|o| o.status)
+    );
 
     Ok(())
 }

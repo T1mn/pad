@@ -296,7 +296,7 @@ impl Theme {
         Self {
             name: "solarized-light",
             bg: Color::Rgb(253, 246, 227),
-            fg: Color::Rgb(101, 123, 131),
+            fg: Color::Rgb(88, 110, 117),
             accent: Color::Rgb(38, 139, 210),
             highlight_bg: Color::Rgb(238, 232, 213),
             highlight_fg: Color::Rgb(7, 54, 66),
@@ -306,7 +306,7 @@ impl Theme {
             error: Color::Rgb(220, 50, 47),
             success: Color::Rgb(133, 153, 0),
             warning: Color::Rgb(181, 137, 0),
-            comment: Color::Rgb(147, 161, 161),
+            comment: Color::Rgb(131, 148, 150),
             keyword: Color::Rgb(108, 113, 196),
             string_color: Color::Rgb(42, 161, 152),
             number: Color::Rgb(211, 54, 130),
@@ -462,6 +462,22 @@ impl Default for DesiredAgentStyle {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreviewConfig {
+    /// "auto" = Claude/Codex prefer session preview, fallback to tmux
+    /// "tmux" = always use tmux capture-pane
+    /// "session" = always use session transcript when available
+    pub mode: String,
+}
+
+impl Default for PreviewConfig {
+    fn default() -> Self {
+        Self {
+            mode: "auto".to_string(),
+        }
+    }
+}
+
 /// Config file management
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -471,6 +487,7 @@ pub struct Config {
     pub agents: Vec<AgentConfig>,
     pub language: String,
     pub desired_agent_style: DesiredAgentStyle,
+    pub preview: PreviewConfig,
 }
 
 impl Default for Config {
@@ -480,12 +497,34 @@ impl Default for Config {
             auto_refresh: true,
             refresh_interval: 10,
             agents: vec![
-                AgentConfig { name: "claude".into(), cmd: "claude".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
-                AgentConfig { name: "codex".into(), cmd: "codex".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
-                AgentConfig { name: "gemini".into(), cmd: "gemini".into(), providers: Vec::new(), active_provider: None, base_url: None, api_key: None },
+                AgentConfig {
+                    name: "claude".into(),
+                    cmd: "claude".into(),
+                    providers: Vec::new(),
+                    active_provider: None,
+                    base_url: None,
+                    api_key: None,
+                },
+                AgentConfig {
+                    name: "codex".into(),
+                    cmd: "codex".into(),
+                    providers: Vec::new(),
+                    active_provider: None,
+                    base_url: None,
+                    api_key: None,
+                },
+                AgentConfig {
+                    name: "gemini".into(),
+                    cmd: "gemini".into(),
+                    providers: Vec::new(),
+                    active_provider: None,
+                    base_url: None,
+                    api_key: None,
+                },
             ],
             language: "zh-cn".to_string(),
             desired_agent_style: DesiredAgentStyle::default(),
+            preview: PreviewConfig::default(),
         }
     }
 }
@@ -545,6 +584,15 @@ impl Config {
                 config.desired_agent_style.status = s.clone();
             }
         }
+        if let Some(toml::Value::Table(preview)) = table.get("preview") {
+            if let Some(toml::Value::String(mode)) = preview.get("mode") {
+                config.preview.mode = match mode.as_str() {
+                    "tmux" => "tmux".to_string(),
+                    "session" => "session".to_string(),
+                    _ => "auto".to_string(),
+                };
+            }
+        }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
             let mut parsed = Vec::new();
             for agent in agents {
@@ -558,16 +606,43 @@ impl Config {
                         if let Some(toml::Value::Array(provs)) = t.get("providers") {
                             for prov in provs {
                                 if let toml::Value::Table(pt) = prov {
-                                    let label = pt.get("label").and_then(|v| {
-                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
-                                    }).unwrap_or_default();
-                                    let base_url = pt.get("base_url").and_then(|v| {
-                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
-                                    }).unwrap_or_default();
-                                    let api_key = pt.get("api_key").and_then(|v| {
-                                        if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
-                                    }).unwrap_or_default();
-                                    providers.push(ProviderConfig { label, base_url, api_key, test_status: None, test_result: None });
+                                    let label = pt
+                                        .get("label")
+                                        .and_then(|v| {
+                                            if let toml::Value::String(s) = v {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or_default();
+                                    let base_url = pt
+                                        .get("base_url")
+                                        .and_then(|v| {
+                                            if let toml::Value::String(s) = v {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or_default();
+                                    let api_key = pt
+                                        .get("api_key")
+                                        .and_then(|v| {
+                                            if let toml::Value::String(s) = v {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or_default();
+                                    providers.push(ProviderConfig {
+                                        label,
+                                        base_url,
+                                        api_key,
+                                        test_status: None,
+                                        test_result: None,
+                                    });
                                 }
                             }
                         }
@@ -580,10 +655,18 @@ impl Config {
 
                         // Legacy migration: old base_url/api_key -> single provider
                         let legacy_url = t.get("base_url").and_then(|v| {
-                            if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                            if let toml::Value::String(s) = v {
+                                Some(s.clone())
+                            } else {
+                                None
+                            }
                         });
                         let legacy_key = t.get("api_key").and_then(|v| {
-                            if let toml::Value::String(s) = v { Some(s.clone()) } else { None }
+                            if let toml::Value::String(s) = v {
+                                Some(s.clone())
+                            } else {
+                                None
+                            }
                         });
                         if providers.is_empty() && (legacy_url.is_some() || legacy_key.is_some()) {
                             providers.push(ProviderConfig {
@@ -628,7 +711,12 @@ impl Config {
         content.push_str(&format!("language = \"{}\"\n", self.language));
         content.push_str("\n[desired_agent_style]\n");
         content.push_str(&format!("zoom = \"{}\"\n", self.desired_agent_style.zoom));
-        content.push_str(&format!("status = \"{}\"\n", self.desired_agent_style.status));
+        content.push_str(&format!(
+            "status = \"{}\"\n",
+            self.desired_agent_style.status
+        ));
+        content.push_str("\n[preview]\n");
+        content.push_str(&format!("mode = \"{}\"\n", self.preview.mode));
         content.push('\n');
         for agent in &self.agents {
             content.push_str("[[agents]]\n");

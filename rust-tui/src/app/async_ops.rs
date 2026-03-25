@@ -1,6 +1,7 @@
 use super::App;
 use crate::log_debug;
 use crate::model::{AgentPanel, AgentState, AgentStateSource};
+use crate::preview_source::{self, PreviewUpdate};
 use crate::scanner::scan_panels;
 use std::error::Error;
 use std::time::Instant;
@@ -33,7 +34,9 @@ impl App {
 
                     // Preserve hook-driven state/session info by pane_id
                     for panel in &mut panels {
-                        if let Some(existing) = self.panels.iter().find(|p| p.pane_id == panel.pane_id) {
+                        if let Some(existing) =
+                            self.panels.iter().find(|p| p.pane_id == panel.pane_id)
+                        {
                             if existing.agent_session_id.is_some() {
                                 panel.agent_session_id = existing.agent_session_id.clone();
                             }
@@ -41,8 +44,19 @@ impl App {
                                 panel.last_user_prompt = existing.last_user_prompt.clone();
                             }
                             if existing.last_assistant_message.is_some() {
-                                panel.last_assistant_message = existing.last_assistant_message.clone();
+                                panel.last_assistant_message =
+                                    existing.last_assistant_message.clone();
                             }
+                            if existing.transcript_path.is_some() {
+                                panel.transcript_path = existing.transcript_path.clone();
+                            }
+                            if !existing.cached_preview_turns.is_empty() {
+                                panel.cached_preview_turns = existing.cached_preview_turns.clone();
+                            }
+                            if existing.session_cache_state.is_some() {
+                                panel.session_cache_state = existing.session_cache_state;
+                            }
+                            panel.has_unread_stop = existing.has_unread_stop;
                             if existing.state_source == AgentStateSource::Hook
                                 && matches!(existing.state, AgentState::Busy | AgentState::Waiting)
                             {
@@ -53,9 +67,16 @@ impl App {
                         }
                     }
 
+                    if let Err(err) = crate::session_cache::preload_panels(&mut panels) {
+                        log_debug!("session_cache: preload after scan failed: {}", err);
+                    }
+
                     self.panels = panels;
+                    if self.selected_panel().is_none() {
+                        self.focus_panel();
+                    }
                     self.last_refresh = Instant::now();
-                    self.preview_pane_id = None;
+                    self.invalidate_preview();
                     self.scan_in_progress = false;
                     self.scan_rx = None;
                     self.dirty = true;
@@ -90,36 +111,119 @@ impl App {
         }
     }
 
-    pub fn trigger_async_preview_update(&mut self, pane_id: String) {
+    pub fn trigger_async_preview_update(&mut self, panel: AgentPanel) {
         if self.preview_update_in_progress {
             return;
         }
 
         self.preview_update_in_progress = true;
-        let (tx, rx) = mpsc::channel::<(String, String)>(1);
+        let locale = self.locale;
+        let preview_mode = self.config.preview.mode.clone();
+        let (tx, rx) = mpsc::channel::<PreviewUpdate>(1);
         self.preview_rx = Some(rx);
 
         tokio::task::spawn_blocking(move || {
-            let content = match crate::pty::capture_pane(&pane_id, 50) {
-                Ok(content) => content,
-                Err(_) => String::from("Failed to capture pane"),
-            };
-            let _ = tx.blocking_send((pane_id, content));
+            let update = preview_source::load_preview(&panel, &preview_mode, locale);
+            let _ = tx.blocking_send(update);
         });
     }
 
     pub fn check_preview_result(&mut self) {
         if let Some(ref mut rx) = self.preview_rx {
             match rx.try_recv() {
-                Ok((pane_id, content)) => {
-                    self.preview_content = content;
-                    self.preview_pane_id = Some(pane_id);
-                    self.preview_scroll = 0;
-                    self.preview_follow_bottom = true;
+                Ok(update) => {
+                    let previous_panel_cache_state = self
+                        .panels
+                        .iter()
+                        .find(|panel| panel.pane_id == update.pane_id)
+                        .and_then(|panel| panel.session_cache_state);
+                    let previous_pane_id = self.preview_pane_id.clone();
+                    let previous_source = self.preview_source;
+                    let previous_content = self.preview_content.clone();
+                    let previous_turns = self.preview_turns.clone();
+                    let previous_selected_turn = self.preview_selected_turn;
+                    let previous_expanded_turn = self.preview_expanded_turn;
+                    let previous_list_scroll = self.preview_list_scroll;
+                    let previous_follow_bottom = self.preview_follow_bottom;
+                    let previous_follow_selection = self.preview_follow_selection;
+                    let should_follow_bottom = self.preview_follow_bottom
+                        || self.preview_pane_id.is_none()
+                        || self.preview_pane_id.as_deref() != Some(update.pane_id.as_str());
+                    let same_context = self.preview_pane_id.as_deref()
+                        == Some(update.pane_id.as_str())
+                        && self.preview_source == update.source;
+                    self.preview_content = update.content;
+                    self.preview_pane_id = Some(update.pane_id.clone());
+                    self.preview_source = update.source;
+                    if self.preview_source == crate::model::PreviewSource::Session
+                        && !update.turns.is_empty()
+                    {
+                        if !same_context {
+                            self.preview_selected_turn = None;
+                            self.preview_expanded_turn = None;
+                            self.preview_scroll = 0;
+                            self.preview_list_scroll = 0;
+                            self.preview_follow_selection = true;
+                        } else {
+                            self.preview_selected_turn = self
+                                .preview_selected_turn
+                                .filter(|idx| *idx < update.turns.len());
+                            self.preview_expanded_turn = self
+                                .preview_expanded_turn
+                                .filter(|idx| *idx < update.turns.len());
+                        }
+                        self.preview_turns = update.turns.clone();
+                        self.preview_follow_bottom = false;
+                    } else {
+                        self.preview_turns.clear();
+                        self.preview_selected_turn = None;
+                        self.preview_expanded_turn = None;
+                        self.preview_list_scroll = 0;
+                        self.preview_follow_bottom = should_follow_bottom;
+                        self.preview_follow_selection = true;
+                    }
+
+                    let mut panel_cache_state_changed = false;
+                    if let Some(panel) = self
+                        .panels
+                        .iter_mut()
+                        .find(|panel| panel.pane_id == update.pane_id)
+                    {
+                        if let Some(transcript_path) = update.transcript_path.clone() {
+                            panel.transcript_path = Some(transcript_path);
+                        }
+                        if self.preview_source == crate::model::PreviewSource::Session
+                            && !update.turns.is_empty()
+                        {
+                            panel.cached_preview_turns = update.turns.clone();
+                            panel.last_user_prompt =
+                                update.turns.first().map(|turn| turn.question.clone());
+                            panel.last_assistant_message =
+                                update.turns.first().and_then(|turn| turn.answer.clone());
+                            if let Some(state) = update.session_cache_state {
+                                panel.session_cache_state = Some(state);
+                            }
+                        }
+                        panel_cache_state_changed =
+                            previous_panel_cache_state != panel.session_cache_state;
+                    }
+
                     self.preview_update_in_progress = false;
                     self.preview_rx = None;
                     self.last_preview_update = Instant::now();
-                    self.dirty = true;
+                    if previous_pane_id != self.preview_pane_id
+                        || previous_source != self.preview_source
+                        || previous_content != self.preview_content
+                        || previous_turns != self.preview_turns
+                        || previous_selected_turn != self.preview_selected_turn
+                        || previous_expanded_turn != self.preview_expanded_turn
+                        || previous_list_scroll != self.preview_list_scroll
+                        || previous_follow_bottom != self.preview_follow_bottom
+                        || previous_follow_selection != self.preview_follow_selection
+                        || panel_cache_state_changed
+                    {
+                        self.dirty = true;
+                    }
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -131,26 +235,18 @@ impl App {
     }
 
     pub fn check_preview_update(&mut self) {
-        if self.last_preview_update.elapsed() < std::time::Duration::from_millis(500) {
-            return;
-        }
-
         if self.preview_update_in_progress || self.scan_in_progress {
             return;
         }
 
-        let pane_id = self.selected_panel().map(|p| p.pane_id.clone());
+        let panel = self.selected_panel().cloned();
 
-        if let Some(pane_id) = pane_id {
-            let needs_update = match &self.preview_pane_id {
-                None => true,
-                Some(id) if id != &pane_id => true,
-                _ => false,
-            };
-
-            if needs_update {
-                self.trigger_async_preview_update(pane_id);
+        if let Some(panel) = panel {
+            let refresh_ms = preview_source::preview_refresh_interval_ms(&panel);
+            if self.last_preview_update.elapsed() < std::time::Duration::from_millis(refresh_ms) {
+                return;
             }
+            self.trigger_async_preview_update(panel);
         }
     }
 
@@ -191,8 +287,10 @@ impl App {
             let output = tokio::process::Command::new("curl")
                 .args([
                     "-s",
-                    "--max-time", "5",
-                    "-H", &format!("Authorization: Bearer {}", api_key),
+                    "--max-time",
+                    "5",
+                    "-H",
+                    &format!("Authorization: Bearer {}", api_key),
                     &url,
                 ])
                 .output()
@@ -225,7 +323,10 @@ impl App {
                             (true, format!("OK: {}", &body[..200.min(body.len())]))
                         }
                     } else {
-                        (false, format!("Invalid JSON: {}", &body[..200.min(body.len())]))
+                        (
+                            false,
+                            format!("Invalid JSON: {}", &body[..200.min(body.len())]),
+                        )
                     }
                 }
                 Ok(out) => {

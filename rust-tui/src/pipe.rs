@@ -1,8 +1,8 @@
 use std::collections::HashSet;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::mpsc;
-use std::time::Duration;
 
 /// Events emitted by the tmux control pipe
 #[derive(Debug)]
@@ -68,18 +68,26 @@ pub fn start_control_pipe() -> mpsc::Receiver<TmuxEvent> {
     rx
 }
 
-async fn run_pipe(tx: &mpsc::Sender<TmuxEvent>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn run_pipe(
+    tx: &mpsc::Sender<TmuxEvent>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Start tmux in control mode, attached to current session
-    let session_name = std::env::var("TMUX_PANE").ok().and_then(|_| {
-        std::process::Command::new("tmux")
-            .args(["display-message", "-p", "#{session_name}"])
-            .output()
-            .ok()
-    }).and_then(|o| if o.status.success() {
-        Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-    } else {
-        None
-    }).unwrap_or_default();
+    let session_name = std::env::var("TMUX_PANE")
+        .ok()
+        .and_then(|_| {
+            std::process::Command::new("tmux")
+                .args(["display-message", "-p", "#{session_name}"])
+                .output()
+                .ok()
+        })
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
 
     if session_name.is_empty() {
         return Err("Cannot determine tmux session name".into());

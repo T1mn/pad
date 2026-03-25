@@ -49,7 +49,11 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
 
         log_debug!(
             "scanner: pane={} session={} main=[{}] children=[{}] -> agent={:?}",
-            pane_id, session, main_process, child_processes, agent_type
+            pane_id,
+            session,
+            main_process,
+            child_processes,
+            agent_type
         );
 
         if matches!(agent_type, AgentType::Unknown) {
@@ -67,7 +71,10 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
 
         log_debug!(
             "scanner: 检测到智能体面板 pane={} agent={:?} state={:?} dir={}",
-            pane_id, agent_type, state, working_dir
+            pane_id,
+            agent_type,
+            state,
+            working_dir
         );
 
         panels.push(AgentPanel {
@@ -81,12 +88,16 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             is_active,
             state,
             state_source: AgentStateSource::Scanner,
+            transcript_path: None,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
             git_info,
             pid: Some(pane_pid.to_string()),
             start_time: Some(std::time::Instant::now()),
             agent_session_id: None,
             last_user_prompt: None,
             last_assistant_message: None,
+            has_unread_stop: false,
         });
     }
 
@@ -117,7 +128,9 @@ fn get_child_processes(pid: &str) -> String {
 
             for child_pid in child_pids.lines() {
                 let child_pid = child_pid.trim();
-                if child_pid.is_empty() { continue; }
+                if child_pid.is_empty() {
+                    continue;
+                }
                 if let Ok(cmd) = get_process_cmd(child_pid) {
                     log_debug!("scanner: child pid={} cmd={}", child_pid, cmd);
                     processes.push(cmd);
@@ -149,7 +162,14 @@ fn capture_pane_content(
     lines: usize,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let output = Command::new("tmux")
-        .args(["capture-pane", "-p", "-t", pane_id, "-S", &format!("-{}", lines)])
+        .args([
+            "capture-pane",
+            "-p",
+            "-t",
+            pane_id,
+            "-S",
+            &format!("-{}", lines),
+        ])
         .output()?;
 
     if output.status.success() {
@@ -181,9 +201,14 @@ pub fn strip_ansi(s: &str) -> String {
                         // OSC: skip until ST (ESC \ or BEL)
                         chars.next();
                         while let Some(oc) = chars.next() {
-                            if oc == '\x07' { break; }
+                            if oc == '\x07' {
+                                break;
+                            }
                             if oc == '\x1b' {
-                                if chars.peek() == Some(&'\\') { chars.next(); break; }
+                                if chars.peek() == Some(&'\\') {
+                                    chars.next();
+                                    break;
+                                }
                             }
                         }
                     } else {

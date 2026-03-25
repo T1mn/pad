@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Instant;
 
@@ -85,6 +86,24 @@ pub enum AgentStateSource {
     Hook,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreviewSource {
+    Tmux,
+    Session,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SessionCacheState {
+    Cached,
+    Confirmed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PreviewTurn {
+    pub question: String,
+    pub answer: Option<String>,
+}
+
 impl AgentState {
     pub fn icon(&self, animation_frame: usize) -> &'static str {
         match self {
@@ -118,12 +137,16 @@ pub struct AgentPanel {
     pub is_active: bool,
     pub state: AgentState,
     pub state_source: AgentStateSource,
+    pub transcript_path: Option<String>,
+    pub cached_preview_turns: Vec<PreviewTurn>,
+    pub session_cache_state: Option<SessionCacheState>,
     pub git_info: Option<GitInfo>,
     pub pid: Option<String>,
     pub start_time: Option<Instant>,
     pub agent_session_id: Option<String>,
     pub last_user_prompt: Option<String>,
     pub last_assistant_message: Option<String>,
+    pub has_unread_stop: bool,
 }
 
 impl AgentPanel {
@@ -151,14 +174,20 @@ impl AgentPanel {
 
         let parts: Vec<&str> = path.split('/').collect();
         if parts.len() >= 2 {
-            let short = format!("~/.../{}/{}", parts[parts.len() - 2], parts[parts.len() - 1]);
+            let short = format!(
+                "~/.../{}/{}",
+                parts[parts.len() - 2],
+                parts[parts.len() - 1]
+            );
             if short.len() <= max_len {
                 return short;
             }
         }
 
         // 安全截断：确保在字符边界处截断
-        let start = path.char_indices().rev()
+        let start = path
+            .char_indices()
+            .rev()
             .find(|(i, _)| path.len() - i <= max_len - 3)
             .map(|(i, _)| i)
             .unwrap_or(0);
@@ -173,11 +202,19 @@ impl AgentPanel {
                 format!(
                     "{}@{}(+{})",
                     branch,
-                    &commit[..commit.char_indices().nth(7).map(|(i, _)| i).unwrap_or(commit.len())],
+                    &commit[..commit
+                        .char_indices()
+                        .nth(7)
+                        .map(|(i, _)| i)
+                        .unwrap_or(commit.len())],
                     git.changed_files
                 )
             } else {
-                let commit_short = &commit[..commit.char_indices().nth(7).map(|(i, _)| i).unwrap_or(commit.len())];
+                let commit_short = &commit[..commit
+                    .char_indices()
+                    .nth(7)
+                    .map(|(i, _)| i)
+                    .unwrap_or(commit.len())];
                 format!("{}@{}", branch, commit_short)
             }
         } else {
@@ -204,10 +241,7 @@ fn get_process_uptime(pid: &str) -> Option<u64> {
         .output()
         .ok()?;
     if output.status.success() {
-        String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .parse()
-            .ok()
+        String::from_utf8_lossy(&output.stdout).trim().parse().ok()
     } else {
         None
     }

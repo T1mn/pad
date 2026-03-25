@@ -17,6 +17,12 @@ pub enum Mode {
     AgentStyleSettings,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FocusTarget {
+    Panel,
+    Preview,
+}
+
 /// Relay settings sub-view
 #[derive(Clone, Copy, PartialEq)]
 pub enum RelayView {

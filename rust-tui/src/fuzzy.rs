@@ -54,7 +54,8 @@ impl FuzzyPicker {
                     buf.clear();
                     let utf32_str = Utf32Str::new(item, &mut buf);
 
-                    pattern.score(utf32_str, &mut matcher)
+                    pattern
+                        .score(utf32_str, &mut matcher)
                         .map(|score| (item.clone(), score))
                 })
                 .collect();
@@ -177,7 +178,11 @@ impl FuzzyPicker {
                     Style::default().fg(Color::White)
                 };
 
-                let prefix = if actual_idx == self.selected { "❯ " } else { "  " };
+                let prefix = if actual_idx == self.selected {
+                    "❯ "
+                } else {
+                    "  "
+                };
                 Line::from(vec![
                     Span::styled(prefix, style),
                     Span::styled(item.clone(), style),

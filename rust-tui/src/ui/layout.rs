@@ -5,15 +5,36 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 /// body_layout: always 2 columns (left + right)
 ///   show_tree=false: [agents, preview]
 ///   show_tree=true:  [tree_area, file_preview]  (tree_area will be split vertically by caller)
-pub fn compute_layout(area: Rect, _show_tree: bool) -> (Vec<Rect>, Vec<Rect>) {
+pub fn compute_layout(
+    area: Rect,
+    show_tree: bool,
+    preferred_left_width: Option<u16>,
+) -> (Vec<Rect>, Vec<Rect>) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
+    let constraints = if show_tree {
+        let (left_pct, right_pct) = match area.width {
+            0..=99 => (48, 52),
+            100..=139 => (42, 58),
+            _ => (36, 64),
+        };
+        vec![
+            Constraint::Percentage(left_pct),
+            Constraint::Percentage(right_pct),
+        ]
+    } else {
+        let min_left = 12;
+        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 24);
+        let left = preferred_left_width.unwrap_or(16).clamp(min_left, max_left);
+        vec![Constraint::Length(left), Constraint::Min(0)]
+    };
+
     let body_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
+        .constraints(constraints)
         .split(main_layout[0]);
 
     (main_layout.to_vec(), body_layout.to_vec())

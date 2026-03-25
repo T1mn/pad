@@ -35,6 +35,14 @@ pub fn scripts_dir() -> PathBuf {
     pad_home_dir().join("scripts")
 }
 
+pub fn sessions_dir() -> PathBuf {
+    pad_home_dir().join("sessions")
+}
+
+pub fn sessions_index_path() -> PathBuf {
+    sessions_dir().join("index.json")
+}
+
 pub fn claude_hook_bridge_path() -> PathBuf {
     scripts_dir().join("claude_hook_bridge.py")
 }
@@ -51,6 +59,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(pad_home_dir())?;
     fs::create_dir_all(logs_dir())?;
     fs::create_dir_all(scripts_dir())?;
+    fs::create_dir_all(sessions_dir())?;
     install_bridge_script(&claude_hook_bridge_path(), CLAUDE_HOOK_BRIDGE_TEMPLATE)?;
     install_bridge_script(&codex_hook_bridge_path(), CODEX_HOOK_BRIDGE_TEMPLATE)?;
     ensure_codex_hook_support()?;
