@@ -31,6 +31,14 @@ pub fn log_path() -> PathBuf {
     logs_dir().join("pad.log")
 }
 
+pub fn telegram_bot_log_path() -> PathBuf {
+    logs_dir().join("telegram-bot.log")
+}
+
+pub fn hook_events_path() -> PathBuf {
+    logs_dir().join("hook-events.jsonl")
+}
+
 pub fn scripts_dir() -> PathBuf {
     pad_home_dir().join("scripts")
 }
@@ -55,11 +63,30 @@ pub fn hook_socket_path() -> PathBuf {
     pad_home_dir().join("pad-hook.sock")
 }
 
+pub fn pad_status_path() -> PathBuf {
+    pad_home_dir().join("pad-status.json")
+}
+
+pub fn telegram_bot_status_path() -> PathBuf {
+    pad_home_dir().join("telegram-bot-status.json")
+}
+
+pub fn telegram_state_path() -> PathBuf {
+    pad_home_dir().join("telegram-state.json")
+}
+
+pub fn telegram_hook_socket_path() -> PathBuf {
+    pad_home_dir().join("telegram-hook.sock")
+}
+
 pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(pad_home_dir())?;
     fs::create_dir_all(logs_dir())?;
     fs::create_dir_all(scripts_dir())?;
     fs::create_dir_all(sessions_dir())?;
+    if !hook_events_path().exists() {
+        fs::write(hook_events_path(), "")?;
+    }
     install_bridge_script(&claude_hook_bridge_path(), CLAUDE_HOOK_BRIDGE_TEMPLATE)?;
     install_bridge_script(&codex_hook_bridge_path(), CODEX_HOOK_BRIDGE_TEMPLATE)?;
     ensure_codex_hook_support()?;
@@ -274,7 +301,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PAD_HOME = Path.home() / ".pad"
-SOCKET_PATH = PAD_HOME / "pad-hook.sock"
+SOCKET_PATHS = [
+    PAD_HOME / "pad-hook.sock",
+    PAD_HOME / "telegram-hook.sock",
+]
 
 
 def tmux_info_from_env():
@@ -342,18 +372,19 @@ def main():
         "tmux": tmux,
     }
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(0.5)
-    try:
-        sock.connect(str(SOCKET_PATH))
-        sock.sendall((json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8"))
-    except Exception:
-        pass
-    finally:
+    for socket_path in SOCKET_PATHS:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
         try:
-            sock.close()
+            sock.connect(str(socket_path))
+            sock.sendall((json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8"))
         except Exception:
             pass
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
@@ -370,7 +401,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PAD_HOME = Path.home() / ".pad"
-SOCKET_PATH = PAD_HOME / "pad-hook.sock"
+SOCKET_PATHS = [
+    PAD_HOME / "pad-hook.sock",
+    PAD_HOME / "telegram-hook.sock",
+]
 
 
 def tmux_info_from_env():
@@ -447,18 +481,19 @@ def main():
         "tmux": tmux,
     }
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(0.5)
-    try:
-        sock.connect(str(SOCKET_PATH))
-        sock.sendall((json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8"))
-    except Exception:
-        pass
-    finally:
+    for socket_path in SOCKET_PATHS:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
         try:
-            sock.close()
+            sock.connect(str(socket_path))
+            sock.sendall((json.dumps(message, ensure_ascii=False) + "\n").encode("utf-8"))
         except Exception:
             pass
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
     print(json.dumps({"suppressOutput": True}))
 

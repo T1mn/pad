@@ -478,6 +478,25 @@ impl Default for PreviewConfig {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct TelegramConfig {
+    pub enabled: bool,
+    pub bot_token: String,
+    pub chat_id: String,
+    pub bot_username: String,
+}
+
+impl Default for TelegramConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bot_token: String::new(),
+            chat_id: String::new(),
+            bot_username: String::new(),
+        }
+    }
+}
+
 /// Config file management
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -488,6 +507,7 @@ pub struct Config {
     pub language: String,
     pub desired_agent_style: DesiredAgentStyle,
     pub preview: PreviewConfig,
+    pub telegram: TelegramConfig,
 }
 
 impl Default for Config {
@@ -525,6 +545,7 @@ impl Default for Config {
             language: "zh-cn".to_string(),
             desired_agent_style: DesiredAgentStyle::default(),
             preview: PreviewConfig::default(),
+            telegram: TelegramConfig::default(),
         }
     }
 }
@@ -591,6 +612,20 @@ impl Config {
                     "session" => "session".to_string(),
                     _ => "auto".to_string(),
                 };
+            }
+        }
+        if let Some(toml::Value::Table(telegram)) = table.get("telegram") {
+            if let Some(toml::Value::Boolean(enabled)) = telegram.get("enabled") {
+                config.telegram.enabled = *enabled;
+            }
+            if let Some(toml::Value::String(token)) = telegram.get("bot_token") {
+                config.telegram.bot_token = token.clone();
+            }
+            if let Some(toml::Value::String(chat_id)) = telegram.get("chat_id") {
+                config.telegram.chat_id = chat_id.clone();
+            }
+            if let Some(toml::Value::String(bot_username)) = telegram.get("bot_username") {
+                config.telegram.bot_username = bot_username.clone();
             }
         }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
@@ -717,6 +752,20 @@ impl Config {
         ));
         content.push_str("\n[preview]\n");
         content.push_str(&format!("mode = \"{}\"\n", self.preview.mode));
+        content.push_str("\n[telegram]\n");
+        content.push_str(&format!("enabled = {}\n", self.telegram.enabled));
+        content.push_str(&format!(
+            "bot_token = \"{}\"\n",
+            self.telegram.bot_token.replace('"', "\\\"")
+        ));
+        content.push_str(&format!(
+            "chat_id = \"{}\"\n",
+            self.telegram.chat_id.replace('"', "\\\"")
+        ));
+        content.push_str(&format!(
+            "bot_username = \"{}\"\n",
+            self.telegram.bot_username.replace('"', "\\\"")
+        ));
         content.push('\n');
         for agent in &self.agents {
             content.push_str("[[agents]]\n");

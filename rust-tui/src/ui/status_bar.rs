@@ -20,6 +20,9 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         crate::app::state::Mode::Settings => {
             mode_badge(crate::i18n::t(l, "mode.settings"), theme.accent)
         }
+        crate::app::state::Mode::TelegramSettings => {
+            mode_badge(crate::i18n::t(l, "mode.settings"), theme.accent)
+        }
         crate::app::state::Mode::ThemeSelector => {
             mode_badge(crate::i18n::t(l, "mode.theme"), theme.keyword)
         }
@@ -42,6 +45,9 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             crate::i18n::t(l, "status.cancel")
         ),
         crate::app::state::Mode::Settings => String::from(crate::i18n::t(l, "status.settings_nav")),
+        crate::app::state::Mode::TelegramSettings => {
+            String::from(crate::i18n::t(l, "status.settings_nav"))
+        }
         crate::app::state::Mode::ThemeSelector => {
             String::from(crate::i18n::t(l, "status.theme_nav"))
         }

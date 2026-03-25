@@ -15,6 +15,7 @@ pub enum Mode {
     RelaySettings,
     FilePreview,
     AgentStyleSettings,
+    TelegramSettings,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -308,6 +308,17 @@ impl App {
                 true,
             ),
             (
+                "telegram",
+                if self.config.telegram.enabled {
+                    crate::i18n::t(l, "settings.on").to_string()
+                } else {
+                    crate::i18n::t(l, "settings.off").to_string()
+                },
+                "settings.telegram",
+                "settings.telegram",
+                true,
+            ),
+            (
                 "agent_style",
                 crate::i18n::t(l, "settings.configure").to_string(),
                 "settings.agent_style",

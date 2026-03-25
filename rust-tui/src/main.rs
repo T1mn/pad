@@ -24,10 +24,13 @@ mod pipe;
 mod preview_source;
 pub mod pty;
 mod relay;
+mod runtime_status;
 mod scanner;
 mod session;
 mod session_cache;
+mod telegram;
 mod theme;
+mod tmux_dispatch;
 mod tree;
 mod ui;
 
@@ -42,6 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("pad - Tmux Agent Panel Manager");
         println!();
         println!("Usage: pad [OPTIONS]");
+        println!("       pad telegram-bot");
         println!();
         println!("Options:");
         println!("  -h, --help     显示帮助信息");
@@ -69,14 +73,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    let telegram_daemon = args.iter().any(|a| a == "telegram-bot");
     let debug = args.iter().any(|a| a == "--debug" || a == "-d");
     paths::ensure_runtime_layout()?;
-    // Always init logger so cargo run / dev builds produce logs
-    logger::init()?;
+    if telegram_daemon {
+        logger::init_with_path(paths::telegram_bot_log_path())?;
+    } else {
+        logger::init()?;
+    }
     if debug {
         logger::log("pad 启动 (debug mode)");
+    } else if telegram_daemon {
+        logger::log("telegram-bot 启动");
     } else {
         logger::log("pad 启动");
+    }
+
+    if telegram_daemon {
+        return telegram::run_daemon().await;
     }
 
     // Install panic hook to restore terminal and log panic info
@@ -110,7 +124,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let _status_guard = runtime_status::StatusGuard::new(crate::paths::pad_status_path(), "pad")?;
     let mut app = App::new();
+    if let Err(err) = telegram::sync_daemon(&app.config) {
+        log_debug!("telegram: daemon sync failed during pad startup: {}", err);
+    }
     app.hook_rx = Some(hook::start_hook_listener());
     log_debug!(
         "配置加载: theme={}, auto_refresh={}",

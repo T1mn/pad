@@ -92,6 +92,10 @@ pub struct App {
     pub provider_test_rx: Option<mpsc::Receiver<(usize, usize, bool, String)>>,
     // Agent style settings
     pub agent_style_selected: usize,
+    // Telegram settings
+    pub telegram_selected_field: usize,
+    pub telegram_editing: bool,
+    pub telegram_edit_buffer: String,
     pub busy_animation_frame: usize,
     pub last_busy_animation_tick: Instant,
 }
@@ -170,6 +174,9 @@ impl App {
             provider_test_in_progress: false,
             provider_test_rx: None,
             agent_style_selected: 0,
+            telegram_selected_field: 0,
+            telegram_editing: false,
+            telegram_edit_buffer: String::new(),
             busy_animation_frame: 0,
             last_busy_animation_tick: Instant::now(),
         }
@@ -215,6 +222,17 @@ impl App {
         }
         self.clear_unread_stop_for_selected_panel();
         self.dirty = true;
+    }
+
+    pub fn focus_preview(&mut self) -> bool {
+        if self.show_tree || self.selected_panel().is_none() {
+            return false;
+        }
+        if self.preview_focus != FocusTarget::Preview {
+            self.preview_focus = FocusTarget::Preview;
+        }
+        self.dirty = true;
+        true
     }
 
     pub fn has_session_preview_turns(&self) -> bool {
@@ -308,6 +326,20 @@ impl App {
             self.preview_expanded_turn = Some(prev);
             self.preview_scroll = 0;
         }
+        self.preview_follow_bottom = false;
+        self.preview_follow_selection = true;
+        self.dirty = true;
+        true
+    }
+
+    pub fn select_preview_turn(&mut self, index: usize) -> bool {
+        if !self.has_session_preview_turns() || index >= self.preview_turns.len() {
+            return false;
+        }
+        self.preview_focus = FocusTarget::Preview;
+        self.preview_selected_turn = Some(index);
+        self.preview_expanded_turn = None;
+        self.preview_scroll = 0;
         self.preview_follow_bottom = false;
         self.preview_follow_selection = true;
         self.dirty = true;

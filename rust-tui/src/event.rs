@@ -4,15 +4,35 @@ use crate::log_debug;
 use crate::pty::attach_to_pane_pty;
 use crate::relay;
 use crate::session;
+use crate::telegram;
 use crate::ui;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
+        MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Rect},
+    Terminal,
+};
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
+
+const MOUSE_PREVIEW_SCROLL_DELTA: i32 = 3;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NormalMouseRegions {
+    panel_area: Rect,
+    panel_inner: Rect,
+    preview_area: Rect,
+    preview_inner: Rect,
+    preview_info_area: Option<Rect>,
+    preview_content_area: Rect,
+}
 
 fn summarize_log_text(text: &str) -> String {
     let single_line = text.trim().replace('\n', "\\n").replace('\r', "\\r");
@@ -456,6 +476,187 @@ fn pad_focus_state() -> Option<(String, String)> {
     Some((pad_pane_id, current_pane_id))
 }
 
+fn inner_rect(area: Rect) -> Rect {
+    Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(1),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    )
+}
+
+fn rect_contains(area: Rect, column: u16, row: u16) -> bool {
+    area.width > 0
+        && area.height > 0
+        && column >= area.x
+        && column < area.x.saturating_add(area.width)
+        && row >= area.y
+        && row < area.y.saturating_add(area.height)
+}
+
+fn normal_mouse_regions(app: &App, terminal_area: Rect) -> NormalMouseRegions {
+    let preferred_left_width = Some(ui::panel_list::preferred_panel_width(app));
+    let (_, body_layout) = ui::layout::compute_layout(terminal_area, false, preferred_left_width);
+    let panel_area = body_layout[0];
+    let preview_area = body_layout[1];
+    let panel_inner = inner_rect(panel_area);
+    let preview_inner = inner_rect(preview_area);
+
+    let (preview_info_area, preview_content_area) = if app.selected_panel().is_some() {
+        let split = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(ui::preview::PREVIEW_INFO_CARD_HEIGHT),
+                Constraint::Min(0),
+            ])
+            .split(preview_inner);
+        (Some(split[0]), split[1])
+    } else {
+        (None, preview_inner)
+    };
+
+    NormalMouseRegions {
+        panel_area,
+        panel_inner,
+        preview_area,
+        preview_inner,
+        preview_info_area,
+        preview_content_area,
+    }
+}
+
+fn panel_index_at_position(
+    panel_inner: Rect,
+    row: u16,
+    table_offset: usize,
+    panel_count: usize,
+) -> Option<usize> {
+    if panel_count == 0 || !rect_contains(panel_inner, panel_inner.x, row) {
+        return None;
+    }
+
+    let offset = table_offset + row.saturating_sub(panel_inner.y) as usize;
+    if offset < panel_count {
+        Some(offset)
+    } else {
+        None
+    }
+}
+
+fn session_turn_index_at_position(
+    preview_content_area: Rect,
+    row: u16,
+    scroll: u16,
+    turn_count: usize,
+) -> Option<usize> {
+    if turn_count == 0 || !rect_contains(preview_content_area, preview_content_area.x, row) {
+        return None;
+    }
+
+    let line = scroll as usize + row.saturating_sub(preview_content_area.y) as usize;
+    let index = line / ui::preview::SESSION_CARD_HEIGHT as usize;
+    if index < turn_count {
+        Some(index)
+    } else {
+        None
+    }
+}
+
+fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row: u16) {
+    let regions = normal_mouse_regions(app, terminal_area);
+
+    if rect_contains(regions.panel_area, column, row) {
+        if rect_contains(regions.panel_inner, column, row) {
+            let panel_count = app.filtered_panels().len();
+            if let Some(index) = panel_index_at_position(
+                regions.panel_inner,
+                row,
+                app.table_state.offset(),
+                panel_count,
+            ) {
+                app.jump_to(index);
+            }
+        }
+        app.focus_panel();
+        return;
+    }
+
+    if !rect_contains(regions.preview_area, column, row) {
+        return;
+    }
+
+    if !app.focus_preview() {
+        return;
+    }
+
+    if regions
+        .preview_info_area
+        .is_some_and(|info| rect_contains(info, column, row))
+    {
+        return;
+    }
+
+    if app.has_session_preview_turns()
+        && app.preview_expanded_turn.is_none()
+        && rect_contains(regions.preview_content_area, column, row)
+    {
+        if let Some(index) = session_turn_index_at_position(
+            regions.preview_content_area,
+            row,
+            app.preview_list_scroll,
+            app.preview_turns.len(),
+        ) {
+            if app.preview_selected_turn == Some(index) {
+                let _ = app.toggle_preview_turn_expanded();
+            } else {
+                let _ = app.select_preview_turn(index);
+            }
+        }
+    }
+}
+
+fn handle_normal_scroll(app: &mut App, terminal_area: Rect, column: u16, row: u16, delta: i32) {
+    let regions = normal_mouse_regions(app, terminal_area);
+
+    if rect_contains(regions.panel_area, column, row) {
+        app.focus_panel();
+        if !app.filtered_panels().is_empty() {
+            if delta < 0 {
+                app.previous();
+            } else {
+                app.next();
+            }
+        }
+        return;
+    }
+
+    if rect_contains(regions.preview_area, column, row) && app.focus_preview() {
+        app.scroll_preview_by(delta * MOUSE_PREVIEW_SCROLL_DELTA);
+    }
+}
+
+fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: MouseEvent) {
+    if app.show_tree {
+        return;
+    }
+
+    match mouse.kind {
+        MouseEventKind::Down(MouseButton::Left) => {
+            app.clear_panel_tab();
+            handle_normal_left_click(app, terminal_area, mouse.column, mouse.row);
+        }
+        MouseEventKind::ScrollUp => {
+            app.clear_panel_tab();
+            handle_normal_scroll(app, terminal_area, mouse.column, mouse.row, -1);
+        }
+        MouseEventKind::ScrollDown => {
+            app.clear_panel_tab();
+            handle_normal_scroll(app, terminal_area, mouse.column, mouse.row, 1);
+        }
+        _ => {}
+    }
+}
+
 pub async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
@@ -620,7 +821,14 @@ pub async fn run_app(
                         Mode::RelaySettings => handle_relay_settings_mode(app, key.code),
                         Mode::FilePreview => handle_file_preview_mode(app, key.code),
                         Mode::AgentStyleSettings => handle_agent_style_mode(app, key.code),
+                        Mode::TelegramSettings => handle_telegram_settings_mode(app, key.code),
                     }
+                }
+            }
+
+            if let Event::Mouse(mouse) = ev {
+                if app.mode == Mode::Normal {
+                    handle_normal_mouse(app, terminal.size()?.into(), mouse);
                 }
             }
 
@@ -633,6 +841,9 @@ pub async fn run_app(
             if let Event::Paste(ref text) = ev {
                 if app.relay_editing {
                     app.relay_edit_buffer.push_str(text);
+                    app.dirty = true;
+                } else if app.telegram_editing {
+                    app.telegram_edit_buffer.push_str(text);
                     app.dirty = true;
                 } else if app.mode == Mode::Search {
                     app.search_query.push_str(text);
@@ -1471,6 +1682,12 @@ fn handle_settings_mode(app: &mut App, key: KeyCode) {
                             app.relay_view = crate::app::state::RelayView::AgentList;
                             app.mode = Mode::RelaySettings;
                         }
+                        "telegram" => {
+                            app.telegram_selected_field = 0;
+                            app.telegram_editing = false;
+                            app.telegram_edit_buffer.clear();
+                            app.mode = Mode::TelegramSettings;
+                        }
                         "agent_style" => {
                             app.agent_style_selected = 0;
                             app.mode = Mode::AgentStyleSettings;
@@ -1888,5 +2105,252 @@ fn handle_agent_style_mode(app: &mut App, key: KeyCode) {
             app.dirty = true;
         }
         _ => {}
+    }
+}
+
+fn handle_telegram_settings_mode(app: &mut App, key: KeyCode) {
+    if app.telegram_editing {
+        match key {
+            KeyCode::Esc => {
+                app.telegram_editing = false;
+                app.telegram_edit_buffer.clear();
+                app.dirty = true;
+            }
+            KeyCode::Enter => {
+                let mut restart_needed = false;
+                match app.telegram_selected_field {
+                    1 => {
+                        restart_needed = app.config.telegram.bot_token != app.telegram_edit_buffer;
+                        app.config.telegram.bot_token = app.telegram_edit_buffer.clone();
+                    }
+                    2 => app.config.telegram.chat_id = app.telegram_edit_buffer.clone(),
+                    _ => {}
+                }
+                app.config.save();
+                let daemon_result = if restart_needed {
+                    telegram::restart_daemon(&app.config)
+                } else {
+                    telegram::sync_daemon(&app.config)
+                };
+                if let Err(err) = daemon_result {
+                    log_debug!("telegram: daemon sync failed after settings save: {}", err);
+                }
+                app.telegram_editing = false;
+                app.telegram_edit_buffer.clear();
+                app.dirty = true;
+            }
+            KeyCode::Backspace => {
+                app.telegram_edit_buffer.pop();
+                app.dirty = true;
+            }
+            KeyCode::Char(c) => {
+                app.telegram_edit_buffer.push(c);
+                app.dirty = true;
+            }
+            _ => {}
+        }
+        return;
+    }
+
+    match key {
+        KeyCode::Esc => {
+            app.mode = Mode::Settings;
+            app.dirty = true;
+        }
+        KeyCode::Char('r') => {
+            restart_telegram_daemon(app);
+        }
+        KeyCode::Char('j') | KeyCode::Down => {
+            if app.telegram_selected_field < 3 {
+                app.telegram_selected_field += 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.telegram_selected_field > 0 {
+                app.telegram_selected_field -= 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            match app.telegram_selected_field {
+                0 => {
+                    app.config.telegram.enabled = !app.config.telegram.enabled;
+                    app.config.save();
+                    if let Err(err) = telegram::sync_daemon(&app.config) {
+                        log_debug!("telegram: daemon sync failed after toggle: {}", err);
+                    }
+                }
+                1 => {
+                    app.telegram_edit_buffer = app.config.telegram.bot_token.clone();
+                    app.telegram_editing = true;
+                }
+                2 => {
+                    app.telegram_edit_buffer = app.config.telegram.chat_id.clone();
+                    app.telegram_editing = true;
+                }
+                3 => {
+                    restart_telegram_daemon(app);
+                }
+                _ => {}
+            }
+            app.dirty = true;
+        }
+        _ => {}
+    }
+}
+
+fn restart_telegram_daemon(app: &mut App) {
+    if let Err(err) = telegram::restart_daemon(&app.config) {
+        log_debug!("telegram: restart failed from settings: {}", err);
+    }
+    app.dirty = true;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::state::FocusTarget;
+    use crate::model::{
+        AgentPanel, AgentState, AgentStateSource, AgentType, PreviewSource, PreviewTurn,
+    };
+    use crossterm::event::KeyModifiers;
+
+    fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
+        AgentPanel {
+            session: "0".into(),
+            window: "main".into(),
+            window_index: "1".into(),
+            pane: "1".into(),
+            pane_id: pane_id.into(),
+            agent_type: AgentType::Codex,
+            working_dir: working_dir.into(),
+            is_active: true,
+            state: AgentState::Idle,
+            state_source: AgentStateSource::Scanner,
+            transcript_path: None,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            git_info: None,
+            pid: None,
+            start_time: None,
+            agent_session_id: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+        }
+    }
+
+    fn left_click(column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    fn scroll_down(column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    #[test]
+    fn mouse_click_on_panel_row_selects_it_and_focuses_panel() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.preview_focus = FocusTarget::Preview;
+
+        let area = Rect::new(0, 0, 100, 30);
+        let regions = normal_mouse_regions(&app, area);
+        let click = left_click(regions.panel_inner.x, regions.panel_inner.y + 1);
+
+        handle_normal_mouse(&mut app, area, click);
+
+        assert_eq!(app.table_state.selected(), Some(1));
+        assert!(app.preview_focus == FocusTarget::Panel);
+    }
+
+    #[test]
+    fn mouse_click_on_panel_row_accounts_for_scroll_offset() {
+        let mut app = App::new();
+        for idx in 0..6 {
+            app.panels.push(sample_panel(
+                &format!("%{}", idx + 1),
+                &format!("/tmp/p{}", idx),
+            ));
+        }
+        app.table_state = app
+            .table_state
+            .clone()
+            .with_offset(3)
+            .with_selected(Some(3));
+
+        let area = Rect::new(0, 0, 100, 30);
+        let regions = normal_mouse_regions(&app, area);
+        let click = left_click(regions.panel_inner.x, regions.panel_inner.y);
+
+        handle_normal_mouse(&mut app, area, click);
+
+        assert_eq!(app.table_state.selected(), Some(3));
+    }
+
+    #[test]
+    fn mouse_click_on_session_turn_selects_then_expands_on_repeat() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.preview_source = PreviewSource::Session;
+        app.preview_turns = vec![
+            PreviewTurn {
+                question: "first".into(),
+                answer: Some("one".into()),
+            },
+            PreviewTurn {
+                question: "second".into(),
+                answer: Some("two".into()),
+            },
+        ];
+
+        let area = Rect::new(0, 0, 100, 30);
+        let regions = normal_mouse_regions(&app, area);
+        let click = left_click(
+            regions.preview_content_area.x,
+            regions.preview_content_area.y + crate::ui::preview::SESSION_CARD_HEIGHT,
+        );
+
+        handle_normal_mouse(&mut app, area, click);
+        assert!(app.preview_focus == FocusTarget::Preview);
+        assert_eq!(app.preview_selected_turn, Some(1));
+        assert_eq!(app.preview_expanded_turn, None);
+
+        handle_normal_mouse(&mut app, area, click);
+        assert_eq!(app.preview_expanded_turn, Some(1));
+    }
+
+    #[test]
+    fn mouse_wheel_over_preview_scrolls_and_focuses_preview() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.preview_content = (0..20)
+            .map(|idx| format!("line {}", idx))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let area = Rect::new(0, 0, 100, 20);
+        let regions = normal_mouse_regions(&app, area);
+        let wheel = scroll_down(
+            regions.preview_content_area.x,
+            regions.preview_content_area.y,
+        );
+
+        handle_normal_mouse(&mut app, area, wheel);
+
+        assert!(app.preview_focus == FocusTarget::Preview);
+        assert_eq!(app.preview_scroll, MOUSE_PREVIEW_SCROLL_DELTA as u16);
     }
 }

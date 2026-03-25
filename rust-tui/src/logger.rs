@@ -12,7 +12,10 @@ fn log_path() -> PathBuf {
 }
 
 pub fn init() -> Result<(), Box<dyn Error>> {
-    let path = log_path();
+    init_with_path(log_path())
+}
+
+pub fn init_with_path(path: PathBuf) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
