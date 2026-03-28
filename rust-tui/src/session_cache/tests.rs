@@ -57,6 +57,30 @@ mod tests {
     }
 
     #[test]
+    fn merge_recent_turns_does_not_reuse_previous_answer_for_new_prompt() {
+        let mut turns = vec![PreviewTurn {
+            question: "old prompt".to_string(),
+            answer: Some("old answer".to_string()),
+        }];
+
+        merge_recent_turns(&mut turns, Some("new prompt"), None, Some("new prompt"));
+
+        assert_eq!(
+            turns,
+            vec![
+                PreviewTurn {
+                    question: "new prompt".to_string(),
+                    answer: None,
+                },
+                PreviewTurn {
+                    question: "old prompt".to_string(),
+                    answer: Some("old answer".to_string()),
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn fallback_match_is_ambiguous_when_multiple_sessions_share_same_slot() {
         let index = SessionCacheIndex {
             version: 1,

@@ -39,8 +39,11 @@ pub fn persist_hook_event(
 
     let prompt = clean_text(event.prompt.as_deref())
         .or_else(|| clean_text(panel.last_user_prompt.as_deref()));
-    let assistant = clean_text(event.last_assistant_message.as_deref())
-        .or_else(|| clean_text(panel.last_assistant_message.as_deref()));
+    let assistant = match event.event.as_str() {
+        "user_prompt_submit" => clean_text(event.last_assistant_message.as_deref()),
+        _ => clean_text(event.last_assistant_message.as_deref())
+            .or_else(|| clean_text(panel.last_assistant_message.as_deref())),
+    };
 
     merge_recent_turns(
         &mut index.sessions[record_idx].recent_turns,
