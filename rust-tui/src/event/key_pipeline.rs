@@ -67,8 +67,12 @@ pub(super) fn handle_paste(app: &mut App, text: &str) {
     } else if app.telegram_editing {
         app.telegram_edit_buffer.push_str(text);
         app.dirty = true;
-    } else if app.thread_meta_editing {
-        app.thread_meta_buffer.push_str(text);
+    } else if app.sidebar.thread_meta_editing {
+        app.sidebar.thread_meta_buffer.push_str(text);
+        app.dirty = true;
+    } else if app.mode == Mode::Settings && app.settings_searching {
+        app.settings_search.push_str(text);
+        app.settings_selected = 0;
         app.dirty = true;
     } else if app.mode == Mode::Search {
         app.search_query.push_str(text);

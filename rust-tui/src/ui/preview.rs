@@ -27,7 +27,7 @@ pub use session::render_session_detail_lines;
 pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
     let theme = app.theme.clone();
     let l = app.locale;
-    let preview_is_focused = app.preview_focus == FocusTarget::Preview;
+    let preview_is_focused = app.preview.focus == FocusTarget::Preview;
     let focus_mark = if preview_is_focused { "●" } else { "○" };
     let title = format!(" {} {} ", focus_mark, crate::i18n::t(l, "preview.title"));
 
@@ -155,8 +155,8 @@ pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
 
         layout::draw_preview_info_card(f, app, split[0], &theme, &thread);
 
-        if app.preview_source == crate::model::PreviewSource::Session
-            && !app.preview_turns.is_empty()
+        if app.preview.source == crate::model::PreviewSource::Session
+            && !app.preview.turns.is_empty()
         {
             session::draw_session_preview(f, app, split[1], &theme);
         } else {

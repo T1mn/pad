@@ -23,8 +23,8 @@ pub(crate) fn draw_preview_info_card(
 ) {
     let l = app.locale;
     let live_panel = app.selected_panel().cloned();
-    let cache_badge_label = if app.preview_source == crate::model::PreviewSource::Session
-        && app.preview_session_origin != Some(crate::model::PreviewSessionOrigin::App)
+    let cache_badge_label = if app.preview.source == crate::model::PreviewSource::Session
+        && app.preview.session_origin != Some(crate::model::PreviewSessionOrigin::App)
         && thread.session_cache_state == Some(crate::model::SessionCacheState::Cached)
     {
         Some(crate::i18n::t(l, "preview.session_cached"))
@@ -52,7 +52,8 @@ pub(crate) fn draw_preview_info_card(
         String::from("—")
     };
     let session_id = app
-        .preview_session_id
+        .preview
+        .session_id
         .as_deref()
         .or(thread.session_id.as_deref())
         .unwrap_or("—");
@@ -149,7 +150,8 @@ pub fn preview_sid_text_at(app: &mut App, area: Rect, column: u16, row: u16) -> 
     };
 
     let session_id = app
-        .preview_session_id
+        .preview
+        .session_id
         .as_deref()
         .or(thread.session_id.as_deref())
         .unwrap_or("—");
@@ -230,16 +232,16 @@ pub(crate) fn preview_visible_plain_text_rows(app: &mut App, area: Rect) -> Vec<
         return Vec::new();
     }
 
-    if app.preview_source == crate::model::PreviewSource::Session
-        && !app.preview_turns.is_empty()
-        && app.preview_view == crate::model::PreviewView::SessionDetail
+    if app.preview.source == crate::model::PreviewSource::Session
+        && !app.preview.turns.is_empty()
+        && app.preview.view == crate::model::PreviewView::SessionDetail
     {
         return preview_detail_visible_rows(app, area);
     }
 
-    if app.preview_source == crate::model::PreviewSource::Session
-        && !app.preview_turns.is_empty()
-        && app.preview_view == crate::model::PreviewView::SessionList
+    if app.preview.source == crate::model::PreviewSource::Session
+        && !app.preview.turns.is_empty()
+        && app.preview.view == crate::model::PreviewView::SessionList
     {
         return preview_session_list_visible_rows(app, area);
     }
@@ -248,10 +250,10 @@ pub(crate) fn preview_visible_plain_text_rows(app: &mut App, area: Rect) -> Vec<
 }
 
 fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
-    let target_key = app.preview_pane_id.clone().unwrap_or_default();
+    let target_key = app.preview.pane_id.clone().unwrap_or_default();
     let theme_name = app.theme.name.to_string();
-    let content = app.preview_content.clone();
-    let cache_hit = app.preview_plain_cache.as_ref().is_some_and(|cache| {
+    let content = app.preview.content.clone();
+    let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
         cache.target_key == target_key
             && cache.width == area.width
             && cache.theme_name == theme_name
@@ -264,7 +266,7 @@ fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
             .map(|line| Line::from(super::markdown::format_line(line, &app.theme)))
             .collect();
         let wrapped_rows = super::plain::wrapped_row_count_for_lines(&lines, area.width as usize);
-        app.preview_plain_cache = Some(crate::app::PreviewPlainCache {
+        app.preview.plain_cache = Some(crate::app::PreviewPlainCache {
             target_key,
             width: area.width,
             theme_name,
@@ -276,7 +278,8 @@ fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
 
     let scroll = super::plain::resolve_preview_scroll_from_cache(app, area) as usize;
     let wrapped = app
-        .preview_plain_cache
+        .preview
+        .plain_cache
         .as_ref()
         .map(|cache| {
             cache
@@ -300,16 +303,16 @@ fn preview_session_list_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut selected_range = None;
 
-    for (idx, turn) in app.preview_turns.iter().enumerate() {
+    for (idx, turn) in app.preview.turns.iter().enumerate() {
         let start = lines.len();
         lines.extend(render_session_card(
             turn,
-            idx == app.preview_selected_turn.unwrap_or(usize::MAX),
+            idx == app.preview.selected_turn.unwrap_or(usize::MAX),
             width,
             &app.theme,
         ));
         let end = lines.len().saturating_sub(1);
-        if app.preview_selected_turn == Some(idx) {
+        if app.preview.selected_turn == Some(idx) {
             selected_range = Some((start, end));
         }
     }
@@ -325,14 +328,14 @@ fn preview_session_list_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
 }
 
 fn preview_detail_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
-    let Some(selected) = app.preview_expanded_turn else {
+    let Some(selected) = app.preview.expanded_turn else {
         return Vec::new();
     };
-    let Some(turn) = app.preview_turns.get(selected).cloned() else {
+    let Some(turn) = app.preview.turns.get(selected).cloned() else {
         return Vec::new();
     };
 
-    let target_key = app.preview_pane_id.clone().unwrap_or_default();
+    let target_key = app.preview.pane_id.clone().unwrap_or_default();
     let theme_name = app.theme.name.to_string();
     let lines = app
         .cached_preview_detail_for(

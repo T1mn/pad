@@ -1,39 +1,35 @@
+mod animation;
+mod folder_row;
+mod metrics;
+mod style;
+mod thread_row;
+
 use crate::app::state::FocusTarget;
 use crate::app::App;
 use crate::i18n::Locale;
-use crate::model::AgentState;
-use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
+use crate::sidebar::SidebarItem;
 use ratatui::{
     layout::{Alignment, Constraint, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Cell, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+        Block, BorderType, Borders, Paragraph, Row, Scrollbar, ScrollbarOrientation,
         ScrollbarState, Table, Wrap,
     },
     Frame,
 };
-use std::path::Path;
-use std::sync::OnceLock;
-use std::time::{Duration, Instant};
-
-const SHIMMER_SWEEP_SECONDS: f32 = 2.0;
-const SHIMMER_PADDING: f32 = 10.0;
-const SHIMMER_BAND_HALF_WIDTH: f32 = 5.0;
 
 pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let theme = app.theme.clone();
     let l = app.locale;
-    let archived_threads_view = app.archived_threads_view;
+    let archived_threads_view = app.sidebar.archived_threads_view;
     let showing_live = app.showing_live_sessions();
-    let panel_is_focused = !app.show_tree && app.preview_focus == FocusTarget::Panel;
+    let panel_is_focused = !app.sidebar.show_tree && app.preview.focus == FocusTarget::Panel;
     let selected_idx = app.table_state.selected();
-    let expanded_folders = app.expanded_folders.clone();
-    let hovered_folder_key = app.hovered_folder_key.clone();
+    let expanded_folders = app.sidebar.expanded_folders.clone();
+    let hovered_folder_key = app.sidebar.hovered_folder_key.clone();
 
-    // 1. Calculate count first
     let item_count = app.visible_sidebar_items_ref().len();
-
     let border_color = if panel_is_focused {
         theme.border_focused
     } else {
@@ -66,12 +62,9 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // 2. Scope the mutable borrow of app
-    let show_scrollbar;
-    let actual_item_count;
-    {
+    let (show_scrollbar, actual_item_count) = {
         let items = app.visible_sidebar_items_ref();
-        actual_item_count = items.len();
+        let actual_item_count = items.len();
         let content_width = inner.width as usize;
         let is_minimal = content_width < 12;
         let total_h: usize = items
@@ -87,7 +80,7 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
                 }
             })
             .sum();
-        show_scrollbar = total_h > inner.height as usize;
+        let show_scrollbar = total_h > inner.height as usize;
 
         if items.is_empty() {
             let empty_msg = if archived_threads_view {
@@ -165,9 +158,9 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
             f.render_stateful_widget(table, inner, &mut table_state);
             app.table_state = table_state;
         }
-    }
+        (show_scrollbar, actual_item_count)
+    };
 
-    // 3. Render Scrollbar (app is no longer borrowed by items)
     if show_scrollbar && actual_item_count > 0 {
         let scrollbar = Scrollbar::default()
             .orientation(ScrollbarOrientation::VerticalRight)
@@ -195,7 +188,7 @@ fn build_sidebar_row(
     is_hovered_folder: bool,
 ) -> Row<'static> {
     match item {
-        SidebarItem::Folder(folder) => build_folder_row(
+        SidebarItem::Folder(folder) => folder_row::build_folder_row(
             folder,
             is_selected,
             content_width,
@@ -203,558 +196,9 @@ fn build_sidebar_row(
             is_expanded,
             is_hovered_folder,
         ),
-        SidebarItem::Thread(thread) => build_thread_row(thread, is_selected, content_width, theme),
-    }
-}
-
-fn build_folder_row(
-    folder: &SidebarFolder,
-    is_selected: bool,
-    content_width: usize,
-    theme: &crate::theme::Theme,
-    is_expanded: bool,
-    is_hovered: bool,
-) -> Row<'static> {
-    let is_minimal = content_width < 10;
-    let card_bg = sidebar_card_bg(is_selected, theme);
-    let card_fg = if is_selected {
-        theme.highlight_fg
-    } else {
-        theme.fg
-    };
-    let unread = folder.threads.iter().any(|thread| thread.has_unread_stop);
-    let icon = if is_expanded { "▾" } else { "▸" };
-
-    let mut spans = Vec::new();
-    spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    spans.push(Span::styled(
-        if is_selected { "▎" } else { " " },
-        Style::default()
-            .fg(if is_selected { theme.accent } else { card_bg })
-            .bg(card_bg),
-    ));
-
-    let icon_style = Style::default()
-        .fg(if is_hovered {
-            theme.border_focused
-        } else {
-            theme.comment
-        })
-        .bg(card_bg);
-    spans.push(Span::styled(format!("{} ", icon), icon_style));
-
-    if !is_minimal {
-        let count = folder.threads.len().to_string();
-        let count_width = display_width(&count);
-        let label_width = content_width.saturating_sub(7 + count_width).clamp(1, 30);
-        let label = truncate_to_width(&folder.label, label_width);
-        let used_width = 1 + 2 + display_width(&label) + 1 + count_width;
-
-        spans.push(Span::styled(
-            label,
-            maybe_bold(Style::default().fg(card_fg).bg(card_bg), unread),
-        ));
-
-        let fill_width = content_width.saturating_sub(used_width + 2);
-        if fill_width > 0 {
-            spans.push(Span::styled(
-                " ".repeat(fill_width),
-                Style::default().bg(card_bg),
-            ));
+        SidebarItem::Thread(thread) => {
+            thread_row::build_thread_row(thread, is_selected, content_width, theme)
         }
-
-        spans.push(Span::styled(
-            count,
-            Style::default()
-                .fg(if is_selected {
-                    theme.highlight_fg
-                } else {
-                    theme.comment
-                })
-                .bg(card_bg)
-                .add_modifier(Modifier::DIM),
-        ));
-    }
-
-    spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-
-    Row::new(vec![Cell::from(Text::from(vec![Line::from(spans)]))])
-        .height(1)
-        .style(Style::default().bg(theme.bg))
-}
-
-fn build_thread_row(
-    thread: &SidebarThread,
-    is_selected: bool,
-    content_width: usize,
-    theme: &crate::theme::Theme,
-) -> Row<'static> {
-    let is_minimal = content_width < 12;
-    let card_bg = sidebar_card_bg(is_selected, theme);
-    let card_fg = if is_selected {
-        theme.highlight_fg
-    } else {
-        theme.fg
-    };
-    let badge_color = badge_color(thread.agent_type.clone(), theme);
-    let is_working = thread_badge_breathes(&thread.state);
-    let unread = thread.has_unread_stop;
-
-    let mut lines = Vec::new();
-    let inner_card_width = content_width.saturating_sub(2);
-    let badge = "• ";
-    let badge_width = display_width(&badge);
-
-    let mut l1_spans = Vec::new();
-    l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    l1_spans.push(Span::styled(
-        badge,
-        if is_working {
-            breathing_badge_style(badge_color, card_bg, card_bg)
-        } else {
-            Style::default().fg(badge_color).bg(card_bg)
-        },
-    ));
-
-    if !is_minimal {
-        let meta = if thread.pinned {
-            " PIN"
-        } else if thread.is_live() {
-            " LIVE"
-        } else {
-            ""
-        };
-        let meta_width = display_width(meta);
-        let title_width = inner_card_width
-            .saturating_sub(badge_width + meta_width + 1)
-            .clamp(1, 52);
-        let compact_title = truncate_to_width(&thread.title, title_width);
-        let used_width = badge_width + display_width(&compact_title) + meta_width;
-        let title_color = if thread.state == AgentState::Waiting && !is_selected {
-            theme.success
-        } else {
-            card_fg
-        };
-
-        l1_spans.push(Span::styled(
-            compact_title,
-            maybe_bold(
-                Style::default()
-                    .fg(title_color)
-                    .bg(card_bg)
-                    .add_modifier(if is_selected {
-                        Modifier::BOLD
-                    } else {
-                        Modifier::empty()
-                    }),
-                unread,
-            ),
-        ));
-
-        let fill_width = inner_card_width.saturating_sub(used_width + 1);
-        if fill_width > 0 {
-            l1_spans.push(Span::styled(
-                " ".repeat(fill_width),
-                Style::default().bg(card_bg),
-            ));
-        }
-
-        if !meta.is_empty() {
-            l1_spans.push(Span::styled(
-                meta,
-                Style::default()
-                    .fg(if is_selected {
-                        theme.highlight_fg
-                    } else {
-                        theme.comment
-                    })
-                    .bg(card_bg)
-                    .add_modifier(Modifier::DIM),
-            ));
-        }
-    }
-    l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    lines.push(Line::from(l1_spans));
-
-    let subtitle = thread_subtitle(thread);
-    let subtitle_spans = if is_minimal {
-        vec![Span::styled(
-            " ".repeat(inner_card_width.saturating_sub(1)),
-            Style::default().bg(card_bg),
-        )]
-    } else {
-        build_thread_subtitle_spans(
-            thread,
-            &subtitle,
-            if is_selected {
-                blend_color(theme.highlight_fg, theme.comment, 0.34)
-            } else {
-                theme.comment
-            },
-            card_bg,
-            inner_card_width.saturating_sub(1),
-        )
-    };
-
-    let mut l2_spans = Vec::new();
-    l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    l2_spans.extend(subtitle_spans);
-    l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    lines.push(Line::from(l2_spans));
-
-    Row::new(vec![Cell::from(Text::from(lines))])
-        .height(2)
-        .style(Style::default().bg(theme.bg))
-}
-
-fn thread_badge_breathes(state: &AgentState) -> bool {
-    matches!(state, AgentState::Busy)
-}
-
-fn build_thread_subtitle_spans(
-    thread: &SidebarThread,
-    subtitle: &str,
-    color: Color,
-    row_bg: Color,
-    content_width: usize,
-) -> Vec<Span<'static>> {
-    let prefix = "  ";
-    let prefix_width = display_width(prefix);
-    let tags_text = thread_tags_text(thread, content_width / 3);
-    let tags_width = display_width(&tags_text);
-    let available_width = content_width.saturating_sub(prefix_width);
-    let subtitle_max_width = available_width
-        .saturating_sub(tags_width + if tags_width > 0 { 1 } else { 0 })
-        .max(1);
-    let compact_subtitle = truncate_to_width(subtitle, subtitle_max_width);
-    let subtitle_width = display_width(&compact_subtitle);
-    let spacer_width = content_width
-        .saturating_sub(prefix_width + subtitle_width + tags_width)
-        .max(1);
-    let mut spans = vec![
-        Span::styled(prefix.to_string(), Style::default().bg(row_bg)),
-        Span::styled(
-            compact_subtitle,
-            Style::default()
-                .fg(color)
-                .bg(row_bg)
-                .add_modifier(Modifier::DIM | Modifier::ITALIC),
-        ),
-    ];
-    spans.push(Span::styled(
-        " ".repeat(spacer_width),
-        Style::default().bg(row_bg),
-    ));
-    if !tags_text.is_empty() {
-        spans.push(Span::styled(
-            tags_text,
-            Style::default()
-                .fg(color)
-                .bg(row_bg)
-                .add_modifier(Modifier::DIM | Modifier::ITALIC),
-        ));
-    }
-    spans
-}
-
-fn thread_subtitle(thread: &SidebarThread) -> String {
-    thread
-        .subtitle
-        .as_deref()
-        .or_else(|| thread.last_user_prompt.as_deref())
-        .or_else(|| {
-            thread
-                .cached_preview_turns
-                .first()
-                .map(|turn| turn.question.as_str())
-        })
-        .or_else(|| thread.last_assistant_message.as_deref())
-        .unwrap_or("")
-        .trim()
-        .to_string()
-}
-
-fn thread_tags_text(thread: &SidebarThread, max_width: usize) -> String {
-    if thread.tags.is_empty() || max_width == 0 {
-        return String::new();
-    }
-
-    let mut rendered = String::new();
-    for tag in &thread.tags {
-        let candidate = if rendered.is_empty() {
-            format!("#{}", tag)
-        } else {
-            format!("{} #{}", rendered, tag)
-        };
-        if display_width(&candidate) > max_width {
-            break;
-        }
-        rendered = candidate;
-    }
-    rendered
-}
-
-fn badge_color(
-    agent_type: crate::model::AgentType,
-    theme: &crate::theme::Theme,
-) -> ratatui::style::Color {
-    match agent_type {
-        crate::model::AgentType::Claude => ratatui::style::Color::Rgb(249, 140, 87),
-        crate::model::AgentType::Codex => ratatui::style::Color::Rgb(88, 166, 255),
-        crate::model::AgentType::Kimi => ratatui::style::Color::Rgb(80, 200, 120),
-        crate::model::AgentType::Gemini => ratatui::style::Color::Rgb(110, 168, 254),
-        crate::model::AgentType::OpenCode => ratatui::style::Color::Rgb(250, 173, 20),
-        crate::model::AgentType::Aider => ratatui::style::Color::Rgb(163, 190, 140),
-        crate::model::AgentType::Cursor => ratatui::style::Color::Rgb(180, 140, 255),
-        crate::model::AgentType::Unknown => theme.comment,
-    }
-}
-
-fn sidebar_card_bg(is_selected: bool, theme: &crate::theme::Theme) -> Color {
-    if is_selected {
-        theme.highlight_bg
-    } else {
-        blend_color(theme.border, theme.bg, 0.12)
-    }
-}
-
-fn effective_surface_bg(row_bg: Color, is_selected: bool, theme: &crate::theme::Theme) -> Color {
-    match row_bg {
-        Color::Reset if is_selected => theme.highlight_bg,
-        Color::Reset => theme.border,
-        _ => row_bg,
-    }
-}
-
-fn agent_letter(agent_type: crate::model::AgentType) -> char {
-    match agent_type {
-        crate::model::AgentType::Claude => 'C',
-        crate::model::AgentType::Codex => 'X',
-        crate::model::AgentType::Kimi => 'K',
-        crate::model::AgentType::Gemini => 'G',
-        crate::model::AgentType::OpenCode => 'O',
-        crate::model::AgentType::Aider => 'A',
-        crate::model::AgentType::Cursor => 'R',
-        crate::model::AgentType::Unknown => '?',
-    }
-}
-
-fn leaf_dir_name(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string())
-        .unwrap_or_else(|| path.to_string())
-}
-
-fn truncate_to_width(text: &str, max_width: usize) -> String {
-    if max_width == 0 {
-        return String::new();
-    }
-    if display_width(text) <= max_width {
-        return text.to_string();
-    }
-
-    let ellipsis = "…";
-    let ellipsis_width = display_width(ellipsis);
-    let target_width = max_width.saturating_sub(ellipsis_width);
-    let mut result = String::new();
-    let mut used = 0usize;
-
-    for ch in text.chars() {
-        let width = char_display_width(ch);
-        if used + width > target_width {
-            break;
-        }
-        result.push(ch);
-        used += width;
-    }
-
-    result.push_str(ellipsis);
-    result
-}
-
-fn shimmer_spans(
-    text: &str,
-    base_color: Color,
-    highlight_color: Color,
-    bg: Color,
-) -> Vec<Span<'static>> {
-    let chars: Vec<char> = text.chars().collect();
-    if chars.is_empty() {
-        return Vec::new();
-    }
-
-    let total_width = display_width(text) as f32;
-    let period = total_width + SHIMMER_PADDING * 2.0;
-    let pos = (elapsed_since_start().as_secs_f32() % SHIMMER_SWEEP_SECONDS) / SHIMMER_SWEEP_SECONDS
-        * period;
-    let true_color = has_true_color();
-
-    let mut spans = Vec::with_capacity(chars.len());
-    let mut column = 0.0f32;
-
-    for ch in chars {
-        let width = char_display_width(ch).max(1) as f32;
-        let center = column + (width * 0.5);
-        let dist = ((center + SHIMMER_PADDING) - pos).abs();
-        let intensity = if dist <= SHIMMER_BAND_HALF_WIDTH {
-            let x = std::f32::consts::PI * (dist / SHIMMER_BAND_HALF_WIDTH);
-            0.5 * (1.0 + x.cos())
-        } else {
-            0.0
-        };
-        let style = if true_color {
-            let mixed = blend_color(highlight_color, base_color, intensity * 0.9);
-            Style::default()
-                .fg(mixed)
-                .bg(bg)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            fallback_style(base_color, bg, intensity)
-        };
-        spans.push(Span::styled(ch.to_string(), style));
-        column += width;
-    }
-
-    spans
-}
-
-fn breathing_badge_style(base_color: Color, surface_bg: Color, bg: Color) -> Style {
-    let intensity = breathing_intensity();
-    if has_true_color() {
-        let style = Style::default()
-            .fg(blend_color(base_color, surface_bg, 0.18 + intensity * 0.82))
-            .bg(bg);
-        if intensity >= 0.55 {
-            style.add_modifier(Modifier::BOLD)
-        } else {
-            style
-        }
-    } else {
-        fallback_style(base_color, bg, intensity)
-    }
-}
-
-fn breathing_intensity() -> f32 {
-    let phase =
-        (elapsed_since_start().as_secs_f32() % SHIMMER_SWEEP_SECONDS) / SHIMMER_SWEEP_SECONDS;
-    0.5 * (1.0 - (phase * std::f32::consts::TAU).cos())
-}
-
-fn elapsed_since_start() -> Duration {
-    static PROCESS_START: OnceLock<Instant> = OnceLock::new();
-    PROCESS_START.get_or_init(Instant::now).elapsed()
-}
-
-fn has_true_color() -> bool {
-    static HAS_TRUE_COLOR: OnceLock<bool> = OnceLock::new();
-    *HAS_TRUE_COLOR.get_or_init(|| {
-        let color_term = std::env::var("COLORTERM")
-            .unwrap_or_default()
-            .to_lowercase();
-        if color_term.contains("truecolor") || color_term.contains("24bit") {
-            return true;
-        }
-
-        let term = std::env::var("TERM").unwrap_or_default().to_lowercase();
-        term.contains("direct") || term.contains("truecolor") || term.contains("kitty")
-    })
-}
-
-fn fallback_style(base_color: Color, bg: Color, intensity: f32) -> Style {
-    let style = Style::default().fg(base_color).bg(bg);
-    if intensity >= 0.66 {
-        style.add_modifier(Modifier::BOLD)
-    } else if intensity <= 0.12 {
-        style.add_modifier(Modifier::DIM)
-    } else {
-        style
-    }
-}
-
-fn maybe_bold(style: Style, enabled: bool) -> Style {
-    if enabled {
-        style.add_modifier(Modifier::BOLD)
-    } else {
-        style
-    }
-}
-
-fn blend_color(highlight: Color, base: Color, mix: f32) -> Color {
-    let mix = mix.clamp(0.0, 1.0);
-    match (to_rgb(highlight), to_rgb(base)) {
-        (Some((hr, hg, hb)), Some((br, bg, bb))) => Color::Rgb(
-            blend_channel(hr, br, mix),
-            blend_channel(hg, bg, mix),
-            blend_channel(hb, bb, mix),
-        ),
-        _ if mix >= 0.5 => highlight,
-        _ => base,
-    }
-}
-
-fn blend_channel(highlight: u8, base: u8, mix: f32) -> u8 {
-    let highlight = highlight as f32;
-    let base = base as f32;
-    (base + (highlight - base) * mix).round().clamp(0.0, 255.0) as u8
-}
-
-fn to_rgb(color: Color) -> Option<(u8, u8, u8)> {
-    match color {
-        Color::Black => Some((0, 0, 0)),
-        Color::Red => Some((170, 0, 0)),
-        Color::Green => Some((0, 170, 0)),
-        Color::Yellow => Some((170, 85, 0)),
-        Color::Blue => Some((0, 0, 170)),
-        Color::Magenta => Some((170, 0, 170)),
-        Color::Cyan => Some((0, 170, 170)),
-        Color::Gray => Some((170, 170, 170)),
-        Color::DarkGray => Some((85, 85, 85)),
-        Color::LightRed => Some((255, 85, 85)),
-        Color::LightGreen => Some((85, 255, 85)),
-        Color::LightYellow => Some((255, 255, 85)),
-        Color::LightBlue => Some((85, 85, 255)),
-        Color::LightMagenta => Some((255, 85, 255)),
-        Color::LightCyan => Some((85, 255, 255)),
-        Color::White => Some((255, 255, 255)),
-        Color::Rgb(r, g, b) => Some((r, g, b)),
-        Color::Indexed(value) => Some((value, value, value)),
-        Color::Reset => None,
-    }
-}
-
-fn display_width(s: &str) -> usize {
-    s.chars().map(char_display_width).sum()
-}
-
-fn char_display_width(c: char) -> usize {
-    if c == '\t' {
-        return 4;
-    }
-    if c.is_control() {
-        return 0;
-    }
-
-    let code = c as u32;
-    if matches!(
-        code,
-        0x1100..=0x115F
-            | 0x2329..=0x232A
-            | 0x2E80..=0xA4CF
-            | 0xAC00..=0xD7A3
-            | 0xF900..=0xFAFF
-            | 0xFE10..=0xFE19
-            | 0xFE30..=0xFE6F
-            | 0xFF00..=0xFF60
-            | 0xFFE0..=0xFFE6
-            | 0x1F300..=0x1FAFF
-            | 0x20000..=0x3FFFD
-    ) {
-        2
-    } else {
-        1
     }
 }
 
@@ -809,18 +253,18 @@ fn is_cjk_locale(locale: Locale) -> bool {
 }
 
 pub fn preferred_panel_width(app: &mut App) -> u16 {
-    let archived_threads_view = app.archived_threads_view;
+    let archived_threads_view = app.sidebar.archived_threads_view;
     let locale = app.locale;
     let live_only = app.showing_live_sessions();
     let title_width = if archived_threads_view {
-        display_width(&format!(
+        metrics::display_width(&format!(
             " {} {} {} ",
             "○",
             archived_title_label(locale),
             88
         ))
     } else {
-        display_width(&format!(
+        metrics::display_width(&format!(
             " {} {} {} ",
             "○",
             display_scope_title_label(locale, live_only),
@@ -831,11 +275,15 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
     let content_width = items
         .iter()
         .map(|item| match item {
-            SidebarItem::Folder(folder) => 2 + display_width(&truncate_to_width(&folder.label, 28)),
+            SidebarItem::Folder(folder) => {
+                2 + metrics::display_width(&metrics::truncate_to_width(&folder.label, 28))
+            }
             SidebarItem::Thread(thread) => {
-                let subtitle = thread_subtitle(thread);
-                let title_width = display_width(&truncate_to_width(&thread.title, 34));
-                let subtitle_width = display_width(&truncate_to_width(&subtitle, 32));
+                let subtitle = thread_row::thread_subtitle(thread);
+                let title_width =
+                    metrics::display_width(&metrics::truncate_to_width(&thread.title, 34));
+                let subtitle_width =
+                    metrics::display_width(&metrics::truncate_to_width(&subtitle, 32));
                 9 + title_width.max(subtitle_width)
             }
         })
@@ -845,7 +293,7 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
 }
 
 pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
-    if let Some(ref mut tree) = app.file_tree {
+    if let Some(ref mut tree) = app.sidebar.file_tree {
         let theme = &app.theme;
         tree.render(f, area, theme);
     } else {
@@ -889,10 +337,15 @@ mod tests {
     #[test]
     fn shimmer_preserves_text_content() {
         let text = "rust-tui";
-        let rendered: String = shimmer_spans(text, Color::White, Color::Cyan, Color::Black)
-            .into_iter()
-            .map(|span| span.content.to_string())
-            .collect();
+        let rendered: String = animation::shimmer_spans(
+            text,
+            ratatui::style::Color::White,
+            ratatui::style::Color::Cyan,
+            ratatui::style::Color::Black,
+        )
+        .into_iter()
+        .map(|span| span.content.to_string())
+        .collect();
         assert_eq!(rendered, text);
     }
 
@@ -908,7 +361,7 @@ mod tests {
             agent_type: crate::model::AgentType::Codex,
             working_dir: "/tmp/rust-tui".into(),
             is_active: true,
-            state: AgentState::Busy,
+            state: crate::model::AgentState::Busy,
             state_source: crate::model::AgentStateSource::Scanner,
             transcript_path: None,
             cached_preview_turns: Vec::new(),
@@ -927,8 +380,14 @@ mod tests {
 
     #[test]
     fn waiting_threads_do_not_breathe() {
-        assert!(thread_badge_breathes(&AgentState::Busy));
-        assert!(!thread_badge_breathes(&AgentState::Waiting));
-        assert!(!thread_badge_breathes(&AgentState::Idle));
+        assert!(animation::thread_badge_breathes(
+            &crate::model::AgentState::Busy
+        ));
+        assert!(!animation::thread_badge_breathes(
+            &crate::model::AgentState::Waiting
+        ));
+        assert!(!animation::thread_badge_breathes(
+            &crate::model::AgentState::Idle
+        ));
     }
 }

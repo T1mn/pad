@@ -25,7 +25,7 @@ pub fn draw_delete_confirm(f: &mut Frame, app: &App, area: Rect) {
 
     render_modal_surface(f, popup_area, theme);
 
-    let panel_info = if let Some(ref panel) = app.delete_target {
+    let panel_info = if let Some(ref panel) = app.sidebar.delete_target {
         format!("{}:{}.{}", panel.session, panel.window_index, panel.pane)
     } else {
         String::from("Unknown")
@@ -56,12 +56,12 @@ pub fn draw_delete_confirm(f: &mut Frame, app: &App, area: Rect) {
 }
 
 pub fn draw_thread_action_confirm(f: &mut Frame, app: &App, area: Rect) {
-    if app.thread_meta_editing {
+    if app.sidebar.thread_meta_editing {
         draw_thread_meta_editor(f, app, area);
         return;
     }
 
-    let Some(action) = app.pending_thread_action.as_ref() else {
+    let Some(action) = app.sidebar.pending_thread_action.as_ref() else {
         return;
     };
 
@@ -128,15 +128,15 @@ pub fn draw_thread_action_confirm(f: &mut Frame, app: &App, area: Rect) {
 fn draw_thread_meta_editor(f: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
     let l = app.locale;
-    let Some(thread) = app.thread_meta_target.as_ref() else {
+    let Some(thread) = app.sidebar.thread_meta_target.as_ref() else {
         return;
     };
 
-    let title = thread_meta_editor_title(l, app.thread_meta_edit_kind);
+    let title = thread_meta_editor_title(l, app.sidebar.thread_meta_edit_kind);
     let subject = thread_action_subject(thread.title.as_str(), thread.session_id.as_deref());
-    let field_label = thread_meta_editor_field_label(l, app.thread_meta_edit_kind);
+    let field_label = thread_meta_editor_field_label(l, app.sidebar.thread_meta_edit_kind);
     let help_text = thread_meta_editor_help_text(l);
-    let prompt_text = thread_meta_editor_prompt_text(l, app.thread_meta_edit_kind);
+    let prompt_text = thread_meta_editor_prompt_text(l, app.sidebar.thread_meta_edit_kind);
 
     let popup_width = 72;
     let popup_height = 10;
@@ -156,7 +156,10 @@ fn draw_thread_meta_editor(f: &mut Frame, app: &App, area: Rect) {
     let subject = truncate_modal_line_middle(&subject, subject_width);
     let cursor_value = format!(
         "{}|",
-        truncate_modal_line_middle(&app.thread_meta_buffer, value_width.saturating_sub(1))
+        truncate_modal_line_middle(
+            &app.sidebar.thread_meta_buffer,
+            value_width.saturating_sub(1)
+        )
     );
     let lines = vec![
         Line::from(Span::styled(

@@ -14,17 +14,17 @@ use ratatui::{
     Frame,
 };
 pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    if app.preview_view == crate::model::PreviewView::SessionDetail {
-        if let Some(selected) = app.preview_expanded_turn {
+    if app.preview.view == crate::model::PreviewView::SessionDetail {
+        if let Some(selected) = app.preview.expanded_turn {
             draw_session_detail(f, app, area, theme, selected);
             return;
         }
     }
-    if app.preview_view == crate::model::PreviewView::SessionList
-        || app.preview_view == crate::model::PreviewView::SessionDetail
+    if app.preview.view == crate::model::PreviewView::SessionList
+        || app.preview.view == crate::model::PreviewView::SessionDetail
     {
         draw_session_list(f, app, area, theme);
-    } else if let Some(selected) = app.preview_expanded_turn {
+    } else if let Some(selected) = app.preview.expanded_turn {
         draw_session_detail(f, app, area, theme, selected);
     } else {
         draw_session_list(f, app, area, theme);
@@ -36,16 +36,16 @@ fn draw_session_list(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     let mut lines: Vec<Line> = Vec::new();
     let mut selected_range = None;
 
-    for (idx, turn) in app.preview_turns.iter().enumerate() {
+    for (idx, turn) in app.preview.turns.iter().enumerate() {
         let start = lines.len();
         lines.extend(render_session_card(
             turn,
-            idx == app.preview_selected_turn.unwrap_or(usize::MAX),
+            idx == app.preview.selected_turn.unwrap_or(usize::MAX),
             width,
             theme,
         ));
         let end = lines.len().saturating_sub(1);
-        if app.preview_selected_turn == Some(idx) {
+        if app.preview.selected_turn == Some(idx) {
             selected_range = Some((start, end));
         }
     }
@@ -58,10 +58,10 @@ fn draw_session_list(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
 }
 
 fn draw_session_detail(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, selected: usize) {
-    let Some(turn) = app.preview_turns.get(selected).cloned() else {
+    let Some(turn) = app.preview.turns.get(selected).cloned() else {
         return;
     };
-    let target_key = app.preview_pane_id.clone().unwrap_or_default();
+    let target_key = app.preview.pane_id.clone().unwrap_or_default();
     let theme_name = theme.name.to_string();
     let cache = app.cached_preview_detail_for(
         &target_key,
@@ -333,10 +333,11 @@ pub(crate) fn resolve_session_list_scroll(
     }
     let max_scroll = total_lines.saturating_sub(viewport_height as usize);
     let mut scroll = app
-        .preview_list_scroll
+        .preview
+        .list_scroll
         .min(max_scroll.min(u16::MAX as usize) as u16);
 
-    if app.preview_follow_selection {
+    if app.preview.follow_selection {
         if let Some((start, end)) = selected_range {
             let scroll_usize = scroll as usize;
             let viewport = viewport_height as usize;
@@ -353,7 +354,7 @@ pub(crate) fn resolve_session_list_scroll(
         }
     }
 
-    app.preview_list_scroll = scroll;
+    app.preview.list_scroll = scroll;
     scroll
 }
 
@@ -368,16 +369,16 @@ pub(crate) fn resolve_preview_scroll_for_line_count(
     let max_scroll = total_lines.saturating_sub(viewport_height as usize);
     let max_scroll = max_scroll.min(u16::MAX as usize) as u16;
     let scroll = if app.preview_uses_detail_scroll() {
-        app.preview_detail_scroll.min(max_scroll)
-    } else if app.preview_follow_bottom {
+        app.preview.detail_scroll.min(max_scroll)
+    } else if app.preview.follow_bottom {
         max_scroll
     } else {
-        app.preview_scroll.min(max_scroll)
+        app.preview.scroll.min(max_scroll)
     };
     if app.preview_uses_detail_scroll() {
-        app.preview_detail_scroll = scroll;
+        app.preview.detail_scroll = scroll;
     } else {
-        app.preview_scroll = scroll;
+        app.preview.scroll = scroll;
     }
     scroll
 }

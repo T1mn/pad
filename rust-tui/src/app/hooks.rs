@@ -65,6 +65,7 @@ impl App {
                     panel.state_source = AgentStateSource::Hook;
                     panel.is_active = true;
                     panel.last_user_prompt = event.prompt.clone();
+                    panel.last_assistant_message = None;
                     panel.has_unread_stop = false;
                 }
                 "stop" => {
@@ -139,7 +140,7 @@ impl App {
             .clone()
             .or(activity.transcript_path.clone())
             .unwrap_or_else(|| format!("{}:{}", activity.agent_type, activity.working_dir));
-        self.app_thread_activity.insert(key, activity);
+        self.sidebar.app_thread_activity.insert(key, activity);
         self.prune_app_thread_activity(unix_now_ts());
         self.invalidate_sidebar_cache();
         self.sync_sidebar_selection();
@@ -151,12 +152,14 @@ impl App {
 
     pub(crate) fn prune_app_thread_activity(&mut self, now_ts: i64) -> bool {
         let cutoff = now_ts.saturating_sub(APP_THREAD_ACTIVITY_TTL_SECS);
-        let before = self.app_thread_activity.len();
-        self.app_thread_activity
+        let before = self.sidebar.app_thread_activity.len();
+        self.sidebar
+            .app_thread_activity
             .retain(|_, activity| activity.updated_at >= cutoff);
 
-        if self.app_thread_activity.len() > APP_THREAD_ACTIVITY_MAX_ENTRIES {
+        if self.sidebar.app_thread_activity.len() > APP_THREAD_ACTIVITY_MAX_ENTRIES {
             let mut keys_by_freshness = self
+                .sidebar
                 .app_thread_activity
                 .iter()
                 .map(|(key, activity)| (key.clone(), activity.updated_at))
@@ -168,15 +171,17 @@ impl App {
                 .take(APP_THREAD_ACTIVITY_MAX_ENTRIES)
                 .map(|item| item.0)
                 .collect::<HashSet<_>>();
-            self.app_thread_activity.retain(|key, _| keep.contains(key));
+            self.sidebar
+                .app_thread_activity
+                .retain(|key, _| keep.contains(key));
         }
 
-        self.app_thread_activity.len() != before
+        self.sidebar.app_thread_activity.len() != before
     }
 
     fn panel_item_is_focused(&mut self, pane_id: &str) -> bool {
-        !self.show_tree
-            && self.preview_focus == super::state::FocusTarget::Panel
+        !self.sidebar.show_tree
+            && self.preview.focus == super::state::FocusTarget::Panel
             && self
                 .selected_preview_thread()
                 .and_then(|thread| thread.live_pane_id)
@@ -185,7 +190,7 @@ impl App {
     }
 
     pub fn clear_unread_stop_for_selected_panel(&mut self) {
-        if self.show_tree || self.preview_focus != super::state::FocusTarget::Panel {
+        if self.sidebar.show_tree || self.preview.focus != super::state::FocusTarget::Panel {
             return;
         }
 
@@ -348,7 +353,7 @@ mod tests {
             has_unread_stop: false,
         });
         app.table_state.select(Some(0));
-        app.preview_focus = FocusTarget::Preview;
+        app.preview.focus = FocusTarget::Preview;
 
         app.apply_hook_event(stop_event("%1"));
 
@@ -381,7 +386,7 @@ mod tests {
             has_unread_stop: true,
         });
         app.table_state.select(Some(0));
-        app.preview_focus = FocusTarget::Preview;
+        app.preview.focus = FocusTarget::Preview;
 
         app.focus_panel();
 
@@ -392,7 +397,7 @@ mod tests {
     fn app_thread_activity_prunes_by_ttl_and_cap() {
         let mut app = App::new();
         let now = 2_000_000i64;
-        app.app_thread_activity.insert(
+        app.sidebar.app_thread_activity.insert(
             "stale".into(),
             ThreadActivityOverride {
                 agent_type: AgentType::Codex,
@@ -407,7 +412,7 @@ mod tests {
             },
         );
         for i in 0..(APP_THREAD_ACTIVITY_MAX_ENTRIES + 8) {
-            app.app_thread_activity.insert(
+            app.sidebar.app_thread_activity.insert(
                 format!("recent:{}", i),
                 ThreadActivityOverride {
                     agent_type: AgentType::Codex,
@@ -424,14 +429,15 @@ mod tests {
         }
 
         assert!(app.prune_app_thread_activity(now));
-        assert!(!app.app_thread_activity.contains_key("stale"));
+        assert!(!app.sidebar.app_thread_activity.contains_key("stale"));
         assert_eq!(
-            app.app_thread_activity.len(),
+            app.sidebar.app_thread_activity.len(),
             APP_THREAD_ACTIVITY_MAX_ENTRIES
         );
         assert!(app
+            .sidebar
             .app_thread_activity
             .contains_key(&format!("recent:{}", APP_THREAD_ACTIVITY_MAX_ENTRIES + 7)));
-        assert!(!app.app_thread_activity.contains_key("recent:0"));
+        assert!(!app.sidebar.app_thread_activity.contains_key("recent:0"));
     }
 }

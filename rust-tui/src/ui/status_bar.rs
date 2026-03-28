@@ -30,7 +30,9 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         crate::app::state::Mode::FilePreview => {
             mode_badge(crate::i18n::t(l, "mode.preview"), theme.mode_tree_bg)
         }
-        _ if app.show_tree => mode_badge(crate::i18n::t(l, "mode.tree"), theme.mode_tree_bg),
+        _ if app.sidebar.show_tree => {
+            mode_badge(crate::i18n::t(l, "mode.tree"), theme.mode_tree_bg)
+        }
         _ => mode_badge(crate::i18n::t(l, "mode.normal"), theme.mode_normal_bg),
     };
     let mode_width = display_width(mode_span.content.as_ref());
@@ -44,7 +46,19 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             crate::i18n::t(l, "status.confirm"),
             crate::i18n::t(l, "status.cancel")
         ),
-        crate::app::state::Mode::Settings => String::from(crate::i18n::t(l, "status.settings_nav")),
+        crate::app::state::Mode::Settings => {
+            if app.settings_searching {
+                format!(
+                    "{}: {}  Enter {}  Esc {}",
+                    crate::i18n::t(l, "status.search"),
+                    app.settings_search,
+                    crate::i18n::t(l, "status.confirm"),
+                    crate::i18n::t(l, "status.back")
+                )
+            } else {
+                settings_status_body(app)
+            }
+        }
         crate::app::state::Mode::TelegramSettings => {
             String::from(crate::i18n::t(l, "status.settings_nav"))
         }
@@ -71,6 +85,55 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(status_bar, area);
 }
 
+fn settings_status_body(app: &App) -> String {
+    let zh = matches!(
+        app.locale,
+        crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW
+    );
+    if app.settings_focus == crate::app::state::SettingsFocus::List {
+        if zh {
+            "j/k: 移动 | Enter: 打开 | /: 搜索 | Esc: 关闭".to_string()
+        } else {
+            "j/k: move | Enter: open | /: search | Esc: close".to_string()
+        }
+    } else {
+        match app.current_settings_detail_kind() {
+            Some(crate::app::state::SettingsDetailKind::Relay) => {
+                if app.relay_editing {
+                    crate::i18n::t(app.locale, "relay.footer_edit").to_string()
+                } else {
+                    match app.relay_view {
+                        crate::app::state::RelayView::AgentList => {
+                            crate::i18n::t(app.locale, "relay.footer_agent").to_string()
+                        }
+                        crate::app::state::RelayView::ProviderList => {
+                            crate::i18n::t(app.locale, "relay.footer_provider").to_string()
+                        }
+                        crate::app::state::RelayView::DetailPane => {
+                            crate::i18n::t(app.locale, "relay.footer_detail").to_string()
+                        }
+                    }
+                }
+            }
+            Some(crate::app::state::SettingsDetailKind::Telegram) => {
+                if zh {
+                    "j/k: 移动 | Enter/Space: 编辑/切换 | r: 重启 | Esc: 返回列表".to_string()
+                } else {
+                    "j/k: move | Enter/Space: edit/toggle | r: restart | Esc: back".to_string()
+                }
+            }
+            Some(crate::app::state::SettingsDetailKind::Theme) => {
+                if zh {
+                    "j/k: 移动 | Enter: 应用 | Esc: 返回列表".to_string()
+                } else {
+                    "j/k: move | Enter: apply | Esc: back".to_string()
+                }
+            }
+            _ => String::from(crate::i18n::t(app.locale, "status.settings_nav")),
+        }
+    }
+}
+
 fn compose_status_body(app: &App, width: u16) -> String {
     let l = app.locale;
     let elapsed = app.last_refresh.elapsed().as_secs();
@@ -79,8 +142,8 @@ fn compose_status_body(app: &App, width: u16) -> String {
     } else {
         String::new()
     };
-    let left = if app.show_tree {
-        if let Some(path) = &app.file_preview_path {
+    let left = if app.sidebar.show_tree {
+        if let Some(path) = &app.preview.file_preview_path {
             format!("📁 {}", path.display())
         } else {
             crate::i18n::t(l, "tree.explorer").to_string()
@@ -94,10 +157,10 @@ fn compose_status_body(app: &App, width: u16) -> String {
         )
     };
 
-    let right_hint = if app.show_tree {
+    let right_hint = if app.sidebar.show_tree {
         crate::i18n::t(l, "status.tree_nav")
     } else if app.preview_is_focused() {
-        if app.preview_source == PreviewSource::Session && !app.preview_turns.is_empty() {
+        if app.preview.source == PreviewSource::Session && !app.preview.turns.is_empty() {
             crate::i18n::t(l, "status.preview_session_nav")
         } else {
             crate::i18n::t(l, "status.preview_nav")
@@ -106,7 +169,7 @@ fn compose_status_body(app: &App, width: u16) -> String {
         crate::i18n::t(l, "status.normal_nav_panel")
     };
 
-    let left_text = if app.show_tree {
+    let left_text = if app.sidebar.show_tree {
         format!(
             "{}  {}s {}{}",
             left,

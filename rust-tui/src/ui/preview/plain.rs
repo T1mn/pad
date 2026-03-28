@@ -20,10 +20,10 @@ pub(crate) fn draw_plain_preview(
     theme: &Theme,
 ) {
     let viewport = if with_block { block.inner(area) } else { area };
-    let target_key = app.preview_pane_id.clone().unwrap_or_default();
+    let target_key = app.preview.pane_id.clone().unwrap_or_default();
     let theme_name = theme.name.to_string();
-    let content = app.preview_content.clone();
-    let cache_hit = app.preview_plain_cache.as_ref().is_some_and(|cache| {
+    let content = app.preview.content.clone();
+    let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
         cache.target_key == target_key
             && cache.width == viewport.width
             && cache.theme_name == theme_name
@@ -46,7 +46,7 @@ pub(crate) fn draw_plain_preview(
                 elapsed.as_millis()
             );
         }
-        app.preview_plain_cache = Some(PreviewPlainCache {
+        app.preview.plain_cache = Some(PreviewPlainCache {
             target_key,
             width: viewport.width,
             theme_name,
@@ -58,7 +58,8 @@ pub(crate) fn draw_plain_preview(
 
     let scroll = resolve_preview_scroll_from_cache(app, viewport);
     let lines = app
-        .preview_plain_cache
+        .preview
+        .plain_cache
         .as_ref()
         .map(|cache| cache.lines.clone())
         .unwrap_or_default();
@@ -76,7 +77,8 @@ pub(crate) fn draw_plain_preview(
 
 pub(crate) fn resolve_preview_scroll_from_cache(app: &mut App, viewport: Rect) -> u16 {
     let max_scroll = app
-        .preview_plain_cache
+        .preview
+        .plain_cache
         .as_ref()
         .filter(|cache| cache.width == viewport.width)
         .map(|cache| {
@@ -86,14 +88,14 @@ pub(crate) fn resolve_preview_scroll_from_cache(app: &mut App, viewport: Rect) -
                 .min(u16::MAX as usize) as u16
         })
         .unwrap_or_else(|| {
-            precise_preview_max_scroll(&app.preview_content, viewport.width, viewport.height)
+            precise_preview_max_scroll(&app.preview.content, viewport.width, viewport.height)
         });
-    let scroll = if app.preview_follow_bottom {
+    let scroll = if app.preview.follow_bottom {
         max_scroll
     } else {
-        app.preview_scroll.min(max_scroll)
+        app.preview.scroll.min(max_scroll)
     };
-    app.preview_scroll = scroll;
+    app.preview.scroll = scroll;
     scroll
 }
 

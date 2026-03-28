@@ -13,7 +13,7 @@ pub type ScanResult = Result<Vec<AgentPanel>, Box<dyn Error + Send + Sync>>;
 
 impl App {
     pub fn trigger_async_preview_detail_render(&mut self, width: u16) {
-        if self.preview_detail_render_in_progress {
+        if self.preview.detail_render_in_progress {
             return;
         }
         let Some(mut request) = self.current_preview_detail_request() else {
@@ -21,17 +21,18 @@ impl App {
         };
         request.width = width;
         if self
-            .preview_detail_pending_request
+            .preview
+            .detail_pending_request
             .as_ref()
             .is_some_and(|pending| pending == &request)
         {
             return;
         }
-        self.preview_detail_render_in_progress = true;
-        self.preview_detail_pending_request = Some(request.clone());
+        self.preview.detail_render_in_progress = true;
+        self.preview.detail_pending_request = Some(request.clone());
         let theme = Theme::by_name(&request.theme_name);
         let (tx, rx) = mpsc::channel::<crate::app::PreviewDetailCache>(1);
-        self.preview_detail_render_rx = Some(rx);
+        self.preview.detail_render_rx = Some(rx);
 
         tokio::task::spawn_blocking(move || {
             let started_at = Instant::now();
@@ -65,36 +66,36 @@ impl App {
     }
 
     pub fn check_preview_detail_result(&mut self) {
-        if let Some(ref mut rx) = self.preview_detail_render_rx {
+        if let Some(ref mut rx) = self.preview.detail_render_rx {
             match rx.try_recv() {
                 Ok(cache) => {
                     self.store_preview_detail_cache(cache);
-                    self.preview_detail_render_in_progress = false;
-                    self.preview_detail_render_rx = None;
-                    self.preview_detail_pending_request = None;
+                    self.preview.detail_render_in_progress = false;
+                    self.preview.detail_render_rx = None;
+                    self.preview.detail_pending_request = None;
                     self.dirty = true;
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
-                    self.preview_detail_render_in_progress = false;
-                    self.preview_detail_render_rx = None;
-                    self.preview_detail_pending_request = None;
+                    self.preview.detail_render_in_progress = false;
+                    self.preview.detail_render_rx = None;
+                    self.preview.detail_pending_request = None;
                 }
             }
         }
     }
 
     pub fn check_preview_detail_update(&mut self, width: u16) {
-        if self.preview_view != PreviewView::SessionDetail {
+        if self.preview.view != PreviewView::SessionDetail {
             return;
         }
-        let Some(selected) = self.preview_expanded_turn else {
+        let Some(selected) = self.preview.expanded_turn else {
             return;
         };
-        let Some(turn) = self.preview_turns.get(selected).cloned() else {
+        let Some(turn) = self.preview.turns.get(selected).cloned() else {
             return;
         };
-        let target_key = self.preview_pane_id.clone().unwrap_or_default();
+        let target_key = self.preview.pane_id.clone().unwrap_or_default();
         let theme_name = self.theme.name.to_string();
         if self
             .cached_preview_detail_for(
@@ -181,7 +182,7 @@ impl App {
         let sidebar_changed = self.sidebar_panels_changed(&panels);
         self.panels = panels;
         if sidebar_changed
-            || (!self.panels.is_empty() && self.visible_sidebar_items_cache.is_empty())
+            || (!self.panels.is_empty() && self.sidebar.visible_sidebar_items_cache.is_empty())
         {
             self.invalidate_sidebar_cache();
             self.sync_sidebar_selection();
@@ -195,8 +196,8 @@ impl App {
     }
 
     fn apply_preview_update_result(&mut self, update: PreviewUpdate) {
-        let cached_detail_turn = self.preview_detail_cache.as_ref().and_then(|cache| {
-            self.preview_turns.get(cache.turn_index).map(|turn| {
+        let cached_detail_turn = self.preview.detail_cache.as_ref().and_then(|cache| {
+            self.preview.turns.get(cache.turn_index).map(|turn| {
                 (
                     cache.target_key.clone(),
                     cache.turn_index,
@@ -206,7 +207,7 @@ impl App {
                 )
             })
         });
-        let cached_plain_context = self.preview_plain_cache.as_ref().map(|cache| {
+        let cached_plain_context = self.preview.plain_cache.as_ref().map(|cache| {
             (
                 cache.target_key.clone(),
                 cache.width,
@@ -219,65 +220,67 @@ impl App {
             .iter()
             .find(|panel| update.live_pane_id.as_deref() == Some(panel.pane_id.as_str()))
             .and_then(|panel| panel.session_cache_state);
-        let previous_pane_id = self.preview_pane_id.clone();
-        let previous_source = self.preview_source;
-        let previous_view = self.preview_view;
-        let previous_session_origin = self.preview_session_origin;
-        let previous_session_id = self.preview_session_id.clone();
-        let previous_content = self.preview_content.clone();
-        let previous_turns = self.preview_turns.clone();
-        let previous_selected_turn = self.preview_selected_turn;
-        let previous_expanded_turn = self.preview_expanded_turn;
-        let previous_list_scroll = self.preview_list_scroll;
-        let previous_detail_scroll = self.preview_detail_scroll;
-        let previous_follow_bottom = self.preview_follow_bottom;
-        let previous_follow_selection = self.preview_follow_selection;
-        let should_follow_bottom = self.preview_follow_bottom
-            || self.preview_pane_id.is_none()
-            || self.preview_pane_id.as_deref() != Some(update.target_key.as_str());
-        let same_context = self.preview_pane_id.as_deref() == Some(update.target_key.as_str())
-            && self.preview_source == update.source
-            && self.preview_session_origin == update.session_origin
-            && self.preview_session_id == update.session_id;
-        self.preview_content = update.content;
-        self.preview_pane_id = Some(update.target_key.clone());
-        self.preview_source = update.source;
-        self.preview_session_origin = update.session_origin;
-        self.preview_session_id = update.session_id.clone();
-        if self.preview_source == crate::model::PreviewSource::Session && !update.turns.is_empty() {
+        let previous_pane_id = self.preview.pane_id.clone();
+        let previous_source = self.preview.source;
+        let previous_view = self.preview.view;
+        let previous_session_origin = self.preview.session_origin;
+        let previous_session_id = self.preview.session_id.clone();
+        let previous_content = self.preview.content.clone();
+        let previous_turns = self.preview.turns.clone();
+        let previous_selected_turn = self.preview.selected_turn;
+        let previous_expanded_turn = self.preview.expanded_turn;
+        let previous_list_scroll = self.preview.list_scroll;
+        let previous_detail_scroll = self.preview.detail_scroll;
+        let previous_follow_bottom = self.preview.follow_bottom;
+        let previous_follow_selection = self.preview.follow_selection;
+        let should_follow_bottom = self.preview.follow_bottom
+            || self.preview.pane_id.is_none()
+            || self.preview.pane_id.as_deref() != Some(update.target_key.as_str());
+        let same_context = self.preview.pane_id.as_deref() == Some(update.target_key.as_str())
+            && self.preview.source == update.source
+            && self.preview.session_origin == update.session_origin
+            && self.preview.session_id == update.session_id;
+        self.preview.content = update.content;
+        self.preview.pane_id = Some(update.target_key.clone());
+        self.preview.source = update.source;
+        self.preview.session_origin = update.session_origin;
+        self.preview.session_id = update.session_id.clone();
+        if self.preview.source == crate::model::PreviewSource::Session && !update.turns.is_empty() {
             if !same_context {
-                self.preview_selected_turn = None;
-                self.preview_expanded_turn = None;
-                self.preview_view = PreviewView::SessionList;
-                self.preview_detail_scroll = 0;
-                self.preview_list_scroll = 0;
-                self.preview_follow_selection = true;
+                self.preview.selected_turn = None;
+                self.preview.expanded_turn = None;
+                self.preview.view = PreviewView::SessionList;
+                self.preview.detail_scroll = 0;
+                self.preview.list_scroll = 0;
+                self.preview.follow_selection = true;
             } else {
-                self.preview_selected_turn = self
-                    .preview_selected_turn
+                self.preview.selected_turn = self
+                    .preview
+                    .selected_turn
                     .filter(|idx| *idx < update.turns.len());
-                self.preview_expanded_turn = self
-                    .preview_expanded_turn
+                self.preview.expanded_turn = self
+                    .preview
+                    .expanded_turn
                     .filter(|idx| *idx < update.turns.len());
-                self.preview_view = if self.preview_expanded_turn.is_some() {
+                self.preview.view = if self.preview.expanded_turn.is_some() {
                     PreviewView::SessionDetail
                 } else {
                     PreviewView::SessionList
                 };
             }
-            self.preview_turns = update.turns.clone();
-            self.preview_follow_bottom = false;
+            self.preview.turns = update.turns.clone();
+            self.preview.follow_bottom = false;
         } else {
-            self.preview_turns.clear();
-            self.preview_session_origin = None;
-            self.preview_session_id = None;
-            self.preview_selected_turn = None;
-            self.preview_expanded_turn = None;
-            self.preview_view = PreviewView::Plain;
-            self.preview_list_scroll = 0;
-            self.preview_detail_scroll = 0;
-            self.preview_follow_bottom = should_follow_bottom;
-            self.preview_follow_selection = true;
+            self.preview.turns.clear();
+            self.preview.session_origin = None;
+            self.preview.session_id = None;
+            self.preview.selected_turn = None;
+            self.preview.expanded_turn = None;
+            self.preview.view = PreviewView::Plain;
+            self.preview.list_scroll = 0;
+            self.preview.detail_scroll = 0;
+            self.preview.follow_bottom = should_follow_bottom;
+            self.preview.follow_selection = true;
         }
 
         let preserve_detail_cache = cached_detail_turn.as_ref().is_some_and(
@@ -294,33 +297,34 @@ impl App {
             },
         );
         if !preserve_detail_cache {
-            self.preview_detail_cache = None;
-            self.preview_detail_lru.clear();
-            self.preview_detail_render_in_progress = false;
-            self.preview_detail_render_rx = None;
-            self.preview_detail_pending_request = None;
+            self.preview.detail_cache = None;
+            self.preview.detail_lru.clear();
+            self.preview.detail_render_in_progress = false;
+            self.preview.detail_render_rx = None;
+            self.preview.detail_pending_request = None;
         }
 
         let preserve_plain_cache = cached_plain_context.as_ref().is_some_and(
             |(target_key, _width, theme_name, content)| {
-                self.preview_pane_id.as_deref() == Some(target_key.as_str())
-                    && self.preview_source == crate::model::PreviewSource::Tmux
-                    && self.preview_view == PreviewView::Plain
+                self.preview.pane_id.as_deref() == Some(target_key.as_str())
+                    && self.preview.source == crate::model::PreviewSource::Tmux
+                    && self.preview.view == PreviewView::Plain
                     && self.theme.name == theme_name
-                    && self.preview_content == *content
+                    && self.preview.content == *content
             },
         );
         if !preserve_plain_cache {
-            self.preview_plain_cache = None;
+            self.preview.plain_cache = None;
         }
 
         let mut panel_cache_state_changed = false;
         if update.source == crate::model::PreviewSource::Session && !update.turns.is_empty() {
             let previous_updated_at = self
+                .preview
                 .thread_preview_cache
                 .get(&update.target_key)
                 .and_then(|entry| entry.updated_at);
-            self.thread_preview_cache.insert(
+            self.preview.thread_preview_cache.insert(
                 update.target_key.clone(),
                 crate::app::ThreadPreviewCacheEntry {
                     turns: update.turns.clone(),
@@ -348,7 +352,7 @@ impl App {
                     panel.transcript_path = Some(transcript_path);
                 }
             }
-            if self.preview_source == crate::model::PreviewSource::Session
+            if self.preview.source == crate::model::PreviewSource::Session
                 && !update.turns.is_empty()
                 && should_persist_panel_session
             {
@@ -370,20 +374,20 @@ impl App {
             }
         }
 
-        self.last_preview_update = Instant::now();
-        if previous_pane_id != self.preview_pane_id
-            || previous_source != self.preview_source
-            || previous_view != self.preview_view
-            || previous_session_origin != self.preview_session_origin
-            || previous_session_id != self.preview_session_id
-            || previous_content != self.preview_content
-            || previous_turns != self.preview_turns
-            || previous_selected_turn != self.preview_selected_turn
-            || previous_expanded_turn != self.preview_expanded_turn
-            || previous_list_scroll != self.preview_list_scroll
-            || previous_detail_scroll != self.preview_detail_scroll
-            || previous_follow_bottom != self.preview_follow_bottom
-            || previous_follow_selection != self.preview_follow_selection
+        self.preview.last_preview_update = Instant::now();
+        if previous_pane_id != self.preview.pane_id
+            || previous_source != self.preview.source
+            || previous_view != self.preview.view
+            || previous_session_origin != self.preview.session_origin
+            || previous_session_id != self.preview.session_id
+            || previous_content != self.preview.content
+            || previous_turns != self.preview.turns
+            || previous_selected_turn != self.preview.selected_turn
+            || previous_expanded_turn != self.preview.expanded_turn
+            || previous_list_scroll != self.preview.list_scroll
+            || previous_detail_scroll != self.preview.detail_scroll
+            || previous_follow_bottom != self.preview.follow_bottom
+            || previous_follow_selection != self.preview.follow_selection
             || panel_cache_state_changed
         {
             self.dirty = true;
@@ -399,7 +403,7 @@ impl App {
             self.apply_scan_panels(panels);
         }
 
-        if let Some(update) = self.deferred_preview_update.take() {
+        if let Some(update) = self.preview.deferred_preview_update.take() {
             self.apply_preview_update_result(update);
         }
 
@@ -470,16 +474,16 @@ impl App {
     }
 
     pub fn trigger_async_preview_update(&mut self, request: PreviewRequest) {
-        if self.preview_update_in_progress {
+        if self.preview.update_in_progress {
             return;
         }
 
-        self.preview_update_in_progress = true;
-        self.preview_priority_refresh = false;
+        self.preview.update_in_progress = true;
+        self.preview.priority_refresh = false;
         let locale = self.locale;
         let preview_mode = self.config.preview.mode.clone();
         let (tx, rx) = mpsc::channel::<PreviewUpdate>(1);
-        self.preview_rx = Some(rx);
+        self.preview.rx = Some(rx);
 
         tokio::task::spawn_blocking(move || {
             let started_at = Instant::now();
@@ -498,32 +502,32 @@ impl App {
     }
 
     pub fn check_preview_result(&mut self) {
-        if let Some(ref mut rx) = self.preview_rx {
+        if let Some(ref mut rx) = self.preview.rx {
             match rx.try_recv() {
                 Ok(update) => {
                     if self.should_defer_ui_updates() {
                         log_debug!("async_ops: defer preview update while in detail view");
-                        self.deferred_preview_update = Some(update);
+                        self.preview.deferred_preview_update = Some(update);
                     } else {
                         self.apply_preview_update_result(update);
                     }
-                    self.preview_update_in_progress = false;
-                    self.preview_priority_refresh = false;
-                    self.preview_rx = None;
+                    self.preview.update_in_progress = false;
+                    self.preview.priority_refresh = false;
+                    self.preview.rx = None;
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
-                    self.preview_update_in_progress = false;
-                    self.preview_priority_refresh = false;
-                    self.preview_rx = None;
+                    self.preview.update_in_progress = false;
+                    self.preview.priority_refresh = false;
+                    self.preview.rx = None;
                 }
             }
         }
     }
 
     pub fn check_preview_update(&mut self) {
-        if self.preview_update_in_progress
-            || (self.scan_in_progress && !self.preview_priority_refresh)
+        if self.preview.update_in_progress
+            || (self.scan_in_progress && !self.preview.priority_refresh)
         {
             return;
         }
@@ -548,9 +552,10 @@ impl App {
         });
 
         if let Some(request) = request {
-            if !self.preview_priority_refresh {
+            if !self.preview.priority_refresh {
                 let refresh_ms = preview_source::preview_refresh_interval_ms_for_request(&request);
-                if self.last_preview_update.elapsed() < std::time::Duration::from_millis(refresh_ms)
+                if self.preview.last_preview_update.elapsed()
+                    < std::time::Duration::from_millis(refresh_ms)
                 {
                     return;
                 }

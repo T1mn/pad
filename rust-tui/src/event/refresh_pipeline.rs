@@ -141,9 +141,9 @@ fn clear_and_draw(
             log_debug!(
                 "ui.frame: draw_slow elapsed_ms={} detail={} dirty_sidebar={}/{}",
                 app.last_draw_elapsed.as_millis(),
-                app.preview_view == crate::model::PreviewView::SessionDetail,
-                app.sidebar_folders_dirty,
-                app.visible_sidebar_items_dirty
+                app.preview.view == crate::model::PreviewView::SessionDetail,
+                app.sidebar.sidebar_folders_dirty,
+                app.sidebar.visible_sidebar_items_dirty
             );
         }
         app.dirty = false;

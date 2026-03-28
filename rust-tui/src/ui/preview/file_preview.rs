@@ -14,7 +14,7 @@ pub fn draw_file_preview(f: &mut Frame, app: &App, area: ratatui::layout::Rect) 
 
     let theme = &app.theme;
     let l = app.locale;
-    let title = if let Some(ref path) = app.file_preview_path {
+    let title = if let Some(ref path) = app.preview.file_preview_path {
         let file_name = path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -47,21 +47,22 @@ pub fn draw_file_preview(f: &mut Frame, app: &App, area: ratatui::layout::Rect) 
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color));
 
-    if let Some(ref path) = app.file_preview_path {
+    if let Some(ref path) = app.preview.file_preview_path {
         let preview_type = PreviewType::from_path(path);
         if preview_type == PreviewType::Markdown {
             let options = markdown_options(theme);
-            let text = tui_markdown::from_str_with_options(&app.file_preview_content, &options);
+            let text =
+                tui_markdown::from_str_with_options(&app.preview.file_preview_content, &options);
             let paragraph = Paragraph::new(text)
                 .block(block)
                 .wrap(Wrap { trim: false })
-                .scroll((app.file_preview_scroll, 0));
+                .scroll((app.preview.file_preview_scroll, 0));
             f.render_widget(paragraph, area);
             return;
         }
     }
 
-    let content = &app.file_preview_content;
+    let content = &app.preview.file_preview_content;
     let lines: Vec<Line> = content
         .lines()
         .map(|line| Line::from(format_file_preview_line(line, theme)))
@@ -70,7 +71,7 @@ pub fn draw_file_preview(f: &mut Frame, app: &App, area: ratatui::layout::Rect) 
     let paragraph = Paragraph::new(Text::from(lines))
         .block(block)
         .wrap(Wrap { trim: false })
-        .scroll((app.file_preview_scroll, 0));
+        .scroll((app.preview.file_preview_scroll, 0));
 
     f.render_widget(paragraph, area);
 }

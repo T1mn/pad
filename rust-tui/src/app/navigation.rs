@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 impl App {
     fn apply_cached_preview_to_thread(&self, thread: &mut SidebarThread) {
-        let Some(cache) = self.thread_preview_cache.get(&thread.key) else {
+        let Some(cache) = self.preview.thread_preview_cache.get(&thread.key) else {
             return;
         };
 
@@ -38,13 +38,14 @@ impl App {
     }
 
     fn ensure_sidebar_folders_cache(&mut self) {
-        if self.sidebar_folders_dirty {
+        if self.sidebar.sidebar_folders_dirty {
             let started_at = std::time::Instant::now();
-            let overrides = if self.archived_threads_view {
+            let overrides = if self.sidebar.archived_threads_view {
                 Vec::new()
             } else {
                 self.prune_app_thread_activity(crate::app::unix_now_ts());
-                self.app_thread_activity
+                self.sidebar
+                    .app_thread_activity
                     .values()
                     .cloned()
                     .collect::<Vec<_>>()
@@ -52,8 +53,8 @@ impl App {
             let mut folders = crate::sidebar::build_sidebar_folders(
                 &self.panels,
                 &overrides,
-                self.archived_threads_view,
-                !self.archived_threads_view && self.showing_live_sessions(),
+                self.sidebar.archived_threads_view,
+                !self.sidebar.archived_threads_view && self.showing_live_sessions(),
             );
             for folder in &mut folders {
                 for thread in &mut folder.threads {
@@ -67,14 +68,14 @@ impl App {
                     .unwrap_or_default();
             }
             folders.sort_by(crate::sidebar::folder_sort_key);
-            self.sidebar_folders_cache = folders;
-            self.sidebar_folders_dirty = false;
-            self.visible_sidebar_items_dirty = true;
+            self.sidebar.sidebar_folders_cache = folders;
+            self.sidebar.sidebar_folders_dirty = false;
+            self.sidebar.visible_sidebar_items_dirty = true;
             let elapsed = started_at.elapsed();
             if elapsed >= std::time::Duration::from_millis(8) {
                 log_debug!(
                     "sidebar.cache: rebuild_folders folders={} elapsed_ms={}",
-                    self.sidebar_folders_cache.len(),
+                    self.sidebar.sidebar_folders_cache.len(),
                     elapsed.as_millis()
                 );
             }
@@ -82,20 +83,20 @@ impl App {
     }
 
     fn ensure_visible_sidebar_items_cache(&mut self) {
-        if self.visible_sidebar_items_dirty {
+        if self.sidebar.visible_sidebar_items_dirty {
             let started_at = std::time::Instant::now();
             self.ensure_sidebar_folders_cache();
-            self.visible_sidebar_items_cache = crate::sidebar::build_visible_sidebar_items(
-                &self.sidebar_folders_cache,
-                &self.expanded_folders,
+            self.sidebar.visible_sidebar_items_cache = crate::sidebar::build_visible_sidebar_items(
+                &self.sidebar.sidebar_folders_cache,
+                &self.sidebar.expanded_folders,
                 &self.search_query,
             );
-            self.visible_sidebar_items_dirty = false;
+            self.sidebar.visible_sidebar_items_dirty = false;
             let elapsed = started_at.elapsed();
             if elapsed >= std::time::Duration::from_millis(8) {
                 log_debug!(
                     "sidebar.cache: rebuild_visible items={} elapsed_ms={}",
-                    self.visible_sidebar_items_cache.len(),
+                    self.sidebar.visible_sidebar_items_cache.len(),
                     elapsed.as_millis()
                 );
             }
@@ -104,12 +105,12 @@ impl App {
 
     pub fn sidebar_folders_ref(&mut self) -> &[SidebarFolder] {
         self.ensure_sidebar_folders_cache();
-        &self.sidebar_folders_cache
+        &self.sidebar.sidebar_folders_cache
     }
 
     pub fn visible_sidebar_items_ref(&mut self) -> &[SidebarItem] {
         self.ensure_visible_sidebar_items_cache();
-        &self.visible_sidebar_items_cache
+        &self.sidebar.visible_sidebar_items_cache
     }
 
     pub fn sidebar_folders(&mut self) -> Vec<SidebarFolder> {
@@ -125,12 +126,12 @@ impl App {
         let items = self.visible_sidebar_items_ref().to_vec();
 
         if items.is_empty() {
-            self.selected_sidebar_key = None;
+            self.sidebar.selected_sidebar_key = None;
             self.table_state.select(None);
             return;
         }
 
-        let mut selected_key = self.selected_sidebar_key.clone();
+        let mut selected_key = self.sidebar.selected_sidebar_key.clone();
         let mut selected_index = selected_key
             .as_deref()
             .and_then(|key| items.iter().position(|item| item.key() == key));
@@ -153,7 +154,7 @@ impl App {
         }
 
         if selected_index.is_none() {
-            if let Some(preferred_index) = self.pending_sidebar_selection_index.take() {
+            if let Some(preferred_index) = self.sidebar.pending_sidebar_selection_index.take() {
                 let clamped_index = preferred_index.min(items.len().saturating_sub(1));
                 selected_index = Some(clamped_index);
                 selected_key = items.get(clamped_index).map(|item| item.key().to_string());
@@ -165,12 +166,12 @@ impl App {
             selected_key = Some(items[0].key().to_string());
         }
 
-        self.selected_sidebar_key = selected_key;
+        self.sidebar.selected_sidebar_key = selected_key;
         self.table_state.select(selected_index);
     }
 
     pub fn selected_sidebar_item(&mut self) -> Option<SidebarItem> {
-        let selected_key = self.selected_sidebar_key.clone();
+        let selected_key = self.sidebar.selected_sidebar_key.clone();
         let selected_index = self.table_state.selected();
         let items = self.visible_sidebar_items_ref();
         if items.is_empty() {
@@ -189,7 +190,7 @@ impl App {
     }
 
     pub fn selected_preview_thread(&mut self) -> Option<SidebarThread> {
-        if self.selected_sidebar_key.is_none() && !self.archived_threads_view {
+        if self.sidebar.selected_sidebar_key.is_none() && !self.sidebar.archived_threads_view {
             if let Some(panel) = self
                 .table_state
                 .selected()
@@ -220,7 +221,7 @@ impl App {
             .get(index)
             .map(|item| item.key().to_string());
         self.table_state.select(Some(index));
-        self.selected_sidebar_key = selected_key;
+        self.sidebar.selected_sidebar_key = selected_key;
         self.clear_unread_stop_for_selected_panel();
         if invalidate_preview {
             self.invalidate_preview();
@@ -231,8 +232,8 @@ impl App {
     }
 
     pub fn next(&mut self) {
-        if self.show_tree {
-            if let Some(ref mut tree) = self.file_tree {
+        if self.sidebar.show_tree {
+            if let Some(ref mut tree) = self.sidebar.file_tree {
                 log_debug!("nav: next (tree) selected={:?}", tree.state.selected());
                 tree.next();
                 self.dirty = true;
@@ -242,7 +243,7 @@ impl App {
         let visible_len = self.visible_sidebar_items_ref().len();
         if visible_len == 0 {
             self.table_state.select(None);
-            self.selected_sidebar_key = None;
+            self.sidebar.selected_sidebar_key = None;
             return;
         }
 
@@ -263,7 +264,7 @@ impl App {
             .map(|item| item.key().to_string());
         log_debug!("nav: next (panel) index={}", i);
         self.table_state.select(Some(i));
-        self.selected_sidebar_key = selected_key;
+        self.sidebar.selected_sidebar_key = selected_key;
         self.clear_unread_stop_for_selected_panel();
         self.invalidate_preview();
         self.update_tree_for_selection();
@@ -271,8 +272,8 @@ impl App {
     }
 
     pub fn previous(&mut self) {
-        if self.show_tree {
-            if let Some(ref mut tree) = self.file_tree {
+        if self.sidebar.show_tree {
+            if let Some(ref mut tree) = self.sidebar.file_tree {
                 log_debug!("nav: previous (tree) selected={:?}", tree.state.selected());
                 tree.previous();
                 self.dirty = true;
@@ -282,7 +283,7 @@ impl App {
         let visible_len = self.visible_sidebar_items_ref().len();
         if visible_len == 0 {
             self.table_state.select(None);
-            self.selected_sidebar_key = None;
+            self.sidebar.selected_sidebar_key = None;
             return;
         }
 
@@ -303,7 +304,7 @@ impl App {
             .map(|item| item.key().to_string());
         log_debug!("nav: previous (panel) index={}", i);
         self.table_state.select(Some(i));
-        self.selected_sidebar_key = selected_key;
+        self.sidebar.selected_sidebar_key = selected_key;
         self.clear_unread_stop_for_selected_panel();
         self.invalidate_preview();
         self.update_tree_for_selection();
@@ -321,10 +322,10 @@ impl App {
         let Some(folder) = item.as_folder() else {
             return false;
         };
-        if self.expanded_folders.contains(&folder.key) {
-            self.expanded_folders.remove(&folder.key);
+        if self.sidebar.expanded_folders.contains(&folder.key) {
+            self.sidebar.expanded_folders.remove(&folder.key);
         } else {
-            self.expanded_folders.insert(folder.key.clone());
+            self.sidebar.expanded_folders.insert(folder.key.clone());
         }
         self.invalidate_sidebar_visible_cache();
         self.sync_sidebar_selection();
@@ -340,7 +341,7 @@ impl App {
         let Some(folder) = item.as_folder() else {
             return false;
         };
-        if self.expanded_folders.insert(folder.key.clone()) {
+        if self.sidebar.expanded_folders.insert(folder.key.clone()) {
             self.invalidate_sidebar_visible_cache();
             self.sync_sidebar_selection();
             self.invalidate_preview();
@@ -355,7 +356,7 @@ impl App {
         };
         match item {
             SidebarItem::Folder(folder) => {
-                if self.expanded_folders.remove(&folder.key) {
+                if self.sidebar.expanded_folders.remove(&folder.key) {
                     self.invalidate_sidebar_visible_cache();
                     self.sync_sidebar_selection();
                     self.invalidate_preview();
@@ -364,7 +365,7 @@ impl App {
                 true
             }
             SidebarItem::Thread(thread) => {
-                self.selected_sidebar_key = Some(thread.folder_key.clone());
+                self.sidebar.selected_sidebar_key = Some(thread.folder_key.clone());
                 self.sync_sidebar_selection();
                 self.focus_panel();
                 self.invalidate_preview();
@@ -398,16 +399,16 @@ impl App {
     }
 
     pub fn update_tree_for_selection(&mut self) {
-        if self.show_tree {
+        if self.sidebar.show_tree {
             if let Some(thread) = self.selected_preview_thread() {
                 let path = PathBuf::from(&thread.working_dir);
                 if path.exists() {
-                    let should_update = match &self.file_tree {
+                    let should_update = match &self.sidebar.file_tree {
                         None => true,
                         Some(tree) => tree.root_path != path,
                     };
                     if should_update {
-                        self.file_tree = Some(crate::tree::FileTree::new(path));
+                        self.sidebar.file_tree = Some(crate::tree::FileTree::new(path));
                         self.dirty = true;
                     }
                 }

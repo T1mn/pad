@@ -48,11 +48,11 @@ fn handle_normal_mode(
     log_debug!(
         "normal_mode key={:?} show_tree={} panels={}",
         key.code,
-        app.show_tree,
+        app.sidebar.show_tree,
         app.panels.len()
     );
 
-    if !app.show_tree && matches!(key.code, KeyCode::Tab) {
+    if !app.sidebar.show_tree && matches!(key.code, KeyCode::Tab) {
         handle_preview_tab(app);
         return Ok(());
     }
@@ -76,6 +76,16 @@ fn handle_normal_mode(
         return Ok(());
     }
 
+    if key.code == KeyCode::Char('f') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        app.mode = Mode::Search;
+        app.is_searching = true;
+        app.search_query.clear();
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+        app.dirty = true;
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Char('q') | KeyCode::Char('Q') => {
             app.should_quit = true;
@@ -87,9 +97,7 @@ fn handle_normal_mode(
             return Ok(());
         }
         KeyCode::Char('/') => {
-            app.mode = Mode::Search;
-            app.is_searching = true;
-            app.dirty = true;
+            app.open_settings_search();
             return Ok(());
         }
         KeyCode::Char('?') => {
@@ -222,14 +230,14 @@ fn handle_normal_mode(
         }
         KeyCode::Char('d') => {
             if let Some(panel) = app.selected_panel() {
-                app.delete_target = Some(panel.clone());
+                app.sidebar.delete_target = Some(panel.clone());
                 app.mode = Mode::DeleteConfirm;
                 app.dirty = true;
             }
         }
         KeyCode::Char(' ') => {
-            if app.show_tree {
-                if let Some(ref mut tree) = app.file_tree {
+            if app.sidebar.show_tree {
+                if let Some(ref mut tree) = app.sidebar.file_tree {
                     tree.toggle();
                 }
                 app.dirty = true;
@@ -402,7 +410,7 @@ mod tests {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
-        app.preview_focus = FocusTarget::Preview;
+        app.preview.focus = FocusTarget::Preview;
 
         let area = Rect::new(0, 0, 100, 30);
         let regions = mouse::normal_mouse_regions(&mut app, area);
@@ -411,7 +419,7 @@ mod tests {
         mouse::handle_normal_mouse(&mut app, area, click);
 
         assert_eq!(app.table_state.selected(), Some(1));
-        assert!(app.preview_focus == FocusTarget::Panel);
+        assert!(app.preview.focus == FocusTarget::Panel);
     }
 
     #[test]
@@ -442,7 +450,7 @@ mod tests {
     fn mouse_click_on_second_line_of_thread_row_selects_same_item() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
-        app.expanded_folders.insert("/tmp/alpha".into());
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
         app.invalidate_sidebar_visible_cache();
 
         let area = Rect::new(0, 0, 100, 30);
@@ -458,8 +466,8 @@ mod tests {
     fn mouse_click_on_session_turn_selects_then_expands_on_repeat() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
-        app.preview_source = PreviewSource::Session;
-        app.preview_turns = vec![
+        app.preview.source = PreviewSource::Session;
+        app.preview.turns = vec![
             PreviewTurn {
                 question: "first".into(),
                 answer: Some("one".into()),
@@ -469,7 +477,7 @@ mod tests {
                 answer: Some("two".into()),
             },
         ];
-        app.preview_view = PreviewView::SessionList;
+        app.preview.view = PreviewView::SessionList;
 
         let area = Rect::new(0, 0, 100, 30);
         let regions = mouse::normal_mouse_regions(&mut app, area);
@@ -479,19 +487,19 @@ mod tests {
         );
 
         mouse::handle_normal_mouse(&mut app, area, click);
-        assert!(app.preview_focus == FocusTarget::Preview);
-        assert_eq!(app.preview_selected_turn, Some(1));
-        assert_eq!(app.preview_expanded_turn, None);
+        assert!(app.preview.focus == FocusTarget::Preview);
+        assert_eq!(app.preview.selected_turn, Some(1));
+        assert_eq!(app.preview.expanded_turn, None);
 
         mouse::handle_normal_mouse(&mut app, area, click);
-        assert_eq!(app.preview_expanded_turn, Some(1));
+        assert_eq!(app.preview.expanded_turn, Some(1));
     }
 
     #[test]
     fn mouse_wheel_over_preview_scrolls_and_focuses_preview() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
-        app.preview_content = (0..20)
+        app.preview.content = (0..20)
             .map(|idx| format!("line {}", idx))
             .collect::<Vec<_>>()
             .join("\n");
@@ -505,7 +513,7 @@ mod tests {
 
         mouse::handle_normal_mouse(&mut app, area, wheel);
 
-        assert!(app.preview_focus == FocusTarget::Preview);
-        assert_eq!(app.preview_scroll, MOUSE_PREVIEW_SCROLL_DELTA as u16);
+        assert!(app.preview.focus == FocusTarget::Preview);
+        assert_eq!(app.preview.scroll, MOUSE_PREVIEW_SCROLL_DELTA as u16);
     }
 }

@@ -8,27 +8,39 @@ use ratatui::{
 };
 
 pub fn draw_telegram_settings_modal(f: &mut Frame, app: &App) {
+    let theme = &app.theme;
+    let area = crate::ui::layout::popup_area(72, 13, f.area());
+    render_modal_surface(f, area, theme);
+    draw_telegram_settings_content(f, app, area, true);
+}
+
+pub(super) fn draw_telegram_settings_content(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    show_footer: bool,
+) {
     use crate::runtime_status;
 
     let theme = &app.theme;
     let locale = app.locale;
-    let area = crate::ui::layout::popup_area(72, 13, f.area());
-    render_modal_surface(f, area, theme);
-
-    let block = Block::default()
-        .title(" ✈ Telegram ".to_string())
-        .title_alignment(Alignment::Center)
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .style(Style::default().bg(theme.bg).fg(theme.fg))
-        .border_style(Style::default().fg(theme.accent));
-    f.render_widget(block, area);
-
-    let inner = Rect {
-        x: area.x + 1,
-        y: area.y + 1,
-        width: area.width.saturating_sub(2),
-        height: area.height.saturating_sub(3),
+    let inner = if show_footer {
+        let block = Block::default()
+            .title(" ✈ Telegram ".to_string())
+            .title_alignment(Alignment::Center)
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .style(Style::default().bg(theme.bg).fg(theme.fg))
+            .border_style(Style::default().fg(theme.accent));
+        f.render_widget(block, area);
+        Rect {
+            x: area.x + 1,
+            y: area.y + 1,
+            width: area.width.saturating_sub(2),
+            height: area.height.saturating_sub(3),
+        }
+    } else {
+        area
     };
 
     let enabled_value = if app.config.telegram.enabled {
@@ -136,16 +148,18 @@ pub fn draw_telegram_settings_modal(f: &mut Frame, app: &App) {
     } else {
         "j/k: move | Enter/Space: edit/toggle/restart | r: restart | Esc: back"
     };
-    let footer = Paragraph::new(footer_text)
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(theme.comment));
-    let footer_area = Rect {
-        x: area.x,
-        y: area.y + area.height.saturating_sub(2),
-        width: area.width,
-        height: 1,
-    };
-    f.render_widget(footer, footer_area);
+    if show_footer {
+        let footer = Paragraph::new(footer_text)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme.comment));
+        let footer_area = Rect {
+            x: area.x,
+            y: area.y + area.height.saturating_sub(2),
+            width: area.width,
+            height: 1,
+        };
+        f.render_widget(footer, footer_area);
+    }
 }
 
 fn telegram_row(

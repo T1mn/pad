@@ -10,7 +10,7 @@ impl App {
     }
 
     pub fn show_action_toast(&mut self, title: &str, content: &str) {
-        self.copy_toast = Some(CopyToast {
+        self.preview.copy_toast = Some(CopyToast {
             title: title.to_string(),
             content_preview: summarize_copy_preview(content, 24),
             expires_at: Instant::now() + Duration::from_millis(1800),
@@ -20,11 +20,12 @@ impl App {
 
     pub fn expire_copy_toast_if_needed(&mut self) -> bool {
         if self
+            .preview
             .copy_toast
             .as_ref()
             .is_some_and(|toast| Instant::now() >= toast.expires_at)
         {
-            self.copy_toast = None;
+            self.preview.copy_toast = None;
             self.dirty = true;
             true
         } else {

@@ -162,16 +162,16 @@ fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row
     }
 
     if app.has_session_preview_turns()
-        && app.preview_view == crate::model::PreviewView::SessionList
+        && app.preview.view == crate::model::PreviewView::SessionList
         && rect_contains(regions.preview_content_area, column, row)
     {
         if let Some(index) = session_turn_index_at_position(
             regions.preview_content_area,
             row,
-            app.preview_list_scroll,
-            app.preview_turns.len(),
+            app.preview.list_scroll,
+            app.preview.turns.len(),
         ) {
-            if app.preview_selected_turn == Some(index) {
+            if app.preview.selected_turn == Some(index) {
                 let _ = app.toggle_preview_turn_expanded();
             } else {
                 let _ = app.select_preview_turn(index);
@@ -186,7 +186,7 @@ fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row
 }
 
 fn preview_mouse_copy_enabled(app: &App) -> bool {
-    !(app.has_session_preview_turns() && app.preview_view == crate::model::PreviewView::SessionList)
+    !(app.has_session_preview_turns() && app.preview.view == crate::model::PreviewView::SessionList)
 }
 
 pub(super) fn handle_normal_scroll(
@@ -267,7 +267,7 @@ pub(super) fn drain_pending_scroll_events(carried_event: &mut Option<Event>) -> 
 }
 
 pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: MouseEvent) {
-    if app.show_tree {
+    if app.sidebar.show_tree {
         return;
     }
 
@@ -278,7 +278,7 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
             handle_normal_left_click(app, terminal_area, mouse.column, mouse.row);
         }
         MouseEventKind::Drag(MouseButton::Left) => {
-            if app.preview_mouse_selection().is_some() {
+            if app.preview.mouse_selection().is_some() {
                 let regions = normal_mouse_regions(app, terminal_area);
                 let column = mouse.column.clamp(
                     regions.preview_content_area.x,
@@ -307,7 +307,7 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
             }
         }
         MouseEventKind::Moved => {
-            if app.preview_mouse_selection().is_some() {
+            if app.preview.mouse_selection().is_some() {
                 let regions = normal_mouse_regions(app, terminal_area);
                 let column = mouse.column.clamp(
                     regions.preview_content_area.x,
@@ -334,8 +334,8 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
             } else {
                 None
             };
-            if hovered_folder_key != app.hovered_folder_key {
-                app.hovered_folder_key = hovered_folder_key;
+            if hovered_folder_key != app.sidebar.hovered_folder_key {
+                app.sidebar.hovered_folder_key = hovered_folder_key;
                 app.dirty = true;
             }
         }
