@@ -1,4 +1,4 @@
-use super::state::Mode;
+use super::state::{Mode, SettingsDetailKind, SettingsFocus};
 use super::{App, PendingThreadAction, ThreadActionKind, ThreadMetaEditKind};
 use crate::fuzzy::{scan_directories, FuzzyPicker};
 use crate::i18n::Locale;
@@ -10,21 +10,21 @@ use std::path::PathBuf;
 
 impl App {
     pub fn toggle_tree(&mut self) {
-        self.show_tree = !self.show_tree;
+        self.sidebar.show_tree = !self.sidebar.show_tree;
         self.focus_panel();
-        if self.show_tree {
+        if self.sidebar.show_tree {
             if let Some(thread) = self.selected_preview_thread() {
                 let path = PathBuf::from(&thread.working_dir);
                 if path.exists() {
-                    self.file_tree = Some(tree::FileTree::new(path));
+                    self.sidebar.file_tree = Some(tree::FileTree::new(path));
                     self.mode = Mode::Tree;
                     self.update_file_preview();
                 }
             }
         } else {
-            self.file_tree = None;
-            self.file_preview_path = None;
-            self.file_preview_content.clear();
+            self.sidebar.file_tree = None;
+            self.preview.file_preview_path = None;
+            self.preview.file_preview_content.clear();
             self.mode = Mode::Normal;
         }
         self.dirty = true;
@@ -32,9 +32,9 @@ impl App {
 
     pub fn open_tree_in_home(&mut self) {
         if let Some(home) = dirs::home_dir() {
-            self.show_tree = true;
+            self.sidebar.show_tree = true;
             self.focus_panel();
-            self.file_tree = Some(tree::FileTree::new(home));
+            self.sidebar.file_tree = Some(tree::FileTree::new(home));
             self.mode = Mode::Tree;
             self.update_file_preview();
             self.dirty = true;
@@ -42,10 +42,10 @@ impl App {
     }
 
     pub fn close_tree(&mut self) {
-        self.show_tree = false;
+        self.sidebar.show_tree = false;
         self.focus_panel();
-        self.file_tree = None;
-        self.agent_launcher = None;
+        self.sidebar.file_tree = None;
+        self.sidebar.agent_launcher = None;
         self.mode = Mode::Normal;
         self.dirty = true;
     }
@@ -57,16 +57,17 @@ impl App {
             .iter()
             .map(|a| (a.name.clone(), a.cmd.clone()))
             .collect();
-        self.agent_launcher = Some(tree::AgentLauncher::with_agents(target_dir, agent_tuples));
+        self.sidebar.agent_launcher =
+            Some(tree::AgentLauncher::with_agents(target_dir, agent_tuples));
         self.mode = Mode::AgentLauncher;
         self.dirty = true;
     }
 
     pub fn close_agent_launcher(&mut self) {
         let was_fuzzy = self.fuzzy_from_normal;
-        self.agent_launcher = None;
+        self.sidebar.agent_launcher = None;
         self.fuzzy_from_normal = false;
-        if was_fuzzy || !self.show_tree {
+        if was_fuzzy || !self.sidebar.show_tree {
             self.mode = Mode::Normal;
         } else {
             self.mode = Mode::Tree;
@@ -93,27 +94,27 @@ impl App {
     }
 
     pub fn update_file_preview(&mut self) {
-        if let Some(ref tree) = self.file_tree {
+        if let Some(ref tree) = self.sidebar.file_tree {
             if let Some(entry) = tree.selected() {
                 let path = &entry.path;
                 let preview_type = tree::PreviewType::from_path(path);
 
                 if preview_type.is_text() {
-                    self.file_preview_path = Some(path.clone());
-                    self.file_preview_content = Self::load_text_file(path, 500);
-                    self.file_preview_scroll = 0;
+                    self.preview.file_preview_path = Some(path.clone());
+                    self.preview.file_preview_content = Self::load_text_file(path, 500);
+                    self.preview.file_preview_scroll = 0;
                 } else if preview_type.is_image() {
-                    self.file_preview_path = Some(path.clone());
-                    self.file_preview_content = format!(
+                    self.preview.file_preview_path = Some(path.clone());
+                    self.preview.file_preview_content = format!(
                         "🖼️  Image file: {}\n\n(Use terminal image viewer like 'icat' to preview images)",
                         path.display()
                     );
                 } else if preview_type == tree::PreviewType::Directory {
-                    self.file_preview_path = Some(path.clone());
-                    self.file_preview_content = Self::load_directory_info(path);
+                    self.preview.file_preview_path = Some(path.clone());
+                    self.preview.file_preview_content = Self::load_directory_info(path);
                 } else {
-                    self.file_preview_path = Some(path.clone());
-                    self.file_preview_content = format!(
+                    self.preview.file_preview_path = Some(path.clone());
+                    self.preview.file_preview_content = format!(
                         "📦 Binary file: {}\n\nSize: {}\nType: {:?}",
                         path.display(),
                         Self::format_file_size(path),
@@ -121,8 +122,8 @@ impl App {
                     );
                 }
             } else {
-                self.file_preview_path = None;
-                self.file_preview_content = "No file selected".to_string();
+                self.preview.file_preview_path = None;
+                self.preview.file_preview_content = "No file selected".to_string();
             }
         }
         self.dirty = true;
@@ -210,7 +211,7 @@ impl App {
     }
 
     pub fn delete_panel(&mut self, panel: &crate::model::AgentPanel) {
-        self.pending_sidebar_selection_index = self.table_state.selected();
+        self.sidebar.pending_sidebar_selection_index = self.table_state.selected();
         let _ = std::process::Command::new("tmux")
             .args(["kill-pane", "-t", &panel.pane_id])
             .output();
@@ -227,15 +228,154 @@ impl App {
         self.settings_open = !self.settings_open;
         if self.settings_open {
             self.mode = Mode::Settings;
+            self.theme_selector_open = false;
             self.settings_selected = 0;
+            self.settings_focus = SettingsFocus::List;
+            self.active_settings_detail = None;
+            self.settings_searching = false;
+            self.settings_search.clear();
         } else {
-            self.mode = Mode::Normal;
+            self.close_settings();
+            return;
         }
         self.dirty = true;
     }
 
+    pub fn open_settings_search(&mut self) {
+        self.settings_open = true;
+        self.mode = Mode::Settings;
+        self.theme_selector_open = false;
+        self.settings_selected = 0;
+        self.settings_focus = SettingsFocus::List;
+        self.active_settings_detail = None;
+        self.settings_searching = true;
+        self.settings_search.clear();
+        self.dirty = true;
+    }
+
+    pub fn close_settings(&mut self) {
+        self.restore_settings_detail_preview_state();
+        self.settings_open = false;
+        self.theme_selector_open = false;
+        self.settings_focus = SettingsFocus::List;
+        self.active_settings_detail = None;
+        self.settings_searching = false;
+        self.settings_search.clear();
+        self.mode = Mode::Normal;
+        self.dirty = true;
+    }
+
+    pub fn current_settings_item_id(&self) -> Option<&'static str> {
+        self.filtered_settings_items()
+            .get(self.settings_selected)
+            .map(|(id, _, _, _, _)| *id)
+    }
+
+    pub fn current_settings_detail_kind(&self) -> Option<SettingsDetailKind> {
+        if self.settings_focus == SettingsFocus::Detail {
+            return self.active_settings_detail;
+        }
+        self.settings_detail_kind_from_item_id(self.current_settings_item_id()?)
+    }
+
+    fn settings_detail_kind_from_item_id(
+        &self,
+        item_id: &'static str,
+    ) -> Option<SettingsDetailKind> {
+        Some(match item_id {
+            "theme" => SettingsDetailKind::Theme,
+            "auto_refresh" => SettingsDetailKind::AutoRefresh,
+            "relay" => SettingsDetailKind::Relay,
+            "telegram" => SettingsDetailKind::Telegram,
+            "agent_style" => SettingsDetailKind::AgentStyle,
+            "preview_mode" => SettingsDetailKind::PreviewMode,
+            "display_mode" => SettingsDetailKind::DisplayMode,
+            "language" => SettingsDetailKind::Language,
+            "refresh_interval" => SettingsDetailKind::RefreshInterval,
+            "version" => SettingsDetailKind::Version,
+            _ => return None,
+        })
+    }
+
+    pub fn enter_settings_detail(&mut self) {
+        let Some(kind) = self.current_settings_detail_kind() else {
+            self.settings_focus = SettingsFocus::List;
+            self.active_settings_detail = None;
+            self.settings_searching = false;
+            self.dirty = true;
+            return;
+        };
+        self.active_settings_detail = Some(kind);
+
+        match kind {
+            SettingsDetailKind::Theme => {
+                self.preview.theme_before_preview = Some(self.config.theme.clone());
+                self.theme_selected = Self::available_themes()
+                    .iter()
+                    .position(|(name, _)| *name == self.config.theme)
+                    .unwrap_or(0);
+            }
+            SettingsDetailKind::Language => {
+                self.locale = crate::i18n::Locale::from_str(&self.config.language);
+                let locales = Self::available_locales();
+                self.language_selected = locales
+                    .iter()
+                    .position(|l| l.as_str() == self.config.language)
+                    .unwrap_or(0);
+            }
+            SettingsDetailKind::Relay => {
+                self.relay_view = super::state::RelayView::AgentList;
+                self.relay_selected_agent = self
+                    .relay_selected_agent
+                    .min(self.config.agents.len().saturating_sub(1));
+                self.relay_selected_provider = 0;
+                self.relay_edit_field = 0;
+                self.relay_editing = false;
+                self.relay_edit_buffer.clear();
+            }
+            SettingsDetailKind::Telegram => {
+                self.telegram_selected_field = 0;
+                self.telegram_editing = false;
+                self.telegram_edit_buffer.clear();
+            }
+            SettingsDetailKind::AgentStyle => {
+                self.agent_style_selected = 0;
+            }
+            _ => {}
+        }
+        self.settings_focus = SettingsFocus::Detail;
+        self.settings_searching = false;
+        self.dirty = true;
+    }
+
+    pub fn leave_settings_detail(&mut self) {
+        self.restore_settings_detail_preview_state();
+        self.settings_focus = SettingsFocus::List;
+        self.active_settings_detail = None;
+        self.relay_editing = false;
+        self.relay_edit_buffer.clear();
+        self.telegram_editing = false;
+        self.telegram_edit_buffer.clear();
+        self.dirty = true;
+    }
+
+    pub fn restore_settings_detail_preview_state(&mut self) {
+        match self.current_settings_detail_kind() {
+            Some(SettingsDetailKind::Theme) => {
+                if let Some(prev) = self.preview.theme_before_preview.take() {
+                    self.theme = crate::theme::Theme::by_name(&prev);
+                    self.clear_preview_render_caches();
+                }
+            }
+            Some(SettingsDetailKind::Language) => {
+                self.locale = crate::i18n::Locale::from_str(&self.config.language);
+            }
+            _ => {}
+        }
+    }
+
     pub fn open_theme_selector(&mut self) {
-        self.theme_before_preview = Some(self.config.theme.clone());
+        self.preview.theme_before_preview = Some(self.config.theme.clone());
         self.theme_selector_open = true;
         self.mode = Mode::ThemeSelector;
         self.theme_selected = 0;
@@ -244,7 +384,7 @@ impl App {
 
     pub fn close_theme_selector(&mut self) {
         // Restore theme to what it was before preview
-        if let Some(ref prev) = self.theme_before_preview.take() {
+        if let Some(ref prev) = self.preview.theme_before_preview.take() {
             self.theme = crate::theme::Theme::by_name(prev);
         }
         self.theme_selector_open = false;
@@ -265,11 +405,11 @@ impl App {
     }
 
     pub fn toggle_archived_threads_view(&mut self) {
-        self.archived_threads_view = !self.archived_threads_view;
-        self.pending_thread_action = None;
-        self.pending_sidebar_selection_index = None;
+        self.sidebar.archived_threads_view = !self.sidebar.archived_threads_view;
+        self.sidebar.pending_thread_action = None;
+        self.sidebar.pending_sidebar_selection_index = None;
         self.mode = Mode::Normal;
-        self.selected_sidebar_key = None;
+        self.sidebar.selected_sidebar_key = None;
         self.table_state.select(None);
         self.invalidate_sidebar_cache();
         self.sync_sidebar_selection();
@@ -295,30 +435,30 @@ impl App {
     }
 
     pub fn open_thread_action_confirm(&mut self, thread: SidebarThread, kind: ThreadActionKind) {
-        self.pending_thread_action = Some(PendingThreadAction { thread, kind });
-        self.thread_meta_editing = false;
-        self.thread_meta_target = None;
-        self.thread_meta_buffer.clear();
+        self.sidebar.pending_thread_action = Some(PendingThreadAction { thread, kind });
+        self.sidebar.thread_meta_editing = false;
+        self.sidebar.thread_meta_target = None;
+        self.sidebar.thread_meta_buffer.clear();
         self.mode = Mode::ThreadActionConfirm;
         self.dirty = true;
     }
 
     pub fn close_thread_action_confirm(&mut self) {
-        self.pending_thread_action = None;
-        self.thread_meta_editing = false;
-        self.thread_meta_target = None;
-        self.thread_meta_buffer.clear();
+        self.sidebar.pending_thread_action = None;
+        self.sidebar.thread_meta_editing = false;
+        self.sidebar.thread_meta_target = None;
+        self.sidebar.thread_meta_buffer.clear();
         self.mode = Mode::Normal;
         self.dirty = true;
     }
 
     pub fn confirm_thread_action(&mut self) -> bool {
-        let Some(action) = self.pending_thread_action.clone() else {
+        let Some(action) = self.sidebar.pending_thread_action.clone() else {
             self.mode = Mode::Normal;
             self.dirty = true;
             return false;
         };
-        self.pending_thread_action = None;
+        self.sidebar.pending_thread_action = None;
         self.mode = Mode::Normal;
 
         let Some(session_id) = action.thread.session_id.as_deref() else {
@@ -372,11 +512,11 @@ impl App {
             return false;
         };
 
-        self.pending_thread_action = None;
-        self.thread_meta_editing = true;
-        self.thread_meta_edit_kind = ThreadMetaEditKind::Title;
-        self.thread_meta_buffer = thread.title.clone();
-        self.thread_meta_target = Some(thread);
+        self.sidebar.pending_thread_action = None;
+        self.sidebar.thread_meta_editing = true;
+        self.sidebar.thread_meta_edit_kind = ThreadMetaEditKind::Title;
+        self.sidebar.thread_meta_buffer = thread.title.clone();
+        self.sidebar.thread_meta_target = Some(thread);
         self.mode = Mode::ThreadActionConfirm;
         self.dirty = true;
         true
@@ -387,32 +527,32 @@ impl App {
             return false;
         };
 
-        self.pending_thread_action = None;
-        self.thread_meta_editing = true;
-        self.thread_meta_edit_kind = ThreadMetaEditKind::Tags;
-        self.thread_meta_buffer = thread.tags.join(", ");
-        self.thread_meta_target = Some(thread);
+        self.sidebar.pending_thread_action = None;
+        self.sidebar.thread_meta_editing = true;
+        self.sidebar.thread_meta_edit_kind = ThreadMetaEditKind::Tags;
+        self.sidebar.thread_meta_buffer = thread.tags.join(", ");
+        self.sidebar.thread_meta_target = Some(thread);
         self.mode = Mode::ThreadActionConfirm;
         self.dirty = true;
         true
     }
 
     pub fn cancel_thread_meta_edit(&mut self) {
-        self.thread_meta_editing = false;
-        self.thread_meta_target = None;
-        self.thread_meta_buffer.clear();
+        self.sidebar.thread_meta_editing = false;
+        self.sidebar.thread_meta_target = None;
+        self.sidebar.thread_meta_buffer.clear();
         self.mode = Mode::Normal;
         self.dirty = true;
     }
 
     pub fn commit_thread_meta_edit(&mut self) -> bool {
-        let Some(thread) = self.thread_meta_target.clone() else {
+        let Some(thread) = self.sidebar.thread_meta_target.clone() else {
             self.cancel_thread_meta_edit();
             return false;
         };
 
-        let input = self.thread_meta_buffer.trim().to_string();
-        let result = match self.thread_meta_edit_kind {
+        let input = self.sidebar.thread_meta_buffer.trim().to_string();
+        let result = match self.sidebar.thread_meta_edit_kind {
             ThreadMetaEditKind::Title => self.persist_thread_title_override(&thread, &input),
             ThreadMetaEditKind::Tags => {
                 let tags = parse_thread_tags(&input);
@@ -423,7 +563,7 @@ impl App {
         let ok = result.is_ok();
         if ok {
             let (title, content) =
-                thread_meta_toast(self.locale, self.thread_meta_edit_kind, &input);
+                thread_meta_toast(self.locale, self.sidebar.thread_meta_edit_kind, &input);
             self.show_action_toast(title, &content);
         } else if let Err(err) = result {
             self.show_action_toast(thread_meta_save_failed_title(self.locale), &err.to_string());
@@ -616,11 +756,8 @@ impl App {
         let l = self.locale;
         items
             .into_iter()
-            .filter(|(id, value, name_key, _, _)| {
-                let name = crate::i18n::t(l, name_key);
-                id.to_lowercase().contains(&query)
-                    || value.to_lowercase().contains(&query)
-                    || name.to_lowercase().contains(&query)
+            .filter(|(id, value, name_key, desc_key, _)| {
+                settings_item_search_blob(l, id, value, name_key, desc_key).contains(&query)
             })
             .collect()
     }
@@ -643,6 +780,60 @@ impl App {
             ("github-dark", "GitHub Dark"),
             ("everforest", "Everforest"),
         ]
+    }
+}
+
+pub(crate) fn settings_item_search_blob(
+    locale: Locale,
+    id: &str,
+    value: &str,
+    name_key: &str,
+    desc_key: &str,
+) -> String {
+    let mut terms = vec![
+        id.to_lowercase(),
+        id.replace('_', " ").to_lowercase(),
+        name_key.to_lowercase(),
+        name_key.replace('.', " ").replace('_', " ").to_lowercase(),
+        desc_key.to_lowercase(),
+        desc_key.replace('.', " ").replace('_', " ").to_lowercase(),
+        value.to_lowercase(),
+        crate::i18n::t(locale, name_key).to_lowercase(),
+        crate::i18n::t(locale, desc_key).to_lowercase(),
+        crate::i18n::t(Locale::En, name_key).to_lowercase(),
+        crate::i18n::t(Locale::En, desc_key).to_lowercase(),
+    ];
+    terms.extend(
+        settings_item_aliases(id)
+            .iter()
+            .map(|alias| alias.to_string()),
+    );
+    terms.join(" ")
+}
+
+fn settings_item_aliases(id: &str) -> &'static [&'static str] {
+    match id {
+        "theme" => &["theme", "color theme", "appearance"],
+        "auto_refresh" => &["auto refresh", "refresh", "refresh interval"],
+        "relay" => &["relay", "provider", "model provider", "proxy"],
+        "telegram" => &["telegram", "bot", "telegram bot"],
+        "agent_style" => &["agent style", "attach style", "status bar", "zoom"],
+        "preview_mode" => &[
+            "preview",
+            "preview mode",
+            "preview source",
+            "session preview",
+        ],
+        "display_mode" => &[
+            "display",
+            "display mode",
+            "display settings",
+            "session scope",
+        ],
+        "language" => &["language", "locale"],
+        "refresh_interval" => &["refresh interval", "interval"],
+        "version" => &["version", "about"],
+        _ => &[],
     }
 }
 
@@ -688,6 +879,61 @@ fn thread_meta_save_failed_title(locale: Locale) -> &'static str {
         "保存失败"
     } else {
         "Save failed"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_search_matches_english_terms_under_chinese_locale() {
+        let mut app = App::new();
+        app.locale = Locale::ZhCN;
+
+        app.settings_search = "theme".into();
+        let theme_matches = app.filtered_settings_items();
+        assert!(theme_matches.iter().any(|(id, _, _, _, _)| *id == "theme"));
+
+        app.settings_search = "display settings".into();
+        let display_matches = app.filtered_settings_items();
+        assert!(display_matches
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "display_mode"));
+
+        app.settings_search = "relay".into();
+        let relay_matches = app.filtered_settings_items();
+        assert!(relay_matches.iter().any(|(id, _, _, _, _)| *id == "relay"));
+    }
+
+    #[test]
+    fn settings_detail_persists_when_filtered_value_changes() {
+        let mut app = App::new();
+        app.settings_open = true;
+        app.mode = Mode::Settings;
+        app.settings_search = "live".into();
+
+        let items = app.filtered_settings_items();
+        app.settings_selected = items
+            .iter()
+            .position(|(id, _, _, _, _)| *id == "display_mode")
+            .expect("display_mode should match live search");
+
+        app.enter_settings_detail();
+        assert_eq!(
+            app.current_settings_detail_kind(),
+            Some(SettingsDetailKind::DisplayMode)
+        );
+
+        app.config.display.session_scope = "all".into();
+        assert!(!app
+            .filtered_settings_items()
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "display_mode"));
+        assert_eq!(
+            app.current_settings_detail_kind(),
+            Some(SettingsDetailKind::DisplayMode)
+        );
     }
 }
 
