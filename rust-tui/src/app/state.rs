@@ -10,6 +10,7 @@ pub enum Mode {
     TreeSearch,
     AgentLauncher,
     DeleteConfirm,
+    ThreadActionConfirm,
     Help,
     FuzzyPicker,
     RelaySettings,

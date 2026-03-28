@@ -102,6 +102,31 @@ pub fn send_approval_key(pane_id: &str, key: &str) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
+pub fn capture_pane_tail(pane_id: &str, lines: usize) -> Result<String, Box<dyn Error>> {
+    let output = Command::new("tmux")
+        .args([
+            "capture-pane",
+            "-p",
+            "-t",
+            pane_id,
+            "-S",
+            &format!("-{}", lines),
+        ])
+        .output()?;
+
+    if output.status.success() {
+        return Ok(crate::scanner::strip_ansi(&String::from_utf8_lossy(
+            &output.stdout,
+        )));
+    }
+
+    Err(format!(
+        "tmux capture-pane failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    )
+    .into())
+}
+
 fn run_tmux_send_literal(pane_id: &str, chunk: &str) -> Result<(), Box<dyn Error>> {
     let output = Command::new("tmux")
         .args(["send-keys", "-l", "-t", pane_id, chunk])

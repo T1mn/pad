@@ -11,9 +11,13 @@ use std::error::Error;
 use std::io;
 
 mod app;
+mod chat;
+mod claude_history;
+mod codex_state;
 mod detector;
 mod event;
 mod fuzzy;
+mod gemini_history;
 mod hook;
 mod i18n;
 #[macro_use]
@@ -28,8 +32,10 @@ mod runtime_status;
 mod scanner;
 mod session;
 mod session_cache;
+mod sidebar;
 mod telegram;
 mod theme;
+mod thread_meta;
 mod tmux_dispatch;
 mod tree;
 mod ui;

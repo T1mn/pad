@@ -1,11 +1,16 @@
 use crate::app::state::FocusTarget;
 use crate::app::App;
-use crate::model::{AgentPanel, AgentState};
+use crate::i18n::Locale;
+use crate::model::AgentState;
+use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
 use ratatui::{
     layout::{Alignment, Constraint, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
+    widgets::{
+        Block, BorderType, Borders, Cell, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Table, Wrap,
+    },
     Frame,
 };
 use std::path::Path;
@@ -17,160 +22,483 @@ const SHIMMER_PADDING: f32 = 10.0;
 const SHIMMER_BAND_HALF_WIDTH: f32 = 5.0;
 
 pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
-    let theme = &app.theme;
+    let theme = app.theme.clone();
     let l = app.locale;
+    let archived_threads_view = app.archived_threads_view;
+    let showing_live = app.showing_live_sessions();
     let panel_is_focused = !app.show_tree && app.preview_focus == FocusTarget::Panel;
+    let selected_idx = app.table_state.selected();
+    let expanded_folders = app.expanded_folders.clone();
+    let hovered_folder_key = app.hovered_folder_key.clone();
+
+    // 1. Calculate count first
+    let item_count = app.visible_sidebar_items_ref().len();
+
     let border_color = if panel_is_focused {
         theme.border_focused
     } else {
         theme.border
     };
     let focus_mark = if panel_is_focused { "●" } else { "○" };
-    let title = format!(" {} {} ", focus_mark, app.filtered_panels().len());
+    let title = if archived_threads_view {
+        format!(
+            " {} {} {} ",
+            focus_mark,
+            archived_title_label(l),
+            item_count
+        )
+    } else {
+        format!(
+            " {} {} {} ",
+            focus_mark,
+            display_scope_title_label(l, showing_live),
+            item_count
+        )
+    };
     let block = Block::default()
         .title(title)
         .title_alignment(Alignment::Left)
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(theme.bg).fg(theme.fg))
         .border_style(Style::default().fg(border_color));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (rows, is_empty) = {
-        let filtered = app.filtered_panels();
-        let is_empty = filtered.is_empty();
-        let selected_idx = app.table_state.selected();
+    // 2. Scope the mutable borrow of app
+    let show_scrollbar;
+    let actual_item_count;
+    {
+        let items = app.visible_sidebar_items_ref();
+        actual_item_count = items.len();
         let content_width = inner.width as usize;
-        let rows: Vec<Row> = filtered
+        let is_minimal = content_width < 12;
+        let total_h: usize = items
             .iter()
-            .enumerate()
-            .map(|(idx, panel)| {
-                build_panel_row(
-                    panel,
-                    idx == selected_idx.unwrap_or(usize::MAX),
-                    content_width,
-                    theme,
-                )
+            .map(|item| match item {
+                SidebarItem::Folder(_) => 1,
+                SidebarItem::Thread(_) => {
+                    if is_minimal {
+                        1
+                    } else {
+                        2
+                    }
+                }
             })
-            .collect();
-        (rows, is_empty)
-    };
+            .sum();
+        show_scrollbar = total_h > inner.height as usize;
 
-    if is_empty {
-        let empty_msg = vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "panel.empty_title"),
-                Style::default()
-                    .fg(theme.warning)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "panel.empty_hint"),
-                Style::default().fg(theme.fg),
-            )),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "panel.empty_agents"),
-                Style::default().fg(theme.accent),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "panel.empty_create"),
-                Style::default().fg(theme.fg),
-            )),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "panel.empty_refresh"),
-                Style::default().fg(theme.comment),
-            )),
-        ];
-        let empty = Paragraph::new(empty_msg)
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: false });
-        f.render_widget(empty, inner);
-        return;
+        if items.is_empty() {
+            let empty_msg = if archived_threads_view {
+                vec![
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        archived_empty_title(l),
+                        Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        archived_empty_hint(l),
+                        Style::default().fg(theme.fg),
+                    )),
+                    Line::from(Span::styled(
+                        archived_empty_back_hint(l),
+                        Style::default().fg(theme.comment),
+                    )),
+                ]
+            } else {
+                vec![
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        crate::i18n::t(l, "panel.empty_title"),
+                        Style::default()
+                            .fg(theme.warning)
+                            .add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        crate::i18n::t(l, "panel.empty_hint"),
+                        Style::default().fg(theme.fg),
+                    )),
+                    Line::from(Span::styled(
+                        crate::i18n::t(l, "panel.empty_agents"),
+                        Style::default().fg(theme.accent),
+                    )),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        crate::i18n::t(l, "panel.empty_create"),
+                        Style::default().fg(theme.fg),
+                    )),
+                    Line::from(Span::styled(
+                        crate::i18n::t(l, "panel.empty_refresh"),
+                        Style::default().fg(theme.comment),
+                    )),
+                ]
+            };
+            let empty = Paragraph::new(empty_msg)
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: false });
+            f.render_widget(empty, inner);
+        } else {
+            let rows: Vec<Row> = items
+                .iter()
+                .enumerate()
+                .map(|(idx, item)| {
+                    build_sidebar_row(
+                        item,
+                        idx == selected_idx.unwrap_or(usize::MAX),
+                        content_width,
+                        &theme,
+                        expanded_folders.contains(item.folder_key()),
+                        hovered_folder_key.as_deref() == Some(item.folder_key()),
+                    )
+                })
+                .collect();
+
+            let table = Table::new(rows, [Constraint::Min(0)])
+                .highlight_spacing(ratatui::widgets::HighlightSpacing::Never);
+
+            let mut table_state = app.table_state.clone();
+            f.render_stateful_widget(table, inner, &mut table_state);
+            app.table_state = table_state;
+        }
     }
 
-    let table = Table::new(rows, [Constraint::Min(0)])
-        .highlight_spacing(ratatui::widgets::HighlightSpacing::Never);
-
-    let mut table_state = app.table_state.clone();
-    f.render_stateful_widget(table, inner, &mut table_state);
-    app.table_state = table_state;
+    // 3. Render Scrollbar (app is no longer borrowed by items)
+    if show_scrollbar && actual_item_count > 0 {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        let mut scrollbar_state =
+            ScrollbarState::new(actual_item_count).position(selected_idx.unwrap_or(0));
+        f.render_stateful_widget(
+            scrollbar,
+            area.inner(ratatui::layout::Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
+    }
 }
 
-fn build_panel_row(
-    panel: &AgentPanel,
+fn build_sidebar_row(
+    item: &SidebarItem,
     is_selected: bool,
     content_width: usize,
     theme: &crate::theme::Theme,
+    is_expanded: bool,
+    is_hovered_folder: bool,
 ) -> Row<'static> {
-    let row_bg = if is_selected {
-        theme.highlight_bg
-    } else {
-        theme.bg
-    };
-    let surface_bg = effective_surface_bg(row_bg, is_selected, theme);
-    let primary_color = if is_selected {
+    match item {
+        SidebarItem::Folder(folder) => build_folder_row(
+            folder,
+            is_selected,
+            content_width,
+            theme,
+            is_expanded,
+            is_hovered_folder,
+        ),
+        SidebarItem::Thread(thread) => build_thread_row(thread, is_selected, content_width, theme),
+    }
+}
+
+fn build_folder_row(
+    folder: &SidebarFolder,
+    is_selected: bool,
+    content_width: usize,
+    theme: &crate::theme::Theme,
+    is_expanded: bool,
+    is_hovered: bool,
+) -> Row<'static> {
+    let is_minimal = content_width < 10;
+    let card_bg = sidebar_card_bg(is_selected, theme);
+    let card_fg = if is_selected {
         theme.highlight_fg
     } else {
         theme.fg
     };
-    let badge_color = badge_color(panel, theme);
-    let dir_name = leaf_dir_name(&panel.working_dir);
-    let label_width = content_width.saturating_sub(3).clamp(4, 15);
-    let compact_path = truncate_to_width(&dir_name, label_width);
-    let unread = panel.has_unread_stop;
-    let dot_style = if panel.state == AgentState::Busy {
-        breathing_badge_style(badge_color, surface_bg, row_bg)
+    let unread = folder.threads.iter().any(|thread| thread.has_unread_stop);
+    let icon = if is_expanded { "▾" } else { "▸" };
+
+    let mut spans = Vec::new();
+    spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+    spans.push(Span::styled(
+        if is_selected { "▎" } else { " " },
+        Style::default()
+            .fg(if is_selected { theme.accent } else { card_bg })
+            .bg(card_bg),
+    ));
+
+    let icon_style = Style::default()
+        .fg(if is_hovered {
+            theme.border_focused
+        } else {
+            theme.comment
+        })
+        .bg(card_bg);
+    spans.push(Span::styled(format!("{} ", icon), icon_style));
+
+    if !is_minimal {
+        let count = folder.threads.len().to_string();
+        let count_width = display_width(&count);
+        let label_width = content_width.saturating_sub(7 + count_width).clamp(1, 30);
+        let label = truncate_to_width(&folder.label, label_width);
+        let used_width = 1 + 2 + display_width(&label) + 1 + count_width;
+
+        spans.push(Span::styled(
+            label,
+            maybe_bold(Style::default().fg(card_fg).bg(card_bg), unread),
+        ));
+
+        let fill_width = content_width.saturating_sub(used_width + 2);
+        if fill_width > 0 {
+            spans.push(Span::styled(
+                " ".repeat(fill_width),
+                Style::default().bg(card_bg),
+            ));
+        }
+
+        spans.push(Span::styled(
+            count,
+            Style::default()
+                .fg(if is_selected {
+                    theme.highlight_fg
+                } else {
+                    theme.comment
+                })
+                .bg(card_bg)
+                .add_modifier(Modifier::DIM),
+        ));
+    }
+
+    spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+
+    Row::new(vec![Cell::from(Text::from(vec![Line::from(spans)]))])
+        .height(1)
+        .style(Style::default().bg(theme.bg))
+}
+
+fn build_thread_row(
+    thread: &SidebarThread,
+    is_selected: bool,
+    content_width: usize,
+    theme: &crate::theme::Theme,
+) -> Row<'static> {
+    let is_minimal = content_width < 12;
+    let card_bg = sidebar_card_bg(is_selected, theme);
+    let card_fg = if is_selected {
+        theme.highlight_fg
     } else {
-        maybe_bold(Style::default().fg(badge_color).bg(row_bg), unread)
+        theme.fg
     };
-    let mut spans = vec![
-        Span::styled("●".to_string(), dot_style),
-        Span::styled(
-            agent_letter(panel).to_string(),
+    let badge_color = badge_color(thread.agent_type.clone(), theme);
+    let is_working = thread_badge_breathes(&thread.state);
+    let unread = thread.has_unread_stop;
+
+    let mut lines = Vec::new();
+    let inner_card_width = content_width.saturating_sub(2);
+    let badge = "• ";
+    let badge_width = display_width(&badge);
+
+    let mut l1_spans = Vec::new();
+    l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+    l1_spans.push(Span::styled(
+        badge,
+        if is_working {
+            breathing_badge_style(badge_color, card_bg, card_bg)
+        } else {
+            Style::default().fg(badge_color).bg(card_bg)
+        },
+    ));
+
+    if !is_minimal {
+        let meta = if thread.pinned {
+            " PIN"
+        } else if thread.is_live() {
+            " LIVE"
+        } else {
+            ""
+        };
+        let meta_width = display_width(meta);
+        let title_width = inner_card_width
+            .saturating_sub(badge_width + meta_width + 1)
+            .clamp(1, 52);
+        let compact_title = truncate_to_width(&thread.title, title_width);
+        let used_width = badge_width + display_width(&compact_title) + meta_width;
+        let title_color = if thread.state == AgentState::Waiting && !is_selected {
+            theme.success
+        } else {
+            card_fg
+        };
+
+        l1_spans.push(Span::styled(
+            compact_title,
             maybe_bold(
+                Style::default()
+                    .fg(title_color)
+                    .bg(card_bg)
+                    .add_modifier(if is_selected {
+                        Modifier::BOLD
+                    } else {
+                        Modifier::empty()
+                    }),
+                unread,
+            ),
+        ));
+
+        let fill_width = inner_card_width.saturating_sub(used_width + 1);
+        if fill_width > 0 {
+            l1_spans.push(Span::styled(
+                " ".repeat(fill_width),
+                Style::default().bg(card_bg),
+            ));
+        }
+
+        if !meta.is_empty() {
+            l1_spans.push(Span::styled(
+                meta,
                 Style::default()
                     .fg(if is_selected {
                         theme.highlight_fg
                     } else {
-                        badge_color
+                        theme.comment
                     })
-                    .bg(row_bg),
-                unread,
-            ),
-        ),
-        Span::styled(" ".to_string(), Style::default().bg(row_bg)),
-    ];
-    let label_color = if panel.state == AgentState::Waiting && !is_selected {
-        theme.success
-    } else {
-        primary_color
-    };
-    if panel.state == AgentState::Busy {
-        spans.extend(shimmer_spans(
-            &compact_path,
-            label_color,
-            surface_bg,
-            row_bg,
-        ));
-    } else {
-        spans.push(Span::styled(
-            compact_path,
-            maybe_bold(Style::default().fg(label_color).bg(row_bg), unread),
-        ));
+                    .bg(card_bg)
+                    .add_modifier(Modifier::DIM),
+            ));
+        }
     }
+    l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+    lines.push(Line::from(l1_spans));
 
-    let line = Line::from(spans);
-    Row::new(vec![Cell::from(Text::from(vec![line]))])
-        .height(1)
-        .style(Style::default().bg(row_bg))
+    let subtitle = thread_subtitle(thread);
+    let subtitle_spans = if is_minimal {
+        vec![Span::styled(
+            " ".repeat(inner_card_width.saturating_sub(1)),
+            Style::default().bg(card_bg),
+        )]
+    } else {
+        build_thread_subtitle_spans(
+            thread,
+            &subtitle,
+            if is_selected {
+                blend_color(theme.highlight_fg, theme.comment, 0.34)
+            } else {
+                theme.comment
+            },
+            card_bg,
+            inner_card_width.saturating_sub(1),
+        )
+    };
+
+    let mut l2_spans = Vec::new();
+    l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+    l2_spans.extend(subtitle_spans);
+    l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
+    lines.push(Line::from(l2_spans));
+
+    Row::new(vec![Cell::from(Text::from(lines))])
+        .height(2)
+        .style(Style::default().bg(theme.bg))
 }
 
-fn badge_color(panel: &AgentPanel, theme: &crate::theme::Theme) -> ratatui::style::Color {
-    match panel.agent_type {
+fn thread_badge_breathes(state: &AgentState) -> bool {
+    matches!(state, AgentState::Busy)
+}
+
+fn build_thread_subtitle_spans(
+    thread: &SidebarThread,
+    subtitle: &str,
+    color: Color,
+    row_bg: Color,
+    content_width: usize,
+) -> Vec<Span<'static>> {
+    let prefix = "  ";
+    let prefix_width = display_width(prefix);
+    let tags_text = thread_tags_text(thread, content_width / 3);
+    let tags_width = display_width(&tags_text);
+    let available_width = content_width.saturating_sub(prefix_width);
+    let subtitle_max_width = available_width
+        .saturating_sub(tags_width + if tags_width > 0 { 1 } else { 0 })
+        .max(1);
+    let compact_subtitle = truncate_to_width(subtitle, subtitle_max_width);
+    let subtitle_width = display_width(&compact_subtitle);
+    let spacer_width = content_width
+        .saturating_sub(prefix_width + subtitle_width + tags_width)
+        .max(1);
+    let mut spans = vec![
+        Span::styled(prefix.to_string(), Style::default().bg(row_bg)),
+        Span::styled(
+            compact_subtitle,
+            Style::default()
+                .fg(color)
+                .bg(row_bg)
+                .add_modifier(Modifier::DIM | Modifier::ITALIC),
+        ),
+    ];
+    spans.push(Span::styled(
+        " ".repeat(spacer_width),
+        Style::default().bg(row_bg),
+    ));
+    if !tags_text.is_empty() {
+        spans.push(Span::styled(
+            tags_text,
+            Style::default()
+                .fg(color)
+                .bg(row_bg)
+                .add_modifier(Modifier::DIM | Modifier::ITALIC),
+        ));
+    }
+    spans
+}
+
+fn thread_subtitle(thread: &SidebarThread) -> String {
+    thread
+        .subtitle
+        .as_deref()
+        .or_else(|| thread.last_user_prompt.as_deref())
+        .or_else(|| {
+            thread
+                .cached_preview_turns
+                .first()
+                .map(|turn| turn.question.as_str())
+        })
+        .or_else(|| thread.last_assistant_message.as_deref())
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn thread_tags_text(thread: &SidebarThread, max_width: usize) -> String {
+    if thread.tags.is_empty() || max_width == 0 {
+        return String::new();
+    }
+
+    let mut rendered = String::new();
+    for tag in &thread.tags {
+        let candidate = if rendered.is_empty() {
+            format!("#{}", tag)
+        } else {
+            format!("{} #{}", rendered, tag)
+        };
+        if display_width(&candidate) > max_width {
+            break;
+        }
+        rendered = candidate;
+    }
+    rendered
+}
+
+fn badge_color(
+    agent_type: crate::model::AgentType,
+    theme: &crate::theme::Theme,
+) -> ratatui::style::Color {
+    match agent_type {
         crate::model::AgentType::Claude => ratatui::style::Color::Rgb(249, 140, 87),
         crate::model::AgentType::Codex => ratatui::style::Color::Rgb(88, 166, 255),
         crate::model::AgentType::Kimi => ratatui::style::Color::Rgb(80, 200, 120),
@@ -182,6 +510,14 @@ fn badge_color(panel: &AgentPanel, theme: &crate::theme::Theme) -> ratatui::styl
     }
 }
 
+fn sidebar_card_bg(is_selected: bool, theme: &crate::theme::Theme) -> Color {
+    if is_selected {
+        theme.highlight_bg
+    } else {
+        blend_color(theme.border, theme.bg, 0.12)
+    }
+}
+
 fn effective_surface_bg(row_bg: Color, is_selected: bool, theme: &crate::theme::Theme) -> Color {
     match row_bg {
         Color::Reset if is_selected => theme.highlight_bg,
@@ -190,8 +526,8 @@ fn effective_surface_bg(row_bg: Color, is_selected: bool, theme: &crate::theme::
     }
 }
 
-fn agent_letter(panel: &AgentPanel) -> char {
-    match panel.agent_type {
+fn agent_letter(agent_type: crate::model::AgentType) -> char {
+    match agent_type {
         crate::model::AgentType::Claude => 'C',
         crate::model::AgentType::Codex => 'X',
         crate::model::AgentType::Kimi => 'K',
@@ -422,19 +758,90 @@ fn char_display_width(c: char) -> usize {
     }
 }
 
-pub fn preferred_panel_width(app: &App) -> u16 {
-    let filtered = app.filtered_panels();
-    let title_width = 6;
-    let content_width = filtered
+fn archived_title_label(locale: Locale) -> &'static str {
+    if is_cjk_locale(locale) {
+        "归档"
+    } else {
+        "Archived"
+    }
+}
+
+fn display_scope_title_label(locale: Locale, live_only: bool) -> &'static str {
+    if is_cjk_locale(locale) {
+        if live_only {
+            "在线"
+        } else {
+            "全部"
+        }
+    } else if live_only {
+        "LIVE"
+    } else {
+        "ALL"
+    }
+}
+
+fn archived_empty_title(locale: Locale) -> &'static str {
+    if is_cjk_locale(locale) {
+        "没有归档会话"
+    } else {
+        "No archived threads"
+    }
+}
+
+fn archived_empty_hint(locale: Locale) -> &'static str {
+    if is_cjk_locale(locale) {
+        "当前没有可恢复的归档会话"
+    } else {
+        "There are no archived threads to restore"
+    }
+}
+
+fn archived_empty_back_hint(locale: Locale) -> &'static str {
+    if is_cjk_locale(locale) {
+        "按 'Z' 返回普通视图"
+    } else {
+        "Press 'Z' to return to the main view"
+    }
+}
+
+fn is_cjk_locale(locale: Locale) -> bool {
+    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
+}
+
+pub fn preferred_panel_width(app: &mut App) -> u16 {
+    let archived_threads_view = app.archived_threads_view;
+    let locale = app.locale;
+    let live_only = app.showing_live_sessions();
+    let title_width = if archived_threads_view {
+        display_width(&format!(
+            " {} {} {} ",
+            "○",
+            archived_title_label(locale),
+            88
+        ))
+    } else {
+        display_width(&format!(
+            " {} {} {} ",
+            "○",
+            display_scope_title_label(locale, live_only),
+            888
+        ))
+    };
+    let items = app.visible_sidebar_items_ref();
+    let content_width = items
         .iter()
-        .map(|panel| {
-            let dir_name = leaf_dir_name(&panel.working_dir);
-            let label_width = display_width(&truncate_to_width(&dir_name, 15));
-            3 + label_width
+        .map(|item| match item {
+            SidebarItem::Folder(folder) => 2 + display_width(&truncate_to_width(&folder.label, 28)),
+            SidebarItem::Thread(thread) => {
+                let subtitle = thread_subtitle(thread);
+                let title_width = display_width(&truncate_to_width(&thread.title, 34));
+                let subtitle_width = display_width(&truncate_to_width(&subtitle, 32));
+                9 + title_width.max(subtitle_width)
+            }
         })
         .max()
         .unwrap_or(10);
-    (content_width.max(title_width) as u16 + 4).clamp(12, 24)
+    (content_width.max(title_width) as u16 + 4).clamp(6, 42)
 }
 
 pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
@@ -477,6 +884,7 @@ pub fn draw_agent_status_bar(f: &mut Frame, app: &App, area: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::AgentPanel;
 
     #[test]
     fn shimmer_preserves_text_content() {
@@ -514,6 +922,13 @@ mod tests {
             has_unread_stop: false,
         });
 
-        assert!(preferred_panel_width(&app) >= 13);
+        assert!(preferred_panel_width(&mut app) >= 13);
+    }
+
+    #[test]
+    fn waiting_threads_do_not_breathe() {
+        assert!(thread_badge_breathes(&AgentState::Busy));
+        assert!(!thread_badge_breathes(&AgentState::Waiting));
+        assert!(!thread_badge_breathes(&AgentState::Idle));
     }
 }

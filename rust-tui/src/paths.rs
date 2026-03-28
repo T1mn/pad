@@ -12,6 +12,10 @@ pub fn config_path() -> PathBuf {
     pad_home_dir().join("config.toml")
 }
 
+pub fn pad_db_path() -> PathBuf {
+    pad_home_dir().join("pad.db")
+}
+
 pub fn legacy_config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| {
@@ -90,6 +94,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     install_bridge_script(&claude_hook_bridge_path(), CLAUDE_HOOK_BRIDGE_TEMPLATE)?;
     install_bridge_script(&codex_hook_bridge_path(), CODEX_HOOK_BRIDGE_TEMPLATE)?;
     ensure_codex_hook_support()?;
+    crate::thread_meta::ensure_db()?;
     Ok(())
 }
 

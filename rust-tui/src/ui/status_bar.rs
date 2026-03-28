@@ -34,7 +34,7 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         _ => mode_badge(crate::i18n::t(l, "mode.normal"), theme.mode_normal_bg),
     };
     let mode_width = display_width(mode_span.content.as_ref());
-    let body_width = area.width.saturating_sub((mode_width + 1) as u16);
+    let body_width = area.width.saturating_sub(mode_width as u16);
 
     let body = match app.mode {
         crate::app::state::Mode::Search => format!(
@@ -131,7 +131,7 @@ fn format_status_remainder(text: &str, width: u16, occupied: usize) -> String {
     let content = if display_width(text) <= content_target {
         text.to_string()
     } else {
-        truncate_to_width(text, content_target)
+        truncate_from_left_to_width(text, content_target)
     };
     format!(" {}", content)
 }
@@ -177,6 +177,39 @@ fn truncate_to_width(text: &str, max_width: usize) -> String {
     }
 
     result.push_str(ellipsis);
+    result
+}
+
+fn truncate_from_left_to_width(text: &str, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+    if display_width(text) <= max_width {
+        return text.to_string();
+    }
+
+    let ellipsis = "…";
+    let ellipsis_width = display_width(ellipsis);
+    if max_width <= ellipsis_width {
+        return ellipsis.to_string();
+    }
+
+    let keep_width = max_width.saturating_sub(ellipsis_width);
+    let mut kept = Vec::new();
+    let mut used = 0usize;
+
+    for ch in text.chars().rev() {
+        let width = char_display_width(ch);
+        if used + width > keep_width {
+            break;
+        }
+        kept.push(ch);
+        used += width;
+    }
+
+    kept.reverse();
+    let mut result = String::from(ellipsis);
+    result.extend(kept);
     result
 }
 

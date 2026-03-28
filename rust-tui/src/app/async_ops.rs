@@ -1,8 +1,9 @@
 use super::App;
 use crate::log_debug;
-use crate::model::{AgentPanel, AgentState, AgentStateSource};
-use crate::preview_source::{self, PreviewUpdate};
+use crate::model::{AgentPanel, AgentState, AgentStateSource, PreviewView};
+use crate::preview_source::{self, PreviewRequest, PreviewUpdate};
 use crate::scanner::scan_panels;
+use crate::theme::Theme;
 use std::error::Error;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -11,6 +12,405 @@ use tokio::sync::mpsc;
 pub type ScanResult = Result<Vec<AgentPanel>, Box<dyn Error + Send + Sync>>;
 
 impl App {
+    pub fn trigger_async_preview_detail_render(&mut self, width: u16) {
+        if self.preview_detail_render_in_progress {
+            return;
+        }
+        let Some(mut request) = self.current_preview_detail_request() else {
+            return;
+        };
+        request.width = width;
+        if self
+            .preview_detail_pending_request
+            .as_ref()
+            .is_some_and(|pending| pending == &request)
+        {
+            return;
+        }
+        self.preview_detail_render_in_progress = true;
+        self.preview_detail_pending_request = Some(request.clone());
+        let theme = Theme::by_name(&request.theme_name);
+        let (tx, rx) = mpsc::channel::<crate::app::PreviewDetailCache>(1);
+        self.preview_detail_render_rx = Some(rx);
+
+        tokio::task::spawn_blocking(move || {
+            let started_at = Instant::now();
+            let turn = crate::model::PreviewTurn {
+                question: request.question.clone(),
+                answer: request.answer.clone(),
+            };
+            let lines =
+                crate::ui::preview::render_session_detail_lines(&turn, request.width, &theme);
+            let elapsed = started_at.elapsed();
+            if elapsed >= std::time::Duration::from_millis(8) {
+                log_debug!(
+                    "preview.detail.async: render_slow target={} turn={} width={} lines={} elapsed_ms={}",
+                    request.target_key,
+                    request.turn_index,
+                    request.width,
+                    lines.len(),
+                    elapsed.as_millis()
+                );
+            }
+            let _ = tx.blocking_send(crate::app::PreviewDetailCache {
+                target_key: request.target_key,
+                turn_index: request.turn_index,
+                width: request.width,
+                theme_name: request.theme_name,
+                question: request.question,
+                answer: request.answer,
+                lines,
+            });
+        });
+    }
+
+    pub fn check_preview_detail_result(&mut self) {
+        if let Some(ref mut rx) = self.preview_detail_render_rx {
+            match rx.try_recv() {
+                Ok(cache) => {
+                    self.store_preview_detail_cache(cache);
+                    self.preview_detail_render_in_progress = false;
+                    self.preview_detail_render_rx = None;
+                    self.preview_detail_pending_request = None;
+                    self.dirty = true;
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {}
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.preview_detail_render_in_progress = false;
+                    self.preview_detail_render_rx = None;
+                    self.preview_detail_pending_request = None;
+                }
+            }
+        }
+    }
+
+    pub fn check_preview_detail_update(&mut self, width: u16) {
+        if self.preview_view != PreviewView::SessionDetail {
+            return;
+        }
+        let Some(selected) = self.preview_expanded_turn else {
+            return;
+        };
+        let Some(turn) = self.preview_turns.get(selected).cloned() else {
+            return;
+        };
+        let target_key = self.preview_pane_id.clone().unwrap_or_default();
+        let theme_name = self.theme.name.to_string();
+        if self
+            .cached_preview_detail_for(
+                &target_key,
+                selected,
+                width,
+                &theme_name,
+                &turn.question,
+                &turn.answer,
+            )
+            .is_some()
+        {
+            return;
+        }
+        self.trigger_async_preview_detail_render(width);
+    }
+
+    fn sidebar_panels_changed(&self, next_panels: &[AgentPanel]) -> bool {
+        if self.panels.len() != next_panels.len() {
+            return true;
+        }
+
+        for next in next_panels {
+            let Some(current) = self
+                .panels
+                .iter()
+                .find(|panel| panel.pane_id == next.pane_id)
+            else {
+                return true;
+            };
+            if current.working_dir != next.working_dir
+                || current.agent_type != next.agent_type
+                || current.state != next.state
+                || current.is_active != next.is_active
+                || current.pid != next.pid
+                || current.last_user_prompt != next.last_user_prompt
+                || current.agent_session_id != next.agent_session_id
+                || current.transcript_path != next.transcript_path
+                || current.has_unread_stop != next.has_unread_stop
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn apply_scan_panels(&mut self, mut panels: Vec<AgentPanel>) {
+        log_debug!("async_ops: 扫描完成，检测到 {} 个面板", panels.len());
+
+        for panel in &mut panels {
+            if let Some(existing) = self.panels.iter().find(|p| p.pane_id == panel.pane_id) {
+                if existing.agent_session_id.is_some() {
+                    panel.agent_session_id = existing.agent_session_id.clone();
+                }
+                if existing.last_user_prompt.is_some() {
+                    panel.last_user_prompt = existing.last_user_prompt.clone();
+                }
+                if existing.last_assistant_message.is_some() {
+                    panel.last_assistant_message = existing.last_assistant_message.clone();
+                }
+                if existing.transcript_path.is_some() {
+                    panel.transcript_path = existing.transcript_path.clone();
+                }
+                if !existing.cached_preview_turns.is_empty() {
+                    panel.cached_preview_turns = existing.cached_preview_turns.clone();
+                }
+                if existing.session_cache_state.is_some() {
+                    panel.session_cache_state = existing.session_cache_state;
+                }
+                panel.has_unread_stop = existing.has_unread_stop;
+                if should_preserve_hook_state(existing) {
+                    panel.state = existing.state.clone();
+                    panel.state_source = existing.state_source.clone();
+                    panel.is_active = existing.is_active;
+                }
+            }
+        }
+
+        if let Err(err) = crate::session_cache::preload_panels(&mut panels) {
+            log_debug!("session_cache: preload after scan failed: {}", err);
+        }
+
+        let sidebar_changed = self.sidebar_panels_changed(&panels);
+        self.panels = panels;
+        if sidebar_changed
+            || (!self.panels.is_empty() && self.visible_sidebar_items_cache.is_empty())
+        {
+            self.invalidate_sidebar_cache();
+            self.sync_sidebar_selection();
+        }
+        if self.selected_panel().is_none() {
+            self.focus_panel();
+        }
+        self.last_refresh = Instant::now();
+        self.invalidate_preview();
+        self.dirty = true;
+    }
+
+    fn apply_preview_update_result(&mut self, update: PreviewUpdate) {
+        let cached_detail_turn = self.preview_detail_cache.as_ref().and_then(|cache| {
+            self.preview_turns.get(cache.turn_index).map(|turn| {
+                (
+                    cache.target_key.clone(),
+                    cache.turn_index,
+                    turn.clone(),
+                    cache.width,
+                    cache.theme_name.clone(),
+                )
+            })
+        });
+        let cached_plain_context = self.preview_plain_cache.as_ref().map(|cache| {
+            (
+                cache.target_key.clone(),
+                cache.width,
+                cache.theme_name.clone(),
+                cache.content.clone(),
+            )
+        });
+        let previous_panel_cache_state = self
+            .panels
+            .iter()
+            .find(|panel| update.live_pane_id.as_deref() == Some(panel.pane_id.as_str()))
+            .and_then(|panel| panel.session_cache_state);
+        let previous_pane_id = self.preview_pane_id.clone();
+        let previous_source = self.preview_source;
+        let previous_view = self.preview_view;
+        let previous_session_origin = self.preview_session_origin;
+        let previous_session_id = self.preview_session_id.clone();
+        let previous_content = self.preview_content.clone();
+        let previous_turns = self.preview_turns.clone();
+        let previous_selected_turn = self.preview_selected_turn;
+        let previous_expanded_turn = self.preview_expanded_turn;
+        let previous_list_scroll = self.preview_list_scroll;
+        let previous_detail_scroll = self.preview_detail_scroll;
+        let previous_follow_bottom = self.preview_follow_bottom;
+        let previous_follow_selection = self.preview_follow_selection;
+        let should_follow_bottom = self.preview_follow_bottom
+            || self.preview_pane_id.is_none()
+            || self.preview_pane_id.as_deref() != Some(update.target_key.as_str());
+        let same_context = self.preview_pane_id.as_deref() == Some(update.target_key.as_str())
+            && self.preview_source == update.source
+            && self.preview_session_origin == update.session_origin
+            && self.preview_session_id == update.session_id;
+        self.preview_content = update.content;
+        self.preview_pane_id = Some(update.target_key.clone());
+        self.preview_source = update.source;
+        self.preview_session_origin = update.session_origin;
+        self.preview_session_id = update.session_id.clone();
+        if self.preview_source == crate::model::PreviewSource::Session && !update.turns.is_empty() {
+            if !same_context {
+                self.preview_selected_turn = None;
+                self.preview_expanded_turn = None;
+                self.preview_view = PreviewView::SessionList;
+                self.preview_detail_scroll = 0;
+                self.preview_list_scroll = 0;
+                self.preview_follow_selection = true;
+            } else {
+                self.preview_selected_turn = self
+                    .preview_selected_turn
+                    .filter(|idx| *idx < update.turns.len());
+                self.preview_expanded_turn = self
+                    .preview_expanded_turn
+                    .filter(|idx| *idx < update.turns.len());
+                self.preview_view = if self.preview_expanded_turn.is_some() {
+                    PreviewView::SessionDetail
+                } else {
+                    PreviewView::SessionList
+                };
+            }
+            self.preview_turns = update.turns.clone();
+            self.preview_follow_bottom = false;
+        } else {
+            self.preview_turns.clear();
+            self.preview_session_origin = None;
+            self.preview_session_id = None;
+            self.preview_selected_turn = None;
+            self.preview_expanded_turn = None;
+            self.preview_view = PreviewView::Plain;
+            self.preview_list_scroll = 0;
+            self.preview_detail_scroll = 0;
+            self.preview_follow_bottom = should_follow_bottom;
+            self.preview_follow_selection = true;
+        }
+
+        let preserve_detail_cache = cached_detail_turn.as_ref().is_some_and(
+            |(target_key, turn_index, previous_turn, width, theme_name)| {
+                self.cached_preview_detail_for(
+                    target_key,
+                    *turn_index,
+                    *width,
+                    theme_name,
+                    &previous_turn.question,
+                    &previous_turn.answer,
+                )
+                .is_some()
+            },
+        );
+        if !preserve_detail_cache {
+            self.preview_detail_cache = None;
+            self.preview_detail_lru.clear();
+            self.preview_detail_render_in_progress = false;
+            self.preview_detail_render_rx = None;
+            self.preview_detail_pending_request = None;
+        }
+
+        let preserve_plain_cache = cached_plain_context.as_ref().is_some_and(
+            |(target_key, _width, theme_name, content)| {
+                self.preview_pane_id.as_deref() == Some(target_key.as_str())
+                    && self.preview_source == crate::model::PreviewSource::Tmux
+                    && self.preview_view == PreviewView::Plain
+                    && self.theme.name == theme_name
+                    && self.preview_content == *content
+            },
+        );
+        if !preserve_plain_cache {
+            self.preview_plain_cache = None;
+        }
+
+        let mut panel_cache_state_changed = false;
+        if update.source == crate::model::PreviewSource::Session && !update.turns.is_empty() {
+            let previous_updated_at = self
+                .thread_preview_cache
+                .get(&update.target_key)
+                .and_then(|entry| entry.updated_at);
+            self.thread_preview_cache.insert(
+                update.target_key.clone(),
+                crate::app::ThreadPreviewCacheEntry {
+                    turns: update.turns.clone(),
+                    session_cache_state: update.session_cache_state,
+                    transcript_path: update.transcript_path.clone(),
+                    session_id: update.session_id.clone(),
+                    updated_at: update.updated_at,
+                    cached_at: crate::app::unix_now_ts(),
+                },
+            );
+            let preview_cache_pruned = self.prune_thread_preview_cache();
+            if update.updated_at != previous_updated_at || preview_cache_pruned {
+                self.invalidate_sidebar_cache();
+            }
+        }
+        if let Some(panel) = update.live_pane_id.as_deref().and_then(|pane_id| {
+            self.panels
+                .iter_mut()
+                .find(|panel| panel.pane_id == pane_id)
+        }) {
+            let should_persist_panel_session =
+                update.session_origin != Some(crate::model::PreviewSessionOrigin::App);
+            if should_persist_panel_session {
+                if let Some(transcript_path) = update.transcript_path.clone() {
+                    panel.transcript_path = Some(transcript_path);
+                }
+            }
+            if self.preview_source == crate::model::PreviewSource::Session
+                && !update.turns.is_empty()
+                && should_persist_panel_session
+            {
+                panel.cached_preview_turns = update.turns.clone();
+                panel.last_user_prompt = update.turns.first().map(|turn| turn.question.clone());
+                panel.last_assistant_message =
+                    update.turns.first().and_then(|turn| turn.answer.clone());
+                if let Some(state) = update.session_cache_state {
+                    panel.session_cache_state = Some(state);
+                }
+            }
+            if should_persist_panel_session {
+                if let Some(session_id) = update.session_id.clone() {
+                    panel.agent_session_id = Some(session_id);
+                }
+            }
+            if should_persist_panel_session {
+                panel_cache_state_changed = previous_panel_cache_state != panel.session_cache_state;
+            }
+        }
+
+        self.last_preview_update = Instant::now();
+        if previous_pane_id != self.preview_pane_id
+            || previous_source != self.preview_source
+            || previous_view != self.preview_view
+            || previous_session_origin != self.preview_session_origin
+            || previous_session_id != self.preview_session_id
+            || previous_content != self.preview_content
+            || previous_turns != self.preview_turns
+            || previous_selected_turn != self.preview_selected_turn
+            || previous_expanded_turn != self.preview_expanded_turn
+            || previous_list_scroll != self.preview_list_scroll
+            || previous_detail_scroll != self.preview_detail_scroll
+            || previous_follow_bottom != self.preview_follow_bottom
+            || previous_follow_selection != self.preview_follow_selection
+            || panel_cache_state_changed
+        {
+            self.dirty = true;
+        }
+    }
+
+    pub fn flush_deferred_ui_updates(&mut self) {
+        if self.should_defer_ui_updates() {
+            return;
+        }
+
+        if let Some(panels) = self.deferred_scan_result.take() {
+            self.apply_scan_panels(panels);
+        }
+
+        if let Some(update) = self.deferred_preview_update.take() {
+            self.apply_preview_update_result(update);
+        }
+
+        if !self.deferred_hook_events.is_empty() {
+            let events = std::mem::take(&mut self.deferred_hook_events);
+            for event in events {
+                self.apply_hook_event(event);
+            }
+        }
+    }
+
     pub fn trigger_async_scan(&mut self) {
         if self.scan_in_progress {
             return;
@@ -29,57 +429,15 @@ impl App {
     pub fn check_scan_result(&mut self) {
         if let Some(ref mut rx) = self.scan_rx {
             match rx.try_recv() {
-                Ok(Ok(mut panels)) => {
-                    log_debug!("async_ops: 扫描完成，检测到 {} 个面板", panels.len());
-
-                    // Preserve hook-driven state/session info by pane_id
-                    for panel in &mut panels {
-                        if let Some(existing) =
-                            self.panels.iter().find(|p| p.pane_id == panel.pane_id)
-                        {
-                            if existing.agent_session_id.is_some() {
-                                panel.agent_session_id = existing.agent_session_id.clone();
-                            }
-                            if existing.last_user_prompt.is_some() {
-                                panel.last_user_prompt = existing.last_user_prompt.clone();
-                            }
-                            if existing.last_assistant_message.is_some() {
-                                panel.last_assistant_message =
-                                    existing.last_assistant_message.clone();
-                            }
-                            if existing.transcript_path.is_some() {
-                                panel.transcript_path = existing.transcript_path.clone();
-                            }
-                            if !existing.cached_preview_turns.is_empty() {
-                                panel.cached_preview_turns = existing.cached_preview_turns.clone();
-                            }
-                            if existing.session_cache_state.is_some() {
-                                panel.session_cache_state = existing.session_cache_state;
-                            }
-                            panel.has_unread_stop = existing.has_unread_stop;
-                            if existing.state_source == AgentStateSource::Hook
-                                && matches!(existing.state, AgentState::Busy | AgentState::Waiting)
-                            {
-                                panel.state = existing.state.clone();
-                                panel.state_source = existing.state_source.clone();
-                                panel.is_active = existing.is_active;
-                            }
-                        }
+                Ok(Ok(panels)) => {
+                    if self.should_defer_ui_updates() {
+                        log_debug!("async_ops: defer scan result while in detail view");
+                        self.deferred_scan_result = Some(panels);
+                    } else {
+                        self.apply_scan_panels(panels);
                     }
-
-                    if let Err(err) = crate::session_cache::preload_panels(&mut panels) {
-                        log_debug!("session_cache: preload after scan failed: {}", err);
-                    }
-
-                    self.panels = panels;
-                    if self.selected_panel().is_none() {
-                        self.focus_panel();
-                    }
-                    self.last_refresh = Instant::now();
-                    self.invalidate_preview();
                     self.scan_in_progress = false;
                     self.scan_rx = None;
-                    self.dirty = true;
                 }
                 Ok(Err(e)) => {
                     log_debug!("async_ops: 扫描失败: {}", e);
@@ -111,19 +469,30 @@ impl App {
         }
     }
 
-    pub fn trigger_async_preview_update(&mut self, panel: AgentPanel) {
+    pub fn trigger_async_preview_update(&mut self, request: PreviewRequest) {
         if self.preview_update_in_progress {
             return;
         }
 
         self.preview_update_in_progress = true;
+        self.preview_priority_refresh = false;
         let locale = self.locale;
         let preview_mode = self.config.preview.mode.clone();
         let (tx, rx) = mpsc::channel::<PreviewUpdate>(1);
         self.preview_rx = Some(rx);
 
         tokio::task::spawn_blocking(move || {
-            let update = preview_source::load_preview(&panel, &preview_mode, locale);
+            let started_at = Instant::now();
+            let update = preview_source::load_preview(&request, &preview_mode, locale);
+            let elapsed = started_at.elapsed();
+            if elapsed >= std::time::Duration::from_millis(20) {
+                log_debug!(
+                    "preview.load: slow target={} source_hint={:?} elapsed_ms={}",
+                    request.target_key,
+                    request.session_origin,
+                    elapsed.as_millis()
+                );
+            }
             let _ = tx.blocking_send(update);
         });
     }
@@ -132,102 +501,20 @@ impl App {
         if let Some(ref mut rx) = self.preview_rx {
             match rx.try_recv() {
                 Ok(update) => {
-                    let previous_panel_cache_state = self
-                        .panels
-                        .iter()
-                        .find(|panel| panel.pane_id == update.pane_id)
-                        .and_then(|panel| panel.session_cache_state);
-                    let previous_pane_id = self.preview_pane_id.clone();
-                    let previous_source = self.preview_source;
-                    let previous_content = self.preview_content.clone();
-                    let previous_turns = self.preview_turns.clone();
-                    let previous_selected_turn = self.preview_selected_turn;
-                    let previous_expanded_turn = self.preview_expanded_turn;
-                    let previous_list_scroll = self.preview_list_scroll;
-                    let previous_follow_bottom = self.preview_follow_bottom;
-                    let previous_follow_selection = self.preview_follow_selection;
-                    let should_follow_bottom = self.preview_follow_bottom
-                        || self.preview_pane_id.is_none()
-                        || self.preview_pane_id.as_deref() != Some(update.pane_id.as_str());
-                    let same_context = self.preview_pane_id.as_deref()
-                        == Some(update.pane_id.as_str())
-                        && self.preview_source == update.source;
-                    self.preview_content = update.content;
-                    self.preview_pane_id = Some(update.pane_id.clone());
-                    self.preview_source = update.source;
-                    if self.preview_source == crate::model::PreviewSource::Session
-                        && !update.turns.is_empty()
-                    {
-                        if !same_context {
-                            self.preview_selected_turn = None;
-                            self.preview_expanded_turn = None;
-                            self.preview_scroll = 0;
-                            self.preview_list_scroll = 0;
-                            self.preview_follow_selection = true;
-                        } else {
-                            self.preview_selected_turn = self
-                                .preview_selected_turn
-                                .filter(|idx| *idx < update.turns.len());
-                            self.preview_expanded_turn = self
-                                .preview_expanded_turn
-                                .filter(|idx| *idx < update.turns.len());
-                        }
-                        self.preview_turns = update.turns.clone();
-                        self.preview_follow_bottom = false;
+                    if self.should_defer_ui_updates() {
+                        log_debug!("async_ops: defer preview update while in detail view");
+                        self.deferred_preview_update = Some(update);
                     } else {
-                        self.preview_turns.clear();
-                        self.preview_selected_turn = None;
-                        self.preview_expanded_turn = None;
-                        self.preview_list_scroll = 0;
-                        self.preview_follow_bottom = should_follow_bottom;
-                        self.preview_follow_selection = true;
+                        self.apply_preview_update_result(update);
                     }
-
-                    let mut panel_cache_state_changed = false;
-                    if let Some(panel) = self
-                        .panels
-                        .iter_mut()
-                        .find(|panel| panel.pane_id == update.pane_id)
-                    {
-                        if let Some(transcript_path) = update.transcript_path.clone() {
-                            panel.transcript_path = Some(transcript_path);
-                        }
-                        if self.preview_source == crate::model::PreviewSource::Session
-                            && !update.turns.is_empty()
-                        {
-                            panel.cached_preview_turns = update.turns.clone();
-                            panel.last_user_prompt =
-                                update.turns.first().map(|turn| turn.question.clone());
-                            panel.last_assistant_message =
-                                update.turns.first().and_then(|turn| turn.answer.clone());
-                            if let Some(state) = update.session_cache_state {
-                                panel.session_cache_state = Some(state);
-                            }
-                        }
-                        panel_cache_state_changed =
-                            previous_panel_cache_state != panel.session_cache_state;
-                    }
-
                     self.preview_update_in_progress = false;
+                    self.preview_priority_refresh = false;
                     self.preview_rx = None;
-                    self.last_preview_update = Instant::now();
-                    if previous_pane_id != self.preview_pane_id
-                        || previous_source != self.preview_source
-                        || previous_content != self.preview_content
-                        || previous_turns != self.preview_turns
-                        || previous_selected_turn != self.preview_selected_turn
-                        || previous_expanded_turn != self.preview_expanded_turn
-                        || previous_list_scroll != self.preview_list_scroll
-                        || previous_follow_bottom != self.preview_follow_bottom
-                        || previous_follow_selection != self.preview_follow_selection
-                        || panel_cache_state_changed
-                    {
-                        self.dirty = true;
-                    }
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
                     self.preview_update_in_progress = false;
+                    self.preview_priority_refresh = false;
                     self.preview_rx = None;
                 }
             }
@@ -235,18 +522,40 @@ impl App {
     }
 
     pub fn check_preview_update(&mut self) {
-        if self.preview_update_in_progress || self.scan_in_progress {
+        if self.preview_update_in_progress
+            || (self.scan_in_progress && !self.preview_priority_refresh)
+        {
             return;
         }
 
-        let panel = self.selected_panel().cloned();
+        if self.should_pause_preview_refresh() {
+            return;
+        }
 
-        if let Some(panel) = panel {
-            let refresh_ms = preview_source::preview_refresh_interval_ms(&panel);
-            if self.last_preview_update.elapsed() < std::time::Duration::from_millis(refresh_ms) {
-                return;
+        let request = self.selected_preview_thread().map(|thread| PreviewRequest {
+            target_key: thread.key.clone(),
+            live_pane_id: thread.live_pane_id.clone(),
+            agent_type: thread.agent_type.clone(),
+            working_dir: thread.working_dir.clone(),
+            state: thread.state.clone(),
+            transcript_path: thread.transcript_path.clone(),
+            cached_preview_turns: thread.cached_preview_turns.clone(),
+            session_cache_state: thread.session_cache_state,
+            agent_session_id: thread.session_id.clone(),
+            session_origin: thread.preview_origin(),
+            persist_resolved_session: thread.is_live(),
+            known_updated_at: Some(thread.updated_at),
+        });
+
+        if let Some(request) = request {
+            if !self.preview_priority_refresh {
+                let refresh_ms = preview_source::preview_refresh_interval_ms_for_request(&request);
+                if self.last_preview_update.elapsed() < std::time::Duration::from_millis(refresh_ms)
+                {
+                    return;
+                }
             }
-            self.trigger_async_preview_update(panel);
+            self.trigger_async_preview_update(request);
         }
     }
 
@@ -263,15 +572,23 @@ impl App {
             None => return,
         };
 
+        let agent_name = agent.name.clone();
         let base_url = prov.base_url.clone();
-        let api_key = prov.api_key.clone();
+        let credential = if agent.name == "codex" {
+            prov.codex_auth_token()
+        } else if prov.api_key.is_empty() {
+            None
+        } else {
+            Some(prov.api_key.clone())
+        };
 
-        if base_url.is_empty() || api_key.is_empty() {
-            // Mark as failed immediately
+        if base_url.trim().is_empty() {
             if let Some(agent) = self.config.agents.get_mut(agent_idx) {
                 if let Some(prov) = agent.providers.get_mut(provider_idx) {
                     prov.test_status = Some(false);
-                    prov.test_result = Some("Base URL or API Key is empty".to_string());
+                    prov.test_http_status = None;
+                    prov.test_latency_ms = None;
+                    prov.test_result = Some("Base URL is empty".to_string());
                 }
             }
             self.dirty = true;
@@ -283,72 +600,80 @@ impl App {
         self.provider_test_rx = Some(rx);
 
         tokio::spawn(async move {
-            let url = format!("{}/v1/models", base_url.trim_end_matches('/'));
-            let output = tokio::process::Command::new("curl")
-                .args([
-                    "-s",
-                    "--max-time",
-                    "5",
-                    "-H",
-                    &format!("Authorization: Bearer {}", api_key),
-                    &url,
-                ])
-                .output()
-                .await;
-
-            let (success, message) = match output {
-                Ok(out) if out.status.success() => {
-                    let body = String::from_utf8_lossy(&out.stdout).to_string();
-                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&body) {
-                        if let Some(data) = val.get("data").and_then(|d| d.as_array()) {
-                            let models: Vec<String> = data
-                                .iter()
-                                .filter_map(|m| {
-                                    m.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())
-                                })
-                                .take(10)
-                                .collect();
-                            if models.is_empty() {
-                                (true, "Connected (no models listed)".to_string())
-                            } else {
-                                (true, format!("Models:\n{}", models.join("\n")))
-                            }
-                        } else if let Some(err) = val.get("error") {
-                            let msg = err
-                                .get("message")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown error");
-                            (false, format!("API error: {}", msg))
-                        } else {
-                            (true, format!("OK: {}", &body[..200.min(body.len())]))
-                        }
-                    } else {
-                        (
+            let url = base_url.trim().trim_end_matches('/').to_string();
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .redirect(reqwest::redirect::Policy::none())
+                .user_agent("pad-provider-test/0.1")
+                .build()
+            {
+                Ok(client) => client,
+                Err(err) => {
+                    let _ = tx
+                        .send((
+                            agent_idx,
+                            provider_idx,
                             false,
-                            format!("Invalid JSON: {}", &body[..200.min(body.len())]),
-                        )
-                    }
+                            None,
+                            None,
+                            format!("Failed to build HTTP client: {}", err),
+                        ))
+                        .await;
+                    return;
                 }
-                Ok(out) => {
-                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                    let msg = if !stderr.is_empty() { stderr } else { stdout };
-                    (false, format!("Error: {}", &msg[..200.min(msg.len())]))
-                }
-                Err(e) => (false, format!("Failed: {}", e)),
             };
 
-            let _ = tx.send((agent_idx, provider_idx, success, message)).await;
+            let issue_request = |client: &reqwest::Client| {
+                let mut request = client.get(&url);
+                if let Some(token) = credential.as_ref().filter(|token| !token.trim().is_empty()) {
+                    request = request.bearer_auth(token);
+                }
+                request
+            };
+
+            let _ = issue_request(&client).send().await;
+            let started_at = std::time::Instant::now();
+            let result = issue_request(&client).send().await;
+            let latency_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+
+            let (success, http_status, latency, message) = match result {
+                Ok(response) => {
+                    let status = response.status().as_u16();
+                    let message = if agent_name == "codex" {
+                        format!(
+                            "Reachable for Codex relay probe: HTTP {} in {} ms",
+                            status, latency_ms
+                        )
+                    } else {
+                        format!("Reachable: HTTP {} in {} ms", status, latency_ms)
+                    };
+                    (true, Some(status), Some(latency_ms), message)
+                }
+                Err(err) => (false, None, None, format!("Request failed: {}", err)),
+            };
+
+            let _ = tx
+                .send((
+                    agent_idx,
+                    provider_idx,
+                    success,
+                    http_status,
+                    latency,
+                    message,
+                ))
+                .await;
         });
     }
 
     pub fn check_provider_test_result(&mut self) {
         if let Some(ref mut rx) = self.provider_test_rx {
             match rx.try_recv() {
-                Ok((agent_idx, prov_idx, success, message)) => {
+                Ok((agent_idx, prov_idx, success, http_status, latency_ms, message)) => {
                     if let Some(agent) = self.config.agents.get_mut(agent_idx) {
                         if let Some(prov) = agent.providers.get_mut(prov_idx) {
                             prov.test_status = Some(success);
+                            prov.test_http_status = http_status;
+                            prov.test_latency_ms = latency_ms;
                             prov.test_result = Some(message);
                         }
                     }
@@ -363,5 +688,59 @@ impl App {
                 }
             }
         }
+    }
+}
+
+fn should_preserve_hook_state(panel: &AgentPanel) -> bool {
+    panel.state_source == AgentStateSource::Hook && matches!(panel.state, AgentState::Busy)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn panel_with_state(state: AgentState, source: AgentStateSource) -> AgentPanel {
+        AgentPanel {
+            session: "0".into(),
+            window: "main".into(),
+            window_index: "1".into(),
+            pane: "1".into(),
+            pane_id: "%1".into(),
+            agent_type: crate::model::AgentType::Codex,
+            working_dir: "/tmp/demo".into(),
+            is_active: matches!(state, AgentState::Busy),
+            state,
+            state_source: source,
+            transcript_path: None,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            git_info: None,
+            pid: None,
+            start_time: None,
+            agent_session_id: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+        }
+    }
+
+    #[test]
+    fn only_busy_hook_state_is_preserved_across_scan() {
+        assert!(should_preserve_hook_state(&panel_with_state(
+            AgentState::Busy,
+            AgentStateSource::Hook,
+        )));
+        assert!(!should_preserve_hook_state(&panel_with_state(
+            AgentState::Waiting,
+            AgentStateSource::Hook,
+        )));
+        assert!(!should_preserve_hook_state(&panel_with_state(
+            AgentState::Idle,
+            AgentStateSource::Hook,
+        )));
+        assert!(!should_preserve_hook_state(&panel_with_state(
+            AgentState::Busy,
+            AgentStateSource::Scanner,
+        )));
     }
 }

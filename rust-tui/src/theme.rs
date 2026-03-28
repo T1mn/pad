@@ -419,10 +419,59 @@ pub struct ProviderConfig {
     pub label: String,
     pub base_url: String,
     pub api_key: String,
+    pub env_key: String,
+    pub wire_api: String,
     /// Runtime-only: None=untested, Some(true)=ok, Some(false)=failed
     pub test_status: Option<bool>,
+    /// Runtime-only: last HTTP status returned by the lightweight connectivity probe
+    pub test_http_status: Option<u16>,
+    /// Runtime-only: last measured latency in milliseconds
+    pub test_latency_ms: Option<u64>,
     /// Runtime-only: human-readable test result (model list or error)
     pub test_result: Option<String>,
+}
+
+impl ProviderConfig {
+    pub fn codex_provider_name(&self) -> String {
+        normalize_provider_name(&self.label)
+    }
+
+    pub fn codex_auth_token(&self) -> Option<String> {
+        if !self.api_key.trim().is_empty() {
+            return Some(self.api_key.clone());
+        }
+        None
+    }
+
+    pub fn codex_wire_api(&self) -> &str {
+        if self.wire_api.trim().is_empty() {
+            "responses"
+        } else {
+            self.wire_api.as_str()
+        }
+    }
+}
+
+fn normalize_provider_name(raw: &str) -> String {
+    let mut normalized = String::new();
+    let mut last_was_sep = false;
+
+    for ch in raw.chars() {
+        if ch.is_ascii_alphanumeric() {
+            normalized.push(ch.to_ascii_lowercase());
+            last_was_sep = false;
+        } else if !normalized.is_empty() && !last_was_sep {
+            normalized.push('_');
+            last_was_sep = true;
+        }
+    }
+
+    let normalized = normalized.trim_matches('_').to_string();
+    if normalized.is_empty() {
+        "relay".to_string()
+    } else {
+        normalized
+    }
 }
 
 /// Per-agent configuration including relay/proxy settings
@@ -497,6 +546,19 @@ impl Default for TelegramConfig {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DisplayConfig {
+    pub session_scope: String,
+}
+
+impl Default for DisplayConfig {
+    fn default() -> Self {
+        Self {
+            session_scope: "live".to_string(),
+        }
+    }
+}
+
 /// Config file management
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -507,6 +569,7 @@ pub struct Config {
     pub language: String,
     pub desired_agent_style: DesiredAgentStyle,
     pub preview: PreviewConfig,
+    pub display: DisplayConfig,
     pub telegram: TelegramConfig,
 }
 
@@ -545,6 +608,7 @@ impl Default for Config {
             language: "zh-cn".to_string(),
             desired_agent_style: DesiredAgentStyle::default(),
             preview: PreviewConfig::default(),
+            display: DisplayConfig::default(),
             telegram: TelegramConfig::default(),
         }
     }
@@ -614,6 +678,14 @@ impl Config {
                 };
             }
         }
+        if let Some(toml::Value::Table(display)) = table.get("display") {
+            if let Some(toml::Value::String(scope)) = display.get("session_scope") {
+                config.display.session_scope = match scope.as_str() {
+                    "all" => "all".to_string(),
+                    _ => "live".to_string(),
+                };
+            }
+        }
         if let Some(toml::Value::Table(telegram)) = table.get("telegram") {
             if let Some(toml::Value::Boolean(enabled)) = telegram.get("enabled") {
                 config.telegram.enabled = *enabled;
@@ -671,11 +743,35 @@ impl Config {
                                             }
                                         })
                                         .unwrap_or_default();
+                                    let env_key = pt
+                                        .get("env_key")
+                                        .and_then(|v| {
+                                            if let toml::Value::String(s) = v {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or_default();
+                                    let wire_api = pt
+                                        .get("wire_api")
+                                        .and_then(|v| {
+                                            if let toml::Value::String(s) = v {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or_else(|| "responses".to_string());
                                     providers.push(ProviderConfig {
                                         label,
                                         base_url,
                                         api_key,
+                                        env_key,
+                                        wire_api,
                                         test_status: None,
+                                        test_http_status: None,
+                                        test_latency_ms: None,
                                         test_result: None,
                                     });
                                 }
@@ -708,7 +804,11 @@ impl Config {
                                 label: "default".to_string(),
                                 base_url: legacy_url.clone().unwrap_or_default(),
                                 api_key: legacy_key.clone().unwrap_or_default(),
+                                env_key: String::new(),
+                                wire_api: "responses".to_string(),
                                 test_status: None,
+                                test_http_status: None,
+                                test_latency_ms: None,
                                 test_result: None,
                             });
                             active_provider = Some(0);
@@ -752,6 +852,11 @@ impl Config {
         ));
         content.push_str("\n[preview]\n");
         content.push_str(&format!("mode = \"{}\"\n", self.preview.mode));
+        content.push_str("\n[display]\n");
+        content.push_str(&format!(
+            "session_scope = \"{}\"\n",
+            self.display.session_scope
+        ));
         content.push_str("\n[telegram]\n");
         content.push_str(&format!("enabled = {}\n", self.telegram.enabled));
         content.push_str(&format!(
@@ -776,9 +881,22 @@ impl Config {
             }
             for prov in &agent.providers {
                 content.push_str("\n[[agents.providers]]\n");
-                content.push_str(&format!("label = \"{}\"\n", prov.label));
-                content.push_str(&format!("base_url = \"{}\"\n", prov.base_url));
-                content.push_str(&format!("api_key = \"{}\"\n", prov.api_key));
+                content.push_str(&format!(
+                    "label = \"{}\"\n",
+                    prov.label.replace('"', "\\\"")
+                ));
+                content.push_str(&format!(
+                    "base_url = \"{}\"\n",
+                    prov.base_url.replace('"', "\\\"")
+                ));
+                content.push_str(&format!(
+                    "api_key = \"{}\"\n",
+                    prov.api_key.replace('"', "\\\"")
+                ));
+                content.push_str(&format!(
+                    "wire_api = \"{}\"\n",
+                    prov.codex_wire_api().replace('"', "\\\"")
+                ));
             }
             content.push('\n');
         }

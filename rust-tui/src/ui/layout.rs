@@ -26,8 +26,8 @@ pub fn compute_layout(
             Constraint::Percentage(right_pct),
         ]
     } else {
-        let min_left = 12;
-        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 24);
+        let min_left = 6;
+        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 34);
         let left = preferred_left_width.unwrap_or(16).clamp(min_left, max_left);
         vec![Constraint::Length(left), Constraint::Min(0)]
     };

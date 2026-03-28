@@ -21,6 +21,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.7"
 tokio = { version = "1.35", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 # Unix-only PTY support
 [target.'cfg(unix)'.dependencies]

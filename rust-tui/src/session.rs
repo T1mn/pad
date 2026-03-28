@@ -1,14 +1,20 @@
+use crate::app::App;
 use std::error::Error;
 use std::process::Command;
 
 /// Create a new tmux session in the given path with an agent command.
 /// After creation, switches the tmux client to the new session and installs
 /// F12/Ctrl+Q bindings so the user can return to the pad session.
-pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<dyn Error>> {
+pub fn create_session_with_agent(
+    app: &mut App,
+    path: &str,
+    agent_cmd: &str,
+) -> Result<(), Box<dyn Error>> {
     let session_name = path
         .replace('/', "_")
         .replace('.', "_")
         .replace('~', "home");
+    let target_format = "#{session_name}:#{window_index} #{pane_id}";
 
     log_debug!(
         "session: create_session_with_agent path={} cmd={} session_name={}",
@@ -21,20 +27,31 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
         .args(["has-session", "-t", &session_name])
         .output()?;
 
-    if check.status.success() {
+    let target_output = if check.status.success() {
         log_debug!(
             "session: session '{}' already exists, opening new window",
             session_name
         );
         // Session exists, open a new window with the agent
         let out = Command::new("tmux")
-            .args(["new-window", "-t", &session_name, "-c", path, agent_cmd])
+            .args([
+                "new-window",
+                "-P",
+                "-F",
+                target_format,
+                "-t",
+                &session_name,
+                "-c",
+                path,
+                agent_cmd,
+            ])
             .output()?;
         log_debug!(
             "session: new-window status={} stderr={}",
             out.status,
             String::from_utf8_lossy(&out.stderr).trim()
         );
+        out
     } else {
         log_debug!("session: creating new session '{}'", session_name);
         // Create new session with agent
@@ -42,6 +59,9 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
             .args([
                 "new-session",
                 "-d",
+                "-P",
+                "-F",
+                target_format,
                 "-s",
                 &session_name,
                 "-c",
@@ -54,7 +74,32 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
             out.status,
             String::from_utf8_lossy(&out.stderr).trim()
         );
+        out
+    };
+
+    if !target_output.status.success() {
+        return Err(format!(
+            "tmux create failed: {}",
+            String::from_utf8_lossy(&target_output.stderr).trim()
+        )
+        .into());
     }
+
+    let target_info = String::from_utf8_lossy(&target_output.stdout)
+        .trim()
+        .to_string();
+    let mut target_parts = target_info.split_whitespace();
+    let target_window = target_parts
+        .next()
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{}:0", session_name));
+    let target_pane = target_parts.next().map(str::to_string);
+
+    log_debug!(
+        "session: target_window={} target_pane={}",
+        target_window,
+        target_pane.as_deref().unwrap_or("-")
+    );
 
     // Get the pad pane id so we can install a return binding
     let pad_pane = std::env::var("TMUX_PANE").ok();
@@ -72,14 +117,63 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
     });
 
-    log_debug!("session: pad_pane={:?} pad_win={:?}", pad_pane, pad_win);
+    let pad_session = pad_pane.as_deref().and_then(|pane_id| {
+        Command::new("tmux")
+            .args(["display-message", "-p", "-t", pane_id, "#{session_name}"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    });
+
+    log_debug!(
+        "session: pad_pane={:?} pad_win={:?} pad_session={:?}",
+        pad_pane,
+        pad_win,
+        pad_session
+    );
+
+    app.saved_tmux_bindings.clear();
+    if let Some(line) = current_root_binding("F12") {
+        app.saved_tmux_bindings.push(line);
+    }
+    if let Some(line) = current_root_binding("C-q") {
+        app.saved_tmux_bindings.push(line);
+    }
+
+    let current_status = tmux_status_value(&session_name);
+    let desired_status = app.config.desired_agent_style.status.as_str();
+    let status_restore_value = apply_desired_status(desired_status, &current_status, &session_name);
+    app.saved_tmux_status = status_restore_value.clone();
+    app.saved_tmux_status_target = status_restore_value.as_ref().map(|_| session_name.clone());
 
     // Install F12/Ctrl+Q bindings in the new session so user can return to pad
-    if let (Some(pane_id), Some(win_target)) = (pad_pane, pad_win) {
-        let return_cmd = format!(
-            "tmux select-window -t '{}' && tmux select-pane -t '{}'",
-            win_target, pane_id
-        );
+    if let (Some(pane_id), Some(win_target), Some(pad_session)) = (pad_pane, pad_win, pad_session) {
+        let mut restore_parts = Vec::new();
+        restore_parts.push(restore_binding_cmd(
+            app.saved_tmux_bindings
+                .iter()
+                .find(|line| line.contains(" F12 "))
+                .map(String::as_str),
+            "F12",
+        ));
+        restore_parts.push(restore_binding_cmd(
+            app.saved_tmux_bindings
+                .iter()
+                .find(|line| line.contains(" C-q "))
+                .map(String::as_str),
+            "C-q",
+        ));
+        if let Some(status) = status_restore_value.as_deref() {
+            restore_parts.push(format!(
+                "tmux set -t '{}' status '{}'",
+                session_name, status
+            ));
+        }
+        restore_parts.push(format!("tmux switch-client -t '{}'", pad_session));
+        restore_parts.push(format!("tmux select-window -t '{}'", win_target));
+        restore_parts.push(format!("tmux select-pane -t '{}'", pane_id));
+        let return_cmd = restore_parts.join("; ");
         let bind_result = Command::new("tmux")
             .args(["bind-key", "-T", "root", "F12", "run-shell", &return_cmd])
             .output();
@@ -92,8 +186,19 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
         let _ = Command::new("tmux")
             .args(["bind-key", "-T", "root", "C-q", "run-shell", &return_cmd])
             .output();
+
+        app.same_session_attached = true;
     } else {
         log_debug!("session: TMUX_PANE not set, skipping F12 binding install");
+    }
+
+    let _ = Command::new("tmux")
+        .args(["select-window", "-t", &target_window])
+        .output();
+    if let Some(target_pane) = target_pane.as_deref() {
+        let _ = Command::new("tmux")
+            .args(["select-pane", "-t", target_pane])
+            .output();
     }
 
     // Switch the tmux client to the target session
@@ -107,4 +212,63 @@ pub fn create_session_with_agent(path: &str, agent_cmd: &str) -> Result<(), Box<
     );
 
     Ok(())
+}
+
+fn current_root_binding(key: &str) -> Option<String> {
+    let output = Command::new("tmux")
+        .args(["list-keys", "-T", "root"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| line.contains(&format!(" {} ", key)))
+        .map(|line| line.to_string())
+}
+
+fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> String {
+    saved_binding
+        .map(|line| format!("tmux {}", line))
+        .unwrap_or_else(|| format!("tmux unbind-key -T root {}", key))
+}
+
+fn tmux_status_value(target_session: &str) -> String {
+    Command::new("tmux")
+        .args(["show", "-v", "-t", target_session, "status"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+fn apply_desired_status(
+    desired_status: &str,
+    current_status: &str,
+    target_session: &str,
+) -> Option<String> {
+    if current_status.is_empty() {
+        return None;
+    }
+
+    match desired_status {
+        "show" if current_status != "on" => {
+            let _ = Command::new("tmux")
+                .args(["set", "-t", target_session, "status", "on"])
+                .output();
+            Some(current_status.to_string())
+        }
+        "hide" if current_status != "off" => {
+            let _ = Command::new("tmux")
+                .args(["set", "-t", target_session, "status", "off"])
+                .output();
+            Some(current_status.to_string())
+        }
+        _ => None,
+    }
 }

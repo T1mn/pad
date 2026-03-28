@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Instant;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentType {
     Claude,
     Codex,
@@ -65,7 +65,7 @@ impl AgentType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GitInfo {
     pub branch: Option<String>,
     pub commit: Option<String>,
@@ -90,6 +90,19 @@ pub enum AgentStateSource {
 pub enum PreviewSource {
     Tmux,
     Session,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreviewSessionOrigin {
+    Pane,
+    App,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreviewView {
+    Plain,
+    SessionList,
+    SessionDetail,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

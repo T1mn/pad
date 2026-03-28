@@ -1,6 +1,10 @@
 use super::state::Mode;
-use super::App;
+use super::{App, PendingThreadAction, ThreadActionKind, ThreadMetaEditKind};
 use crate::fuzzy::{scan_directories, FuzzyPicker};
+use crate::i18n::Locale;
+use crate::log_debug;
+use crate::model::AgentType;
+use crate::sidebar::{SidebarItem, SidebarThread};
 use crate::tree;
 use std::path::PathBuf;
 
@@ -9,8 +13,8 @@ impl App {
         self.show_tree = !self.show_tree;
         self.focus_panel();
         if self.show_tree {
-            if let Some(panel) = self.selected_panel() {
-                let path = PathBuf::from(&panel.working_dir);
+            if let Some(thread) = self.selected_preview_thread() {
+                let path = PathBuf::from(&thread.working_dir);
                 if path.exists() {
                     self.file_tree = Some(tree::FileTree::new(path));
                     self.mode = Mode::Tree;
@@ -206,6 +210,7 @@ impl App {
     }
 
     pub fn delete_panel(&mut self, panel: &crate::model::AgentPanel) {
+        self.pending_sidebar_selection_index = self.table_state.selected();
         let _ = std::process::Command::new("tmux")
             .args(["kill-pane", "-t", &panel.pane_id])
             .output();
@@ -259,6 +264,239 @@ impl App {
         ]
     }
 
+    pub fn toggle_archived_threads_view(&mut self) {
+        self.archived_threads_view = !self.archived_threads_view;
+        self.pending_thread_action = None;
+        self.pending_sidebar_selection_index = None;
+        self.mode = Mode::Normal;
+        self.selected_sidebar_key = None;
+        self.table_state.select(None);
+        self.invalidate_sidebar_cache();
+        self.sync_sidebar_selection();
+        self.invalidate_preview();
+        self.focus_panel();
+        self.dirty = true;
+    }
+
+    pub fn request_archive_selected_thread(&mut self) -> bool {
+        let Some(thread) = self.selected_thread_action_target(false) else {
+            return false;
+        };
+        self.open_thread_action_confirm(thread, ThreadActionKind::Archive);
+        true
+    }
+
+    pub fn request_unarchive_selected_thread(&mut self) -> bool {
+        let Some(thread) = self.selected_thread_action_target(true) else {
+            return false;
+        };
+        self.open_thread_action_confirm(thread, ThreadActionKind::Unarchive);
+        true
+    }
+
+    pub fn open_thread_action_confirm(&mut self, thread: SidebarThread, kind: ThreadActionKind) {
+        self.pending_thread_action = Some(PendingThreadAction { thread, kind });
+        self.thread_meta_editing = false;
+        self.thread_meta_target = None;
+        self.thread_meta_buffer.clear();
+        self.mode = Mode::ThreadActionConfirm;
+        self.dirty = true;
+    }
+
+    pub fn close_thread_action_confirm(&mut self) {
+        self.pending_thread_action = None;
+        self.thread_meta_editing = false;
+        self.thread_meta_target = None;
+        self.thread_meta_buffer.clear();
+        self.mode = Mode::Normal;
+        self.dirty = true;
+    }
+
+    pub fn confirm_thread_action(&mut self) -> bool {
+        let Some(action) = self.pending_thread_action.clone() else {
+            self.mode = Mode::Normal;
+            self.dirty = true;
+            return false;
+        };
+        self.pending_thread_action = None;
+        self.mode = Mode::Normal;
+
+        let Some(session_id) = action.thread.session_id.as_deref() else {
+            self.dirty = true;
+            return false;
+        };
+
+        let result = match action.kind {
+            ThreadActionKind::Archive => match action.thread.agent_type {
+                AgentType::Codex => crate::codex_state::archive_thread(session_id),
+                AgentType::Claude => crate::claude_history::archive_thread(session_id),
+                AgentType::Gemini => crate::gemini_history::archive_thread(session_id),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "archive is not supported for this agent type",
+                )),
+            },
+            ThreadActionKind::Unarchive => match action.thread.agent_type {
+                AgentType::Codex => crate::codex_state::unarchive_thread(session_id),
+                AgentType::Claude => crate::claude_history::unarchive_thread(session_id),
+                AgentType::Gemini => crate::gemini_history::unarchive_thread(session_id),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "restore is not supported for this agent type",
+                )),
+            },
+        };
+        let ok = result.is_ok();
+
+        match &result {
+            Ok(()) => self.show_action_toast(
+                success_toast_title(self.locale, action.kind, action.thread.agent_type.clone()),
+                &thread_action_subject(&action.thread),
+            ),
+            Err(err) => self.show_action_toast(
+                failure_toast_title(self.locale, action.kind, action.thread.agent_type.clone()),
+                &err.to_string(),
+            ),
+        }
+
+        self.invalidate_sidebar_cache();
+        self.sync_sidebar_selection();
+        self.invalidate_preview();
+        self.focus_panel();
+        self.dirty = true;
+        ok
+    }
+
+    pub fn open_thread_title_editor(&mut self) -> bool {
+        let Some(SidebarItem::Thread(thread)) = self.selected_sidebar_item() else {
+            return false;
+        };
+
+        self.pending_thread_action = None;
+        self.thread_meta_editing = true;
+        self.thread_meta_edit_kind = ThreadMetaEditKind::Title;
+        self.thread_meta_buffer = thread.title.clone();
+        self.thread_meta_target = Some(thread);
+        self.mode = Mode::ThreadActionConfirm;
+        self.dirty = true;
+        true
+    }
+
+    pub fn open_thread_tags_editor(&mut self) -> bool {
+        let Some(SidebarItem::Thread(thread)) = self.selected_sidebar_item() else {
+            return false;
+        };
+
+        self.pending_thread_action = None;
+        self.thread_meta_editing = true;
+        self.thread_meta_edit_kind = ThreadMetaEditKind::Tags;
+        self.thread_meta_buffer = thread.tags.join(", ");
+        self.thread_meta_target = Some(thread);
+        self.mode = Mode::ThreadActionConfirm;
+        self.dirty = true;
+        true
+    }
+
+    pub fn cancel_thread_meta_edit(&mut self) {
+        self.thread_meta_editing = false;
+        self.thread_meta_target = None;
+        self.thread_meta_buffer.clear();
+        self.mode = Mode::Normal;
+        self.dirty = true;
+    }
+
+    pub fn commit_thread_meta_edit(&mut self) -> bool {
+        let Some(thread) = self.thread_meta_target.clone() else {
+            self.cancel_thread_meta_edit();
+            return false;
+        };
+
+        let input = self.thread_meta_buffer.trim().to_string();
+        let result = match self.thread_meta_edit_kind {
+            ThreadMetaEditKind::Title => self.persist_thread_title_override(&thread, &input),
+            ThreadMetaEditKind::Tags => {
+                let tags = parse_thread_tags(&input);
+                self.persist_thread_tags(&thread, &tags)
+            }
+        };
+
+        let ok = result.is_ok();
+        if ok {
+            let (title, content) =
+                thread_meta_toast(self.locale, self.thread_meta_edit_kind, &input);
+            self.show_action_toast(title, &content);
+        } else if let Err(err) = result {
+            self.show_action_toast(thread_meta_save_failed_title(self.locale), &err.to_string());
+        }
+
+        if ok {
+            self.invalidate_sidebar_cache();
+            self.sync_sidebar_selection();
+            self.invalidate_preview();
+        }
+        self.cancel_thread_meta_edit();
+        ok
+    }
+
+    fn persist_thread_title_override(
+        &mut self,
+        thread: &SidebarThread,
+        title: &str,
+    ) -> std::io::Result<()> {
+        let session_id = thread.session_id.as_deref().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "selected thread is missing session id",
+            )
+        })?;
+        log_debug!(
+            "thread_meta: title override save requested thread={} title={}",
+            thread.key,
+            title
+        );
+        crate::thread_meta::upsert_thread_meta(
+            &thread.agent_type.to_string(),
+            session_id,
+            Some(title),
+            thread.note.as_deref(),
+            thread.pinned,
+        )
+    }
+
+    fn persist_thread_tags(
+        &mut self,
+        thread: &SidebarThread,
+        tags: &[String],
+    ) -> std::io::Result<()> {
+        let session_id = thread.session_id.as_deref().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "selected thread is missing session id",
+            )
+        })?;
+        log_debug!(
+            "thread_meta: tags save requested thread={} tags={:?}",
+            thread.key,
+            tags
+        );
+        crate::thread_meta::replace_thread_tags(&thread.agent_type.to_string(), session_id, tags)
+    }
+
+    fn selected_thread_action_target(&mut self, archived: bool) -> Option<SidebarThread> {
+        match self.selected_sidebar_item()? {
+            SidebarItem::Thread(thread)
+                if matches!(
+                    thread.agent_type,
+                    AgentType::Codex | AgentType::Claude | AgentType::Gemini
+                ) && thread.archived == archived
+                    && thread.session_id.is_some() =>
+            {
+                Some(thread)
+            }
+            _ => None,
+        }
+    }
+
     pub fn open_language_selector(&mut self) {
         let locales = Self::available_locales();
         self.language_selected = locales.iter().position(|l| *l == self.locale).unwrap_or(0);
@@ -280,6 +518,10 @@ impl App {
             "tmux" => crate::i18n::t(l, "settings.preview_mode_tmux"),
             "session" => crate::i18n::t(l, "settings.preview_mode_session"),
             _ => crate::i18n::t(l, "settings.preview_mode_auto"),
+        };
+        let display_mode = match self.config.display.session_scope.as_str() {
+            "all" => crate::i18n::t(l, "settings.display_mode_all"),
+            _ => crate::i18n::t(l, "settings.display_mode_live"),
         };
         vec![
             (
@@ -330,6 +572,13 @@ impl App {
                 preview_mode.to_string(),
                 "settings.preview_mode",
                 "settings.preview_mode",
+                true,
+            ),
+            (
+                "display_mode",
+                display_mode.to_string(),
+                "settings.display_mode",
+                "settings.display_mode",
                 true,
             ),
             (
@@ -395,4 +644,109 @@ impl App {
             ("everforest", "Everforest"),
         ]
     }
+}
+
+fn thread_action_subject(thread: &SidebarThread) -> String {
+    if !thread.title.trim().is_empty() && thread.title != "untitled" {
+        thread.title.clone()
+    } else {
+        thread
+            .session_id
+            .clone()
+            .unwrap_or_else(|| thread.key.clone())
+    }
+}
+
+fn success_toast_title(
+    locale: Locale,
+    kind: ThreadActionKind,
+    agent_type: AgentType,
+) -> &'static str {
+    match (is_cjk_locale(locale), kind, agent_type) {
+        (true, ThreadActionKind::Archive, AgentType::Gemini) => "已在 pad 侧归档",
+        (true, ThreadActionKind::Unarchive, AgentType::Gemini) => "已从 pad 侧恢复",
+        (false, ThreadActionKind::Archive, AgentType::Gemini) => "Pad archived",
+        (false, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad restored",
+        (true, ThreadActionKind::Archive, _) => "已归档",
+        (true, ThreadActionKind::Unarchive, _) => "已恢复",
+        (false, ThreadActionKind::Archive, _) => "Archived",
+        (false, ThreadActionKind::Unarchive, _) => "Restored",
+    }
+}
+
+fn parse_thread_tags(input: &str) -> Vec<String> {
+    input
+        .split(|c: char| c == ',' || c == '\n' || c == ';')
+        .map(|tag| tag.trim())
+        .filter(|tag| !tag.is_empty())
+        .map(|tag| tag.to_string())
+        .collect()
+}
+
+fn thread_meta_save_failed_title(locale: Locale) -> &'static str {
+    if matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja) {
+        "保存失败"
+    } else {
+        "Save failed"
+    }
+}
+
+fn thread_meta_toast(
+    locale: Locale,
+    kind: ThreadMetaEditKind,
+    input: &str,
+) -> (&'static str, String) {
+    let empty_title = matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja);
+    match kind {
+        ThreadMetaEditKind::Title => {
+            if input.is_empty() {
+                if empty_title {
+                    ("标题已清空", String::from("将回退到上游标题"))
+                } else {
+                    (
+                        "Title cleared",
+                        String::from("Will fall back to upstream title"),
+                    )
+                }
+            } else if empty_title {
+                ("标题已保存", input.to_string())
+            } else {
+                ("Title saved", input.to_string())
+            }
+        }
+        ThreadMetaEditKind::Tags => {
+            if input.is_empty() {
+                if empty_title {
+                    ("标签已清空", String::from("无标签"))
+                } else {
+                    ("Tags cleared", String::from("No tags"))
+                }
+            } else if empty_title {
+                ("标签已保存", input.to_string())
+            } else {
+                ("Tags saved", input.to_string())
+            }
+        }
+    }
+}
+
+fn failure_toast_title(
+    locale: Locale,
+    kind: ThreadActionKind,
+    agent_type: AgentType,
+) -> &'static str {
+    match (is_cjk_locale(locale), kind, agent_type) {
+        (true, ThreadActionKind::Archive, AgentType::Gemini) => "Pad 归档失败",
+        (true, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad 恢复失败",
+        (false, ThreadActionKind::Archive, AgentType::Gemini) => "Pad archive failed",
+        (false, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad restore failed",
+        (true, ThreadActionKind::Archive, _) => "归档失败",
+        (true, ThreadActionKind::Unarchive, _) => "恢复失败",
+        (false, ThreadActionKind::Archive, _) => "Archive Failed",
+        (false, ThreadActionKind::Unarchive, _) => "Restore Failed",
+    }
+}
+
+fn is_cjk_locale(locale: Locale) -> bool {
+    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }
