@@ -24,10 +24,10 @@ impl App {
     fn sidebar_item_is_navigable(items: &[SidebarItem], index: usize, item: &SidebarItem) -> bool {
         match item {
             SidebarItem::Thread(_) => true,
-            SidebarItem::Folder(folder) => !items
+            SidebarItem::Folder(folder) => items
                 .get(index + 1)
                 .and_then(SidebarItem::as_thread)
-                .is_some_and(|thread| thread.folder_key == folder.key),
+                .is_none_or(|thread| thread.folder_key != folder.key),
         }
     }
 
