@@ -107,12 +107,7 @@ fn session_turn_index_at_position(
     }
 
     let line = scroll as usize + row.saturating_sub(preview_content_area.y) as usize;
-    let index = line / ui::preview::SESSION_CARD_HEIGHT as usize;
-    if index < turn_count {
-        Some(index)
-    } else {
-        None
-    }
+    ui::preview::session_turn_index_at_line(line, turn_count)
 }
 
 fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row: u16) {

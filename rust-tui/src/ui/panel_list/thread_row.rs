@@ -19,6 +19,9 @@ pub(crate) fn build_thread_row(
     content_width: usize,
     theme: &crate::theme::Theme,
 ) -> Row<'static> {
+    const OUTER_PAD: usize = 1;
+    const CARD_LEFT_PAD: usize = 2;
+    const CARD_RIGHT_PAD: usize = 1;
     let is_minimal = content_width < 12;
     let card_bg = sidebar_card_bg(is_selected, theme);
     let card_fg = sidebar_thread_fg(is_selected, theme);
@@ -27,8 +30,8 @@ pub(crate) fn build_thread_row(
     let unread = thread.has_unread_stop;
 
     let mut lines = Vec::new();
-    let card_width = content_width.saturating_sub(2);
-    let inner_card_width = card_width.saturating_sub(2);
+    let card_width = content_width.saturating_sub(OUTER_PAD * 2);
+    let inner_card_width = card_width.saturating_sub(CARD_LEFT_PAD + CARD_RIGHT_PAD);
     let badge = if is_working {
         breathing_badge_text()
     } else {
@@ -38,7 +41,7 @@ pub(crate) fn build_thread_row(
 
     let mut l1_spans = Vec::new();
     l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    l1_spans.push(Span::styled(" ", Style::default().bg(card_bg)));
+    l1_spans.push(Span::styled("  ", Style::default().bg(card_bg)));
     l1_spans.push(Span::styled(
         badge,
         if is_working {
@@ -58,7 +61,7 @@ pub(crate) fn build_thread_row(
         };
         let meta_width = display_width(meta);
         let title_width = inner_card_width
-            .saturating_sub(badge_width + meta_width + 1)
+            .saturating_sub(badge_width + meta_width)
             .clamp(1, 52);
         let compact_title = truncate_to_width(&thread.title, title_width);
         let used_width = badge_width + display_width(&compact_title) + meta_width;
@@ -83,7 +86,7 @@ pub(crate) fn build_thread_row(
             ),
         ));
 
-        let fill_width = inner_card_width.saturating_sub(used_width + 1);
+        let fill_width = inner_card_width.saturating_sub(used_width);
         if fill_width > 0 {
             l1_spans.push(Span::styled(
                 " ".repeat(fill_width),
@@ -127,7 +130,7 @@ pub(crate) fn build_thread_row(
 
     let mut l2_spans = Vec::new();
     l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
-    l2_spans.push(Span::styled(" ", Style::default().bg(card_bg)));
+    l2_spans.push(Span::styled("  ", Style::default().bg(card_bg)));
     l2_spans.extend(subtitle_spans);
     l2_spans.push(Span::styled(" ", Style::default().bg(card_bg)));
     l2_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
@@ -166,15 +169,15 @@ fn build_thread_subtitle_spans(
     let prefix_width = display_width(prefix);
     let tags_text = thread_tags_text(thread, content_width / 3);
     let tags_width = display_width(&tags_text);
+    let tags_gap_width = if tags_width > 0 { 1 } else { 0 };
     let available_width = content_width.saturating_sub(prefix_width);
     let subtitle_max_width = available_width
-        .saturating_sub(tags_width + if tags_width > 0 { 1 } else { 0 })
+        .saturating_sub(tags_width + tags_gap_width)
         .max(1);
     let compact_subtitle = truncate_to_width(subtitle, subtitle_max_width);
     let subtitle_width = display_width(&compact_subtitle);
-    let spacer_width = content_width
-        .saturating_sub(prefix_width + subtitle_width + tags_width)
-        .max(1);
+    let spacer_width =
+        content_width.saturating_sub(prefix_width + subtitle_width + tags_width + tags_gap_width);
     let mut spans = vec![
         Span::styled(prefix.to_string(), Style::default().bg(row_bg)),
         Span::styled(
@@ -190,6 +193,7 @@ fn build_thread_subtitle_spans(
         Style::default().bg(row_bg),
     ));
     if !tags_text.is_empty() {
+        spans.push(Span::styled(" ", Style::default().bg(row_bg)));
         spans.push(Span::styled(
             tags_text,
             Style::default()

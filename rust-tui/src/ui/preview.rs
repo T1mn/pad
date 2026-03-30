@@ -16,13 +16,13 @@ use ratatui::{
 };
 
 pub const PREVIEW_INFO_CARD_HEIGHT: u16 = 7;
-pub const SESSION_CARD_HEIGHT: u16 = 4;
 pub(crate) const DETAIL_SMOOTH_SPAN_THRESHOLD: usize = 320;
 pub(crate) const DETAIL_SMOOTH_LINE_THRESHOLD: usize = 72;
 
 pub use file_preview::draw_file_preview;
 pub use layout::{extract_preview_selection_text, preview_sid_text_at};
 pub use session::render_session_detail_lines;
+pub(crate) use session::session_turn_index_at_line;
 
 pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
     let theme = app.theme.clone();

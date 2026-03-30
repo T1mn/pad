@@ -1,5 +1,5 @@
 mod claude;
-mod codex;
+pub(crate) mod codex;
 mod gemini;
 mod session_target;
 mod turns;

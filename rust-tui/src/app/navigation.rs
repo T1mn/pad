@@ -5,6 +5,57 @@ use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
 use std::path::PathBuf;
 
 impl App {
+    fn sidebar_navigable_indices_for(items: &[SidebarItem]) -> Vec<usize> {
+        items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                if Self::sidebar_item_is_navigable(items, index, item) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn sidebar_item_is_navigable(items: &[SidebarItem], index: usize, item: &SidebarItem) -> bool {
+        match item {
+            SidebarItem::Thread(_) => true,
+            SidebarItem::Folder(folder) => !items
+                .get(index + 1)
+                .and_then(SidebarItem::as_thread)
+                .is_some_and(|thread| thread.folder_key == folder.key),
+        }
+    }
+
+    fn next_navigable_sidebar_index(
+        items: &[SidebarItem],
+        current: Option<usize>,
+        forward: bool,
+    ) -> Option<usize> {
+        let candidates = Self::sidebar_navigable_indices_for(items);
+        if candidates.is_empty() {
+            return None;
+        }
+
+        match current {
+            Some(current) if forward => candidates
+                .iter()
+                .copied()
+                .find(|index| *index > current)
+                .or_else(|| candidates.first().copied()),
+            Some(current) => candidates
+                .iter()
+                .rev()
+                .copied()
+                .find(|index| *index < current)
+                .or_else(|| candidates.last().copied()),
+            None if forward => candidates.first().copied(),
+            None => candidates.last().copied(),
+        }
+    }
+
     fn apply_cached_preview_to_thread(&self, thread: &mut SidebarThread) {
         let Some(cache) = self.preview.thread_preview_cache.get(&thread.key) else {
             return;
@@ -250,16 +301,10 @@ impl App {
             return;
         }
 
+        let items = self.visible_sidebar_items_ref().to_vec();
         let current = self.table_state.selected();
-        let i = match current {
-            Some(i) => {
-                if i >= visible_len.saturating_sub(1) {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
+        let Some(i) = Self::next_navigable_sidebar_index(&items, current, true) else {
+            return;
         };
         let selected_key = self
             .visible_sidebar_items_ref()
@@ -290,16 +335,10 @@ impl App {
             return;
         }
 
+        let items = self.visible_sidebar_items_ref().to_vec();
         let current = self.table_state.selected();
-        let i = match current {
-            Some(i) => {
-                if i == 0 {
-                    visible_len.saturating_sub(1)
-                } else {
-                    i.saturating_sub(1)
-                }
-            }
-            None => 0,
+        let Some(i) = Self::next_navigable_sidebar_index(&items, current, false) else {
+            return;
         };
         let selected_key = self
             .visible_sidebar_items_ref()
@@ -378,6 +417,22 @@ impl App {
         }
     }
 
+    pub fn collapse_parent_folder_for_selected_thread(&mut self) -> bool {
+        let Some(SidebarItem::Thread(thread)) = self.selected_sidebar_item() else {
+            return false;
+        };
+        if !self.sidebar.expanded_folders.remove(&thread.folder_key) {
+            return false;
+        }
+        self.sidebar.selected_sidebar_key = Some(thread.folder_key.clone());
+        self.invalidate_sidebar_visible_cache();
+        self.sync_sidebar_selection();
+        self.focus_panel();
+        self.invalidate_preview();
+        self.dirty = true;
+        true
+    }
+
     #[allow(dead_code)]
     pub fn filtered_panels(&self) -> Vec<&AgentPanel> {
         if self.search_query.is_empty() {
@@ -418,5 +473,82 @@ impl App {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+
+    fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
+        AgentPanel {
+            session: "0".into(),
+            window: "main".into(),
+            window_index: "1".into(),
+            pane: "1".into(),
+            pane_id: pane_id.into(),
+            agent_type: AgentType::Codex,
+            working_dir: working_dir.into(),
+            is_active: true,
+            state: AgentState::Idle,
+            state_source: AgentStateSource::Scanner,
+            transcript_path: None,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            git_info: None,
+            pid: None,
+            start_time: None,
+            agent_session_id: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+        }
+    }
+
+    #[test]
+    fn next_uses_folder_rows_when_not_expanded() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sync_sidebar_selection();
+
+        app.next();
+
+        assert_eq!(app.table_state.selected(), Some(1));
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some("/tmp/beta")
+        );
+    }
+
+    #[test]
+    fn next_skips_expanded_folder_row() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        app.next();
+
+        assert_eq!(app.table_state.selected(), Some(1));
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
+    }
+
+    #[test]
+    fn next_skips_search_expanded_folder_row() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.search_query = "alpha".into();
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        app.next();
+
+        assert_eq!(app.table_state.selected(), Some(1));
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
     }
 }

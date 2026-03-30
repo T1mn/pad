@@ -237,6 +237,16 @@ fn handle_normal_mode(
                     tree.toggle();
                 }
                 app.dirty = true;
+            } else {
+                match app.selected_sidebar_item() {
+                    Some(item) if item.as_folder().is_some() => {
+                        let _ = app.toggle_selected_folder();
+                    }
+                    Some(item) if item.as_thread().is_some() => {
+                        let _ = app.collapse_parent_folder_for_selected_thread();
+                    }
+                    _ => {}
+                }
             }
         }
         KeyCode::Enter => match app.selected_sidebar_item() {
@@ -356,7 +366,7 @@ mod tests {
         AgentPanel, AgentState, AgentStateSource, AgentType, PreviewSource, PreviewTurn,
         PreviewView,
     };
-    use crossterm::event::KeyModifiers;
+    use crossterm::event::{KeyEventKind, KeyEventState, KeyModifiers};
 
     fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
         AgentPanel {
@@ -398,6 +408,15 @@ mod tests {
             column,
             row,
             modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
         }
     }
 
@@ -475,7 +494,7 @@ mod tests {
         let regions = mouse::normal_mouse_regions(&mut app, area);
         let click = left_click(
             regions.preview_content_area.x,
-            regions.preview_content_area.y + crate::ui::preview::SESSION_CARD_HEIGHT,
+            regions.preview_content_area.y + 3,
         );
 
         mouse::handle_normal_mouse(&mut app, area, click);
@@ -485,6 +504,38 @@ mod tests {
 
         mouse::handle_normal_mouse(&mut app, area, click);
         assert_eq!(app.preview.expanded_turn, Some(1));
+    }
+
+    #[test]
+    fn mouse_click_on_session_gap_does_not_change_selection() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.preview.source = PreviewSource::Session;
+        app.preview.turns = vec![
+            PreviewTurn {
+                question: "first".into(),
+                answer: Some("one".into()),
+            },
+            PreviewTurn {
+                question: "second".into(),
+                answer: Some("two".into()),
+            },
+        ];
+        app.preview.view = PreviewView::SessionList;
+        app.preview.selected_turn = Some(0);
+
+        let area = Rect::new(0, 0, 100, 30);
+        let regions = mouse::normal_mouse_regions(&mut app, area);
+        let gap_click = left_click(
+            regions.preview_content_area.x,
+            regions.preview_content_area.y + 2,
+        );
+
+        mouse::handle_normal_mouse(&mut app, area, gap_click);
+
+        assert!(app.preview.focus == FocusTarget::Preview);
+        assert_eq!(app.preview.selected_turn, Some(0));
+        assert_eq!(app.preview.expanded_turn, None);
     }
 
     #[test]
@@ -507,5 +558,47 @@ mod tests {
 
         assert!(app.preview.focus == FocusTarget::Preview);
         assert_eq!(app.preview.scroll, MOUSE_PREVIEW_SCROLL_DELTA as u16);
+    }
+
+    #[test]
+    fn space_on_selected_thread_collapses_parent_folder() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+        app.select_sidebar_index(1, false);
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+
+        assert!(!app.sidebar.expanded_folders.contains("/tmp/alpha"));
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some("/tmp/alpha")
+        );
+        assert_eq!(app.table_state.selected(), Some(0));
+        assert!(app.preview.focus == FocusTarget::Panel);
+    }
+
+    #[test]
+    fn j_k_skip_expanded_folder_rows() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char('j'))).unwrap();
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
+
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char('k'))).unwrap();
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some("/tmp/beta")
+        );
     }
 }

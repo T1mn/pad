@@ -13,6 +13,10 @@ use ratatui::{
     widgets::Paragraph,
     Frame,
 };
+
+pub(crate) const SESSION_ITEM_CONTENT_HEIGHT: usize = 2;
+pub(crate) const SESSION_ITEM_GAP_HEIGHT: usize = 1;
+
 pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     if app.preview.view == crate::model::PreviewView::SessionDetail {
         if let Some(selected) = app.preview.expanded_turn {
@@ -33,22 +37,8 @@ pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, the
 
 fn draw_session_list(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     let width = area.width.max(8) as usize;
-    let mut lines: Vec<Line> = Vec::new();
-    let mut selected_range = None;
-
-    for (idx, turn) in app.preview.turns.iter().enumerate() {
-        let start = lines.len();
-        lines.extend(render_session_card(
-            turn,
-            idx == app.preview.selected_turn.unwrap_or(usize::MAX),
-            width,
-            theme,
-        ));
-        let end = lines.len().saturating_sub(1);
-        if app.preview.selected_turn == Some(idx) {
-            selected_range = Some((start, end));
-        }
-    }
+    let (lines, selected_range) =
+        build_session_list_lines(&app.preview.turns, app.preview.selected_turn, width, theme);
 
     let scroll = resolve_session_list_scroll(app, selected_range, area.height, lines.len());
     let paragraph = Paragraph::new(ratatui::text::Text::from(lines))
@@ -200,6 +190,7 @@ pub(crate) fn render_session_card(
     width: usize,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
+    debug_assert_eq!(SESSION_ITEM_CONTENT_HEIGHT, 2);
     let inner_width = width.saturating_sub(6).max(6);
     let q = truncate_to_width(
         &question_text_for_display(turn.question.trim()),
@@ -251,9 +242,66 @@ pub(crate) fn render_session_card(
             Span::styled(" A ", a_label_style),
             Span::styled(a, text_style),
         ]),
-        Line::from(Span::styled(" ", Style::default().bg(block_bg))),
-        Line::from(Span::styled(" ", Style::default().bg(block_bg))),
     ]
+}
+
+pub(crate) fn build_session_list_lines(
+    turns: &[crate::model::PreviewTurn],
+    selected_turn: Option<usize>,
+    width: usize,
+    theme: &Theme,
+) -> (Vec<Line<'static>>, Option<(usize, usize)>) {
+    let mut lines = Vec::new();
+    let mut selected_range = None;
+
+    for (idx, turn) in turns.iter().enumerate() {
+        let start = lines.len();
+        lines.extend(render_session_card(
+            turn,
+            selected_turn == Some(idx),
+            width,
+            theme,
+        ));
+        let end = lines.len().saturating_sub(1);
+        if selected_turn == Some(idx) {
+            selected_range = Some((start, end));
+        }
+        if idx + 1 < turns.len() {
+            lines.push(render_session_gap_line(width, theme));
+        }
+    }
+
+    (lines, selected_range)
+}
+
+pub(crate) fn session_list_total_lines(turn_count: usize) -> usize {
+    if turn_count == 0 {
+        0
+    } else {
+        turn_count * SESSION_ITEM_CONTENT_HEIGHT + (turn_count - 1) * SESSION_ITEM_GAP_HEIGHT
+    }
+}
+
+pub(crate) fn session_turn_index_at_line(line: usize, turn_count: usize) -> Option<usize> {
+    if line >= session_list_total_lines(turn_count) {
+        return None;
+    }
+
+    let stride = SESSION_ITEM_CONTENT_HEIGHT + SESSION_ITEM_GAP_HEIGHT;
+    let index = line / stride;
+    let offset = line % stride;
+    if offset < SESSION_ITEM_CONTENT_HEIGHT {
+        Some(index)
+    } else {
+        None
+    }
+}
+
+fn render_session_gap_line(width: usize, theme: &Theme) -> Line<'static> {
+    Line::from(Span::styled(
+        " ".repeat(width.max(1)),
+        Style::default().bg(theme.bg),
+    ))
 }
 
 fn question_text_for_display(text: &str) -> String {
@@ -393,4 +441,41 @@ pub(crate) fn visible_detail_window(
         .saturating_add(viewport_height as usize)
         .min(total_lines);
     start..end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_session_list_lines, session_list_total_lines, session_turn_index_at_line};
+    use crate::model::PreviewTurn;
+    use crate::theme::Theme;
+
+    #[test]
+    fn selected_range_excludes_gap_line() {
+        let turns = vec![
+            PreviewTurn {
+                question: "first".into(),
+                answer: Some("one".into()),
+            },
+            PreviewTurn {
+                question: "second".into(),
+                answer: Some("two".into()),
+            },
+        ];
+
+        let (lines, selected_range) =
+            build_session_list_lines(&turns, Some(0), 40, &Theme::default());
+        assert_eq!(lines.len(), 5);
+        assert_eq!(selected_range, Some((0, 1)));
+    }
+
+    #[test]
+    fn gap_line_has_no_turn_hit_target() {
+        assert_eq!(session_list_total_lines(2), 5);
+        assert_eq!(session_turn_index_at_line(0, 2), Some(0));
+        assert_eq!(session_turn_index_at_line(1, 2), Some(0));
+        assert_eq!(session_turn_index_at_line(2, 2), None);
+        assert_eq!(session_turn_index_at_line(3, 2), Some(1));
+        assert_eq!(session_turn_index_at_line(4, 2), Some(1));
+        assert_eq!(session_turn_index_at_line(5, 2), None);
+    }
 }

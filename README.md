@@ -46,7 +46,7 @@ Supported runtime environments:
 
 ```bash
 # One-line installer
-curl -fsSL https://raw.githubusercontent.com/T1mn/pad/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
 
 # Or from a local clone
 git clone https://github.com/T1mn/pad.git

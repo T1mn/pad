@@ -1,4 +1,4 @@
-use super::common::{render_modal_halo, render_modal_surface};
+use super::common::render_modal_surface;
 use super::relay::draw_relay_in_area;
 use super::telegram::draw_telegram_settings_content;
 use crate::app::state::SettingsDetailKind;
@@ -22,7 +22,6 @@ pub fn draw_settings_modal(f: &mut Frame, app: &App) {
     let theme = &app.theme;
     let (content_w, content_h) = settings_modal_size(app);
     let area = popup_area(content_w, content_h, f.area());
-    render_modal_halo(f, halo_area(area, f.area(), 1));
     render_modal_surface(f, area, theme);
 
     let inner = Rect {
@@ -37,20 +36,6 @@ pub fn draw_settings_modal(f: &mut Frame, app: &App) {
     } else {
         draw_settings_list(f, app, inner);
     }
-}
-
-fn halo_area(area: Rect, bounds: Rect, padding: u16) -> Rect {
-    let left = area.x.saturating_sub(padding).max(bounds.x);
-    let top = area.y.saturating_sub(padding).max(bounds.y);
-    let right = area.right().saturating_add(padding).min(bounds.right());
-    let bottom = area.bottom().saturating_add(padding).min(bounds.bottom());
-
-    Rect::new(
-        left,
-        top,
-        right.saturating_sub(left),
-        bottom.saturating_sub(top),
-    )
 }
 
 fn draw_settings_list(f: &mut Frame, app: &App, area: Rect) {

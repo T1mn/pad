@@ -6,7 +6,7 @@ use super::model::{
 use super::storage::{load_index, prune_index, save_index};
 use super::util::{clean_text, now_ts, prefer_non_empty};
 use crate::hook::HookEvent;
-use crate::model::{AgentPanel, PreviewTurn, SessionCacheState};
+use crate::model::{AgentPanel, AgentType, PreviewTurn, SessionCacheState};
 use std::io;
 use std::path::Path;
 
@@ -26,6 +26,7 @@ pub fn persist_hook_event(
     let _ = prune_index(&mut index);
     let now = now_ts();
     let agent_type = panel.agent_type.to_string();
+    let normalize_codex = panel.agent_type == AgentType::Codex;
 
     let record_idx = upsert_session_record(&mut index, &agent_session_id, &agent_type, now);
     index.sessions[record_idx].transcript_path = prefer_non_empty(
@@ -37,8 +38,11 @@ pub fn persist_hook_event(
     index.sessions[record_idx].last_seen_at = now;
     index.sessions[record_idx].updated_at = now;
 
-    let prompt = clean_text(event.prompt.as_deref())
-        .or_else(|| clean_text(panel.last_user_prompt.as_deref()));
+    let prompt = normalize_cached_codex_prompt(
+        clean_text(event.prompt.as_deref())
+            .or_else(|| clean_text(panel.last_user_prompt.as_deref())),
+        normalize_codex,
+    );
     let assistant = match event.event.as_str() {
         "user_prompt_submit" => clean_text(event.last_assistant_message.as_deref()),
         _ => clean_text(event.last_assistant_message.as_deref())
@@ -49,7 +53,11 @@ pub fn persist_hook_event(
         &mut index.sessions[record_idx].recent_turns,
         prompt.as_deref(),
         assistant.as_deref(),
-        clean_text(panel.last_user_prompt.as_deref()).as_deref(),
+        normalize_cached_codex_prompt(
+            clean_text(panel.last_user_prompt.as_deref()),
+            normalize_codex,
+        )
+        .as_deref(),
     );
 
     if let Some(first) = index.sessions[record_idx].recent_turns.first().cloned() {
@@ -84,7 +92,7 @@ pub fn persist_resolved_session(
         return Ok(());
     };
 
-    let normalized_turns = normalize_turns(turns.to_vec());
+    let normalized_turns = normalize_turns(turns.to_vec(), panel.agent_type == AgentType::Codex);
     let transcript = transcript_path.to_string_lossy().to_string();
     if panel.session_cache_state == Some(SessionCacheState::Confirmed)
         && panel.transcript_path.as_deref() == Some(transcript.as_str())
@@ -170,7 +178,7 @@ pub(super) fn merge_recent_turns(
         }
     }
 
-    *turns = normalize_turns(std::mem::take(turns));
+    *turns = normalize_turns(std::mem::take(turns), false);
 }
 
 fn upsert_session_record(
@@ -203,11 +211,15 @@ fn upsert_session_record(
     index.sessions.len().saturating_sub(1)
 }
 
-fn normalize_turns(turns: Vec<PreviewTurn>) -> Vec<PreviewTurn> {
+fn normalize_turns(turns: Vec<PreviewTurn>, normalize_codex_prompts: bool) -> Vec<PreviewTurn> {
     let mut normalized = turns
         .into_iter()
         .filter_map(|turn| {
-            let question = turn.question.trim().to_string();
+            let question = if normalize_codex_prompts {
+                crate::preview_source::codex::normalize_codex_user_text(&turn.question, None)
+            } else {
+                turn.question.trim().to_string()
+            };
             if question.is_empty() {
                 return None;
             }
@@ -226,4 +238,19 @@ fn normalize_turns(turns: Vec<PreviewTurn>) -> Vec<PreviewTurn> {
     }
 
     normalized
+}
+
+fn normalize_cached_codex_prompt(value: Option<String>, normalize_codex: bool) -> Option<String> {
+    value.and_then(|text| {
+        let normalized = if normalize_codex {
+            crate::preview_source::codex::normalize_codex_user_text(&text, None)
+        } else {
+            text.trim().to_string()
+        };
+        if normalized.is_empty() {
+            None
+        } else {
+            Some(normalized)
+        }
+    })
 }

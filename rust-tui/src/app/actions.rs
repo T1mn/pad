@@ -396,9 +396,9 @@ impl App {
     pub fn available_locales() -> Vec<crate::i18n::Locale> {
         use crate::i18n::Locale;
         vec![
+            Locale::En,
             Locale::ZhCN,
             Locale::ZhTW,
-            Locale::En,
             Locale::Ja,
             Locale::De,
             Locale::Fr,

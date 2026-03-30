@@ -10,11 +10,19 @@ pub(crate) fn sidebar_card_bg(is_selected: bool, theme: &Theme) -> Color {
     }
 }
 
+pub(crate) fn sidebar_folder_bg(is_selected: bool, theme: &Theme) -> Color {
+    if is_selected {
+        blend_color(theme.border_focused, theme.highlight_bg, 0.08)
+    } else {
+        blend_color(theme.border, theme.bg, 0.08)
+    }
+}
+
 pub(crate) fn sidebar_folder_fg(is_selected: bool, theme: &Theme) -> Color {
     if is_selected {
         theme.highlight_fg
     } else {
-        blend_color(theme.fg, theme.comment, 0.28)
+        blend_color(theme.fg, theme.comment, 0.48)
     }
 }
 

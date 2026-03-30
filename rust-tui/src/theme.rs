@@ -596,7 +596,7 @@ impl Default for Config {
                     api_key: None,
                 },
             ],
-            language: "zh-cn".to_string(),
+            language: "en".to_string(),
             desired_agent_style: DesiredAgentStyle::default(),
             preview: PreviewConfig::default(),
             display: DisplayConfig::default(),

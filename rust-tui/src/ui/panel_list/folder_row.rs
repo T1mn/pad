@@ -1,5 +1,5 @@
 use super::metrics::{display_width, truncate_to_width};
-use super::style::{maybe_bold, sidebar_card_bg, sidebar_folder_fg};
+use super::style::{maybe_bold, sidebar_folder_bg, sidebar_folder_fg};
 use crate::sidebar::SidebarFolder;
 use ratatui::{
     style::{Modifier, Style},
@@ -16,7 +16,7 @@ pub(crate) fn build_folder_row(
     is_hovered: bool,
 ) -> Row<'static> {
     let is_minimal = content_width < 10;
-    let card_bg = sidebar_card_bg(is_selected, theme);
+    let card_bg = sidebar_folder_bg(is_selected, theme);
     let card_fg = sidebar_folder_fg(is_selected, theme);
     let unread = folder.threads.iter().any(|thread| thread.has_unread_stop);
     let icon = if is_expanded { "▾" } else { "▸" };
@@ -46,7 +46,13 @@ pub(crate) fn build_folder_row(
 
         spans.push(Span::styled(
             label,
-            maybe_bold(Style::default().fg(card_fg).bg(card_bg), unread),
+            maybe_bold(
+                Style::default()
+                    .fg(card_fg)
+                    .bg(card_bg)
+                    .add_modifier(Modifier::DIM),
+                unread,
+            ),
         ));
 
         let fill_width = card_width.saturating_sub(used_width + 1);

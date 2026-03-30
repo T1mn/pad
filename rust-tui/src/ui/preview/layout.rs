@@ -1,6 +1,6 @@
 use super::common::{display_width, truncate_to_width};
 use super::session::{
-    fixed_label, preview_agent_badge_colors, preview_badge, render_session_card,
+    build_session_list_lines, fixed_label, preview_agent_badge_colors, preview_badge,
     resolve_preview_scroll_for_line_count, resolve_session_list_scroll, visible_detail_window,
 };
 use crate::app::App;
@@ -298,22 +298,12 @@ fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
 
 fn preview_session_list_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
     let width = area.width.max(8) as usize;
-    let mut lines: Vec<Line<'static>> = Vec::new();
-    let mut selected_range = None;
-
-    for (idx, turn) in app.preview.turns.iter().enumerate() {
-        let start = lines.len();
-        lines.extend(render_session_card(
-            turn,
-            idx == app.preview.selected_turn.unwrap_or(usize::MAX),
-            width,
-            &app.theme,
-        ));
-        let end = lines.len().saturating_sub(1);
-        if app.preview.selected_turn == Some(idx) {
-            selected_range = Some((start, end));
-        }
-    }
+    let (lines, selected_range) = build_session_list_lines(
+        &app.preview.turns,
+        app.preview.selected_turn,
+        width,
+        &app.theme,
+    );
 
     let scroll =
         resolve_session_list_scroll(app, selected_range, area.height, lines.len()) as usize;

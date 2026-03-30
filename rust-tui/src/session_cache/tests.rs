@@ -246,4 +246,34 @@ mod cases {
             },
         ]));
     }
+
+    #[test]
+    fn apply_snapshot_to_panel_normalizes_old_codex_image_placeholders() {
+        let mut restored_panel = panel("%1", "dev", "1", "0", "/repo");
+        let snapshot = SessionCacheSnapshot {
+            agent_session_id: "s1".to_string(),
+            transcript_path: Some("/tmp/a.jsonl".to_string()),
+            recent_turns: vec![PreviewTurn {
+                question: "<image name=[Image #1]>\n</image>\n[Image #1] 为什么有黑边？"
+                    .to_string(),
+                answer: Some("因为边框".to_string()),
+            }],
+            last_user_prompt: Some(
+                "<image name=[Image #1]>\n</image>\n[Image #1] 为什么有黑边？".to_string(),
+            ),
+            last_assistant_message: Some("因为边框".to_string()),
+            state: SessionCacheState::Cached,
+        };
+
+        apply_snapshot_to_panel(&mut restored_panel, &snapshot);
+
+        assert_eq!(
+            restored_panel.cached_preview_turns[0].question,
+            "[Image x1] 为什么有黑边？"
+        );
+        assert_eq!(
+            restored_panel.last_user_prompt.as_deref(),
+            Some("[Image x1] 为什么有黑边？")
+        );
+    }
 }
