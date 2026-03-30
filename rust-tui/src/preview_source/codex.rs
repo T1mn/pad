@@ -13,6 +13,16 @@ use std::time::{Duration, Instant};
 const CODEX_STATUS_PROBE_CACHE_TTL: Duration = Duration::from_secs(6);
 const CODEX_STATUS_PROBE_DEADLINE: Duration = Duration::from_millis(1200);
 const CODEX_STATUS_PROBE_POLL_INTERVAL: Duration = Duration::from_millis(120);
+const ENVIRONMENT_CONTEXT_OPEN: &str = "<environment_context>";
+const ENVIRONMENT_CONTEXT_CLOSE: &str = "</environment_context>";
+const TURN_ABORTED_OPEN: &str = "<turn_aborted>";
+const TURN_ABORTED_CLOSE: &str = "</turn_aborted>";
+const USER_SHELL_COMMAND_OPEN: &str = "<user_shell_command>";
+const USER_SHELL_COMMAND_CLOSE: &str = "</user_shell_command>";
+const SKILL_OPEN: &str = "<skill>";
+const SKILL_CLOSE: &str = "</skill>";
+const AGENTS_MD_INSTRUCTIONS_PREFIX: &str = "# AGENTS.md instructions for ";
+const AGENTS_MD_INSTRUCTIONS_SUFFIX: &str = "</INSTRUCTIONS>";
 
 #[derive(Clone)]
 struct StatusProbeCacheEntry {
@@ -239,6 +249,16 @@ pub(crate) fn normalize_codex_user_text(text: &str, image_count_hint: Option<usi
         return String::new();
     }
 
+    if let Some(summary) = extract_user_shell_command_summary(trimmed) {
+        return summary;
+    }
+
+    let stripped_context = strip_non_preview_codex_fragments(trimmed);
+    let trimmed = stripped_context.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
     let contains_image_wrappers =
         trimmed.contains("<image name=[Image #") || trimmed.contains("</image>");
     let starts_with_image_ref = trimmed.starts_with("[Image #");
@@ -277,6 +297,63 @@ pub(crate) fn normalize_codex_user_text(text: &str, image_count_hint: Option<usi
     } else {
         format!("[Image x{}] {}", image_count, body)
     }
+}
+
+fn strip_non_preview_codex_fragments(text: &str) -> String {
+    let mut stripped = text.to_string();
+    for (open, close) in [
+        (ENVIRONMENT_CONTEXT_OPEN, ENVIRONMENT_CONTEXT_CLOSE),
+        (TURN_ABORTED_OPEN, TURN_ABORTED_CLOSE),
+        (USER_SHELL_COMMAND_OPEN, USER_SHELL_COMMAND_CLOSE),
+        (SKILL_OPEN, SKILL_CLOSE),
+        (AGENTS_MD_INSTRUCTIONS_PREFIX, AGENTS_MD_INSTRUCTIONS_SUFFIX),
+    ] {
+        stripped = strip_wrapped_block(&stripped, open, close);
+    }
+    stripped
+}
+
+fn strip_wrapped_block(text: &str, open: &str, close: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+
+    while let Some(start) = rest.find(open) {
+        out.push_str(&rest[..start]);
+        let after_open = &rest[start + open.len()..];
+        let Some(end) = after_open.find(close) else {
+            out.push_str(&rest[start..]);
+            return out;
+        };
+        rest = &after_open[end + close.len()..];
+    }
+
+    out.push_str(rest);
+    out
+}
+
+fn extract_user_shell_command_summary(text: &str) -> Option<String> {
+    let inner = exact_wrapped_fragment(
+        text.trim(),
+        USER_SHELL_COMMAND_OPEN,
+        USER_SHELL_COMMAND_CLOSE,
+    )?;
+    let command = find_wrapped_fragment(inner.trim(), "<command>", "</command>")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    Some(format!("[shell] {}", command))
+}
+
+fn exact_wrapped_fragment<'a>(text: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let trimmed = text.trim();
+    let inner = trimmed.strip_prefix(open)?.strip_suffix(close)?;
+    Some(inner)
+}
+
+fn find_wrapped_fragment<'a>(text: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let start = text.find(open)?;
+    let after_open = &text[start + open.len()..];
+    let end = after_open.find(close)?;
+    Some(&after_open[..end])
 }
 
 fn count_image_open_tags(text: &str) -> usize {
@@ -616,6 +693,55 @@ mod tests {
     fn normalize_codex_user_text_does_not_touch_plain_text_without_images() {
         let text = "literal [Image #1] text";
         assert_eq!(normalize_codex_user_text(text, None), text);
+    }
+
+    #[test]
+    fn normalize_codex_user_text_filters_environment_context_block() {
+        let text = "<environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context>";
+        assert_eq!(normalize_codex_user_text(text, None), "");
+    }
+
+    #[test]
+    fn normalize_codex_user_text_strips_embedded_environment_context_block() {
+        let text = "请分析一下\n<environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context>\n这段结构";
+        assert_eq!(
+            normalize_codex_user_text(text, None),
+            "请分析一下\n\n这段结构"
+        );
+    }
+
+    #[test]
+    fn normalize_codex_user_text_filters_turn_aborted_marker() {
+        let text = "<turn_aborted>\ninterrupted\n</turn_aborted>";
+        assert_eq!(normalize_codex_user_text(text, None), "");
+    }
+
+    #[test]
+    fn normalize_codex_user_text_summarizes_user_shell_command() {
+        let text = "<user_shell_command>\n<command>\necho hi\n</command>\n<result>\nExit code: 0\n</result>\n</user_shell_command>";
+        assert_eq!(normalize_codex_user_text(text, None), "[shell] echo hi");
+    }
+
+    #[test]
+    fn parse_codex_transcript_skips_context_only_user_messages() {
+        let path = temp_jsonl_path("codex-context-filter");
+        fs::write(
+            &path,
+            concat!(
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<environment_context>\\n  <cwd>/tmp/demo</cwd>\\n</environment_context>\"}]}}\n",
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"real question\"}]}}\n",
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<turn_aborted>\\ninterrupted\\n</turn_aborted>\"}]}}\n",
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"real answer\"}]}}\n"
+            ),
+        )
+        .unwrap();
+
+        let turns = parse_transcript(&path, SessionReadMode::FullBackfill).unwrap();
+        fs::remove_file(&path).ok();
+
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].question, "real question");
+        assert_eq!(turns[0].answer.as_deref(), Some("real answer"));
     }
 
     #[test]
