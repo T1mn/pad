@@ -334,5 +334,5 @@ fn ensure_column(connection: &Connection, column: &str, definition: &str) -> io:
 }
 
 fn to_io_error(err: rusqlite::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, err)
+    io::Error::other(err)
 }

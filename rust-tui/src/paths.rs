@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn pad_home_dir() -> PathBuf {
     dirs::home_dir()
@@ -98,20 +98,20 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     Ok(())
 }
 
-fn install_bridge_script(path: &PathBuf, desired: &str) -> io::Result<()> {
-    let existing = fs::read_to_string(&path).ok();
+fn install_bridge_script(path: &Path, desired: &str) -> io::Result<()> {
+    let existing = fs::read_to_string(path).ok();
 
     if existing.as_deref() != Some(desired) {
-        fs::write(&path, desired)?;
+        fs::write(path, desired)?;
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let mut perms = fs::metadata(&path)?.permissions();
+        let mut perms = fs::metadata(path)?.permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&path, perms)?;
+        fs::set_permissions(path, perms)?;
     }
 
     Ok(())

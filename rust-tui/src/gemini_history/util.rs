@@ -28,6 +28,7 @@ pub(crate) fn normalize_path(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+#[allow(dead_code)]
 pub(crate) fn now_ts() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -66,9 +67,9 @@ pub(crate) fn parse_timestamp(text: &str) -> Option<i64> {
     let days = days_from_civil(year, month, day);
     let seconds = days
         .saturating_mul(86_400)
-        .saturating_add(hour as i64 * 3_600)
-        .saturating_add(minute as i64 * 60)
-        .saturating_add(second as i64)
+        .saturating_add(hour * 3_600)
+        .saturating_add(minute * 60)
+        .saturating_add(second)
         .saturating_sub(offset_secs);
     Some(seconds)
 }

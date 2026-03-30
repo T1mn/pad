@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::model::AgentState;
 use ratatui::style::{Color, Modifier, Style};
 use std::sync::OnceLock;

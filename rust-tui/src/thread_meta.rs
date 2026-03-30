@@ -38,7 +38,7 @@ pub fn load_thread_meta_batch(
 
 pub fn load_thread_meta(agent_type: &str, thread_id: &str) -> io::Result<Option<ThreadMeta>> {
     let key = ThreadMetaKey::new(agent_type, thread_id);
-    Ok(load_thread_meta_batch(&[key.clone()])?.remove(&key))
+    Ok(load_thread_meta_batch(std::slice::from_ref(&key))?.remove(&key))
 }
 
 pub fn upsert_thread_meta(
@@ -259,5 +259,5 @@ fn dedup_tags(tags: &mut Vec<String>) {
 }
 
 fn to_io_error(err: rusqlite::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, err)
+    io::Error::other(err)
 }

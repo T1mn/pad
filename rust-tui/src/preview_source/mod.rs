@@ -62,6 +62,7 @@ pub(super) enum SessionReadMode {
     FullBackfill,
 }
 
+#[allow(dead_code)]
 pub fn preview_refresh_interval_ms(panel: &AgentPanel) -> u64 {
     match panel.state {
         AgentState::Busy => BUSY_REFRESH_MS,
@@ -70,6 +71,7 @@ pub fn preview_refresh_interval_ms(panel: &AgentPanel) -> u64 {
     }
 }
 
+#[allow(dead_code)]
 pub fn preview_refresh_interval_ms_for_state(state: &AgentState) -> u64 {
     match state {
         AgentState::Busy => BUSY_REFRESH_MS,

@@ -1,4 +1,3 @@
-use crate::log_debug;
 use crate::model::AgentPanel;
 use std::error::Error;
 use std::io::{self, Read, Write};
@@ -40,18 +39,15 @@ pub fn find_detach_key(data: &[u8], detach_byte: u8) -> Option<usize> {
 
 /// Find F12 key sequence
 pub fn find_f12_key(data: &[u8]) -> Option<usize> {
-    if let Some(pos) = data
-        .windows(5)
-        .position(|w| w == &[0x1b, b'[', b'2', b'4', b'~'])
-    {
+    if let Some(pos) = data.windows(5).position(|w| w == b"\x1b[24~") {
         return Some(pos);
     }
 
     if data.len() >= 6 {
-        if let Some(pos) = data.windows(4).position(|w| w == &[0x1b, b'[', b'2', b'4']) {
-            if data.len() > pos + 4 && data[pos + 4] == b';' {
-                for i in (pos + 5)..data.len() {
-                    if data[i] == b'~' {
+        if let Some(pos) = data.windows(4).position(|w| w == b"\x1b[24") {
+            if data[pos + 4] == b';' {
+                for byte in data.iter().skip(pos + 5) {
+                    if *byte == b'~' {
                         return Some(pos);
                     }
                 }
@@ -105,9 +101,7 @@ pub fn attach_to_pane_pty(panel: &AgentPanel) -> Result<(), Box<dyn Error>> {
     let target = format!("{}:{}", panel.session, panel.window_index);
     log_debug!("pty: attach target={} pane_id={}", target, panel.pane_id);
 
-    let (cols, rows) = crossterm::terminal::size()
-        .map(|(w, h)| (w as u16, h as u16))
-        .unwrap_or((80, 24));
+    let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
     log_debug!("pty: terminal size {}x{}", cols, rows);
 
     const TERMINAL_STYLE_RESET: &str = "\x1b]8;;\x1b\\\x1b[0m\x1b[24m\x1b[39m\x1b[49m";

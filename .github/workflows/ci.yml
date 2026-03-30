@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-checks:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo build --profile dist
+        run: cargo build --profile dist
+
+  macos-build:
+    name: macOS build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo build --profile dist
+        run: cargo build --profile dist

@@ -30,6 +30,10 @@ get_os() {
     esac
 }
 
+check_tmux() {
+    command -v tmux >/dev/null 2>&1
+}
+
 check_rust() {
     if command -v cargo &> /dev/null; then
         RUST_VERSION=$(rustc --version 2>&1 | awk '{print $2}')
@@ -145,6 +149,12 @@ main() {
         echo "  pad            Launch interactive TUI"
         echo "  pad --help     Show help"
         echo ""
+        if ! check_tmux; then
+            echo -e "${YELLOW}! tmux is not installed${NC}"
+            echo "  pad requires tmux at runtime."
+            echo "  On WSL2, install tmux inside WSL before running pad."
+            echo ""
+        fi
         echo "Quick start:"
         echo "  1. Start an AI agent in tmux (claude, codex, kimi-cli)"
         echo "  2. Run: pad"
@@ -166,6 +176,10 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
     echo "Environment variables:"
     echo "  INSTALL_DIR    Installation directory (default: ~/.local/bin)"
     echo "  VERSION        Specific version to install (default: latest)"
+    echo ""
+    echo "Runtime requirement:"
+    echo "  tmux must be installed in the same environment as pad."
+    echo "  On WSL2, install and run both tmux and pad inside WSL."
     echo ""
     echo "Manual install:"
     echo "  Build from source: cd rust-tui && cargo build --profile dist"

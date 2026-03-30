@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::theme::Theme;
 use crate::ui::selection::{SelectionItem, SelectionState};
 use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};

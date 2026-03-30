@@ -2,6 +2,7 @@ use crate::model::{
     AgentState, AgentType, GitInfo, PreviewSessionOrigin, PreviewTurn, SessionCacheState,
 };
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThreadRuntimeSource {
     Cli,
@@ -62,6 +63,7 @@ pub struct SidebarFolder {
     pub threads: Vec<SidebarThread>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SidebarItem {
     Folder(SidebarFolder),

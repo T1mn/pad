@@ -70,10 +70,12 @@ impl SidebarState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn sidebar_folders_ref(&self) -> &[SidebarFolder] {
         &self.sidebar_folders_cache
     }
 
+    #[allow(dead_code)]
     pub fn visible_sidebar_items_ref(&self) -> &[SidebarItem] {
         &self.visible_sidebar_items_cache
     }

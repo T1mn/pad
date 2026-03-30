@@ -154,7 +154,7 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
             let table = Table::new(rows, [Constraint::Min(0)])
                 .highlight_spacing(ratatui::widgets::HighlightSpacing::Never);
 
-            let mut table_state = app.table_state.clone();
+            let mut table_state = app.table_state;
             f.render_stateful_widget(table, inner, &mut table_state);
             app.table_state = table_state;
         }

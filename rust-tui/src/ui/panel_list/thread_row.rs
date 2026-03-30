@@ -34,7 +34,7 @@ pub(crate) fn build_thread_row(
     } else {
         "• "
     };
-    let badge_width = display_width(&badge);
+    let badge_width = display_width(badge);
 
     let mut l1_spans = Vec::new();
     l1_spans.push(Span::styled(" ", Style::default().bg(theme.bg)));
@@ -142,14 +142,14 @@ pub(crate) fn thread_subtitle(thread: &SidebarThread) -> String {
     thread
         .subtitle
         .as_deref()
-        .or_else(|| thread.last_user_prompt.as_deref())
+        .or(thread.last_user_prompt.as_deref())
         .or_else(|| {
             thread
                 .cached_preview_turns
                 .first()
                 .map(|turn| turn.question.as_str())
         })
-        .or_else(|| thread.last_assistant_message.as_deref())
+        .or(thread.last_assistant_message.as_deref())
         .unwrap_or("")
         .trim()
         .to_string()

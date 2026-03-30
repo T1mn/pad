@@ -542,7 +542,7 @@ impl AgentLauncher {
 
             // Build tmux command: new-window -t session -c dir -n agent cmd
             let output = std::process::Command::new("tmux")
-                .args(&[
+                .args([
                     "new-window",
                     "-t",
                     session,

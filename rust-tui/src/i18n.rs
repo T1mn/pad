@@ -46,6 +46,7 @@ impl Locale {
         }
     }
 
+    #[allow(dead_code)]
     pub fn next(&self) -> Self {
         match self {
             Locale::ZhCN => Locale::ZhTW,
@@ -58,7 +59,7 @@ impl Locale {
     }
 }
 
-pub fn t<'a>(locale: Locale, key: &'a str) -> &'a str {
+pub fn t(locale: Locale, key: &str) -> &str {
     match locale {
         Locale::ZhCN => ZH_CN.get(key).copied().unwrap_or(key),
         Locale::ZhTW => ZH_TW.get(key).copied().unwrap_or(key),

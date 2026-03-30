@@ -10,7 +10,7 @@ pub(super) fn preprocess_scroll_burst(
     state: &mut super::loop_state::LoopState,
     mouse: MouseEvent,
 ) -> io::Result<bool> {
-    if let Some(_) = super::mouse::mouse_scroll_delta(&mouse.kind) {
+    if super::mouse::mouse_scroll_delta(&mouse.kind).is_some() {
         let (column, row, delta) =
             super::mouse::coalesce_scroll_burst(mouse, &mut state.carried_event)?;
         if app.mode == Mode::Normal {

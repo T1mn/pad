@@ -182,6 +182,7 @@ impl App {
         self.preview.last_panel_tab_at = None;
     }
 
+    #[allow(dead_code)]
     pub(crate) fn preview_uses_list_scroll(&self) -> bool {
         self.has_session_preview_turns() && self.preview.view == PreviewView::SessionList
     }
@@ -482,6 +483,7 @@ impl App {
         true
     }
 
+    #[allow(dead_code)]
     pub fn preview_mouse_selection(&self) -> Option<&PreviewMouseSelection> {
         self.preview.mouse_selection.as_ref()
     }

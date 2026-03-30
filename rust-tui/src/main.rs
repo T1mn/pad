@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("pad 0.6.0");
+        println!("pad {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 

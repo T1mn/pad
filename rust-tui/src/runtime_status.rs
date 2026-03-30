@@ -54,6 +54,7 @@ impl Drop for StatusGuard {
     }
 }
 
+#[allow(dead_code)]
 pub fn write_status(path: &Path, mode: &str) -> io::Result<()> {
     let status = ProcessStatus {
         pid: std::process::id(),

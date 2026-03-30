@@ -22,6 +22,7 @@ pub struct CodexThreadRef {
     pub archived: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ThreadArchiveFilter {
     ActiveOnly,
@@ -43,6 +44,7 @@ struct CacheKey {
 
 static THREAD_CACHE: OnceLock<Mutex<HashMap<CacheKey, CachedThreads>>> = OnceLock::new();
 
+#[allow(dead_code)]
 pub fn latest_thread_for_cwd(cwd: &Path) -> io::Result<Option<CodexThreadRef>> {
     let threads = load_threads(default_db_path()?, ThreadArchiveFilter::ActiveOnly)?;
     Ok(select_latest_thread_for_cwd(cwd, &threads).cloned())
@@ -255,7 +257,7 @@ fn mutate_thread_archive_state_at(
     archive: bool,
 ) -> io::Result<()> {
     let connection = Connection::open_with_flags(
-        &db_path,
+        db_path,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(to_io_error)?;
@@ -360,15 +362,15 @@ fn mutate_thread_archive_state_at(
 
     match update_result.map_err(to_io_error) {
         Ok(1) => {
-            invalidate_thread_cache(&db_path);
+            invalidate_thread_cache(db_path);
             Ok(())
         }
         Ok(_) => {
             let _ = fs::rename(&target_path, &source_path);
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to update thread {} archive state", thread_id),
-            ))
+            Err(io::Error::other(format!(
+                "failed to update thread {} archive state",
+                thread_id
+            )))
         }
         Err(err) => {
             let _ = fs::rename(&target_path, &source_path);
@@ -456,6 +458,7 @@ struct ThreadRow {
     archived: bool,
 }
 
+#[allow(dead_code)]
 fn select_latest_thread_for_cwd<'a>(
     cwd: &Path,
     threads: &'a [CodexThreadRef],
@@ -482,6 +485,7 @@ fn normalize_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+#[allow(dead_code)]
 fn relation_score(lhs: &Path, rhs: &Path) -> Option<usize> {
     if is_component_prefix(lhs, rhs) || is_component_prefix(rhs, lhs) {
         Some(common_component_count(lhs, rhs))
@@ -490,6 +494,7 @@ fn relation_score(lhs: &Path, rhs: &Path) -> Option<usize> {
     }
 }
 
+#[allow(dead_code)]
 fn common_component_count(lhs: &Path, rhs: &Path) -> usize {
     lhs.components()
         .zip(rhs.components())
@@ -497,6 +502,7 @@ fn common_component_count(lhs: &Path, rhs: &Path) -> usize {
         .count()
 }
 
+#[allow(dead_code)]
 fn is_component_prefix(prefix: &Path, candidate: &Path) -> bool {
     let prefix_components = prefix.components().collect::<Vec<_>>();
     let candidate_components = candidate.components().collect::<Vec<_>>();
@@ -508,7 +514,7 @@ fn is_component_prefix(prefix: &Path, candidate: &Path) -> bool {
 }
 
 fn to_io_error(err: rusqlite::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, err)
+    io::Error::other(err)
 }
 
 #[cfg(test)]

@@ -59,16 +59,12 @@ fn handle_normal_mode(
 
     app.clear_panel_tab();
 
-    if key.code == KeyCode::F(2) {
-        if app.open_thread_title_editor() {
-            return Ok(());
-        }
+    if key.code == KeyCode::F(2) && app.open_thread_title_editor() {
+        return Ok(());
     }
 
-    if key.code == KeyCode::Char('T') {
-        if app.open_thread_tags_editor() {
-            return Ok(());
-        }
+    if key.code == KeyCode::Char('T') && app.open_thread_tags_editor() {
+        return Ok(());
     }
 
     if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
@@ -431,11 +427,7 @@ mod tests {
                 &format!("/tmp/p{}", idx),
             ));
         }
-        app.table_state = app
-            .table_state
-            .clone()
-            .with_offset(3)
-            .with_selected(Some(3));
+        app.table_state = app.table_state.with_offset(3).with_selected(Some(3));
 
         let area = Rect::new(0, 0, 100, 30);
         let regions = mouse::normal_mouse_regions(&mut app, area);

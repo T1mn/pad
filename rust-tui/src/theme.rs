@@ -482,7 +482,9 @@ pub struct AgentConfig {
     pub providers: Vec<ProviderConfig>,
     pub active_provider: Option<usize>,
     // Legacy fields kept for backward compat during migration
+    #[allow(dead_code)]
     pub base_url: Option<String>,
+    #[allow(dead_code)]
     pub api_key: Option<String>,
 }
 
@@ -527,23 +529,12 @@ impl Default for PreviewConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct TelegramConfig {
     pub enabled: bool,
     pub bot_token: String,
     pub chat_id: String,
     pub bot_username: String,
-}
-
-impl Default for TelegramConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            bot_token: String::new(),
-            chat_id: String::new(),
-            bot_username: String::new(),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

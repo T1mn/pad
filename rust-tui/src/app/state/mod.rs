@@ -7,6 +7,7 @@ pub enum Mode {
     Normal,
     Search,
     Settings,
+    #[allow(dead_code)]
     ThemeSelector,
     LanguageSelector,
     Tree,

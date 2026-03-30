@@ -56,10 +56,9 @@ pub(super) fn run_tick_cycle(app: &mut App, state: &mut LoopState, tick_rate: Du
         if app.config.auto_refresh
             && app.last_refresh.elapsed()
                 >= std::time::Duration::from_secs(app.config.refresh_interval)
+            && !app.scan_in_progress
         {
-            if !app.scan_in_progress {
-                app.trigger_async_scan();
-            }
+            app.trigger_async_scan();
         }
         state.last_tick = Instant::now();
     }

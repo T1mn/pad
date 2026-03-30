@@ -2,7 +2,7 @@ use crate::log_debug;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
@@ -67,7 +67,7 @@ pub fn start_hook_listener() -> mpsc::Receiver<HookEvent> {
     rx
 }
 
-fn display_path(path: &PathBuf) -> String {
+fn display_path(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
@@ -101,7 +101,7 @@ fn append_hook_event_journal(event: &HookEvent) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    match OpenOptions::new().create(true).append(true).open(&path) {
+    match OpenOptions::new().create(true).append(true).open(path) {
         Ok(mut file) => {
             if let Ok(line) = serde_json::to_string(event) {
                 let _ = writeln!(file, "{}", line);

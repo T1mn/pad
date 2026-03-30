@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod cases {
     use super::super::bindings::find_snapshot_for_panel;
     use super::super::model::{
         snapshot_from_record, CachedPaneBinding, CachedSessionRecord, SessionCacheIndex,

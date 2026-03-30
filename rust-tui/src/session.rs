@@ -10,10 +10,7 @@ pub fn create_session_with_agent(
     path: &str,
     agent_cmd: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let session_name = path
-        .replace('/', "_")
-        .replace('.', "_")
-        .replace('~', "home");
+    let session_name = path.replace(['/', '.'], "_").replace('~', "home");
     let target_format = "#{session_name}:#{window_index} #{pane_id}";
 
     log_debug!(

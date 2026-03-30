@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod cases {
     use super::super::{
         all_archived_threads_at, all_threads_at, archive_thread_at, sync_index_at,
         thread_for_id_at, threads_for_cwd_at,

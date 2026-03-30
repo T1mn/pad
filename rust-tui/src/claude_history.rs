@@ -819,7 +819,7 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 fn to_io_error(err: rusqlite::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, err)
+    io::Error::other(err)
 }
 
 #[cfg(test)]

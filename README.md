@@ -16,7 +16,13 @@ Tmux Agent Panel Manager — monitor and manage AI coding assistants (Claude, Co
 
 ## Install
 
-Requires: Rust toolchain, tmux, Linux/macOS.
+Requires: Rust toolchain and `tmux`.
+
+Supported runtime environments:
+
+- macOS
+- Linux
+- WSL2
 
 ```bash
 # From source
@@ -31,6 +37,9 @@ cp target/release/pad ~/.local/bin/
 ./install.sh
 ```
 
+`pad` is a tmux-first TUI. Install and run `tmux` in the same environment as `pad`.
+On WSL2, install and run both inside WSL.
+
 ## Usage
 
 ```bash
@@ -38,6 +47,11 @@ pad              # Launch TUI
 pad --help       # Show help
 pad --version    # Show version
 ```
+
+Release and platform notes:
+
+- [Platform Support](docs/platform-support.md)
+- [Release Checklist](docs/release-checklist.md)
 
 ## Key Bindings
 

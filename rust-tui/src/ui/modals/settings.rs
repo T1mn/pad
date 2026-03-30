@@ -521,24 +521,6 @@ pub fn draw_agent_style_modal(f: &mut Frame, app: &App) {
     draw_settings_modal(f, app);
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::i18n::Locale;
-
-    #[test]
-    fn settings_selection_keyword_includes_english_aliases() {
-        let keyword = crate::app::actions::settings_item_search_blob(
-            Locale::ZhCN,
-            "relay",
-            "配置",
-            "settings.relay",
-            "settings.relay",
-        );
-        assert!(keyword.contains("relay"));
-        assert!(keyword.contains("provider"));
-    }
-}
-
 pub fn draw_agent_launcher(f: &mut Frame, app: &App, launcher: &AgentLauncher, area: Rect) {
     let theme = &app.theme;
     let l = app.locale;
@@ -590,4 +572,22 @@ pub fn draw_agent_launcher(f: &mut Frame, app: &App, launcher: &AgentLauncher, a
     let table = Table::new(items, [Constraint::Percentage(100)]).block(block);
 
     f.render_widget(table, popup_area);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::i18n::Locale;
+
+    #[test]
+    fn settings_selection_keyword_includes_english_aliases() {
+        let keyword = crate::app::actions::settings_item_search_blob(
+            Locale::ZhCN,
+            "relay",
+            "配置",
+            "settings.relay",
+            "settings.relay",
+        );
+        assert!(keyword.contains("relay"));
+        assert!(keyword.contains("provider"));
+    }
 }

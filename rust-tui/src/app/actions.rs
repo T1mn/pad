@@ -374,6 +374,7 @@ impl App {
         }
     }
 
+    #[allow(dead_code)]
     pub fn open_theme_selector(&mut self) {
         self.preview.theme_before_preview = Some(self.config.theme.clone());
         self.theme_selector_open = true;
@@ -637,6 +638,7 @@ impl App {
         }
     }
 
+    #[allow(dead_code)]
     pub fn open_language_selector(&mut self) {
         let locales = Self::available_locales();
         self.language_selected = locales.iter().position(|l| *l == self.locale).unwrap_or(0);
@@ -794,9 +796,9 @@ pub(crate) fn settings_item_search_blob(
         id.to_lowercase(),
         id.replace('_', " ").to_lowercase(),
         name_key.to_lowercase(),
-        name_key.replace('.', " ").replace('_', " ").to_lowercase(),
+        name_key.replace(['.', '_'], " ").to_lowercase(),
         desc_key.to_lowercase(),
-        desc_key.replace('.', " ").replace('_', " ").to_lowercase(),
+        desc_key.replace(['.', '_'], " ").to_lowercase(),
         value.to_lowercase(),
         crate::i18n::t(locale, name_key).to_lowercase(),
         crate::i18n::t(locale, desc_key).to_lowercase(),
@@ -867,7 +869,7 @@ fn success_toast_title(
 
 fn parse_thread_tags(input: &str) -> Vec<String> {
     input
-        .split(|c: char| c == ',' || c == '\n' || c == ';')
+        .split([',', '\n', ';'])
         .map(|tag| tag.trim())
         .filter(|tag| !tag.is_empty())
         .map(|tag| tag.to_string())
@@ -879,61 +881,6 @@ fn thread_meta_save_failed_title(locale: Locale) -> &'static str {
         "保存失败"
     } else {
         "Save failed"
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn settings_search_matches_english_terms_under_chinese_locale() {
-        let mut app = App::new();
-        app.locale = Locale::ZhCN;
-
-        app.settings_search = "theme".into();
-        let theme_matches = app.filtered_settings_items();
-        assert!(theme_matches.iter().any(|(id, _, _, _, _)| *id == "theme"));
-
-        app.settings_search = "display settings".into();
-        let display_matches = app.filtered_settings_items();
-        assert!(display_matches
-            .iter()
-            .any(|(id, _, _, _, _)| *id == "display_mode"));
-
-        app.settings_search = "relay".into();
-        let relay_matches = app.filtered_settings_items();
-        assert!(relay_matches.iter().any(|(id, _, _, _, _)| *id == "relay"));
-    }
-
-    #[test]
-    fn settings_detail_persists_when_filtered_value_changes() {
-        let mut app = App::new();
-        app.settings_open = true;
-        app.mode = Mode::Settings;
-        app.settings_search = "live".into();
-
-        let items = app.filtered_settings_items();
-        app.settings_selected = items
-            .iter()
-            .position(|(id, _, _, _, _)| *id == "display_mode")
-            .expect("display_mode should match live search");
-
-        app.enter_settings_detail();
-        assert_eq!(
-            app.current_settings_detail_kind(),
-            Some(SettingsDetailKind::DisplayMode)
-        );
-
-        app.config.display.session_scope = "all".into();
-        assert!(!app
-            .filtered_settings_items()
-            .iter()
-            .any(|(id, _, _, _, _)| *id == "display_mode"));
-        assert_eq!(
-            app.current_settings_detail_kind(),
-            Some(SettingsDetailKind::DisplayMode)
-        );
     }
 }
 
@@ -995,4 +942,59 @@ fn failure_toast_title(
 
 fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_search_matches_english_terms_under_chinese_locale() {
+        let mut app = App::new();
+        app.locale = Locale::ZhCN;
+
+        app.settings_search = "theme".into();
+        let theme_matches = app.filtered_settings_items();
+        assert!(theme_matches.iter().any(|(id, _, _, _, _)| *id == "theme"));
+
+        app.settings_search = "display settings".into();
+        let display_matches = app.filtered_settings_items();
+        assert!(display_matches
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "display_mode"));
+
+        app.settings_search = "relay".into();
+        let relay_matches = app.filtered_settings_items();
+        assert!(relay_matches.iter().any(|(id, _, _, _, _)| *id == "relay"));
+    }
+
+    #[test]
+    fn settings_detail_persists_when_filtered_value_changes() {
+        let mut app = App::new();
+        app.settings_open = true;
+        app.mode = Mode::Settings;
+        app.settings_search = "live".into();
+
+        let items = app.filtered_settings_items();
+        app.settings_selected = items
+            .iter()
+            .position(|(id, _, _, _, _)| *id == "display_mode")
+            .expect("display_mode should match live search");
+
+        app.enter_settings_detail();
+        assert_eq!(
+            app.current_settings_detail_kind(),
+            Some(SettingsDetailKind::DisplayMode)
+        );
+
+        app.config.display.session_scope = "all".into();
+        assert!(!app
+            .filtered_settings_items()
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "display_mode"));
+        assert_eq!(
+            app.current_settings_detail_kind(),
+            Some(SettingsDetailKind::DisplayMode)
+        );
+    }
 }

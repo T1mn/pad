@@ -60,6 +60,7 @@ pub(crate) fn truncate_to_width(text: &str, max_width: usize) -> String {
     result
 }
 
+#[allow(dead_code)]
 pub(crate) fn leaf_dir_name(path: &str) -> String {
     Path::new(path)
         .file_name()

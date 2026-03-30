@@ -1068,7 +1068,7 @@ async fn process_hook_journal(
 
     let mut line = String::new();
     while reader.read_line(&mut line)? > 0 {
-        state.journal_position += line.as_bytes().len() as u64;
+        state.journal_position += line.len() as u64;
         sync_state_from_disk(state);
         let Some(current_pending) = state.pending.clone() else {
             line.clear();
@@ -1085,11 +1085,11 @@ async fn process_hook_journal(
                     line.clear();
                     continue;
                 }
-                if event.tmux.pane_id.as_deref() == Some(current_pending.pane_id.as_str()) {
-                    if apply_hook_event_to_pending(config, state, &event).await? {
-                        line.clear();
-                        break;
-                    }
+                if event.tmux.pane_id.as_deref() == Some(current_pending.pane_id.as_str())
+                    && apply_hook_event_to_pending(config, state, &event).await?
+                {
+                    line.clear();
+                    break;
                 }
             }
             Err(err) => {
@@ -1273,7 +1273,7 @@ fn format_agent_line(idx: usize, panel: &AgentPanel, locale: crate::i18n::Locale
     format!(
         "{}. [{}] {} ({})",
         idx,
-        panel.agent_type.to_string(),
+        panel.agent_type,
         leaf_name(&panel.working_dir),
         state
     )
@@ -1282,7 +1282,7 @@ fn format_agent_line(idx: usize, panel: &AgentPanel, locale: crate::i18n::Locale
 fn format_agent_line_for_button(panel: &AgentPanel, locale: crate::i18n::Locale) -> String {
     format!(
         "[{}] {} ({})",
-        panel.agent_type.to_string(),
+        panel.agent_type,
         leaf_name(&panel.working_dir),
         agent_state_label(&panel.state, locale)
     )
@@ -1308,7 +1308,7 @@ fn button_label(panel: &AgentPanel, locale: crate::i18n::Locale) -> String {
     let leaf = truncate_chars(&leaf, 24);
     format!(
         "{} | {} | {}",
-        panel.agent_type.to_string(),
+        panel.agent_type,
         leaf,
         agent_state_label(&panel.state, locale)
     )

@@ -1,0 +1,45 @@
+name: Tmux Smoke
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: tmux smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux tmux
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build debug binary
+        working-directory: rust-tui
+        run: cargo build
+
+      - name: Run tmux smoke
+        env:
+          PAD_BIN: ${{ github.workspace }}/rust-tui/target/debug/pad
+        run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"

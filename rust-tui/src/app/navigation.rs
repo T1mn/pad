@@ -113,10 +113,12 @@ impl App {
         &self.sidebar.visible_sidebar_items_cache
     }
 
+    #[allow(dead_code)]
     pub fn sidebar_folders(&mut self) -> Vec<SidebarFolder> {
         self.sidebar_folders_ref().to_vec()
     }
 
+    #[allow(dead_code)]
     pub fn visible_sidebar_items(&mut self) -> Vec<SidebarItem> {
         self.visible_sidebar_items_ref().to_vec()
     }
@@ -375,6 +377,7 @@ impl App {
         }
     }
 
+    #[allow(dead_code)]
     pub fn filtered_panels(&self) -> Vec<&AgentPanel> {
         if self.search_query.is_empty() {
             self.panels.iter().collect()

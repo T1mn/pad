@@ -145,9 +145,7 @@ pub(crate) fn draw_preview_info_card(
 }
 
 pub fn preview_sid_text_at(app: &mut App, area: Rect, column: u16, row: u16) -> Option<String> {
-    let Some(thread) = app.selected_preview_thread() else {
-        return None;
-    };
+    let thread = app.selected_preview_thread()?;
 
     let session_id = app
         .preview

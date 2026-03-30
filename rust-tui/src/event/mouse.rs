@@ -289,7 +289,6 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
                     regions.preview_content_area.bottom().saturating_sub(1),
                 );
                 let _ = app.update_preview_mouse_selection(column, row);
-                return;
             }
         }
         MouseEventKind::Up(MouseButton::Left) => {
@@ -303,7 +302,6 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
                 ) {
                     let _ = app.copy_text_with_toast("内容", &text);
                 }
-                return;
             }
         }
         MouseEventKind::Moved => {

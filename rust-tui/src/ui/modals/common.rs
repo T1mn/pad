@@ -2,15 +2,69 @@ use crate::i18n::Locale;
 use crate::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::{
+    style::Color,
     style::Style,
-    widgets::{Block, Clear},
+    widgets::{Block, Borders, Clear},
     Frame,
 };
 
 pub(super) fn render_modal_surface(f: &mut Frame, area: Rect, theme: &Theme) {
     f.render_widget(Clear, area);
-    let surface = Block::default().style(Style::default().bg(theme.bg).fg(theme.fg));
+    let surface = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(modal_border(theme)))
+        .style(Style::default().bg(modal_surface_bg(theme)).fg(theme.fg));
     f.render_widget(surface, area);
+}
+
+fn modal_surface_bg(theme: &Theme) -> ratatui::style::Color {
+    blend_color(theme.highlight_bg, theme.bg, 0.22)
+}
+
+fn modal_border(theme: &Theme) -> ratatui::style::Color {
+    blend_color(theme.border_focused, theme.border, 0.42)
+}
+
+fn blend_color(highlight: Color, base: Color, mix: f32) -> Color {
+    let mix = mix.clamp(0.0, 1.0);
+    match (rgb_components(highlight), rgb_components(base)) {
+        (Some((hr, hg, hb)), Some((br, bg, bb))) => Color::Rgb(
+            blend_channel(hr, br, mix),
+            blend_channel(hg, bg, mix),
+            blend_channel(hb, bb, mix),
+        ),
+        _ if mix >= 0.5 => highlight,
+        _ => base,
+    }
+}
+
+fn blend_channel(highlight: u8, base: u8, mix: f32) -> u8 {
+    let highlight = highlight as f32;
+    let base = base as f32;
+    (base + (highlight - base) * mix).round().clamp(0.0, 255.0) as u8
+}
+
+fn rgb_components(color: Color) -> Option<(u8, u8, u8)> {
+    match color {
+        Color::Black => Some((0, 0, 0)),
+        Color::Red => Some((255, 0, 0)),
+        Color::Green => Some((0, 128, 0)),
+        Color::Yellow => Some((255, 255, 0)),
+        Color::Blue => Some((0, 0, 255)),
+        Color::Magenta => Some((255, 0, 255)),
+        Color::Cyan => Some((0, 255, 255)),
+        Color::Gray => Some((128, 128, 128)),
+        Color::DarkGray => Some((64, 64, 64)),
+        Color::LightRed => Some((255, 102, 102)),
+        Color::LightGreen => Some((144, 238, 144)),
+        Color::LightYellow => Some((255, 255, 224)),
+        Color::LightBlue => Some((173, 216, 230)),
+        Color::LightMagenta => Some((255, 153, 255)),
+        Color::LightCyan => Some((224, 255, 255)),
+        Color::White => Some((255, 255, 255)),
+        Color::Rgb(r, g, b) => Some((r, g, b)),
+        Color::Indexed(_) | Color::Reset => None,
+    }
 }
 
 pub(super) fn is_cjk_locale(locale: Locale) -> bool {

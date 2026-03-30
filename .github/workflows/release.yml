@@ -3,92 +3,143 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'  # 推送 v0.5.0 等标签时触发
-  workflow_dispatch:  # 也可以手动触发
+      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # Linux x86_64 构建
-  build-linux:
+  tag-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Validate tag matches Cargo.toml version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REF_TYPE}" == "tag" ]] || { echo "not a tag push"; exit 1; }
+          tag_ver="${GITHUB_REF_NAME#v}"
+          cargo_ver="$(grep -m1 '^version' rust-tui/Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')"
+          [[ "${tag_ver}" == "${cargo_ver}" ]] || {
+            echo "tag version ${tag_ver} != Cargo.toml ${cargo_ver}"
+            exit 1
+          }
+
+  build-linux:
+    needs: tag-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tmux
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
+          fi
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      - name: Build
+
+      - name: Build debug binary for smoke
+        run: cargo build
+
+      - name: Run tmux smoke
+        env:
+          PAD_BIN: ${{ github.workspace }}/rust-tui/target/debug/pad
+        run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"
+
+      - name: Build dist
         run: cargo build --profile dist
-        working-directory: ./rust-tui
-      
+
+      - name: Smoke packaged binary
+        run: |
+          ./target/dist/pad --help
+          ./target/dist/pad --version
+
       - name: Package
         run: |
           mkdir -p dist
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64.tar.gz -C target/dist pad
-        working-directory: ./rust-tui
-      
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
           path: rust-tui/dist/*.tar.gz
 
-  # Linux ARM64 构建（使用交叉编译）
   build-linux-arm64:
+    needs: tag-check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-tui
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-gnu
-      
+
       - name: Install cross compiler
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-      
+
       - name: Build
         run: |
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
           cargo build --profile dist --target aarch64-unknown-linux-gnu
-        working-directory: ./rust-tui
-      
+
       - name: Package
         run: |
           mkdir -p dist
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64.tar.gz -C target/aarch64-unknown-linux-gnu/dist pad
-        working-directory: ./rust-tui
-      
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-aarch64
           path: rust-tui/dist/*.tar.gz
 
-  # macOS 构建（支持 Intel + Apple Silicon）
   build-macos:
+    needs: tag-check
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: rust-tui
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
-      
-      # 构建 Universal Binary（同时支持 Intel 和 Apple Silicon）
+
+      - name: Build debug binary for smoke
+        run: cargo build
+
+      - name: Run tmux smoke
+        env:
+          PAD_BIN: ${{ github.workspace }}/rust-tui/target/debug/pad
+        run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"
+
       - name: Build Intel
         run: cargo build --profile dist --target x86_64-apple-darwin
-        working-directory: ./rust-tui
-      
+
       - name: Build ARM64
         run: cargo build --profile dist --target aarch64-apple-darwin
-        working-directory: ./rust-tui
-      
+
       - name: Create Universal Binary
         run: |
           mkdir -p target/dist/universal
@@ -96,23 +147,28 @@ jobs:
             target/x86_64-apple-darwin/dist/pad \
             target/aarch64-apple-darwin/dist/pad \
             -output target/dist/universal/pad
-        working-directory: ./rust-tui
-      
+
+      - name: Smoke packaged binary
+        run: |
+          ./target/dist/universal/pad --help
+          ./target/dist/universal/pad --version
+
       - name: Package
         run: |
           mkdir -p dist
           tar -czf dist/pad-${GITHUB_REF_NAME}-macos-universal.tar.gz -C target/dist/universal pad
-        working-directory: ./rust-tui
-      
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-universal
           path: rust-tui/dist/*.tar.gz
 
-  # 创建 GitHub Release 并上传所有二进制
   release:
-    needs: [build-linux, build-linux-arm64, build-macos]
+    needs:
+      - build-linux
+      - build-linux-arm64
+      - build-macos
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -120,25 +176,26 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: artifacts/*
           generate_release_notes: true
           body: |
-            ## 安装
+            ## Install
 
-            ### Linux/macOS (快速安装)
+            ### Linux/macOS/WSL2
             ```bash
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
             ```
 
-            ### 手动下载
-            根据你的平台下载对应文件：
-            - **Linux x86_64**: `pad-*-linux-x86_64.tar.gz`
-            - **Linux ARM64**: `pad-*-linux-aarch64.tar.gz`
-            - **macOS**: `pad-*-macos-universal.tar.gz` (支持 Intel 和 Apple Silicon)
+            `pad` requires `tmux` at runtime. On WSL2, install and run both `tmux` and `pad` inside WSL.
+
+            ### Manual download
+            - Linux x86_64: `pad-*-linux-x86_64.tar.gz`
+            - Linux ARM64: `pad-*-linux-aarch64.tar.gz`
+            - macOS universal: `pad-*-macos-universal.tar.gz`
 
             ```bash
             tar -xzf pad-*.tar.gz

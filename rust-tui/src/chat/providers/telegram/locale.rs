@@ -11,7 +11,7 @@ pub(super) fn locale_prefers_chinese(locale: crate::i18n::Locale) -> bool {
     )
 }
 
-pub(super) fn tg<'a>(locale: crate::i18n::Locale, key: &'a str) -> &'a str {
+pub(super) fn tg(locale: crate::i18n::Locale, key: &str) -> &str {
     let zh = locale_prefers_chinese(locale);
     match key {
         "bind.success" if zh => {

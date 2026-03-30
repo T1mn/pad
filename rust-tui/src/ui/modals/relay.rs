@@ -191,9 +191,6 @@ fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
 
     let selected_agent = app.config.agents.get(app.relay_selected_agent);
     let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
-    let is_codex = selected_agent
-        .map(|agent| agent.name.as_str() == "codex")
-        .unwrap_or(false);
     let prov_label = prov.map(|p| p.label.as_str()).unwrap_or("?");
     let inner = Rect {
         x: area.x + 2,
@@ -372,6 +369,7 @@ fn yes_no(ready: bool) -> &'static str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_provider_test_lines(
     lines: &mut Vec<Line<'static>>,
     in_progress: bool,

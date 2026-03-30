@@ -37,7 +37,7 @@ pub(super) fn scan_codex_approval_updates(
     let mut next_offset = start;
     let mut line = String::new();
     while reader.read_line(&mut line)? > 0 {
-        next_offset += line.as_bytes().len() as u64;
+        next_offset += line.len() as u64;
         match codex_approval_line_update(line.trim()) {
             CodexApprovalLineUpdate::Request(request) => active_request = Some(request),
             CodexApprovalLineUpdate::Resolved(call_id) => {

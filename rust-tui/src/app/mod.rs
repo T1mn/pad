@@ -25,6 +25,7 @@ use tokio::sync::mpsc;
 const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_TTL_SECS: i64 = 12 * 60 * 60;
+type ProviderTestResult = (usize, usize, bool, Option<u16>, Option<u64>, String);
 
 pub struct App {
     pub panels: Vec<AgentPanel>,
@@ -54,6 +55,7 @@ pub struct App {
     pub should_quit: bool,
     pub dirty: bool,
     pub same_session_attached: bool,
+    #[allow(dead_code)]
     pub pending_status_restore: bool,
     pub saved_tmux_bindings: Vec<String>,
     pub saved_tmux_status: Option<String>,
@@ -76,8 +78,7 @@ pub struct App {
     pub needs_clear: bool,
     // Provider connectivity test
     pub provider_test_in_progress: bool,
-    pub provider_test_rx:
-        Option<mpsc::Receiver<(usize, usize, bool, Option<u16>, Option<u64>, String)>>,
+    pub provider_test_rx: Option<mpsc::Receiver<ProviderTestResult>>,
     // Agent style settings
     pub agent_style_selected: usize,
     // Telegram settings

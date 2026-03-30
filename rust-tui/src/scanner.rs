@@ -204,11 +204,9 @@ pub fn strip_ansi(s: &str) -> String {
                             if oc == '\x07' {
                                 break;
                             }
-                            if oc == '\x1b' {
-                                if chars.peek() == Some(&'\\') {
-                                    chars.next();
-                                    break;
-                                }
+                            if oc == '\x1b' && chars.peek() == Some(&'\\') {
+                                chars.next();
+                                break;
                             }
                         }
                     } else {
