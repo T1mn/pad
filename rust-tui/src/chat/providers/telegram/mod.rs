@@ -21,7 +21,7 @@ use self::state::{
 use crate::chat::approval::{scan_codex_approval_updates, transcript_len, CodexApprovalRequest};
 use crate::chat::backend::{
     build_slash_command_text, compact_target_label, invalidate_live_panels, latest_answer_for_pane,
-    leaf_name, live_panels, pad_is_online, summarize_pane_capture,
+    live_panels, pad_is_online, panel_display_title, summarize_pane_capture,
 };
 use crate::hook::HookEvent;
 use crate::log_debug;
@@ -1274,7 +1274,7 @@ fn format_agent_line(idx: usize, panel: &AgentPanel, locale: crate::i18n::Locale
         "{}. [{}] {} ({})",
         idx,
         panel.agent_type,
-        leaf_name(&panel.working_dir),
+        panel_display_title(panel),
         state
     )
 }
@@ -1283,7 +1283,7 @@ fn format_agent_line_for_button(panel: &AgentPanel, locale: crate::i18n::Locale)
     format!(
         "[{}] {} ({})",
         panel.agent_type,
-        leaf_name(&panel.working_dir),
+        panel_display_title(panel),
         agent_state_label(&panel.state, locale)
     )
 }
@@ -1304,12 +1304,12 @@ fn build_agent_keyboard(
 }
 
 fn button_label(panel: &AgentPanel, locale: crate::i18n::Locale) -> String {
-    let leaf = leaf_name(&panel.working_dir);
-    let leaf = truncate_chars(&leaf, 24);
+    let title = panel_display_title(panel);
+    let title = truncate_chars(&title, 24);
     format!(
         "{} | {} | {}",
         panel.agent_type,
-        leaf,
+        title,
         agent_state_label(&panel.state, locale)
     )
 }
