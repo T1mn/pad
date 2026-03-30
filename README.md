@@ -1,20 +1,19 @@
 # PAD
 
+Stop hunting panes. Run your AI workflow from one place.
+
 `pad` is the CLI for PAD: Panel for Agent Development.
 
-PAD is a tmux-first workspace for monitoring, previewing, and jumping between AI coding agents such as Claude, Codex, Kimi, Gemini, OpenCode, Aider, and Cursor.
-
-Control surface for AI coding agents in tmux.
+PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, OpenCode, Aider, Cursor, and other terminal AI agents.
 
 PAD is built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.
 
-With PAD you can:
+## Core Features
 
-- See live and historical agent sessions in one place
-- Preview recent turns before attaching
-- Jump into any pane and return safely
-- Keep session metadata, archive state, and relay settings together
-- Work across Codex, Claude, Gemini, Kimi, OpenCode, Aider, and Cursor
+- Unified agent inbox for live panes and historical sessions
+- Preview recent turns before you attach to a pane
+- Jump in fast and return safely with tmux-native handoff
+- Keep archive state, session metadata, and relay settings in one place
 
 ## Why PAD
 
