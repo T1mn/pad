@@ -1,8 +1,10 @@
 use super::App;
+use crate::app::state::sidebar::{PendingSidebarSpaceAction, PendingSidebarSpaceActionKind};
 use crate::log_debug;
 use crate::model::AgentPanel;
 use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 impl App {
     fn sidebar_navigable_indices_for(items: &[SidebarItem]) -> Vec<usize> {
@@ -371,6 +373,130 @@ impl App {
         }
         self.invalidate_sidebar_visible_cache();
         self.sync_sidebar_selection();
+        self.invalidate_preview();
+        self.dirty = true;
+        true
+    }
+
+    pub fn queue_pending_sidebar_space_action(&mut self, window: Duration) -> bool {
+        if self.sidebar.show_tree || self.preview_is_focused() {
+            return false;
+        }
+
+        let kind = match self.selected_sidebar_item() {
+            Some(SidebarItem::Folder(folder)) => {
+                PendingSidebarSpaceActionKind::ToggleFolder(folder.key.clone())
+            }
+            Some(SidebarItem::Thread(thread)) => {
+                PendingSidebarSpaceActionKind::CollapseParentFolder(thread.folder_key.clone())
+            }
+            None => return false,
+        };
+
+        self.sidebar.pending_space_action = Some(PendingSidebarSpaceAction {
+            kind,
+            deadline: Instant::now() + window,
+        });
+        true
+    }
+
+    pub fn pending_sidebar_space_action_is_active(&self) -> bool {
+        self.sidebar
+            .pending_space_action
+            .as_ref()
+            .map(|action| action.deadline > Instant::now())
+            .unwrap_or(false)
+    }
+
+    pub fn clear_pending_sidebar_space_action(&mut self) {
+        self.sidebar.pending_space_action = None;
+    }
+
+    pub fn flush_pending_sidebar_space_action_if_due(&mut self) -> bool {
+        if self
+            .sidebar
+            .pending_space_action
+            .as_ref()
+            .map(|action| action.deadline <= Instant::now())
+            .unwrap_or(false)
+        {
+            return self.flush_pending_sidebar_space_action();
+        }
+
+        false
+    }
+
+    pub fn flush_pending_sidebar_space_action(&mut self) -> bool {
+        let Some(action) = self.sidebar.pending_space_action.take() else {
+            return false;
+        };
+
+        match action.kind {
+            PendingSidebarSpaceActionKind::ToggleFolder(folder_key) => {
+                let folder_exists = self
+                    .sidebar_folders_ref()
+                    .iter()
+                    .any(|folder| folder.key == folder_key);
+                if !folder_exists {
+                    return false;
+                }
+                if self.sidebar.expanded_folders.contains(&folder_key) {
+                    self.sidebar.expanded_folders.remove(&folder_key);
+                } else {
+                    self.sidebar.expanded_folders.insert(folder_key.clone());
+                }
+                self.sidebar.selected_sidebar_key = Some(folder_key);
+                self.invalidate_sidebar_visible_cache();
+                self.sync_sidebar_selection();
+                self.invalidate_preview();
+                self.dirty = true;
+                true
+            }
+            PendingSidebarSpaceActionKind::CollapseParentFolder(folder_key) => {
+                if !self.sidebar.expanded_folders.remove(&folder_key) {
+                    return false;
+                }
+                self.sidebar.selected_sidebar_key = Some(folder_key);
+                self.invalidate_sidebar_visible_cache();
+                self.sync_sidebar_selection();
+                self.focus_panel();
+                self.invalidate_preview();
+                self.dirty = true;
+                true
+            }
+        }
+    }
+
+    pub fn toggle_all_sidebar_folders(&mut self) -> bool {
+        let folder_keys = self
+            .sidebar_folders_ref()
+            .iter()
+            .map(|folder| folder.key.clone())
+            .collect::<Vec<_>>();
+        if folder_keys.is_empty() {
+            return false;
+        }
+
+        let collapse_all = folder_keys
+            .iter()
+            .any(|key| self.sidebar.expanded_folders.contains(key));
+
+        if collapse_all {
+            for key in &folder_keys {
+                self.sidebar.expanded_folders.remove(key);
+            }
+            if let Some(SidebarItem::Thread(thread)) = self.selected_sidebar_item() {
+                self.sidebar.selected_sidebar_key = Some(thread.folder_key.clone());
+            }
+        } else {
+            for key in &folder_keys {
+                self.sidebar.expanded_folders.insert(key.clone());
+            }
+        }
+
+        self.invalidate_sidebar_visible_cache();
+        self.sync_sidebar_selection();
+        self.focus_panel();
         self.invalidate_preview();
         self.dirty = true;
         true

@@ -45,6 +45,8 @@ fn handle_normal_mode(
     app: &mut App,
     key: KeyEvent,
 ) -> io::Result<()> {
+    const DOUBLE_SPACE_WINDOW: Duration = Duration::from_millis(250);
+
     log_debug!(
         "normal_mode key={:?} show_tree={} panels={}",
         key.code,
@@ -52,12 +54,22 @@ fn handle_normal_mode(
         app.panels.len()
     );
 
+    let is_tab = matches!(key.code, KeyCode::Tab);
+    let is_space = matches!(key.code, KeyCode::Char(' '));
+
+    if !is_space {
+        app.flush_pending_sidebar_space_action();
+    }
+
     if !app.sidebar.show_tree && matches!(key.code, KeyCode::Tab) {
         handle_preview_tab(app);
         return Ok(());
     }
 
-    app.clear_panel_tab();
+    if !is_tab {
+        app.clear_panel_tab();
+        app.clear_detail_exit_tab();
+    }
 
     if key.code == KeyCode::F(2) && app.open_thread_title_editor() {
         return Ok(());
@@ -214,6 +226,16 @@ fn handle_normal_mode(
         return Ok(());
     }
 
+    if is_space && !app.sidebar.show_tree {
+        if app.pending_sidebar_space_action_is_active() {
+            app.clear_pending_sidebar_space_action();
+            let _ = app.toggle_all_sidebar_folders();
+        } else {
+            let _ = app.queue_pending_sidebar_space_action(DOUBLE_SPACE_WINDOW);
+        }
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Esc => {}
         KeyCode::Char('j') | KeyCode::Down => app.next(),
@@ -275,6 +297,12 @@ fn handle_preview_tab(app: &mut App) {
     const DOUBLE_TAB_WINDOW: Duration = Duration::from_millis(350);
 
     if app.preview_is_focused() {
+        if app.preview.view == crate::model::PreviewView::SessionDetail {
+            app.note_detail_exit_tab();
+            app.toggle_preview_focus();
+            app.clear_panel_tab();
+            return;
+        }
         if app.recent_panel_tab_within(DOUBLE_TAB_WINDOW) && app.open_latest_preview_turn() {
             app.clear_panel_tab();
             return;
@@ -284,10 +312,22 @@ fn handle_preview_tab(app: &mut App) {
         return;
     }
 
+    if app.recent_detail_exit_tab_within(DOUBLE_TAB_WINDOW)
+        && app.selected_thread_matches_preview_target()
+        && app.restore_preview_turns_list()
+    {
+        app.focus_panel();
+        app.clear_detail_exit_tab();
+        app.clear_panel_tab();
+        return;
+    }
+
     if app.toggle_preview_focus() {
         app.note_panel_tab();
+        app.clear_detail_exit_tab();
     } else {
         app.clear_panel_tab();
+        app.clear_detail_exit_tab();
     }
 }
 
@@ -572,6 +612,7 @@ mod tests {
 
         let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+        app.flush_pending_sidebar_space_action();
 
         assert!(!app.sidebar.expanded_folders.contains("/tmp/alpha"));
         assert_eq!(
@@ -580,6 +621,103 @@ mod tests {
         );
         assert_eq!(app.table_state.selected(), Some(0));
         assert!(app.preview.focus == FocusTarget::Panel);
+    }
+
+    #[test]
+    fn double_space_expands_all_folders_when_none_are_expanded() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sync_sidebar_selection();
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+
+        assert!(app.sidebar.expanded_folders.contains("/tmp/alpha"));
+        assert!(app.sidebar.expanded_folders.contains("/tmp/beta"));
+    }
+
+    #[test]
+    fn double_space_collapses_all_folders_when_any_are_expanded() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.sidebar.expanded_folders.insert("/tmp/beta".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+        app.select_sidebar_index(1, false);
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
+
+        assert!(app.sidebar.expanded_folders.is_empty());
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some("/tmp/alpha")
+        );
+        assert_eq!(app.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn single_tab_from_detail_keeps_current_behavior_and_focuses_panel() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.preview.source = PreviewSource::Session;
+        app.preview.pane_id = Some("live:%1".into());
+        app.preview.turns = vec![PreviewTurn {
+            question: "first".into(),
+            answer: Some("one".into()),
+        }];
+        app.preview.view = PreviewView::SessionDetail;
+        app.preview.selected_turn = Some(0);
+        app.preview.expanded_turn = Some(0);
+        app.preview.focus = FocusTarget::Preview;
+        app.sync_sidebar_selection();
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
+
+        assert!(app.preview.focus == FocusTarget::Panel);
+        assert_eq!(app.preview.view, PreviewView::SessionDetail);
+    }
+
+    #[test]
+    fn double_tab_from_detail_restores_session_list_and_keeps_panel_focus() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.preview.source = PreviewSource::Session;
+        app.preview.pane_id = Some("live:%1".into());
+        app.preview.turns = vec![
+            PreviewTurn {
+                question: "first".into(),
+                answer: Some("one".into()),
+            },
+            PreviewTurn {
+                question: "second".into(),
+                answer: Some("two".into()),
+            },
+        ];
+        app.preview.view = PreviewView::SessionDetail;
+        app.preview.selected_turn = Some(1);
+        app.preview.expanded_turn = Some(1);
+        app.preview.focus = FocusTarget::Preview;
+        app.sync_sidebar_selection();
+
+        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
+
+        assert!(app.preview.focus == FocusTarget::Panel);
+        assert_eq!(app.preview.view, PreviewView::SessionList);
+        assert_eq!(app.preview.selected_turn, Some(1));
+        assert_eq!(app.preview.expanded_turn, None);
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some("/tmp/alpha")
+        );
     }
 
     #[test]

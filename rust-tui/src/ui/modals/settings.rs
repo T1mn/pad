@@ -154,7 +154,7 @@ fn relay_modal_size(app: &App) -> (u16, u16) {
         }
         crate::app::state::RelayView::DetailPane => {
             let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
-            let base_lines = if is_codex { 15u16 } else { 11u16 };
+            let base_lines = if is_codex { 18u16 } else { 14u16 };
             let test_lines = if app.provider_test_in_progress {
                 2
             } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {

@@ -2,6 +2,7 @@ use crate::model::AgentPanel;
 use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread, ThreadActivityOverride};
 use crate::tree;
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThreadActionKind {
@@ -21,6 +22,18 @@ pub struct PendingThreadAction {
     pub kind: ThreadActionKind,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum PendingSidebarSpaceActionKind {
+    ToggleFolder(String),
+    CollapseParentFolder(String),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSidebarSpaceAction {
+    pub kind: PendingSidebarSpaceActionKind,
+    pub deadline: Instant,
+}
+
 pub struct SidebarState {
     pub show_tree: bool,
     pub file_tree: Option<tree::FileTree>,
@@ -35,6 +48,7 @@ pub struct SidebarState {
     pub hovered_folder_key: Option<String>,
     pub selected_sidebar_key: Option<String>,
     pub pending_sidebar_selection_index: Option<usize>,
+    pub pending_space_action: Option<PendingSidebarSpaceAction>,
     pub archived_threads_view: bool,
     pub display_session_scope: String,
     pub app_thread_activity: HashMap<String, ThreadActivityOverride>,
@@ -61,6 +75,7 @@ impl SidebarState {
             hovered_folder_key: None,
             selected_sidebar_key: None,
             pending_sidebar_selection_index: None,
+            pending_space_action: None,
             archived_threads_view: false,
             display_session_scope,
             app_thread_activity: HashMap::new(),

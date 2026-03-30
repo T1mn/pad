@@ -38,7 +38,7 @@ pub fn draw_relay_settings(f: &mut Frame, app: &App) {
         let is_codex = selected_agent
             .map(|agent| agent.name.as_str() == "codex")
             .unwrap_or(false);
-        let base_lines = if is_codex { 15u16 } else { 11u16 };
+        let base_lines = if is_codex { 18u16 } else { 14u16 };
         let test_lines = if app.provider_test_in_progress {
             2
         } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {
@@ -171,7 +171,7 @@ pub fn draw_relay_detail(f: &mut Frame, app: &App) {
         .unwrap_or(false);
     let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
     let content_w = if is_codex { 82 } else { 68 };
-    let base_lines = if is_codex { 15u16 } else { 11u16 };
+    let base_lines = if is_codex { 18u16 } else { 14u16 };
     let test_lines = if app.provider_test_in_progress {
         2
     } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {

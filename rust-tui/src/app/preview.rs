@@ -182,6 +182,21 @@ impl App {
         self.preview.last_panel_tab_at = None;
     }
 
+    pub fn note_detail_exit_tab(&mut self) {
+        self.preview.last_detail_exit_tab_at = Some(Instant::now());
+    }
+
+    pub fn recent_detail_exit_tab_within(&self, window: Duration) -> bool {
+        self.preview
+            .last_detail_exit_tab_at
+            .map(|instant| instant.elapsed() <= window)
+            .unwrap_or(false)
+    }
+
+    pub fn clear_detail_exit_tab(&mut self) {
+        self.preview.last_detail_exit_tab_at = None;
+    }
+
     #[allow(dead_code)]
     pub(crate) fn preview_uses_list_scroll(&self) -> bool {
         self.has_session_preview_turns() && self.preview.view == PreviewView::SessionList
@@ -242,6 +257,28 @@ impl App {
         self.preview.list_scroll = 0;
         self.preview.follow_bottom = false;
         self.preview.follow_selection = true;
+        self.clear_detail_exit_tab();
+        self.clear_preview_render_caches();
+        self.dirty = true;
+        true
+    }
+
+    pub fn selected_thread_matches_preview_target(&mut self) -> bool {
+        self.selected_preview_thread()
+            .map(|thread| Some(thread.key) == self.preview.pane_id)
+            .unwrap_or(false)
+    }
+
+    pub fn restore_preview_turns_list(&mut self) -> bool {
+        if !self.has_session_preview_turns() || self.preview.view != PreviewView::SessionDetail {
+            return false;
+        }
+
+        self.preview.view = PreviewView::SessionList;
+        self.preview.expanded_turn = None;
+        self.preview.detail_scroll = 0;
+        self.preview.follow_selection = true;
+        self.flush_deferred_updates_on_preview_exit();
         self.clear_preview_render_caches();
         self.dirty = true;
         true

@@ -16,6 +16,7 @@ pub(super) fn run_pre_event_cycle(
 ) -> io::Result<()> {
     app.flush_deferred_ui_updates();
     app.expire_copy_toast_if_needed();
+    app.flush_pending_sidebar_space_action_if_due();
 
     if app.refresh_after_attach {
         app.refresh_after_attach = false;

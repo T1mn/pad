@@ -9,6 +9,16 @@ use ratatui::{
 };
 
 pub(super) fn render_modal_surface(f: &mut Frame, area: Rect, theme: &Theme) {
+    let overscan_area = Rect {
+        x: area.x.saturating_sub(1),
+        y: area.y.saturating_sub(1),
+        width: area.width.saturating_add(if area.x > 0 { 2 } else { 1 }),
+        height: area.height.saturating_add(if area.y > 0 { 2 } else { 1 }),
+    };
+    f.render_widget(
+        Block::default().style(Style::default().bg(modal_surface_bg(theme))),
+        overscan_area,
+    );
     f.render_widget(Clear, area);
     let surface = Block::default()
         .borders(Borders::ALL)
