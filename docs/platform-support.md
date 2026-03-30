@@ -1,6 +1,6 @@
 # Platform Support
 
-`pad` is tested for:
+PAD (`pad`) is tested for:
 
 - macOS
 - Linux

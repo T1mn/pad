@@ -1,6 +1,8 @@
-# pad
+# PAD
 
-Tmux Agent Panel Manager — monitor and manage AI coding assistants (Claude, Codex, Kimi, Gemini, OpenCode, Aider, Cursor) running in tmux.
+`pad` is the CLI for PAD: Panel for Agent Development.
+
+PAD is a tmux-first workspace for monitoring, previewing, and jumping between AI coding agents such as Claude, Codex, Kimi, Gemini, OpenCode, Aider, and Cursor.
 
 ## Features
 
@@ -26,8 +28,8 @@ Supported runtime environments:
 
 ```bash
 # From source
-git clone https://github.com/T1mn/tmux_kanban.git
-cd tmux_kanban/rust-tui
+git clone https://github.com/T1mn/pad.git
+cd pad/rust-tui
 cargo build --release
 
 # Install to ~/.local/bin
@@ -37,7 +39,7 @@ cp target/release/pad ~/.local/bin/
 ./install.sh
 ```
 
-`pad` is a tmux-first TUI. Install and run `tmux` in the same environment as `pad`.
+PAD is tmux-first. Install and run `tmux` in the same environment as `pad`.
 On WSL2, install and run both inside WSL.
 
 ## Usage

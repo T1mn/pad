@@ -3,9 +3,9 @@ name = "pad"
 version = "0.6.0"
 edition = "2021"
 authors = ["T1mn <tinggofun@gmail.com>"]
-description = "pad - Tmux Agent Panel Manager"
+description = "PAD (Panel for Agent Development) - tmux-first workspace for AI agents"
 license = "MIT"
-repository = "https://github.com/T1mn/tmux_kanban"
+repository = "https://github.com/T1mn/pad"
 
 [dependencies]
 crossterm = "0.28"

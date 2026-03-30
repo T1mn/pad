@@ -1,9 +1,9 @@
 #!/bin/bash
-# Installer for pad - Tmux Agent Panel Manager
+# Installer for PAD (Panel for Agent Development)
 # Supports: pre-built binaries (fast) or building from source (fallback)
 set -e
 
-REPO="T1mn/tmux_kanban"
+REPO="T1mn/pad"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 RED='\033[0;31m'
@@ -120,7 +120,7 @@ install_from_source() {
 
 main() {
     echo "=============================================="
-    echo "  pad - Tmux Agent Panel Manager"
+    echo "  PAD - Panel for Agent Development"
     echo "=============================================="
     echo ""
     
@@ -167,7 +167,7 @@ main() {
 }
 
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-    echo "pad Installer"
+    echo "PAD Installer"
     echo ""
     echo "This script will:"
     echo "  1. Try to download pre-built binary (fast, ~1.5MB)"
