@@ -32,6 +32,13 @@ jobs:
             sudo apt-get install -y tmux
           fi
 
+      - name: Install macOS tmux
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            brew install tmux
+          fi
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 

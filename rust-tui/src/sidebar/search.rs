@@ -105,6 +105,7 @@ mod tests {
             tags: Vec::new(),
             pinned: false,
             updated_at: 1,
+            sort_updated_at: 1,
             live_pane_id: Some("%1".into()),
             live_location: Some("0:1.1".into()),
             pid: None,

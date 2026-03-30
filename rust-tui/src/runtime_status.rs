@@ -77,8 +77,9 @@ pub fn process_alive(pid: u32) -> bool {
             if rc == 0 {
                 true
             } else {
-                let err = *libc::__error();
-                err == libc::EPERM
+                io::Error::last_os_error()
+                    .raw_os_error()
+                    .is_some_and(|err| err == libc::EPERM)
             }
         };
         alive && !process_is_zombie(pid)

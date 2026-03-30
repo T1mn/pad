@@ -126,6 +126,12 @@ jobs:
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
 
+      - name: Install tmux
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            brew install tmux
+          fi
+
       - name: Build debug binary for smoke
         run: cargo build
 

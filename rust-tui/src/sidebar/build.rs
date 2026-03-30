@@ -15,6 +15,7 @@ use super::sort::{folder_sort_key, thread_sort_key};
 pub fn build_sidebar_folders(
     panels: &[AgentPanel],
     activity_overrides: &[ThreadActivityOverride],
+    thread_sort_activity: &HashMap<String, i64>,
     archived_threads_view: bool,
     live_only: bool,
 ) -> Vec<SidebarFolder> {
@@ -103,18 +104,33 @@ pub fn build_sidebar_folders(
             }
 
             if !live_only || archived_threads_view {
-                codex_history_threads +=
-                    merge_codex_threads(folder, activity_overrides, archived_threads_view);
-                claude_history_threads +=
-                    merge_claude_threads(folder, activity_overrides, claude_threads.as_deref());
-                gemini_history_threads +=
-                    merge_gemini_threads(folder, activity_overrides, gemini_threads.as_deref());
+                codex_history_threads += merge_codex_threads(
+                    folder,
+                    activity_overrides,
+                    thread_sort_activity,
+                    archived_threads_view,
+                );
+                claude_history_threads += merge_claude_threads(
+                    folder,
+                    activity_overrides,
+                    thread_sort_activity,
+                    claude_threads.as_deref(),
+                );
+                gemini_history_threads += merge_gemini_threads(
+                    folder,
+                    activity_overrides,
+                    thread_sort_activity,
+                    gemini_threads.as_deref(),
+                );
+            }
+            for thread in &mut folder.threads {
+                apply_sort_activity(thread, thread_sort_activity);
             }
             folder.threads.sort_by(thread_sort_key);
             folder.updated_at = folder
                 .threads
                 .first()
-                .map(|thread| thread.updated_at)
+                .map(|thread| thread.sort_timestamp())
                 .unwrap_or_default();
             if folder_started_at.elapsed() >= Duration::from_millis(20) {
                 crate::log_debug!(
@@ -129,11 +145,14 @@ pub fn build_sidebar_folders(
 
     apply_thread_metadata(&mut folders);
     for folder in folders.values_mut() {
+        for thread in &mut folder.threads {
+            apply_sort_activity(thread, thread_sort_activity);
+        }
         folder.threads.sort_by(thread_sort_key);
         folder.updated_at = folder
             .threads
             .first()
-            .map(|thread| thread.updated_at)
+            .map(|thread| thread.sort_timestamp())
             .unwrap_or_default();
     }
 
@@ -266,7 +285,7 @@ fn build_live_panel_fallback_folders(panels: &[AgentPanel]) -> Vec<SidebarFolder
         folder.updated_at = folder
             .threads
             .first()
-            .map(|thread| thread.updated_at)
+            .map(|thread| thread.sort_timestamp())
             .unwrap_or_default();
     }
     values.sort_by(folder_sort_key);
@@ -367,6 +386,7 @@ fn seed_activity_folders(
 fn merge_codex_threads(
     folder: &mut SidebarFolder,
     activity_overrides: &[ThreadActivityOverride],
+    thread_sort_activity: &HashMap<String, i64>,
     archived_threads_view: bool,
 ) -> usize {
     let threads = if archived_threads_view {
@@ -401,6 +421,7 @@ fn merge_codex_threads(
             tags: Vec::new(),
             pinned: false,
             updated_at: thread.updated_at,
+            sort_updated_at: thread.updated_at,
             live_pane_id: None,
             live_location: None,
             pid: None,
@@ -415,7 +436,12 @@ fn merge_codex_threads(
             archived: thread.archived,
         };
 
-        merge_or_insert_thread(&mut folder.threads, history_entry, activity_overrides);
+        merge_or_insert_thread(
+            &mut folder.threads,
+            history_entry,
+            activity_overrides,
+            thread_sort_activity,
+        );
         merged += 1;
     }
     merged
@@ -446,6 +472,7 @@ fn should_hide_live_panel(panel: &AgentPanel) -> bool {
 fn merge_claude_threads(
     folder: &mut SidebarFolder,
     activity_overrides: &[ThreadActivityOverride],
+    thread_sort_activity: &HashMap<String, i64>,
     claude_threads: Option<&[ClaudeThreadRef]>,
 ) -> usize {
     let Some(threads) = claude_threads else {
@@ -474,6 +501,7 @@ fn merge_claude_threads(
             tags: Vec::new(),
             pinned: false,
             updated_at: thread.updated_at,
+            sort_updated_at: thread.updated_at,
             live_pane_id: None,
             live_location: None,
             pid: None,
@@ -487,7 +515,12 @@ fn merge_claude_threads(
             has_unread_stop: false,
             archived: thread.archived,
         };
-        merge_or_insert_thread(&mut folder.threads, history_entry, activity_overrides);
+        merge_or_insert_thread(
+            &mut folder.threads,
+            history_entry,
+            activity_overrides,
+            thread_sort_activity,
+        );
         merged += 1;
     }
     merged
@@ -496,6 +529,7 @@ fn merge_claude_threads(
 fn merge_gemini_threads(
     folder: &mut SidebarFolder,
     activity_overrides: &[ThreadActivityOverride],
+    thread_sort_activity: &HashMap<String, i64>,
     gemini_threads: Option<&[GeminiThreadRef]>,
 ) -> usize {
     let Some(threads) = gemini_threads else {
@@ -531,6 +565,7 @@ fn merge_gemini_threads(
             tags: Vec::new(),
             pinned: false,
             updated_at: thread.updated_at,
+            sort_updated_at: thread.updated_at,
             live_pane_id: None,
             live_location: None,
             pid: None,
@@ -545,7 +580,12 @@ fn merge_gemini_threads(
             archived: thread.archived,
         };
 
-        merge_or_insert_thread(&mut folder.threads, history_entry, activity_overrides);
+        merge_or_insert_thread(
+            &mut folder.threads,
+            history_entry,
+            activity_overrides,
+            thread_sort_activity,
+        );
         merged += 1;
     }
     merged
@@ -563,8 +603,10 @@ fn merge_or_insert_thread(
     threads: &mut Vec<SidebarThread>,
     mut history_entry: SidebarThread,
     activity_overrides: &[ThreadActivityOverride],
+    thread_sort_activity: &HashMap<String, i64>,
 ) {
     apply_activity_override(&mut history_entry, activity_overrides);
+    apply_sort_activity(&mut history_entry, thread_sort_activity);
     if let Some(existing) = threads.iter_mut().find(|existing| {
         existing.agent_type == history_entry.agent_type
             && ((existing.session_id.is_some() && existing.session_id == history_entry.session_id)
@@ -607,14 +649,26 @@ fn merge_or_insert_thread(
         }
         existing.pinned |= history_entry.pinned;
         existing.updated_at = existing.updated_at.max(history_entry.updated_at);
+        existing.sort_updated_at = existing.sort_updated_at.max(history_entry.sort_updated_at);
         if existing.runtime_source.is_none() {
             existing.runtime_source = history_entry.runtime_source;
         }
         apply_activity_override(existing, activity_overrides);
+        apply_sort_activity(existing, thread_sort_activity);
         return;
     }
 
     threads.push(history_entry);
+}
+
+fn apply_sort_activity(thread: &mut SidebarThread, thread_sort_activity: &HashMap<String, i64>) {
+    if let Some(sort_updated_at) = thread
+        .sort_activity_keys()
+        .iter()
+        .find_map(|key| thread_sort_activity.get(key).copied())
+    {
+        thread.sort_updated_at = thread.sort_updated_at.max(sort_updated_at);
+    }
 }
 
 fn apply_activity_override(
@@ -683,6 +737,7 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
         tags: Vec::new(),
         pinned: false,
         updated_at,
+        sort_updated_at: updated_at,
         live_pane_id: Some(panel.pane_id.clone()),
         live_location: Some(format!(
             "{}:{}.{}",

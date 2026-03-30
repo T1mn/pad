@@ -40,6 +40,7 @@ pub struct SidebarThread {
     pub tags: Vec<String>,
     pub pinned: bool,
     pub updated_at: i64,
+    pub sort_updated_at: i64,
     pub live_pane_id: Option<String>,
     pub live_location: Option<String>,
     pub pid: Option<String>,
@@ -71,6 +72,10 @@ pub enum SidebarItem {
 }
 
 impl SidebarThread {
+    pub fn sort_timestamp(&self) -> i64 {
+        self.sort_updated_at
+    }
+
     pub fn preview_origin(&self) -> Option<PreviewSessionOrigin> {
         if self.agent_type == AgentType::Codex {
             return Some(if self.live_pane_id.is_some() {
@@ -89,6 +94,15 @@ impl SidebarThread {
 
     pub fn is_live(&self) -> bool {
         self.live_pane_id.is_some()
+    }
+
+    pub fn sort_activity_keys(&self) -> Vec<String> {
+        thread_sort_activity_keys(
+            &self.agent_type,
+            self.session_id.as_deref(),
+            self.transcript_path.as_deref(),
+            Some(self.working_dir.as_str()),
+        )
     }
 }
 
@@ -132,4 +146,25 @@ impl SidebarItem {
             _ => None,
         }
     }
+}
+
+pub fn thread_sort_activity_keys(
+    agent_type: &AgentType,
+    session_id: Option<&str>,
+    transcript_path: Option<&str>,
+    working_dir: Option<&str>,
+) -> Vec<String> {
+    let mut keys = Vec::new();
+    if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
+        keys.push(format!("{}:sid:{}", agent_type, session_id));
+    }
+    if let Some(transcript_path) = transcript_path.filter(|value| !value.trim().is_empty()) {
+        keys.push(format!("{}:path:{}", agent_type, transcript_path));
+    }
+    if keys.is_empty() {
+        if let Some(working_dir) = working_dir.filter(|value| !value.trim().is_empty()) {
+            keys.push(format!("{}:cwd:{}", agent_type, working_dir));
+        }
+    }
+    keys
 }

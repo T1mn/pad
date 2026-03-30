@@ -53,6 +53,7 @@ impl App {
             let mut folders = crate::sidebar::build_sidebar_folders(
                 &self.panels,
                 &overrides,
+                &self.sidebar.thread_sort_activity,
                 self.sidebar.archived_threads_view,
                 !self.sidebar.archived_threads_view && self.showing_live_sessions(),
             );
@@ -64,7 +65,7 @@ impl App {
                 folder.updated_at = folder
                     .threads
                     .first()
-                    .map(|thread| thread.updated_at)
+                    .map(|thread| thread.sort_timestamp())
                     .unwrap_or_default();
             }
             folders.sort_by(crate::sidebar::folder_sort_key);
