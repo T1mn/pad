@@ -107,6 +107,9 @@ async fn run_pipe(
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
+        // If the task/runtime is cancelled before we explicitly kill the client,
+        // do not leave a detached tmux control-mode process behind.
+        .kill_on_drop(true)
         .spawn()?;
 
     let stdout = child.stdout.take().ok_or("no stdout")?;

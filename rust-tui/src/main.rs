@@ -44,6 +44,32 @@ mod ui;
 use app::App;
 use scanner::scan_panels;
 
+#[cfg(unix)]
+async fn shutdown_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sigint = signal(SignalKind::interrupt()).expect("install SIGINT handler");
+    let mut sigterm = signal(SignalKind::terminate()).expect("install SIGTERM handler");
+    let mut sighup = signal(SignalKind::hangup()).expect("install SIGHUP handler");
+
+    tokio::select! {
+        _ = sigint.recv() => {}
+        _ = sigterm.recv() => {}
+        _ = sighup.recv() => {}
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
+fn should_restore_tmux_state(app: &App) -> bool {
+    app.same_session_attached
+        || !app.saved_tmux_bindings.is_empty()
+        || app.saved_tmux_status.is_some()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -158,10 +184,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let res = event::run_app(&mut terminal, &mut app).await;
+    let res = {
+        let run_app = event::run_app(&mut terminal, &mut app);
+        tokio::pin!(run_app);
+
+        tokio::select! {
+            res = &mut run_app => res,
+            _ = shutdown_signal() => {
+                log_debug!("收到终止信号，开始清理退出");
+                Ok(())
+            }
+        }
+    };
 
     // Clean up any temporary tmux bindings before restoring terminal
-    if app.same_session_attached {
+    if should_restore_tmux_state(&app) {
         event::restore_tmux_bindings(&mut app);
     }
 
