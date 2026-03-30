@@ -14,12 +14,14 @@
 3. Run `cargo test` in `rust-tui/`.
 4. Run `cargo build --profile dist` in `rust-tui/`.
 5. Launch `pad` locally at least once.
+6. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh`.
 
 ## Automated checks
 
 1. Confirm `CI` workflow is green.
 2. Confirm `Tmux Smoke` workflow is green on macOS and Linux.
 3. Confirm the release tag matches `rust-tui/Cargo.toml`.
+4. Confirm the installer smoke job is green.
 
 ## Manual smoke before publishing
 
@@ -34,7 +36,7 @@
 1. Create and push a tag like `v0.6.0`.
 2. Wait for the `Release` workflow to finish.
 3. Download one release artifact and verify `pad --help`.
-4. Verify `curl -fsSL .../install.sh | bash` still works.
+4. Verify `curl -fsSL https://raw.githubusercontent.com/T1mn/pad/main/install.sh | bash` still works.
 
 ## Rollback
 

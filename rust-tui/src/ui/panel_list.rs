@@ -29,7 +29,7 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let expanded_folders = app.sidebar.expanded_folders.clone();
     let hovered_folder_key = app.sidebar.hovered_folder_key.clone();
 
-    let item_count = app.visible_sidebar_items_ref().len();
+    let item_count = visible_thread_count(app.visible_sidebar_items_ref());
     let border_color = if panel_is_focused {
         theme.border_focused
     } else {
@@ -252,6 +252,13 @@ fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }
 
+fn visible_thread_count(items: &[SidebarItem]) -> usize {
+    items
+        .iter()
+        .filter(|item| matches!(item, SidebarItem::Thread(_)))
+        .count()
+}
+
 pub fn preferred_panel_width(app: &mut App) -> u16 {
     let archived_threads_view = app.sidebar.archived_threads_view;
     let locale = app.locale;
@@ -389,5 +396,50 @@ mod tests {
         assert!(!animation::thread_badge_breathes(
             &crate::model::AgentState::Idle
         ));
+    }
+
+    #[test]
+    fn visible_thread_count_ignores_folder_rows() {
+        let folder = crate::sidebar::SidebarFolder {
+            key: "folder:/tmp".into(),
+            path: "/tmp".into(),
+            label: "tmp".into(),
+            updated_at: 0,
+            threads: Vec::new(),
+        };
+        let thread = crate::sidebar::SidebarThread {
+            key: "thread:1".into(),
+            folder_key: folder.key.clone(),
+            working_dir: "/tmp".into(),
+            folder_label: "tmp".into(),
+            agent_type: crate::model::AgentType::Codex,
+            runtime_source: None,
+            session_id: Some("session-1".into()),
+            transcript_path: None,
+            title: "Test".into(),
+            upstream_title: None,
+            subtitle: None,
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 0,
+            sort_updated_at: 0,
+            live_pane_id: None,
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: crate::model::AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+            archived: false,
+        };
+        let items = vec![SidebarItem::Folder(folder), SidebarItem::Thread(thread)];
+
+        assert_eq!(visible_thread_count(&items), 1);
     }
 }

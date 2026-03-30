@@ -38,6 +38,31 @@ jobs:
       - name: cargo build --profile dist
         run: cargo build --profile dist
 
+  installer-smoke:
+    name: Installer smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run installer from checkout
+        env:
+          PAD_INSTALL_FORCE_SOURCE: "1"
+          PAD_INSTALL_ASSUME_YES: "1"
+          INSTALL_DIR: ${{ github.workspace }}/.pad-bin
+        run: |
+          bash ./install.sh
+          "${INSTALL_DIR}/pad" --help
+          "${INSTALL_DIR}/pad" --version
+
   macos-build:
     name: macOS build
     runs-on: macos-latest

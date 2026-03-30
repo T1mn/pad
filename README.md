@@ -37,7 +37,7 @@ With PAD you can:
 
 ## Install
 
-Requires: Rust toolchain and `tmux`.
+Requires: `tmux` at runtime.
 
 Supported runtime environments:
 
@@ -46,20 +46,26 @@ Supported runtime environments:
 - WSL2
 
 ```bash
-# From source
+# One-line installer
+curl -fsSL https://raw.githubusercontent.com/T1mn/pad/main/install.sh | bash
+
+# Or from a local clone
 git clone https://github.com/T1mn/pad.git
-cd pad/rust-tui
-cargo build --release
-
-# Install to ~/.local/bin
-cp target/release/pad ~/.local/bin/
-
-# Or use the install script
+cd pad
 ./install.sh
 ```
 
-PAD is tmux-first. Install and run `tmux` in the same environment as `pad`.
-On WSL2, install and run both inside WSL.
+The installer tries a pre-built release first, falls back to a source build if needed, and will offer to install `tmux` automatically when it is missing.
+
+Manual source build:
+
+```bash
+cd pad/rust-tui
+cargo build --profile dist
+cp target/dist/pad ~/.local/bin/
+```
+
+PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On WSL2, install and run both inside WSL.
 
 ## Usage
 

@@ -17,6 +17,10 @@ pub(super) fn render_modal_surface(f: &mut Frame, area: Rect, theme: &Theme) {
     f.render_widget(surface, area);
 }
 
+pub(super) fn render_modal_halo(f: &mut Frame, area: Rect) {
+    f.render_widget(Clear, area);
+}
+
 fn modal_surface_bg(theme: &Theme) -> ratatui::style::Color {
     blend_color(theme.highlight_bg, theme.bg, 0.22)
 }

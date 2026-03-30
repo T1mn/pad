@@ -33,6 +33,7 @@ mod scanner;
 mod session;
 mod session_cache;
 mod sidebar;
+mod system_check;
 mod telegram;
 mod theme;
 mod thread_meta;
@@ -98,6 +99,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if telegram_daemon {
         return telegram::run_daemon().await;
     }
+
+    system_check::ensure_tmux_available()?;
 
     // Install panic hook to restore terminal and log panic info
     std::panic::set_hook(Box::new(|info| {

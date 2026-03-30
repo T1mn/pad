@@ -11,6 +11,7 @@ PAD (`pad`) is tested for:
 - `tmux` is required at runtime.
 - `pad` and `tmux` must run in the same environment.
 - On WSL2, install and run both `pad` and `tmux` inside WSL.
+- `install.sh` can prompt to install `tmux` automatically on supported package managers.
 
 ## Supported release targets
 
