@@ -1,7 +1,8 @@
-use crate::app::state::{RelayView, SettingsDetailKind, SettingsFocus};
+use super::relay_settings::{handle_relay_key, RelayHost};
+use crate::app::state::{SettingsDetailKind, SettingsFocus};
 use crate::app::App;
 use crate::log_debug;
-use crate::{relay, telegram};
+use crate::telegram;
 use crossterm::event::KeyCode;
 
 pub(crate) fn handle_settings_mode(app: &mut App, key: KeyCode) {
@@ -19,6 +20,14 @@ pub(crate) fn handle_settings_mode(app: &mut App, key: KeyCode) {
                 } else {
                     app.dirty = true;
                 }
+            }
+            KeyCode::Down => {
+                move_settings_selection_down(app);
+                app.dirty = true;
+            }
+            KeyCode::Up => {
+                move_settings_selection_up(app);
+                app.dirty = true;
             }
             KeyCode::Char(c) => {
                 app.settings_search.push(c);
@@ -47,19 +56,15 @@ pub(crate) fn handle_settings_mode(app: &mut App, key: KeyCode) {
             app.settings_focus = SettingsFocus::List;
             app.settings_searching = true;
             app.settings_search.clear();
+            app.settings_selected = 0;
             app.dirty = true;
         }
         KeyCode::Char('j') | KeyCode::Down => {
-            let max = app.filtered_settings_items().len().saturating_sub(1);
-            if app.settings_selected < max {
-                app.settings_selected += 1;
-            }
+            move_settings_selection_down(app);
             app.dirty = true;
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            if app.settings_selected > 0 {
-                app.settings_selected -= 1;
-            }
+            move_settings_selection_up(app);
             app.dirty = true;
         }
         KeyCode::Char('1') => {
@@ -110,7 +115,7 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::AutoRefresh) => handle_auto_refresh_detail_mode(app, key),
         Some(SettingsDetailKind::PreviewMode) => handle_preview_mode_detail_mode(app, key),
         Some(SettingsDetailKind::DisplayMode) => handle_display_mode_detail_mode(app, key),
-        Some(SettingsDetailKind::RefreshInterval | SettingsDetailKind::Version) => {
+        Some(SettingsDetailKind::Version) => {
             match key {
                 KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
                 _ => {}
@@ -301,205 +306,7 @@ fn handle_display_mode_detail_mode(app: &mut App, key: KeyCode) -> bool {
 }
 
 fn handle_relay_detail_mode(app: &mut App, key: KeyCode) -> bool {
-    if app.relay_editing {
-        match key {
-            KeyCode::Esc => {
-                app.relay_editing = false;
-                app.relay_edit_buffer.clear();
-                app.dirty = true;
-            }
-            KeyCode::Enter => {
-                let agent_idx = app.relay_selected_agent;
-                let prov_idx = app.relay_selected_provider;
-                let field = app.relay_edit_field;
-                let value = app.relay_edit_buffer.clone();
-                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                    if let Some(prov) = agent.providers.get_mut(prov_idx) {
-                        match field {
-                            0 => prov.label = value,
-                            1 => prov.base_url = value,
-                            2 => {
-                                prov.api_key = value;
-                                if agent.name == "codex" {
-                                    prov.env_key.clear();
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                app.config.save();
-                app.relay_editing = false;
-                app.relay_edit_buffer.clear();
-                app.dirty = true;
-            }
-            KeyCode::Backspace => {
-                app.relay_edit_buffer.pop();
-                app.dirty = true;
-            }
-            KeyCode::Char(c) => {
-                app.relay_edit_buffer.push(c);
-                app.dirty = true;
-            }
-            _ => {}
-        }
-        return true;
-    }
-
-    match app.relay_view {
-        RelayView::AgentList => match key {
-            KeyCode::Esc => app.leave_settings_detail(),
-            KeyCode::Char('j') | KeyCode::Down => {
-                let max = app.config.agents.len().saturating_sub(1);
-                if app.relay_selected_agent < max {
-                    app.relay_selected_agent += 1;
-                }
-                app.dirty = true;
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                if app.relay_selected_agent > 0 {
-                    app.relay_selected_agent -= 1;
-                }
-                app.dirty = true;
-            }
-            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
-                app.relay_view = RelayView::ProviderList;
-                let active = app
-                    .config
-                    .agents
-                    .get(app.relay_selected_agent)
-                    .and_then(|agent| agent.active_provider)
-                    .unwrap_or(0);
-                app.relay_selected_provider = active;
-                app.dirty = true;
-            }
-            _ => {}
-        },
-        RelayView::ProviderList => match key {
-            KeyCode::Esc => app.leave_settings_detail(),
-            KeyCode::Left | KeyCode::Char('h') => {
-                app.relay_view = RelayView::AgentList;
-                app.dirty = true;
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                    let max = agent.providers.len().saturating_sub(1);
-                    if app.relay_selected_provider < max {
-                        app.relay_selected_provider += 1;
-                    }
-                }
-                app.dirty = true;
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                if app.relay_selected_provider > 0 {
-                    app.relay_selected_provider -= 1;
-                }
-                app.dirty = true;
-            }
-            KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
-                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                    if !agent.providers.is_empty() {
-                        app.relay_view = RelayView::DetailPane;
-                        app.relay_edit_field = 0;
-                        app.dirty = true;
-                    }
-                }
-            }
-            KeyCode::Char(' ') => {
-                let agent_idx = app.relay_selected_agent;
-                let prov_idx = app.relay_selected_provider;
-                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                    if prov_idx < agent.providers.len() {
-                        if agent.active_provider == Some(prov_idx) {
-                            agent.active_provider = None;
-                        } else {
-                            agent.active_provider = Some(prov_idx);
-                        }
-                        app.config.save();
-                        relay::apply_relay_configs(&app.config.agents);
-                    }
-                }
-                app.dirty = true;
-            }
-            KeyCode::Char('a') => {
-                use crate::theme::ProviderConfig;
-                if let Some(agent) = app.config.agents.get_mut(app.relay_selected_agent) {
-                    agent.providers.push(ProviderConfig {
-                        label: format!("provider-{}", agent.providers.len() + 1),
-                        base_url: String::new(),
-                        api_key: String::new(),
-                        env_key: String::new(),
-                        wire_api: "responses".to_string(),
-                        test_status: None,
-                        test_http_status: None,
-                        test_latency_ms: None,
-                        test_result: None,
-                    });
-                    app.relay_selected_provider = agent.providers.len() - 1;
-                    app.config.save();
-                }
-                app.dirty = true;
-            }
-            KeyCode::Char('d') => {
-                let agent_idx = app.relay_selected_agent;
-                let prov_idx = app.relay_selected_provider;
-                if let Some(agent) = app.config.agents.get_mut(agent_idx) {
-                    if prov_idx < agent.providers.len() {
-                        agent.providers.remove(prov_idx);
-                        match agent.active_provider {
-                            Some(i) if i == prov_idx => agent.active_provider = None,
-                            Some(i) if i > prov_idx => agent.active_provider = Some(i - 1),
-                            _ => {}
-                        }
-                        if app.relay_selected_provider > 0
-                            && app.relay_selected_provider >= agent.providers.len()
-                        {
-                            app.relay_selected_provider = agent.providers.len().saturating_sub(1);
-                        }
-                        app.config.save();
-                    }
-                }
-                app.dirty = true;
-            }
-            _ => {}
-        },
-        RelayView::DetailPane => match key {
-            KeyCode::Esc => app.leave_settings_detail(),
-            KeyCode::Left | KeyCode::Char('h') => {
-                app.relay_view = RelayView::ProviderList;
-                app.dirty = true;
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                app.relay_edit_field = (app.relay_edit_field + 1) % 3;
-                app.dirty = true;
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                app.relay_edit_field = (app.relay_edit_field + 2) % 3;
-                app.dirty = true;
-            }
-            KeyCode::Enter => {
-                if let Some(agent) = app.config.agents.get(app.relay_selected_agent) {
-                    if let Some(prov) = agent.providers.get(app.relay_selected_provider) {
-                        app.relay_edit_buffer = match app.relay_edit_field {
-                            0 => prov.label.clone(),
-                            1 => prov.base_url.clone(),
-                            2 => prov.api_key.clone(),
-                            _ => String::new(),
-                        };
-                        app.relay_editing = true;
-                        app.dirty = true;
-                    }
-                }
-            }
-            KeyCode::Char(' ') => {
-                app.trigger_provider_test(app.relay_selected_agent, app.relay_selected_provider);
-                app.dirty = true;
-            }
-            _ => {}
-        },
-    }
-
-    true
+    handle_relay_key(app, key, RelayHost::Settings)
 }
 
 fn handle_telegram_detail_mode(app: &mut App, key: KeyCode) -> bool {
@@ -590,6 +397,19 @@ fn handle_telegram_detail_mode(app: &mut App, key: KeyCode) -> bool {
     true
 }
 
+fn move_settings_selection_down(app: &mut App) {
+    let max = app.filtered_settings_items().len().saturating_sub(1);
+    if app.settings_selected < max {
+        app.settings_selected += 1;
+    }
+}
+
+fn move_settings_selection_up(app: &mut App) {
+    if app.settings_selected > 0 {
+        app.settings_selected -= 1;
+    }
+}
+
 fn restart_telegram_daemon(app: &mut App) {
     if let Err(err) = telegram::restart_daemon(&app.config) {
         log_debug!("telegram: restart failed from settings: {}", err);
@@ -639,5 +459,41 @@ mod tests {
         assert!(!app.settings_searching);
         assert!(matches!(app.settings_focus, SettingsFocus::List));
         assert!(app.current_settings_detail_kind().is_none());
+    }
+
+    #[test]
+    fn settings_search_allows_arrow_navigation_without_query() {
+        let mut app = App::new();
+        app.mode = Mode::Settings;
+        app.settings_open = true;
+        app.settings_focus = SettingsFocus::List;
+        app.settings_searching = true;
+        app.settings_search.clear();
+        app.settings_selected = 0;
+
+        handle_settings_mode(&mut app, KeyCode::Down);
+        assert_eq!(app.settings_selected, 1);
+
+        handle_settings_mode(&mut app, KeyCode::Up);
+        assert_eq!(app.settings_selected, 0);
+    }
+
+    #[test]
+    fn settings_search_allows_arrow_navigation_with_filtered_results() {
+        let mut app = App::new();
+        app.mode = Mode::Settings;
+        app.settings_open = true;
+        app.settings_focus = SettingsFocus::List;
+        app.settings_searching = true;
+        app.settings_search = "settings".into();
+        app.settings_selected = 0;
+
+        assert!(app.filtered_settings_items().len() >= 2);
+
+        handle_settings_mode(&mut app, KeyCode::Down);
+        assert_eq!(app.settings_selected, 1);
+
+        handle_settings_mode(&mut app, KeyCode::Up);
+        assert_eq!(app.settings_selected, 0);
     }
 }

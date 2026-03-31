@@ -1,6 +1,6 @@
 use crate::theme::AgentConfig;
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// Apply the active provider's relay/proxy config to each agent's native config files
@@ -10,6 +10,7 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
             "claude" => apply_claude_agent_config(agent),
             "codex" => apply_codex_agent_config(agent),
             "gemini-cli" | "gemini" => apply_gemini_agent_config(agent),
+            "opencode" => apply_opencode_agent_config(agent),
             _ => {}
         }
     }
@@ -76,6 +77,25 @@ fn should_restore_standard_relay_config(agent: &AgentConfig) -> bool {
     prov.base_url.trim().is_empty() || prov.api_key.trim().is_empty()
 }
 
+fn opencode_config_path() -> PathBuf {
+    if let Some(path) = std::env::var_os("OPENCODE_CONFIG") {
+        return PathBuf::from(path);
+    }
+
+    if let Some(dir) = std::env::var_os("OPENCODE_CONFIG_DIR") {
+        return PathBuf::from(dir).join("opencode.json");
+    }
+
+    home_dir()
+        .join(".config")
+        .join("opencode")
+        .join("opencode.json")
+}
+
+fn opencode_managed_state_path() -> PathBuf {
+    crate::paths::pad_home_dir().join("opencode-relay-state.json")
+}
+
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
@@ -127,6 +147,194 @@ fn write_text_file(path: &Path, content: &str) {
         let _ = std::fs::create_dir_all(parent);
     }
     let _ = std::fs::write(path, content);
+}
+
+fn read_json_value(path: &Path, fallback: serde_json::Value) -> serde_json::Value {
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return fallback;
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(&content).unwrap_or(fallback);
+    if parsed.is_object() {
+        parsed
+    } else {
+        json!({})
+    }
+}
+
+fn write_json_value(path: &Path, value: &serde_json::Value) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let Ok(mut content) = serde_json::to_string_pretty(value) else {
+        return;
+    };
+    if !content.ends_with('\n') {
+        content.push('\n');
+    }
+    let _ = std::fs::write(path, content);
+}
+
+fn read_opencode_managed_keys() -> BTreeSet<String> {
+    let state_path = opencode_managed_state_path();
+    let value = read_json_value(&state_path, json!({ "provider_keys": [] }));
+    value
+        .get("provider_keys")
+        .and_then(|items| items.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str().map(str::to_string))
+        .collect()
+}
+
+fn write_opencode_managed_keys(keys: &BTreeSet<String>) {
+    let value = json!({
+        "provider_keys": keys.iter().collect::<Vec<_>>()
+    });
+    write_json_value(&opencode_managed_state_path(), &value);
+}
+
+fn apply_opencode_agent_config(agent: &AgentConfig) {
+    let path = opencode_config_path();
+    let mut root = read_json_value(
+        &path,
+        json!({ "$schema": "https://opencode.ai/config.json" }),
+    );
+
+    if root.get("$schema").is_none() {
+        root.as_object_mut()
+            .expect("opencode config object")
+            .insert(
+                "$schema".to_string(),
+                serde_json::Value::String("https://opencode.ai/config.json".to_string()),
+            );
+    }
+
+    let previous_managed = read_opencode_managed_keys();
+    let current_managed: BTreeSet<String> = agent
+        .providers
+        .iter()
+        .filter_map(|provider| {
+            let key = provider.opencode_provider_key().trim();
+            if key.is_empty() {
+                None
+            } else {
+                Some(key.to_string())
+            }
+        })
+        .collect();
+
+    let provider_entry = root
+        .as_object_mut()
+        .expect("opencode root object")
+        .entry("provider".to_string())
+        .or_insert_with(|| json!({}));
+    if !provider_entry.is_object() {
+        *provider_entry = json!({});
+    }
+    let provider_map = provider_entry
+        .as_object_mut()
+        .expect("opencode provider object");
+
+    for removed_key in previous_managed.difference(&current_managed) {
+        provider_map.remove(removed_key);
+    }
+
+    for provider in &agent.providers {
+        let provider_key = provider.opencode_provider_key().trim();
+        if provider_key.is_empty() {
+            continue;
+        }
+
+        let models = provider
+            .models
+            .iter()
+            .filter(|model| !model.id.trim().is_empty())
+            .map(|model| {
+                let display_name = if model.name.trim().is_empty() {
+                    model.id.trim()
+                } else {
+                    model.name.trim()
+                };
+                (
+                    model.id.trim().to_string(),
+                    json!({
+                        "name": display_name,
+                    }),
+                )
+            })
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+
+        let mut options = serde_json::Map::new();
+        if !provider.base_url.trim().is_empty() {
+            options.insert(
+                "baseURL".to_string(),
+                serde_json::Value::String(provider.base_url.trim().to_string()),
+            );
+        }
+        if !provider.api_key.trim().is_empty() {
+            options.insert(
+                "apiKey".to_string(),
+                serde_json::Value::String(provider.api_key.clone()),
+            );
+        }
+
+        let config = json!({
+            "npm": provider.opencode_npm_package(),
+            "name": provider.label,
+            "options": options,
+            "models": models,
+        });
+        provider_map.insert(provider_key.to_string(), config);
+    }
+
+    let valid_models: BTreeSet<String> = agent
+        .opencode_model_options()
+        .into_iter()
+        .map(|(value, _)| value)
+        .collect();
+
+    if !agent.default_model.trim().is_empty() && valid_models.contains(&agent.default_model) {
+        root.as_object_mut().expect("opencode root object").insert(
+            "model".to_string(),
+            serde_json::Value::String(agent.default_model.clone()),
+        );
+    } else if root
+        .get("model")
+        .and_then(|value| value.as_str())
+        .map(|value| {
+            previous_managed
+                .iter()
+                .any(|key| value.starts_with(&format!("{key}/")))
+        })
+        .unwrap_or(false)
+    {
+        root.as_object_mut()
+            .expect("opencode root object")
+            .remove("model");
+    }
+
+    if !agent.small_model.trim().is_empty() && valid_models.contains(&agent.small_model) {
+        root.as_object_mut().expect("opencode root object").insert(
+            "small_model".to_string(),
+            serde_json::Value::String(agent.small_model.clone()),
+        );
+    } else if root
+        .get("small_model")
+        .and_then(|value| value.as_str())
+        .map(|value| {
+            previous_managed
+                .iter()
+                .any(|key| value.starts_with(&format!("{key}/")))
+        })
+        .unwrap_or(false)
+    {
+        root.as_object_mut()
+            .expect("opencode root object")
+            .remove("small_model");
+    }
+
+    write_json_value(&path, &root);
+    write_opencode_managed_keys(&current_managed);
 }
 
 fn update_claude_settings_config(content: &str, base_url: &str, api_key: &str) -> String {
@@ -465,6 +673,9 @@ mod tests {
             api_key: api_key.into(),
             env_key: String::new(),
             wire_api: "responses".into(),
+            provider_key: "relay-a".into(),
+            npm_package: "@ai-sdk/openai-compatible".into(),
+            models: Vec::new(),
             test_status: None,
             test_http_status: None,
             test_latency_ms: None,
@@ -513,6 +724,8 @@ mod tests {
             cmd: "codex".into(),
             providers: vec![sample_provider("http://relay.example", "")],
             active_provider: Some(0),
+            default_model: String::new(),
+            small_model: String::new(),
             base_url: None,
             api_key: None,
         };
@@ -527,6 +740,8 @@ mod tests {
             cmd: "codex".into(),
             providers: vec![sample_provider("http://relay.example", "sk-test")],
             active_provider: Some(0),
+            default_model: String::new(),
+            small_model: String::new(),
             base_url: None,
             api_key: None,
         };
@@ -554,6 +769,8 @@ mod tests {
                     "sk-ant-test",
                 )],
                 active_provider: Some(0),
+                default_model: String::new(),
+                small_model: String::new(),
                 base_url: None,
                 api_key: None,
             };
@@ -599,6 +816,8 @@ mod tests {
                 cmd: "gemini".into(),
                 providers: vec![sample_provider("https://gemini-relay.example", "gm-test")],
                 active_provider: Some(0),
+                default_model: String::new(),
+                small_model: String::new(),
                 base_url: None,
                 api_key: None,
             };
@@ -649,6 +868,8 @@ mod tests {
                 cmd: "gemini".into(),
                 providers: vec![sample_provider("https://gemini-relay.example", "gm-test")],
                 active_provider: Some(0),
+                default_model: String::new(),
+                small_model: String::new(),
                 base_url: None,
                 api_key: None,
             };
@@ -659,6 +880,8 @@ mod tests {
                 cmd: "gemini".into(),
                 providers: vec![sample_provider("https://gemini-relay.example", "")],
                 active_provider: Some(0),
+                default_model: String::new(),
+                small_model: String::new(),
                 base_url: None,
                 api_key: None,
             };
@@ -673,6 +896,118 @@ mod tests {
                     .expect("parse");
             assert!(restored.pointer("/mcpServers/echo").is_some());
             assert!(restored.pointer("/security/auth").is_none());
+        });
+    }
+
+    #[test]
+    fn opencode_provider_writes_additive_live_config_and_models() {
+        with_temp_home("opencode-write", |home| {
+            let config_path = home.join(".config").join("opencode").join("opencode.json");
+            std::fs::create_dir_all(config_path.parent().expect("opencode dir"))
+                .expect("create opencode dir");
+            std::fs::write(
+                &config_path,
+                r#"{"$schema":"https://opencode.ai/config.json","provider":{"external":{"npm":"@ai-sdk/openai","models":{"gpt-5":{"name":"GPT-5"}}}},"theme":"tokyonight"}"#,
+            )
+            .expect("seed opencode config");
+
+            let agent = AgentConfig {
+                name: "opencode".into(),
+                cmd: "opencode".into(),
+                providers: vec![ProviderConfig {
+                    label: "Relay A".into(),
+                    base_url: "https://relay.example/v1".into(),
+                    api_key: "sk-op-test".into(),
+                    env_key: String::new(),
+                    wire_api: "responses".into(),
+                    provider_key: "relay-a".into(),
+                    npm_package: "@ai-sdk/openai-compatible".into(),
+                    models: vec![crate::theme::OpenCodeModelConfig {
+                        id: "gpt-4o".into(),
+                        name: "GPT-4o".into(),
+                    }],
+                    test_status: None,
+                    test_http_status: None,
+                    test_latency_ms: None,
+                    test_result: None,
+                }],
+                active_provider: Some(0),
+                default_model: "relay-a/gpt-4o".into(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_relay_configs(&[agent]);
+
+            let value: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                    .expect("parse");
+            assert_eq!(
+                value
+                    .pointer("/provider/relay-a/options/baseURL")
+                    .and_then(|v| v.as_str()),
+                Some("https://relay.example/v1")
+            );
+            assert_eq!(
+                value
+                    .pointer("/provider/relay-a/options/apiKey")
+                    .and_then(|v| v.as_str()),
+                Some("sk-op-test")
+            );
+            assert_eq!(
+                value
+                    .pointer("/provider/relay-a/models/gpt-4o/name")
+                    .and_then(|v| v.as_str()),
+                Some("GPT-4o")
+            );
+            assert_eq!(
+                value.pointer("/model").and_then(|v| v.as_str()),
+                Some("relay-a/gpt-4o")
+            );
+            assert!(value.pointer("/provider/external/models/gpt-5").is_some());
+            assert_eq!(
+                value.get("theme").and_then(|v| v.as_str()),
+                Some("tokyonight")
+            );
+        });
+    }
+
+    #[test]
+    fn opencode_sync_removes_previously_managed_provider_keys() {
+        with_temp_home("opencode-remove", |home| {
+            let config_path = home.join(".config").join("opencode").join("opencode.json");
+            std::fs::create_dir_all(config_path.parent().expect("opencode dir"))
+                .expect("create opencode dir");
+            std::fs::write(
+                &config_path,
+                r#"{"$schema":"https://opencode.ai/config.json","provider":{"relay-a":{"npm":"@ai-sdk/openai-compatible","models":{"gpt-4o":{"name":"GPT-4o"}}}},"model":"relay-a/gpt-4o"}"#,
+            )
+            .expect("seed opencode config");
+            let managed_state = opencode_managed_state_path();
+            std::fs::create_dir_all(managed_state.parent().expect("managed state parent"))
+                .expect("pad home");
+            std::fs::write(managed_state, r#"{"provider_keys":["relay-a"]}"#)
+                .expect("seed managed state");
+
+            let agent = AgentConfig {
+                name: "opencode".into(),
+                cmd: "opencode".into(),
+                providers: Vec::new(),
+                active_provider: None,
+                default_model: String::new(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_relay_configs(&[agent]);
+
+            let value: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                    .expect("parse");
+            assert!(value.pointer("/provider/relay-a").is_none());
+            assert!(value.get("model").is_none());
         });
     }
 }

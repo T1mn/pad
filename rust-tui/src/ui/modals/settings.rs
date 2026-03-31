@@ -122,7 +122,6 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
         Some(SettingsDetailKind::AutoRefresh)
         | Some(SettingsDetailKind::PreviewMode)
         | Some(SettingsDetailKind::DisplayMode)
-        | Some(SettingsDetailKind::RefreshInterval)
         | Some(SettingsDetailKind::Version) => (60, 10),
         Some(SettingsDetailKind::Relay) => relay_modal_size(app),
         Some(SettingsDetailKind::Telegram) => (72, 13),
@@ -132,9 +131,7 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
 
 fn relay_modal_size(app: &App) -> (u16, u16) {
     let selected_agent = app.config.agents.get(app.relay_selected_agent);
-    let is_codex = selected_agent
-        .map(|agent| agent.name.as_str() == "codex")
-        .unwrap_or(false);
+    let agent_name = selected_agent.map(|agent| agent.name.as_str());
     match app.relay_view {
         crate::app::state::RelayView::AgentList => {
             let row_count = app.config.agents.len().max(1) as u16;
@@ -154,7 +151,11 @@ fn relay_modal_size(app: &App) -> (u16, u16) {
         }
         crate::app::state::RelayView::DetailPane => {
             let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
-            let base_lines = if is_codex { 18u16 } else { 14u16 };
+            let base_lines = match agent_name {
+                Some("codex") => 18u16,
+                Some("opencode") => 22u16,
+                _ => 14u16,
+            };
             let test_lines = if app.provider_test_in_progress {
                 2
             } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {
@@ -162,7 +163,14 @@ fn relay_modal_size(app: &App) -> (u16, u16) {
             } else {
                 0
             };
-            (if is_codex { 82 } else { 68 }, base_lines + test_lines)
+            (
+                match agent_name {
+                    Some("codex") => 82,
+                    Some("opencode") => 78,
+                    _ => 68,
+                },
+                base_lines + test_lines,
+            )
         }
     }
 }
@@ -205,15 +213,6 @@ fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
             "Enter/Space toggle · Esc back",
         ),
         SettingsDetailKind::Language => draw_language_detail(f, app, area),
-        SettingsDetailKind::RefreshInterval => draw_simple_detail(
-            f,
-            app,
-            area,
-            t(app.locale, "settings.refresh_interval"),
-            simple_value_line(app, kind),
-            vec![detail_body_line(app.locale, kind)],
-            "Read only · Esc back",
-        ),
         SettingsDetailKind::Version => draw_simple_detail(
             f,
             app,
@@ -469,7 +468,6 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
             "all" => t(l, "settings.display_mode_all").to_string(),
             _ => t(l, "settings.display_mode_live").to_string(),
         },
-        SettingsDetailKind::RefreshInterval => format!("{}s", app.config.refresh_interval),
         SettingsDetailKind::Version => env!("CARGO_PKG_VERSION").to_string(),
         _ => String::new(),
     }
@@ -484,7 +482,6 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         (Locale::ZhCN, SettingsDetailKind::DisplayMode) => {
             "切换只显示 live session 或显示全部 session".to_string()
         }
-        (Locale::ZhCN, SettingsDetailKind::RefreshInterval) => "当前为只读展示项".to_string(),
         (Locale::ZhCN, SettingsDetailKind::Version) => "当前 pad 版本".to_string(),
         (_, SettingsDetailKind::AutoRefresh) => {
             "Controls whether pad refreshes scans automatically.".to_string()
@@ -495,7 +492,6 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         (_, SettingsDetailKind::DisplayMode) => {
             "Switch between live-only sessions and all sessions.".to_string()
         }
-        (_, SettingsDetailKind::RefreshInterval) => "Read-only value.".to_string(),
         (_, SettingsDetailKind::Version) => "Current pad version.".to_string(),
         _ => String::new(),
     }
@@ -503,9 +499,9 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
 
 fn settings_list_footer(locale: Locale) -> &'static str {
     match locale {
-        Locale::ZhCN => "j/k 移动 · Enter 打开 · / 搜索 · Esc 关闭",
-        Locale::ZhTW => "j/k 移動 · Enter 打開 · / 搜尋 · Esc 關閉",
-        _ => "j/k move · Enter open · / search · Esc close",
+        Locale::ZhCN => "↑/↓ 或 j/k 移动 · Enter 打开 · / 搜索 · Esc 关闭",
+        Locale::ZhTW => "↑/↓ 或 j/k 移動 · Enter 打開 · / 搜尋 · Esc 關閉",
+        _ => "↑/↓ or j/k move · Enter open · / search · Esc close",
     }
 }
 

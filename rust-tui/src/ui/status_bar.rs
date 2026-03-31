@@ -48,13 +48,19 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
         ),
         crate::app::state::Mode::Settings => {
             if app.settings_searching {
-                format!(
-                    "{}: {}  Enter {}  Esc {}",
-                    crate::i18n::t(l, "status.search"),
-                    app.settings_search,
-                    crate::i18n::t(l, "status.confirm"),
-                    crate::i18n::t(l, "status.back")
-                )
+                if matches!(l, crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW) {
+                    format!(
+                        "{}: {}  ↑/↓ 移动  Enter 打开  Esc 返回",
+                        crate::i18n::t(l, "status.search"),
+                        app.settings_search
+                    )
+                } else {
+                    format!(
+                        "{}: {}  ↑/↓ move  Enter open  Esc back",
+                        crate::i18n::t(l, "status.search"),
+                        app.settings_search
+                    )
+                }
             } else {
                 settings_status_body(app)
             }
@@ -92,25 +98,60 @@ fn settings_status_body(app: &App) -> String {
     );
     if app.settings_focus == crate::app::state::SettingsFocus::List {
         if zh {
-            "j/k: 移动 | Enter: 打开 | /: 搜索 | Esc: 关闭".to_string()
+            "↑/↓/j/k: 移动 | Enter: 打开 | /: 搜索 | Esc: 关闭".to_string()
         } else {
-            "j/k: move | Enter: open | /: search | Esc: close".to_string()
+            "↑/↓/j/k: move | Enter: open | /: search | Esc: close".to_string()
         }
     } else {
         match app.current_settings_detail_kind() {
             Some(crate::app::state::SettingsDetailKind::Relay) => {
-                if app.relay_editing {
+                if app.relay_popup_editing || app.relay_editing {
                     crate::i18n::t(app.locale, "relay.footer_edit").to_string()
+                } else if app.relay_popup_mode != crate::app::state::RelayPopupMode::None {
+                    match app.relay_popup_mode {
+                        crate::app::state::RelayPopupMode::OpenCodeModels => {
+                            crate::i18n::t(app.locale, "relay.footer_models").to_string()
+                        }
+                        crate::app::state::RelayPopupMode::OpenCodeDefaultModel
+                        | crate::app::state::RelayPopupMode::OpenCodeSmallModel => {
+                            crate::i18n::t(app.locale, "relay.footer_model_picker").to_string()
+                        }
+                        crate::app::state::RelayPopupMode::None => {
+                            crate::i18n::t(app.locale, "relay.footer_detail").to_string()
+                        }
+                    }
                 } else {
                     match app.relay_view {
                         crate::app::state::RelayView::AgentList => {
                             crate::i18n::t(app.locale, "relay.footer_agent").to_string()
                         }
                         crate::app::state::RelayView::ProviderList => {
-                            crate::i18n::t(app.locale, "relay.footer_provider").to_string()
+                            if app
+                                .config
+                                .agents
+                                .get(app.relay_selected_agent)
+                                .map(|agent| agent.name.as_str() == "opencode")
+                                .unwrap_or(false)
+                            {
+                                crate::i18n::t(app.locale, "relay.footer_provider_opencode")
+                                    .to_string()
+                            } else {
+                                crate::i18n::t(app.locale, "relay.footer_provider").to_string()
+                            }
                         }
                         crate::app::state::RelayView::DetailPane => {
-                            crate::i18n::t(app.locale, "relay.footer_detail").to_string()
+                            if app
+                                .config
+                                .agents
+                                .get(app.relay_selected_agent)
+                                .map(|agent| agent.name.as_str() == "opencode")
+                                .unwrap_or(false)
+                            {
+                                crate::i18n::t(app.locale, "relay.footer_detail_opencode")
+                                    .to_string()
+                            } else {
+                                crate::i18n::t(app.locale, "relay.footer_detail").to_string()
+                            }
                         }
                     }
                 }

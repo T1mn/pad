@@ -590,10 +590,14 @@ impl App {
         if base_url.trim().is_empty() {
             if let Some(agent) = self.config.agents.get_mut(agent_idx) {
                 if let Some(prov) = agent.providers.get_mut(provider_idx) {
-                    prov.test_status = Some(false);
+                    prov.test_status = None;
                     prov.test_http_status = None;
                     prov.test_latency_ms = None;
-                    prov.test_result = Some("Base URL is empty".to_string());
+                    prov.test_result = Some(if agent.name == "opencode" {
+                        "Base URL is empty; OpenCode provider can still work if the SDK package uses non-HTTP auth or external defaults".to_string()
+                    } else {
+                        "Base URL is empty".to_string()
+                    });
                 }
             }
             self.dirty = true;

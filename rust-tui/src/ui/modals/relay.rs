@@ -20,25 +20,12 @@ pub fn draw_relay_settings(f: &mut Frame, app: &App) {
     let content_w = match app.relay_view {
         crate::app::state::RelayView::AgentList => 58,
         crate::app::state::RelayView::ProviderList => 76,
-        crate::app::state::RelayView::DetailPane => {
-            let selected_agent = app.config.agents.get(app.relay_selected_agent);
-            if selected_agent
-                .map(|agent| agent.name.as_str() == "codex")
-                .unwrap_or(false)
-            {
-                82
-            } else {
-                68
-            }
-        }
+        crate::app::state::RelayView::DetailPane => relay_detail_width(app),
     };
     let content_h = if app.relay_view == crate::app::state::RelayView::DetailPane {
         let selected_agent = app.config.agents.get(app.relay_selected_agent);
         let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
-        let is_codex = selected_agent
-            .map(|agent| agent.name.as_str() == "codex")
-            .unwrap_or(false);
-        let base_lines = if is_codex { 18u16 } else { 14u16 };
+        let base_lines = relay_detail_base_lines(app);
         let test_lines = if app.provider_test_in_progress {
             2
         } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {
@@ -83,17 +70,41 @@ fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) {
                 .agents
                 .iter()
                 .map(|agent| {
-                    let active_label = agent
-                        .active()
-                        .map(|p| p.label.clone())
-                        .unwrap_or_else(|| "none".to_string());
-                    SelectionItem {
-                        title: agent.name.clone(),
-                        subtitle: Some(format!(
+                    let active_label =
+                        agent.active().map(|p| p.label.clone()).unwrap_or_else(|| {
+                            if agent.name == "opencode" && !agent.default_model.is_empty() {
+                                agent.default_model.clone()
+                            } else {
+                                "none".to_string()
+                            }
+                        });
+                    let subtitle = if agent.name == "opencode" {
+                        let model = if agent.default_model.is_empty() {
+                            "none".to_string()
+                        } else {
+                            truncate_modal_line(&agent.default_model, 24)
+                        };
+                        let small = if agent.small_model.is_empty() {
+                            "none".to_string()
+                        } else {
+                            truncate_modal_line(&agent.small_model, 20)
+                        };
+                        format!(
+                            "model: {}  ·  small: {}  ·  {} providers",
+                            model,
+                            small,
+                            agent.providers.len()
+                        )
+                    } else {
+                        format!(
                             "active: {}  ·  {} providers",
                             active_label,
                             agent.providers.len()
-                        )),
+                        )
+                    };
+                    SelectionItem {
+                        title: agent.name.clone(),
+                        subtitle: Some(subtitle),
                         keyword: Some(format!("{} {}", agent.name, active_label)),
                         detail: None,
                         disabled: false,
@@ -150,7 +161,7 @@ fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) {
                 ),
                 items,
                 app.relay_selected_provider,
-                crate::i18n::t(l, "relay.footer_provider"),
+                relay_provider_footer_text(app, l),
             )
         }
     };
@@ -166,12 +177,9 @@ fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) {
 pub fn draw_relay_detail(f: &mut Frame, app: &App) {
     let theme = &app.theme;
     let selected_agent = app.config.agents.get(app.relay_selected_agent);
-    let is_codex = selected_agent
-        .map(|agent| agent.name.as_str() == "codex")
-        .unwrap_or(false);
     let prov = selected_agent.and_then(|a| a.providers.get(app.relay_selected_provider));
-    let content_w = if is_codex { 82 } else { 68 };
-    let base_lines = if is_codex { 18u16 } else { 14u16 };
+    let content_w = relay_detail_width(app);
+    let base_lines = relay_detail_base_lines(app);
     let test_lines = if app.provider_test_in_progress {
         2
     } else if prov.map(|p| p.test_result.is_some()).unwrap_or(false) {
@@ -248,39 +256,64 @@ fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
             prov.api_key.clone()
         };
 
-        let mut detail_lines = vec![
-            Line::from(Span::styled(
-                crate::i18n::t(l, "relay.label"),
-                Style::default()
-                    .fg(theme.comment)
-                    .add_modifier(Modifier::DIM),
-            )),
-            Line::from(Span::styled(make_val(0, &prov.label), field_style(0))),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "relay.base_url"),
-                Style::default()
-                    .fg(theme.comment)
-                    .add_modifier(Modifier::DIM),
-            )),
-            Line::from(Span::styled(make_val(1, &prov.base_url), field_style(1))),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "relay.api_key"),
-                Style::default()
-                    .fg(theme.comment)
-                    .add_modifier(Modifier::DIM),
-            )),
-            Line::from(Span::styled(masked_api_key, field_style(2))),
-        ];
+        let mut detail_lines = if agent.name == "opencode" {
+            let models_summary = opencode_models_summary(prov);
+            vec![
+                detail_line(theme, l, "relay.label"),
+                Line::from(Span::styled(make_val(0, &prov.label), field_style(0))),
+                Line::from(""),
+                detail_line(theme, l, "relay.provider_key"),
+                Line::from(Span::styled(
+                    make_val(1, prov.opencode_provider_key()),
+                    field_style(1),
+                )),
+                Line::from(""),
+                detail_line(theme, l, "relay.npm_package"),
+                Line::from(Span::styled(
+                    make_val(2, prov.opencode_npm_package()),
+                    field_style(2),
+                )),
+                Line::from(""),
+                detail_line(theme, l, "relay.base_url"),
+                Line::from(Span::styled(make_val(3, &prov.base_url), field_style(3))),
+                Line::from(""),
+                detail_line(theme, l, "relay.api_key"),
+                Line::from(Span::styled(
+                    if editing && field == 4 {
+                        format!("{}|", app.relay_edit_buffer)
+                    } else {
+                        masked_api_key
+                    },
+                    field_style(4),
+                )),
+                Line::from(""),
+                detail_line(theme, l, "relay.models"),
+                Line::from(Span::styled(models_summary, field_style(5))),
+                Line::from(""),
+                Line::from(Span::styled(
+                    format!(
+                        "model: {}  ·  small: {}",
+                        dash_if_empty(&agent.default_model),
+                        dash_if_empty(&agent.small_model)
+                    ),
+                    Style::default().fg(theme.comment),
+                )),
+            ]
+        } else {
+            vec![
+                detail_line(theme, l, "relay.label"),
+                Line::from(Span::styled(make_val(0, &prov.label), field_style(0))),
+                Line::from(""),
+                detail_line(theme, l, "relay.base_url"),
+                Line::from(Span::styled(make_val(1, &prov.base_url), field_style(1))),
+                Line::from(""),
+                detail_line(theme, l, "relay.api_key"),
+                Line::from(Span::styled(masked_api_key, field_style(2))),
+            ]
+        };
         if agent.name == "codex" {
             detail_lines.push(Line::from(""));
-            detail_lines.push(Line::from(Span::styled(
-                crate::i18n::t(l, "relay.wire_api"),
-                Style::default()
-                    .fg(theme.comment)
-                    .add_modifier(Modifier::DIM),
-            )));
+            detail_lines.push(detail_line(theme, l, "relay.wire_api"));
             detail_lines.push(Line::from(Span::styled(
                 prov.codex_wire_api().to_string(),
                 Style::default().fg(theme.fg),
@@ -319,7 +352,7 @@ fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
     let footer_text = if app.relay_editing {
         crate::i18n::t(l, "relay.footer_edit")
     } else {
-        crate::i18n::t(l, "relay.footer_detail")
+        relay_detail_footer_text(app, l)
     };
     let footer = Paragraph::new(Line::from(Span::styled(
         footer_text.to_string(),
@@ -328,16 +361,32 @@ fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
             .add_modifier(Modifier::DIM),
     )));
     f.render_widget(footer, footer_area);
+
+    if app.relay_popup_mode != crate::app::state::RelayPopupMode::None {
+        draw_relay_popup(f, app, area);
+    }
 }
 
 fn provider_list_title(agent_name: &str, prov: &ProviderConfig, is_active: bool) -> String {
     let marker = if is_active { "✓ " } else { "" };
-    let _ = agent_name;
-    format!("{}{}", marker, prov.label)
+    if agent_name == "opencode" {
+        format!(
+            "{}{} [{}]",
+            marker,
+            prov.label,
+            prov.opencode_provider_key()
+        )
+    } else {
+        format!("{}{}", marker, prov.label)
+    }
 }
 
 fn provider_list_subtitle(agent_name: &str, prov: &ProviderConfig) -> String {
     let mut parts = Vec::new();
+    if agent_name == "opencode" {
+        parts.push(format!("{} models", prov.models.len()));
+        parts.push(truncate_modal_line(prov.opencode_npm_package(), 24));
+    }
     if !prov.base_url.trim().is_empty() {
         parts.push(truncate_modal_line(&prov.base_url, 28));
     }
@@ -358,6 +407,285 @@ fn provider_list_subtitle(agent_name: &str, prov: &ProviderConfig) -> String {
         "-".to_string()
     } else {
         parts.join("  |  ")
+    }
+}
+
+fn relay_detail_width(app: &App) -> u16 {
+    match app
+        .config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str())
+    {
+        Some("codex") => 82,
+        Some("opencode") => 78,
+        _ => 68,
+    }
+}
+
+fn relay_detail_base_lines(app: &App) -> u16 {
+    match app
+        .config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str())
+    {
+        Some("codex") => 18,
+        Some("opencode") => 22,
+        _ => 14,
+    }
+}
+
+fn detail_line(theme: &Theme, locale: Locale, key: &'static str) -> Line<'static> {
+    Line::from(Span::styled(
+        crate::i18n::t(locale, key),
+        Style::default()
+            .fg(theme.comment)
+            .add_modifier(Modifier::DIM),
+    ))
+}
+
+fn dash_if_empty(value: &str) -> String {
+    if value.trim().is_empty() {
+        "-".to_string()
+    } else {
+        truncate_modal_line(value, 24)
+    }
+}
+
+fn opencode_models_summary(prov: &ProviderConfig) -> String {
+    if prov.models.is_empty() {
+        return "-".to_string();
+    }
+    let preview = prov
+        .models
+        .iter()
+        .take(2)
+        .map(|model| {
+            if model.name.trim().is_empty() {
+                model.id.clone()
+            } else {
+                format!("{} ({})", model.name, model.id)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    if prov.models.len() > 2 {
+        format!(
+            "{}  ·  +{} more",
+            truncate_modal_line(&preview, 40),
+            prov.models.len() - 2
+        )
+    } else {
+        truncate_modal_line(&preview, 48)
+    }
+}
+
+fn relay_provider_footer_text<'a>(app: &App, locale: Locale) -> &'a str {
+    if app
+        .config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str() == "opencode")
+        .unwrap_or(false)
+    {
+        crate::i18n::t(locale, "relay.footer_provider_opencode")
+    } else {
+        crate::i18n::t(locale, "relay.footer_provider")
+    }
+}
+
+fn relay_detail_footer_text<'a>(app: &App, locale: Locale) -> &'a str {
+    if app.relay_popup_mode != crate::app::state::RelayPopupMode::None {
+        match app.relay_popup_mode {
+            crate::app::state::RelayPopupMode::OpenCodeModels => {
+                if app.relay_popup_editing {
+                    crate::i18n::t(locale, "relay.footer_edit")
+                } else {
+                    crate::i18n::t(locale, "relay.footer_models")
+                }
+            }
+            crate::app::state::RelayPopupMode::OpenCodeDefaultModel
+            | crate::app::state::RelayPopupMode::OpenCodeSmallModel => {
+                crate::i18n::t(locale, "relay.footer_model_picker")
+            }
+            crate::app::state::RelayPopupMode::None => {
+                crate::i18n::t(locale, "relay.footer_detail")
+            }
+        }
+    } else if app
+        .config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str() == "opencode")
+        .unwrap_or(false)
+    {
+        crate::i18n::t(locale, "relay.footer_detail_opencode")
+    } else {
+        crate::i18n::t(locale, "relay.footer_detail")
+    }
+}
+
+fn draw_relay_popup(f: &mut Frame, app: &App, area: Rect) {
+    let theme = &app.theme;
+    let locale = app.locale;
+    let popup_rect = match app.relay_popup_mode {
+        crate::app::state::RelayPopupMode::OpenCodeModels => popup_area(60, 16, area),
+        crate::app::state::RelayPopupMode::OpenCodeDefaultModel
+        | crate::app::state::RelayPopupMode::OpenCodeSmallModel => popup_area(66, 14, area),
+        crate::app::state::RelayPopupMode::None => return,
+    };
+    render_modal_surface(f, popup_rect, theme);
+
+    let inner = Rect {
+        x: popup_rect.x + 2,
+        y: popup_rect.y + 1,
+        width: popup_rect.width.saturating_sub(4),
+        height: popup_rect.height.saturating_sub(2),
+    };
+
+    match app.relay_popup_mode {
+        crate::app::state::RelayPopupMode::OpenCodeModels => {
+            let title = crate::i18n::t(locale, "relay.models");
+            let [header, body, footer] = Layout::vertical([
+                Constraint::Length(1),
+                Constraint::Min(0),
+                Constraint::Length(1),
+            ])
+            .areas(inner);
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    title,
+                    Style::default()
+                        .fg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ))),
+                header,
+            );
+
+            let items: Vec<SelectionItem> = app
+                .config
+                .agents
+                .get(app.relay_selected_agent)
+                .and_then(|agent| agent.providers.get(app.relay_selected_provider))
+                .map(|prov| {
+                    prov.models
+                        .iter()
+                        .map(|model| SelectionItem {
+                            title: model.id.clone(),
+                            subtitle: Some(if model.name.trim().is_empty() {
+                                "-".to_string()
+                            } else {
+                                model.name.clone()
+                            }),
+                            keyword: Some(format!("{} {}", model.id, model.name)),
+                            detail: None,
+                            disabled: false,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut state = SelectionState {
+                selected: app.relay_popup_selected,
+                ..Default::default()
+            };
+            state.clamp_selected(items.len());
+            render_selection_surface(f, body, theme, title, &items, &state, None);
+
+            let footer_text = if app.relay_popup_editing {
+                crate::i18n::t(locale, "relay.footer_edit")
+            } else {
+                crate::i18n::t(locale, "relay.footer_models")
+            };
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    footer_text,
+                    Style::default()
+                        .fg(theme.comment)
+                        .add_modifier(Modifier::DIM),
+                ))),
+                footer,
+            );
+
+            if app.relay_popup_editing {
+                let edit_area = popup_area(44, 5, popup_rect);
+                render_modal_surface(f, edit_area, theme);
+                let edit_inner = Rect {
+                    x: edit_area.x + 2,
+                    y: edit_area.y + 1,
+                    width: edit_area.width.saturating_sub(4),
+                    height: edit_area.height.saturating_sub(2),
+                };
+                let label = if app.relay_popup_field == 0 {
+                    crate::i18n::t(locale, "relay.model_id")
+                } else {
+                    crate::i18n::t(locale, "relay.model_name")
+                };
+                let lines = vec![
+                    Line::from(Span::styled(
+                        label,
+                        Style::default()
+                            .fg(theme.comment)
+                            .add_modifier(Modifier::DIM),
+                    )),
+                    Line::from(Span::styled(
+                        format!("{}|", app.relay_popup_buffer),
+                        Style::default()
+                            .fg(theme.highlight_fg)
+                            .bg(theme.highlight_bg)
+                            .add_modifier(Modifier::BOLD),
+                    )),
+                ];
+                f.render_widget(Paragraph::new(lines), edit_inner);
+            }
+        }
+        crate::app::state::RelayPopupMode::OpenCodeDefaultModel
+        | crate::app::state::RelayPopupMode::OpenCodeSmallModel => {
+            let title = if app.relay_popup_mode
+                == crate::app::state::RelayPopupMode::OpenCodeDefaultModel
+            {
+                crate::i18n::t(locale, "relay.default_model")
+            } else {
+                crate::i18n::t(locale, "relay.small_model")
+            };
+            let items: Vec<SelectionItem> = app
+                .config
+                .agents
+                .get(app.relay_selected_agent)
+                .map(|agent| {
+                    let mut options = agent.opencode_model_options();
+                    if app.relay_popup_mode == crate::app::state::RelayPopupMode::OpenCodeSmallModel
+                    {
+                        options.insert(0, (String::new(), "(none)".to_string()));
+                    }
+                    options
+                        .into_iter()
+                        .map(|(value, label)| SelectionItem {
+                            title: label,
+                            subtitle: Some(value),
+                            keyword: None,
+                            detail: None,
+                            disabled: false,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut state = SelectionState {
+                selected: app.relay_popup_selected,
+                ..Default::default()
+            };
+            state.clamp_selected(items.len());
+            render_selection_surface(
+                f,
+                popup_rect,
+                theme,
+                title,
+                &items,
+                &state,
+                Some(crate::i18n::t(locale, "relay.footer_model_picker")),
+            );
+        }
+        crate::app::state::RelayPopupMode::None => {}
     }
 }
 
