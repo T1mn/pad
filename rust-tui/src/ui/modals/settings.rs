@@ -470,7 +470,7 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
             _ => t(l, "settings.display_mode_live").to_string(),
         },
         SettingsDetailKind::RefreshInterval => format!("{}s", app.config.refresh_interval),
-        SettingsDetailKind::Version => "0.6.0".to_string(),
+        SettingsDetailKind::Version => env!("CARGO_PKG_VERSION").to_string(),
         _ => String::new(),
     }
 }

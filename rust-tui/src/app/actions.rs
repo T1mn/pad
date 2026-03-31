@@ -739,7 +739,7 @@ impl App {
             ),
             (
                 "version",
-                "0.6.0".to_string(),
+                env!("CARGO_PKG_VERSION").to_string(),
                 "settings.version",
                 "settings.version",
                 false,
