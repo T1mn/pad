@@ -10,14 +10,17 @@ PAD is built for the moment when you have more than one agent, more than one ses
 
 ## Demo
 
-<img src="docs/media/basic.gif" alt="PAD demo showing double-space folder toggles, double-tab preview drill-down, and Shift+J K preview navigation" width="960" />
+<video src="docs/media/new_waiting.mp4" controls muted loop playsinline width="960"></video>
 
 This flow shows the keyboard-native loop PAD is optimized for:
 
-- Open PAD and scan live agents immediately
-- Double-tap `Space` to expand or collapse every session folder
-- Double-tap `Tab` to jump from the session list into the latest preview detail and back again
-- Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach
+- Open PAD and create a fresh session with `c`
+- Send work, return to the dashboard with `F12`, and keep the session running
+- Read the breathing activity indicator to see that the agent is still working in the background
+- Double-tap `Tab` to jump from the session list into the latest preview detail
+- Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach again
+
+If your Markdown viewer does not render inline video, open [`new_waiting.mp4`](docs/media/new_waiting.mp4) directly.
 
 ## Core Features
 
