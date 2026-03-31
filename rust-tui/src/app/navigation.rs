@@ -7,6 +7,14 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 impl App {
+    fn visible_thread_sidebar_indices(items: &[SidebarItem]) -> Vec<usize> {
+        items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| item.as_thread().map(|_| index))
+            .collect()
+    }
+
     fn sidebar_navigable_indices_for(items: &[SidebarItem]) -> Vec<usize> {
         items
             .iter()
@@ -355,8 +363,19 @@ impl App {
         self.dirty = true;
     }
 
+    pub fn jump_to_sidebar_index(&mut self, index: usize) -> bool {
+        self.select_sidebar_index(index, true)
+    }
+
     pub fn jump_to(&mut self, index: usize) {
-        self.select_sidebar_index(index, true);
+        let target_sidebar_index =
+            Self::visible_thread_sidebar_indices(self.visible_sidebar_items_ref())
+                .get(index)
+                .copied();
+        let Some(target_sidebar_index) = target_sidebar_index else {
+            return;
+        };
+        self.select_sidebar_index(target_sidebar_index, true);
     }
 
     pub fn toggle_selected_folder(&mut self) -> bool {
@@ -676,5 +695,51 @@ mod tests {
 
         assert_eq!(app.table_state.selected(), Some(1));
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
+    }
+
+    #[test]
+    fn numeric_jump_ignores_folder_rows_and_hidden_threads() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        app.jump_to(0);
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
+
+        app.jump_to(1);
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
+    }
+
+    #[test]
+    fn numeric_jump_uses_visible_thread_order() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.sidebar.expanded_folders.insert("/tmp/alpha".into());
+        app.sidebar.expanded_folders.insert("/tmp/beta".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        app.jump_to(1);
+
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%2"));
+        assert_eq!(app.table_state.selected(), Some(3));
+    }
+
+    #[test]
+    fn numeric_jump_uses_filtered_visible_threads() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/beta"));
+        app.search_query = "beta".into();
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+
+        app.jump_to(0);
+
+        assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%2"));
     }
 }

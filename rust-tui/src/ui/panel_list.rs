@@ -136,12 +136,14 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
                 .wrap(Wrap { trim: false });
             f.render_widget(empty, inner);
         } else {
+            let jump_badges = visible_thread_jump_badges(items);
             let rows: Vec<Row> = items
                 .iter()
                 .enumerate()
                 .map(|(idx, item)| {
                     build_sidebar_row(
                         item,
+                        jump_badges[idx],
                         idx == selected_idx.unwrap_or(usize::MAX),
                         content_width,
                         &theme,
@@ -181,6 +183,7 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn build_sidebar_row(
     item: &SidebarItem,
+    jump_badge: Option<usize>,
     is_selected: bool,
     content_width: usize,
     theme: &crate::theme::Theme,
@@ -197,9 +200,24 @@ fn build_sidebar_row(
             is_hovered_folder,
         ),
         SidebarItem::Thread(thread) => {
-            thread_row::build_thread_row(thread, is_selected, content_width, theme)
+            thread_row::build_thread_row(thread, is_selected, content_width, theme, jump_badge)
         }
     }
+}
+
+fn visible_thread_jump_badges(items: &[SidebarItem]) -> Vec<Option<usize>> {
+    let mut next_jump_badge = 1usize;
+    items
+        .iter()
+        .map(|item| {
+            if item.as_thread().is_none() {
+                return None;
+            }
+            let badge = (next_jump_badge <= 9).then_some(next_jump_badge);
+            next_jump_badge += 1;
+            badge
+        })
+        .collect()
 }
 
 fn archived_title_label(locale: Locale) -> &'static str {
@@ -340,6 +358,7 @@ pub fn draw_agent_status_bar(f: &mut Frame, app: &App, area: Rect) {
 mod tests {
     use super::*;
     use crate::model::AgentPanel;
+    use crate::sidebar::{SidebarFolder, SidebarThread};
 
     #[test]
     fn shimmer_preserves_text_content() {
@@ -400,14 +419,14 @@ mod tests {
 
     #[test]
     fn visible_thread_count_ignores_folder_rows() {
-        let folder = crate::sidebar::SidebarFolder {
+        let folder = SidebarFolder {
             key: "folder:/tmp".into(),
             path: "/tmp".into(),
             label: "tmp".into(),
             updated_at: 0,
             threads: Vec::new(),
         };
-        let thread = crate::sidebar::SidebarThread {
+        let thread = SidebarThread {
             key: "thread:1".into(),
             folder_key: folder.key.clone(),
             working_dir: "/tmp".into(),
@@ -441,5 +460,57 @@ mod tests {
         let items = vec![SidebarItem::Folder(folder), SidebarItem::Thread(thread)];
 
         assert_eq!(visible_thread_count(&items), 1);
+    }
+
+    #[test]
+    fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
+        let folder = SidebarFolder {
+            key: "folder:/tmp".into(),
+            path: "/tmp".into(),
+            label: "tmp".into(),
+            updated_at: 0,
+            threads: Vec::new(),
+        };
+        let thread = |index: usize| SidebarThread {
+            key: format!("thread:{index}"),
+            folder_key: folder.key.clone(),
+            working_dir: "/tmp".into(),
+            folder_label: "tmp".into(),
+            agent_type: crate::model::AgentType::Codex,
+            runtime_source: None,
+            session_id: Some(format!("session-{index}")),
+            transcript_path: None,
+            title: format!("Test {index}"),
+            upstream_title: None,
+            subtitle: None,
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 0,
+            sort_updated_at: 0,
+            live_pane_id: None,
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: crate::model::AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+            archived: false,
+        };
+        let mut items = vec![SidebarItem::Folder(folder.clone())];
+        for index in 1..=10 {
+            items.push(SidebarItem::Thread(thread(index)));
+        }
+
+        let badges = visible_thread_jump_badges(&items);
+        assert_eq!(badges[0], None);
+        assert_eq!(badges[1], Some(1));
+        assert_eq!(badges[9], Some(9));
+        assert_eq!(badges[10], None);
     }
 }
