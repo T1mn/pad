@@ -127,7 +127,7 @@ fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row
                     let _ = app.select_sidebar_index(index, false);
                     let _ = app.toggle_selected_folder();
                 } else {
-                    app.jump_to(index);
+                    let _ = app.jump_to_sidebar_index(index);
                 }
             }
         }

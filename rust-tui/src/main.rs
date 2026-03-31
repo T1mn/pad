@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!();
         println!("Key bindings:");
         println!("  j/k or ↑/↓     Move selection");
-        println!("  1-9            Jump to panel");
+        println!("  1-9            Jump to visible session");
         println!("  Enter          Attach to panel (F12 / Ctrl+Q to return)");
         println!("  t              Toggle file tree");
         println!("  Space          Expand or collapse directory");
