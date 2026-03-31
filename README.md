@@ -1,16 +1,14 @@
-# PAD
-
-Stop hunting panes. Run your AI workflow from one place.
-
-`pad` is the CLI for PAD: Panel for Agent Development.
-
-PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, OpenCode, Aider, Cursor, and other terminal AI agents.
-
-PAD is built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.
+<div align="center">
+  <h1>PAD</h1>
+  <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
+  <p><code>pad</code> is the CLI for PAD: Panel for Agent Development.</p>
+  <p>PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, OpenCode, Aider, Cursor, and other terminal AI agents.</p>
+  <p>Built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.</p>
+</div>
 
 ## Demo
 
-<video src="docs/media/new_waiting.mp4" controls muted loop playsinline width="960"></video>
+<video src="https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49" controls muted loop playsinline width="960"></video>
 
 This flow shows the keyboard-native loop PAD is optimized for:
 
@@ -20,7 +18,7 @@ This flow shows the keyboard-native loop PAD is optimized for:
 - Double-tap `Tab` to jump from the session list into the latest preview detail
 - Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach again
 
-If your Markdown viewer does not render inline video, open [`new_waiting.mp4`](docs/media/new_waiting.mp4) directly.
+If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49) directly.
 
 ## Core Features
 
