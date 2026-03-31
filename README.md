@@ -10,7 +10,7 @@
 
 <video src="https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49" controls muted loop playsinline width="960"></video>
 
-This flow shows the keyboard-native loop PAD is optimized for:
+This is the core loop:
 
 - Open PAD and create a fresh session with `c`
 - Send work, return to the dashboard with `F12`, and keep the session running
@@ -20,31 +20,96 @@ This flow shows the keyboard-native loop PAD is optimized for:
 
 If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49) directly.
 
-## Overview
+## Why PAD
 
-<img src="docs/media/first-annotated.png" alt="PAD home screen overview" width="960">
+When you have more than one tmux pane, more than one agent, and more than one session, the usual workflow gets noisy fast.
 
-The home screen is built around four fast scan points:
+- Which pane moved last?
+- Which session is still working?
+- Do I need to attach, or is the answer already in preview?
+- If I archive this thread, am I hiding it or actually deleting something?
 
-1. `LIVE 6`: the top-level live inbox and current online session count.
-2. Highlighted session row: the active session selection in the left sidebar, organized for quick jumping between folders and agents.
-3. Preview header: core session metadata at a glance, including agent type, state, PID, branch, path, and SID.
-4. Preview turns: the latest Q/A pairs, so you can decide whether to attach before entering the pane.
+PAD gives you one place to scan, preview, attach, archive, and jump back out.
+
+## 30-Second Workflow
+
+1. Run `pad`.
+2. Scan the left sidebar for the session that moved.
+3. Read the latest turns in preview before you attach.
+4. Hit `Enter` to jump in, then `F12` or `Ctrl+Q` to come back.
 
 ## Core Features
 
-- Unified agent inbox for live panes and historical sessions
-- Preview recent turns before you attach to a pane
-- Drill into preview detail without leaving the keyboard
-- Jump in fast and return safely with tmux-native handoff
-- Keep archive state, session metadata, and relay settings in one place
+- Unified live + historical agent inbox
+- Preview before attach
+- Detail view for recent Q/A turns
+- tmux-native attach and safe return
+- Index-only archive semantics that keep upstream session data intact
+- Keyboard-first settings, search, tree, and session creation
 
-## Why PAD
+## What PAD Does Not Do
 
-- tmux-first: built around real panes and real workflows, not simulated tabs
-- agent-aware: session preview, archive, hook updates, and provider-specific history are first-class
-- fast to scan: the sidebar is optimized for "what changed" and "where do I go now"
-- low-friction: keyboard-first, attach fast, detach fast, stay inside your terminal
+- It does not replace tmux.
+- It does not fake tabs on top of tmux panes.
+- It does not delete upstream agent history when you archive a thread in PAD.
+- It does not take over the agent runtime. It helps you see and jump faster.
+
+## Screen Tour
+
+### Overview
+
+<img src="docs/media/first-annotated.png" alt="PAD home screen overview" width="960">
+
+Open PAD here first. This is the fast scan view.
+
+1. `LIVE 6`: the top-level live inbox and current online session count.
+2. Highlighted session row: the current target in the sidebar, ready for preview or attach.
+3. Preview header: agent, state, PID, branch, path, and SID at a glance.
+4. Preview turns: read the latest Q/A before you decide to attach.
+
+### Settings
+
+<img src="docs/media/settings-annotated.png" alt="PAD settings overview" width="960">
+
+Settings stays in flow. Open it with `/`, change what you need, leave with `Esc`.
+
+1. `/` prompt: settings comes from the same slash-driven flow as other terminal-first tools.
+2. Settings list: move through config areas without leaving the keyboard.
+3. Inline current values: scan current state directly from the list.
+4. Footer hints: the active keys are always visible at the bottom.
+
+### Archive
+
+<img src="docs/media/archive-annotated.png" alt="PAD archive confirmation overview" width="960">
+
+Archive in PAD is narrow on purpose. It matches the Codex-side mental model: hide it from PAD, keep the original session data intact.
+
+1. Confirmation dialog: archive is explicit and reversible. It is not delete.
+2. Target thread: the dialog shows exactly which thread is being archived before you confirm.
+3. Live pane warning: if the thread still has a live pane, PAD tells you clearly that archive only hides it in PAD and updates PAD's local index.
+4. Codex-aligned semantics: PAD keeps upstream session data untouched and only updates its own tracking layer. For Claude that means PAD updates its Claude sqlite index and does not modify the original `~/.claude` session source.
+
+### Tree
+
+<img src="docs/media/tree-annotated.png" alt="PAD tree view overview" width="960">
+
+Use tree mode when you want to browse code, preview a file, or create a session from a directory without leaving PAD.
+
+1. Root path: the current workspace is always visible at the top.
+2. File tree: expand, collapse, and move through directories quickly.
+3. File preview: inspect code immediately on the right.
+4. Tree footer: tree-mode keys stay visible, including nav, expand, attach, create, and help.
+
+### Help
+
+<img src="docs/media/help-annotated.png" alt="PAD help overview" width="960">
+
+Help keeps the keyboard model discoverable inside the UI, so you do not have to context-switch to docs.
+
+1. Help header: you are looking at PAD's built-in keyboard guide, not an external doc.
+2. Navigation section: movement, jump, and search keys are grouped together.
+3. Actions section: attach, create, delete, refresh, focus switching, and preview controls live in one place.
+4. Close hint: the footer shows the shortest way back out.
 
 ## Features
 
