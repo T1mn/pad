@@ -1,4 +1,4 @@
-use crate::theme::AgentConfig;
+use crate::theme::{AgentConfig, AgentPermissionsConfig};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -13,6 +13,29 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
             "opencode" => apply_opencode_agent_config(agent),
             _ => {}
         }
+    }
+}
+
+/// Apply both relay/provider config and PAD-managed runtime permission overlays.
+pub fn apply_runtime_configs(agents: &[AgentConfig], permissions: &AgentPermissionsConfig) {
+    apply_relay_configs(agents);
+    apply_permission_overlays(agents, permissions);
+}
+
+fn apply_permission_overlays(agents: &[AgentConfig], permissions: &AgentPermissionsConfig) {
+    let has_codex = agents.iter().any(|agent| agent.name == "codex");
+    let has_claude = agents.iter().any(|agent| agent.name == "claude");
+
+    if has_codex && permissions.codex_auto_full_access {
+        apply_codex_permission_overlay();
+    } else if has_codex {
+        remove_codex_permission_overlay();
+    }
+
+    if has_claude && permissions.claude_auto_full_access {
+        apply_claude_permission_overlay();
+    } else if has_claude {
+        remove_claude_permission_overlay();
     }
 }
 
@@ -98,6 +121,14 @@ fn opencode_managed_state_path() -> PathBuf {
 
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn codex_permission_state_path() -> PathBuf {
+    crate::paths::pad_home_dir().join("codex-permissions-state.json")
+}
+
+fn claude_permission_state_path() -> PathBuf {
+    crate::paths::pad_home_dir().join("claude-permissions-state.json")
 }
 
 fn claude_settings_path() -> PathBuf {
@@ -426,6 +457,280 @@ fn serialize_json_pretty(value: &serde_json::Value) -> String {
     serialized
 }
 
+fn parse_toml_document(content: &str) -> toml::Value {
+    content
+        .parse::<toml::Value>()
+        .unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new()))
+}
+
+fn serialize_toml_document(value: &toml::Value) -> String {
+    let mut serialized = toml::to_string(value).unwrap_or_default();
+    if !serialized.ends_with('\n') {
+        serialized.push('\n');
+    }
+    serialized
+}
+
+fn apply_codex_permission_overlay() {
+    let path = codex_config_path();
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc = parse_toml_document(&content);
+    let root = doc.as_table_mut().expect("root toml value must be a table");
+
+    capture_codex_permission_state_once(root);
+
+    root.insert(
+        "approval_policy".to_string(),
+        toml::Value::String("never".to_string()),
+    );
+    root.insert(
+        "sandbox_mode".to_string(),
+        toml::Value::String("danger-full-access".to_string()),
+    );
+
+    write_text_file(&path, &serialize_toml_document(&doc));
+}
+
+fn remove_codex_permission_overlay() {
+    let path = codex_config_path();
+    let state_path = codex_permission_state_path();
+    if !path.exists() && !state_path.exists() {
+        return;
+    }
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc = parse_toml_document(&content);
+    let root = doc.as_table_mut().expect("root toml value must be a table");
+    let state = read_json_value(
+        &state_path,
+        json!({ "approval_policy": null, "sandbox_mode": null }),
+    );
+
+    restore_toml_string_field(root, "approval_policy", state.get("approval_policy"));
+    restore_toml_string_field(root, "sandbox_mode", state.get("sandbox_mode"));
+
+    write_text_file(&path, &serialize_toml_document(&doc));
+    let _ = std::fs::remove_file(state_path);
+}
+
+fn capture_codex_permission_state_once(root: &toml::map::Map<String, toml::Value>) {
+    let path = codex_permission_state_path();
+    if path.exists() {
+        return;
+    }
+
+    let value = json!({
+        "approval_policy": root.get("approval_policy").and_then(|value| value.as_str()),
+        "sandbox_mode": root.get("sandbox_mode").and_then(|value| value.as_str()),
+    });
+    write_json_value(&path, &value);
+}
+
+fn restore_toml_string_field(
+    root: &mut toml::map::Map<String, toml::Value>,
+    key: &str,
+    previous: Option<&serde_json::Value>,
+) {
+    if let Some(previous) = previous.and_then(|value| value.as_str()) {
+        root.insert(key.to_string(), toml::Value::String(previous.to_string()));
+    } else {
+        root.remove(key);
+    }
+}
+
+fn apply_claude_permission_overlay() {
+    let path = claude_settings_path();
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut obj = parse_json_object(&content);
+
+    capture_claude_permission_state_once(&obj);
+    set_json_string_path(
+        &mut obj,
+        &["permissions", "defaultMode"],
+        "bypassPermissions",
+    );
+    set_json_bool_path(&mut obj, &["sandbox", "enabled"], false);
+
+    write_text_file(&path, &serialize_json_pretty(&obj));
+}
+
+fn remove_claude_permission_overlay() {
+    let path = claude_settings_path();
+    let state_path = claude_permission_state_path();
+    if !path.exists() && !state_path.exists() {
+        return;
+    }
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut obj = parse_json_object(&content);
+    let state = read_json_value(
+        &state_path,
+        json!({
+            "permissions_default_mode": null,
+            "sandbox_enabled": null
+        }),
+    );
+
+    restore_json_string_path(
+        &mut obj,
+        &["permissions", "defaultMode"],
+        state.get("permissions_default_mode"),
+    );
+    restore_json_bool_path(
+        &mut obj,
+        &["sandbox", "enabled"],
+        state.get("sandbox_enabled"),
+    );
+    cleanup_empty_json_objects(&mut obj);
+
+    write_text_file(&path, &serialize_json_pretty(&obj));
+    let _ = std::fs::remove_file(state_path);
+}
+
+fn capture_claude_permission_state_once(obj: &serde_json::Value) {
+    let path = claude_permission_state_path();
+    if path.exists() {
+        return;
+    }
+
+    let value = json!({
+        "permissions_default_mode": json_string_at_path(obj, &["permissions", "defaultMode"]),
+        "sandbox_enabled": json_bool_at_path(obj, &["sandbox", "enabled"]),
+    });
+    write_json_value(&path, &value);
+}
+
+fn json_string_at_path(value: &serde_json::Value, path: &[&str]) -> Option<String> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    current.as_str().map(str::to_string)
+}
+
+fn json_bool_at_path(value: &serde_json::Value, path: &[&str]) -> Option<bool> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    current.as_bool()
+}
+
+fn set_json_string_path(value: &mut serde_json::Value, path: &[&str], text: &str) {
+    let mut current = value;
+    for key in &path[..path.len().saturating_sub(1)] {
+        current = ensure_json_child_value(current, key);
+    }
+    if let Some(last) = path.last() {
+        current.as_object_mut().expect("json object").insert(
+            (*last).to_string(),
+            serde_json::Value::String(text.to_string()),
+        );
+    }
+}
+
+fn set_json_bool_path(value: &mut serde_json::Value, path: &[&str], flag: bool) {
+    let mut current = value;
+    for key in &path[..path.len().saturating_sub(1)] {
+        current = ensure_json_child_value(current, key);
+    }
+    if let Some(last) = path.last() {
+        current
+            .as_object_mut()
+            .expect("json object")
+            .insert((*last).to_string(), serde_json::Value::Bool(flag));
+    }
+}
+
+fn ensure_json_child_value<'a>(
+    value: &'a mut serde_json::Value,
+    key: &str,
+) -> &'a mut serde_json::Value {
+    let object = value.as_object_mut().expect("json object");
+    let entry = object.entry(key.to_string()).or_insert_with(|| json!({}));
+    if !entry.is_object() {
+        *entry = json!({});
+    }
+    entry
+}
+
+fn restore_json_string_path(
+    value: &mut serde_json::Value,
+    path: &[&str],
+    previous: Option<&serde_json::Value>,
+) {
+    if let Some(previous) = previous.and_then(|value| value.as_str()) {
+        set_json_string_path(value, path, previous);
+    } else {
+        remove_json_path(value, path);
+    }
+}
+
+fn restore_json_bool_path(
+    value: &mut serde_json::Value,
+    path: &[&str],
+    previous: Option<&serde_json::Value>,
+) {
+    if let Some(previous) = previous.and_then(|value| value.as_bool()) {
+        set_json_bool_path(value, path, previous);
+    } else {
+        remove_json_path(value, path);
+    }
+}
+
+fn remove_json_path(value: &mut serde_json::Value, path: &[&str]) {
+    if path.is_empty() {
+        return;
+    }
+    let Some(root) = value.as_object_mut() else {
+        return;
+    };
+    remove_json_path_in_map(root, path);
+}
+
+fn remove_json_path_in_map(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    path: &[&str],
+) -> bool {
+    if path.len() == 1 {
+        map.remove(path[0]);
+        return map.is_empty();
+    }
+
+    let remove_child = if let Some(child) = map.get_mut(path[0]) {
+        if let Some(child_map) = child.as_object_mut() {
+            remove_json_path_in_map(child_map, &path[1..])
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    if remove_child {
+        map.remove(path[0]);
+    }
+
+    map.is_empty()
+}
+
+fn cleanup_empty_json_objects(value: &mut serde_json::Value) -> bool {
+    let Some(map) = value.as_object_mut() else {
+        return false;
+    };
+
+    let keys = map.keys().cloned().collect::<Vec<_>>();
+    for key in keys {
+        let remove_key = map
+            .get_mut(&key)
+            .map(cleanup_empty_json_objects)
+            .unwrap_or(false);
+        if remove_key {
+            map.remove(&key);
+        }
+    }
+
+    map.is_empty()
+}
+
 fn parse_env_file(content: &str) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     for line in content.lines() {
@@ -661,7 +966,7 @@ fn update_codex_auth_config(content: &str, api_key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::theme::{AgentConfig, ProviderConfig};
+    use crate::theme::{AgentConfig, AgentPermissionsConfig, ProviderConfig};
     use std::path::PathBuf;
     use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -680,6 +985,13 @@ mod tests {
             test_http_status: None,
             test_latency_ms: None,
             test_result: None,
+        }
+    }
+
+    fn sample_permissions() -> AgentPermissionsConfig {
+        AgentPermissionsConfig {
+            codex_auto_full_access: true,
+            claude_auto_full_access: true,
         }
     }
 
@@ -1008,6 +1320,171 @@ mod tests {
                     .expect("parse");
             assert!(value.pointer("/provider/relay-a").is_none());
             assert!(value.get("model").is_none());
+        });
+    }
+
+    #[test]
+    fn runtime_configs_apply_codex_full_access_without_relay_provider() {
+        with_temp_home("codex-permissions", |home| {
+            let codex_dir = home.join(".codex");
+            std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+            let config_path = codex_dir.join("config.toml");
+            std::fs::write(
+                &config_path,
+                "model = \"gpt-5\"\napproval_policy = \"on-request\"\n",
+            )
+            .expect("seed codex config");
+
+            let agent = AgentConfig {
+                name: "codex".into(),
+                cmd: "codex".into(),
+                providers: Vec::new(),
+                active_provider: None,
+                default_model: String::new(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_runtime_configs(&[agent], &sample_permissions());
+
+            let value = std::fs::read_to_string(&config_path).expect("read codex config");
+            assert!(value.contains("approval_policy = \"never\""));
+            assert!(value.contains("sandbox_mode = \"danger-full-access\""));
+            assert!(codex_permission_state_path().exists());
+        });
+    }
+
+    #[test]
+    fn runtime_configs_restore_previous_codex_permission_fields_when_disabled() {
+        with_temp_home("codex-permissions-restore", |home| {
+            let codex_dir = home.join(".codex");
+            std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+            let config_path = codex_dir.join("config.toml");
+            std::fs::write(
+                &config_path,
+                "model = \"gpt-5\"\napproval_policy = \"on-request\"\n",
+            )
+            .expect("seed codex config");
+
+            let agent = AgentConfig {
+                name: "codex".into(),
+                cmd: "codex".into(),
+                providers: Vec::new(),
+                active_provider: None,
+                default_model: String::new(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_runtime_configs(&[agent.clone()], &sample_permissions());
+
+            let disabled = AgentPermissionsConfig {
+                codex_auto_full_access: false,
+                claude_auto_full_access: false,
+            };
+            apply_runtime_configs(&[agent], &disabled);
+
+            let value = std::fs::read_to_string(&config_path).expect("read codex config");
+            assert!(value.contains("approval_policy = \"on-request\""));
+            assert!(!value.contains("sandbox_mode = \"danger-full-access\""));
+            assert!(!codex_permission_state_path().exists());
+        });
+    }
+
+    #[test]
+    fn runtime_configs_apply_claude_full_access_without_relay_provider() {
+        with_temp_home("claude-permissions", |home| {
+            let claude_dir = home.join(".claude");
+            std::fs::create_dir_all(&claude_dir).expect("create claude dir");
+            let settings_path = claude_dir.join("settings.json");
+            std::fs::write(
+                &settings_path,
+                r#"{"permissions":{"defaultMode":"ask"},"sandbox":{"enabled":true},"mcpServers":{"echo":{"command":"echo"}}}"#,
+            )
+            .expect("seed claude settings");
+
+            let agent = AgentConfig {
+                name: "claude".into(),
+                cmd: "claude".into(),
+                providers: Vec::new(),
+                active_provider: None,
+                default_model: String::new(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_runtime_configs(&[agent], &sample_permissions());
+
+            let value: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&settings_path).expect("read"))
+                    .expect("parse");
+            assert_eq!(
+                value
+                    .pointer("/permissions/defaultMode")
+                    .and_then(|v| v.as_str()),
+                Some("bypassPermissions")
+            );
+            assert_eq!(
+                value.pointer("/sandbox/enabled").and_then(|v| v.as_bool()),
+                Some(false)
+            );
+            assert!(value.pointer("/mcpServers/echo").is_some());
+            assert!(claude_permission_state_path().exists());
+        });
+    }
+
+    #[test]
+    fn runtime_configs_restore_previous_claude_permission_fields_when_disabled() {
+        with_temp_home("claude-permissions-restore", |home| {
+            let claude_dir = home.join(".claude");
+            std::fs::create_dir_all(&claude_dir).expect("create claude dir");
+            let settings_path = claude_dir.join("settings.json");
+            std::fs::write(
+                &settings_path,
+                r#"{"permissions":{"defaultMode":"ask"},"sandbox":{"enabled":true},"env":{"KEEP":"1"}}"#,
+            )
+            .expect("seed claude settings");
+
+            let agent = AgentConfig {
+                name: "claude".into(),
+                cmd: "claude".into(),
+                providers: Vec::new(),
+                active_provider: None,
+                default_model: String::new(),
+                small_model: String::new(),
+                base_url: None,
+                api_key: None,
+            };
+
+            apply_runtime_configs(&[agent.clone()], &sample_permissions());
+
+            let disabled = AgentPermissionsConfig {
+                codex_auto_full_access: false,
+                claude_auto_full_access: false,
+            };
+            apply_runtime_configs(&[agent], &disabled);
+
+            let value: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&settings_path).expect("read"))
+                    .expect("parse");
+            assert_eq!(
+                value
+                    .pointer("/permissions/defaultMode")
+                    .and_then(|v| v.as_str()),
+                Some("ask")
+            );
+            assert_eq!(
+                value.pointer("/sandbox/enabled").and_then(|v| v.as_bool()),
+                Some(true)
+            );
+            assert_eq!(
+                value.pointer("/env/KEEP").and_then(|v| v.as_str()),
+                Some("1")
+            );
+            assert!(!claude_permission_state_path().exists());
         });
     }
 }

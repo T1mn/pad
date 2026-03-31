@@ -285,6 +285,8 @@ impl App {
         Some(match item_id {
             "theme" => SettingsDetailKind::Theme,
             "auto_refresh" => SettingsDetailKind::AutoRefresh,
+            "codex_full_access" => SettingsDetailKind::CodexFullAccess,
+            "claude_full_access" => SettingsDetailKind::ClaudeFullAccess,
             "relay" => SettingsDetailKind::Relay,
             "telegram" => SettingsDetailKind::Telegram,
             "agent_style" => SettingsDetailKind::AgentStyle,
@@ -686,6 +688,28 @@ impl App {
                 true,
             ),
             (
+                "codex_full_access",
+                if self.config.agent_permissions.codex_auto_full_access {
+                    crate::i18n::t(l, "settings.on").to_string()
+                } else {
+                    crate::i18n::t(l, "settings.off").to_string()
+                },
+                "settings.codex_full_access",
+                "settings.codex_full_access",
+                true,
+            ),
+            (
+                "claude_full_access",
+                if self.config.agent_permissions.claude_auto_full_access {
+                    crate::i18n::t(l, "settings.on").to_string()
+                } else {
+                    crate::i18n::t(l, "settings.off").to_string()
+                },
+                "settings.claude_full_access",
+                "settings.claude_full_access",
+                true,
+            ),
+            (
                 "relay",
                 crate::i18n::t(l, "settings.configure").to_string(),
                 "settings.relay",
@@ -811,6 +835,20 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
     match id {
         "theme" => &["theme", "color theme", "appearance"],
         "auto_refresh" => &["auto refresh", "refresh", "refresh interval"],
+        "codex_full_access" => &[
+            "codex",
+            "codex full access",
+            "codex permissions",
+            "approval policy",
+            "sandbox mode",
+        ],
+        "claude_full_access" => &[
+            "claude",
+            "claude full access",
+            "claude permissions",
+            "bypass permissions",
+            "sandbox",
+        ],
         "relay" => &["relay", "provider", "model provider", "proxy"],
         "telegram" => &["telegram", "bot", "telegram bot"],
         "agent_style" => &["agent style", "attach style", "status bar", "zoom"],
