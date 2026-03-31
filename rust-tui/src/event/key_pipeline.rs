@@ -61,7 +61,10 @@ pub(super) fn handle_key_event(
 }
 
 pub(super) fn handle_paste(app: &mut App, text: &str) {
-    if app.relay_editing {
+    if app.relay_popup_editing {
+        app.relay_popup_buffer.push_str(text);
+        app.dirty = true;
+    } else if app.relay_editing {
         app.relay_edit_buffer.push_str(text);
         app.dirty = true;
     } else if app.telegram_editing {

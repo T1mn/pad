@@ -2,8 +2,10 @@ use super::{unix_now_ts, App, APP_THREAD_ACTIVITY_MAX_ENTRIES, APP_THREAD_ACTIVI
 use crate::hook::HookEvent;
 use crate::log_debug;
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, SessionCacheState};
+use crate::notify::NotificationRequest;
 use crate::sidebar::{thread_sort_activity_keys, ThreadActivityOverride};
 use std::collections::HashSet;
+use std::path::Path;
 use std::path::PathBuf;
 
 impl App {
@@ -25,6 +27,7 @@ impl App {
         let mut persisted_snapshot = None;
         let mut pending_claude_history_upsert = None;
         let mut pending_thread_sort_activity = None;
+        let mut pending_notification = None;
 
         if let Some(panel) = self.panels.iter_mut().find(|p| p.pane_id == pane_id) {
             if panel.agent_type == AgentType::Codex {
@@ -110,6 +113,8 @@ impl App {
 
             pending_claude_history_upsert =
                 pane_claude_history_upsert_args(panel, &event, persisted_snapshot.as_ref());
+            pending_notification =
+                completion_notification_for_panel(panel, &event, persisted_snapshot.as_ref());
 
             self.invalidate_sidebar_cache();
             if should_refresh_preview {
@@ -143,12 +148,17 @@ impl App {
                 log_debug!("claude_history: pane hook upsert failed: {}", err);
             }
         }
+
+        if let Some(request) = pending_notification {
+            emit_completion_notification(request);
+        }
     }
 
     fn apply_app_thread_hook_event(&mut self, event: HookEvent) {
         let Some(activity) = app_thread_activity_from_hook(&event) else {
             return;
         };
+        let pending_notification = completion_notification_for_activity(&activity, &event);
 
         let selected_matches = self
             .selected_preview_thread()
@@ -183,6 +193,10 @@ impl App {
             self.invalidate_preview();
         }
         self.dirty = true;
+
+        if let Some(request) = pending_notification {
+            emit_completion_notification(request);
+        }
     }
 
     pub(crate) fn prune_app_thread_activity(&mut self, now_ts: i64) -> bool {
@@ -331,9 +345,183 @@ fn infer_hook_agent_type(event: &HookEvent) -> Option<AgentType> {
         {
             return Some(AgentType::Codex);
         }
+        if crate::claude_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            return Some(AgentType::Claude);
+        }
+        if crate::gemini_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            return Some(AgentType::Gemini);
+        }
     }
 
     Some(AgentType::Codex)
+}
+
+fn completion_notification_for_panel(
+    panel: &AgentPanel,
+    event: &HookEvent,
+    persisted_snapshot: Option<&crate::session_cache::SessionCacheSnapshot>,
+) -> Option<NotificationRequest> {
+    if event.event != "stop" {
+        return None;
+    }
+
+    let session_id = panel
+        .agent_session_id
+        .as_deref()
+        .or_else(|| persisted_snapshot.map(|snapshot| snapshot.agent_session_id.as_str()))
+        .or(event.session_id.as_deref());
+    let fallback_prompt = panel
+        .last_user_prompt
+        .as_deref()
+        .or_else(|| persisted_snapshot.and_then(|snapshot| snapshot.last_user_prompt.as_deref()))
+        .or(event.prompt.as_deref());
+
+    Some(build_completion_notification(
+        &panel.agent_type,
+        session_id,
+        fallback_prompt,
+        Some(panel.working_dir.as_str()),
+    ))
+}
+
+fn completion_notification_for_activity(
+    activity: &ThreadActivityOverride,
+    event: &HookEvent,
+) -> Option<NotificationRequest> {
+    if event.event != "stop" {
+        return None;
+    }
+
+    Some(build_completion_notification(
+        &activity.agent_type,
+        activity
+            .session_id
+            .as_deref()
+            .or(event.session_id.as_deref()),
+        activity
+            .last_user_prompt
+            .as_deref()
+            .or(event.prompt.as_deref()),
+        Some(activity.working_dir.as_str()),
+    ))
+}
+
+fn build_completion_notification(
+    agent_type: &AgentType,
+    session_id: Option<&str>,
+    fallback_prompt: Option<&str>,
+    working_dir: Option<&str>,
+) -> NotificationRequest {
+    NotificationRequest {
+        title: format!("PAD · {} complete", notification_agent_label(agent_type)),
+        body: completion_notification_body(agent_type, session_id, fallback_prompt, working_dir),
+    }
+}
+
+fn emit_completion_notification(request: NotificationRequest) {
+    match crate::notify::notify_completion(&request) {
+        Ok(true) => {}
+        Ok(false) => {
+            log_debug!("notification: skipped (no supported desktop backend)");
+        }
+        Err(err) => {
+            log_debug!("notification: failed to dispatch: {}", err);
+        }
+    }
+}
+
+fn notification_agent_label(agent_type: &AgentType) -> &'static str {
+    match agent_type {
+        AgentType::Claude => "Claude",
+        AgentType::Codex => "Codex",
+        AgentType::Gemini => "Gemini",
+        AgentType::OpenCode => "OpenCode",
+        AgentType::Kimi => "Kimi",
+        AgentType::Aider => "Aider",
+        AgentType::Cursor => "Cursor",
+        AgentType::Unknown => "Agent",
+    }
+}
+
+fn completion_notification_body(
+    agent_type: &AgentType,
+    session_id: Option<&str>,
+    fallback_prompt: Option<&str>,
+    working_dir: Option<&str>,
+) -> String {
+    lookup_notification_title(agent_type, session_id)
+        .or_else(|| fallback_prompt.map(normalize_notification_text))
+        .filter(|text| !text.is_empty())
+        .unwrap_or_else(|| notification_workdir_fallback(working_dir, session_id))
+}
+
+fn lookup_notification_title(agent_type: &AgentType, session_id: Option<&str>) -> Option<String> {
+    let session_id = session_id?;
+    match agent_type {
+        AgentType::Codex => crate::codex_state::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .and_then(|thread| thread.title.or(thread.first_user_message))
+            .map(normalize_notification_text),
+        AgentType::Claude => crate::claude_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .and_then(|thread| thread.title)
+            .map(normalize_notification_text),
+        AgentType::Gemini => crate::gemini_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .and_then(|thread| {
+                thread
+                    .title
+                    .or(thread.summary)
+                    .or(thread.last_user_message)
+                    .or(thread.first_user_message)
+            })
+            .map(normalize_notification_text),
+        _ => None,
+    }
+}
+
+fn normalize_notification_text(text: impl AsRef<str>) -> String {
+    truncate_notification_text(
+        &text
+            .as_ref()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" "),
+        72,
+    )
+}
+
+fn truncate_notification_text(text: &str, max_chars: usize) -> String {
+    let mut truncated = String::new();
+    for (idx, ch) in text.chars().enumerate() {
+        if idx >= max_chars {
+            truncated.push_str("...");
+            return truncated;
+        }
+        truncated.push(ch);
+    }
+    truncated
+}
+
+fn notification_workdir_fallback(working_dir: Option<&str>, session_id: Option<&str>) -> String {
+    working_dir
+        .and_then(|path| Path::new(path).file_name())
+        .and_then(|name| name.to_str())
+        .map(normalize_notification_text)
+        .filter(|name| !name.is_empty())
+        .or_else(|| session_id.map(normalize_notification_text))
+        .unwrap_or_else(|| "Session complete".to_string())
 }
 
 fn pane_claude_history_upsert_args(
@@ -383,6 +571,7 @@ mod tests {
     use crate::app::{App, APP_THREAD_ACTIVITY_MAX_ENTRIES, APP_THREAD_ACTIVITY_TTL_SECS};
     use crate::hook::{HookEvent, HookTmuxInfo};
     use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::notify::NotificationRequest;
     use crate::sidebar::ThreadActivityOverride;
 
     fn stop_event(pane_id: &str) -> HookEvent {
@@ -516,5 +705,54 @@ mod tests {
             .app_thread_activity
             .contains_key(&format!("recent:{}", APP_THREAD_ACTIVITY_MAX_ENTRIES + 7)));
         assert!(!app.sidebar.app_thread_activity.contains_key("recent:0"));
+    }
+
+    #[test]
+    fn completion_notification_uses_prompt_when_lookup_is_unavailable() {
+        let request = super::build_completion_notification(
+            &AgentType::Codex,
+            Some("missing-session"),
+            Some("Ship the relay settings redesign with a compact layout"),
+            Some("/tmp/demo"),
+        );
+
+        assert_eq!(request.title, "PAD · Codex complete");
+        assert_eq!(
+            request.body,
+            "Ship the relay settings redesign with a compact layout"
+        );
+    }
+
+    #[test]
+    fn completion_notification_falls_back_to_workdir_name() {
+        let request = super::build_completion_notification(
+            &AgentType::OpenCode,
+            None,
+            None,
+            Some("/tmp/pad-demo"),
+        );
+
+        assert_eq!(
+            request,
+            NotificationRequest {
+                title: "PAD · OpenCode complete".into(),
+                body: "pad-demo".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn completion_notification_truncates_long_text() {
+        let body = super::completion_notification_body(
+            &AgentType::Unknown,
+            None,
+            Some(
+                "this is a very long prompt that should be truncated before it reaches the desktop notification surface because otherwise it becomes noisy",
+            ),
+            None,
+        );
+
+        assert!(body.ends_with("..."));
+        assert!(body.chars().count() <= 75);
     }
 }

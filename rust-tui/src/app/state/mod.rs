@@ -45,7 +45,6 @@ pub enum SettingsDetailKind {
     PreviewMode,
     DisplayMode,
     Language,
-    RefreshInterval,
     Version,
 }
 
@@ -55,6 +54,14 @@ pub enum RelayView {
     AgentList,
     ProviderList,
     DetailPane,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RelayPopupMode {
+    None,
+    OpenCodeModels,
+    OpenCodeDefaultModel,
+    OpenCodeSmallModel,
 }
 
 pub use preview::{

@@ -23,6 +23,7 @@ mod i18n;
 #[macro_use]
 mod logger;
 mod model;
+mod notify;
 mod paths;
 mod pipe;
 mod preview_source;

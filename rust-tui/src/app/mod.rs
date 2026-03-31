@@ -17,7 +17,9 @@ pub use state::{
     PreviewMouseSelection, PreviewPlainCache, ThreadActionKind, ThreadMetaEditKind,
     ThreadPreviewCacheEntry,
 };
-use state::{Mode, PreviewState, RelayView, SettingsDetailKind, SettingsFocus, SidebarState};
+use state::{
+    Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind, SettingsFocus, SidebarState,
+};
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -70,6 +72,11 @@ pub struct App {
     pub relay_edit_field: usize, // 0=label, 1=base_url, 2=api_key
     pub relay_edit_buffer: String,
     pub relay_view: RelayView,
+    pub relay_popup_mode: RelayPopupMode,
+    pub relay_popup_selected: usize,
+    pub relay_popup_field: usize,
+    pub relay_popup_editing: bool,
+    pub relay_popup_buffer: String,
     pub settings_search: String,
     pub settings_searching: bool,
     /// Scheduled delayed scan — Some(Instant) means scan after this time
@@ -142,6 +149,11 @@ impl App {
             relay_edit_field: 0,
             relay_edit_buffer: String::new(),
             relay_view: RelayView::AgentList,
+            relay_popup_mode: RelayPopupMode::None,
+            relay_popup_selected: 0,
+            relay_popup_field: 0,
+            relay_popup_editing: false,
+            relay_popup_buffer: String::new(),
             settings_search: String::new(),
             settings_searching: false,
             delayed_scan_at: None,
@@ -174,6 +186,14 @@ impl App {
         self.theme = Theme::by_name(name);
         self.clear_preview_render_caches();
         self.dirty = true;
+    }
+
+    pub fn clear_relay_popup_state(&mut self) {
+        self.relay_popup_mode = RelayPopupMode::None;
+        self.relay_popup_selected = 0;
+        self.relay_popup_field = 0;
+        self.relay_popup_editing = false;
+        self.relay_popup_buffer.clear();
     }
 
     pub fn invalidate_sidebar_cache(&mut self) {

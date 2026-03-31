@@ -291,7 +291,6 @@ impl App {
             "preview_mode" => SettingsDetailKind::PreviewMode,
             "display_mode" => SettingsDetailKind::DisplayMode,
             "language" => SettingsDetailKind::Language,
-            "refresh_interval" => SettingsDetailKind::RefreshInterval,
             "version" => SettingsDetailKind::Version,
             _ => return None,
         })
@@ -332,6 +331,7 @@ impl App {
                 self.relay_edit_field = 0;
                 self.relay_editing = false;
                 self.relay_edit_buffer.clear();
+                self.clear_relay_popup_state();
             }
             SettingsDetailKind::Telegram => {
                 self.telegram_selected_field = 0;
@@ -354,6 +354,7 @@ impl App {
         self.active_settings_detail = None;
         self.relay_editing = false;
         self.relay_edit_buffer.clear();
+        self.clear_relay_popup_state();
         self.telegram_editing = false;
         self.telegram_edit_buffer.clear();
         self.dirty = true;
@@ -731,13 +732,6 @@ impl App {
                 true,
             ),
             (
-                "refresh_interval",
-                format!("{}s", self.config.refresh_interval),
-                "settings.refresh_interval",
-                "settings.refresh_interval",
-                false,
-            ),
-            (
                 "version",
                 env!("CARGO_PKG_VERSION").to_string(),
                 "settings.version",
@@ -833,7 +827,6 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
             "session scope",
         ],
         "language" => &["language", "locale"],
-        "refresh_interval" => &["refresh interval", "interval"],
         "version" => &["version", "about"],
         _ => &[],
     }
@@ -966,6 +959,32 @@ mod tests {
         app.settings_search = "relay".into();
         let relay_matches = app.filtered_settings_items();
         assert!(relay_matches.iter().any(|(id, _, _, _, _)| *id == "relay"));
+    }
+
+    #[test]
+    fn settings_list_hides_refresh_interval_item() {
+        let app = App::new();
+
+        assert!(!app
+            .settings_items()
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "refresh_interval"));
+    }
+
+    #[test]
+    fn settings_search_no_longer_matches_refresh_interval_aliases() {
+        let mut app = App::new();
+        app.settings_search = "refresh interval".into();
+        assert!(!app
+            .filtered_settings_items()
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "refresh_interval"));
+
+        app.settings_search = "interval".into();
+        assert!(!app
+            .filtered_settings_items()
+            .iter()
+            .any(|(id, _, _, _, _)| *id == "refresh_interval"));
     }
 
     #[test]
