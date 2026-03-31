@@ -8,10 +8,22 @@ PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, Ope
 
 PAD is built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.
 
+## Demo
+
+<img src="docs/media/basic.gif" alt="PAD demo showing double-space folder toggles, double-tab preview drill-down, and Shift+J K preview navigation" width="960" />
+
+This flow shows the keyboard-native loop PAD is optimized for:
+
+- Open PAD and scan live agents immediately
+- Double-tap `Space` to expand or collapse every session folder
+- Double-tap `Tab` to jump from the session list into the latest preview detail and back again
+- Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach
+
 ## Core Features
 
 - Unified agent inbox for live panes and historical sessions
 - Preview recent turns before you attach to a pane
+- Drill into preview detail without leaving the keyboard
 - Jump in fast and return safely with tmux-native handoff
 - Keep archive state, session metadata, and relay settings in one place
 
@@ -84,17 +96,22 @@ Release and platform notes:
 | Key | Action |
 |-----|--------|
 | `j/k` or `↑/↓` | Navigate panels |
+| `J/K` or `Shift+J/K` | Move between preview turns / jump faster in preview |
 | `1-9` | Jump to panel |
 | `Enter` | Attach to panel |
 | `F12` / `Ctrl+Q` | Detach back to pad |
-| `/` | Search panels |
+| `Tab` | Toggle panel focus and preview focus |
+| `Tab` twice | Open the latest preview detail, or return detail back to the turns list |
 | `?` | Help |
 | `t` | Toggle file tree |
 | `T` | Open tree at ~/ |
 | `Space` | Expand/collapse directory |
+| `Space` twice | Expand/collapse all session folders |
 | `c` | Create new session |
 | `d` | Delete panel |
 | `r` | Refresh |
+| `Ctrl+F` | Search panels |
+| `/` | Open settings |
 | `F1` | Settings |
 | `q` | Quit |
 
