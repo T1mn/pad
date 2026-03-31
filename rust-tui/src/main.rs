@@ -162,6 +162,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let _status_guard = runtime_status::StatusGuard::new(crate::paths::pad_status_path(), "pad")?;
     let mut app = App::new();
+    relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
     if let Err(err) = telegram::sync_daemon(&app.config) {
         log_debug!("telegram: daemon sync failed during pad startup: {}", err);
     }

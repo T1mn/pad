@@ -120,6 +120,8 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
         }
         Some(SettingsDetailKind::AgentStyle) => (64, 12),
         Some(SettingsDetailKind::AutoRefresh)
+        | Some(SettingsDetailKind::CodexFullAccess)
+        | Some(SettingsDetailKind::ClaudeFullAccess)
         | Some(SettingsDetailKind::PreviewMode)
         | Some(SettingsDetailKind::DisplayMode)
         | Some(SettingsDetailKind::Version) => (60, 10),
@@ -187,6 +189,24 @@ fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
             app,
             area,
             t(app.locale, "settings.auto_refresh"),
+            simple_value_line(app, kind),
+            vec![detail_body_line(app.locale, kind)],
+            "Enter/Space toggle · Esc back",
+        ),
+        SettingsDetailKind::CodexFullAccess => draw_simple_detail(
+            f,
+            app,
+            area,
+            t(app.locale, "settings.codex_full_access"),
+            simple_value_line(app, kind),
+            vec![detail_body_line(app.locale, kind)],
+            "Enter/Space toggle · Esc back",
+        ),
+        SettingsDetailKind::ClaudeFullAccess => draw_simple_detail(
+            f,
+            app,
+            area,
+            t(app.locale, "settings.claude_full_access"),
             simple_value_line(app, kind),
             vec![detail_body_line(app.locale, kind)],
             "Enter/Space toggle · Esc back",
@@ -459,6 +479,20 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
                 t(l, "settings.off").to_string()
             }
         }
+        SettingsDetailKind::CodexFullAccess => {
+            if app.config.agent_permissions.codex_auto_full_access {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            }
+        }
+        SettingsDetailKind::ClaudeFullAccess => {
+            if app.config.agent_permissions.claude_auto_full_access {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            }
+        }
         SettingsDetailKind::PreviewMode => match app.config.preview.mode.as_str() {
             "tmux" => t(l, "settings.preview_mode_tmux").to_string(),
             "session" => t(l, "settings.preview_mode_session").to_string(),
@@ -476,6 +510,12 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
 fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
     match (locale, kind) {
         (Locale::ZhCN, SettingsDetailKind::AutoRefresh) => "控制面板扫描是否自动刷新".to_string(),
+        (Locale::ZhCN, SettingsDetailKind::CodexFullAccess) => {
+            "启动时自动植入 approval_policy=never 和 sandbox_mode=danger-full-access".to_string()
+        }
+        (Locale::ZhCN, SettingsDetailKind::ClaudeFullAccess) => {
+            "启动时自动植入 bypassPermissions，并关闭 Claude sandbox".to_string()
+        }
         (Locale::ZhCN, SettingsDetailKind::PreviewMode) => {
             "切换预览读取来源：自动 / tmux / session".to_string()
         }
@@ -485,6 +525,13 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         (Locale::ZhCN, SettingsDetailKind::Version) => "当前 pad 版本".to_string(),
         (_, SettingsDetailKind::AutoRefresh) => {
             "Controls whether pad refreshes scans automatically.".to_string()
+        }
+        (_, SettingsDetailKind::CodexFullAccess) => {
+            "Apply approval_policy=never and sandbox_mode=danger-full-access before launch."
+                .to_string()
+        }
+        (_, SettingsDetailKind::ClaudeFullAccess) => {
+            "Apply bypassPermissions and disable Claude sandbox before launch.".to_string()
         }
         (_, SettingsDetailKind::PreviewMode) => {
             "Switch preview source between auto, tmux pane, and session transcript.".to_string()

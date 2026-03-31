@@ -39,6 +39,8 @@ pub enum SettingsFocus {
 pub enum SettingsDetailKind {
     Theme,
     AutoRefresh,
+    CodexFullAccess,
+    ClaudeFullAccess,
     Relay,
     Telegram,
     AgentStyle,

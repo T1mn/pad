@@ -658,6 +658,21 @@ pub struct TelegramConfig {
     pub bot_username: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct AgentPermissionsConfig {
+    pub codex_auto_full_access: bool,
+    pub claude_auto_full_access: bool,
+}
+
+impl Default for AgentPermissionsConfig {
+    fn default() -> Self {
+        Self {
+            codex_auto_full_access: true,
+            claude_auto_full_access: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DisplayConfig {
     pub session_scope: String,
@@ -683,6 +698,7 @@ pub struct Config {
     pub preview: PreviewConfig,
     pub display: DisplayConfig,
     pub telegram: TelegramConfig,
+    pub agent_permissions: AgentPermissionsConfig,
 }
 
 impl Default for Config {
@@ -738,6 +754,7 @@ impl Default for Config {
             preview: PreviewConfig::default(),
             display: DisplayConfig::default(),
             telegram: TelegramConfig::default(),
+            agent_permissions: AgentPermissionsConfig::default(),
         }
     }
 }
@@ -826,6 +843,18 @@ impl Config {
             }
             if let Some(toml::Value::String(bot_username)) = telegram.get("bot_username") {
                 config.telegram.bot_username = bot_username.clone();
+            }
+        }
+        if let Some(toml::Value::Table(agent_permissions)) = table.get("agent_permissions") {
+            if let Some(toml::Value::Boolean(enabled)) =
+                agent_permissions.get("codex_auto_full_access")
+            {
+                config.agent_permissions.codex_auto_full_access = *enabled;
+            }
+            if let Some(toml::Value::Boolean(enabled)) =
+                agent_permissions.get("claude_auto_full_access")
+            {
+                config.agent_permissions.claude_auto_full_access = *enabled;
             }
         }
         if let Some(toml::Value::Array(agents)) = table.get("agents") {
@@ -1090,6 +1119,15 @@ impl Config {
             "bot_username = \"{}\"\n",
             self.telegram.bot_username.replace('"', "\\\"")
         ));
+        content.push_str("\n[agent_permissions]\n");
+        content.push_str(&format!(
+            "codex_auto_full_access = {}\n",
+            self.agent_permissions.codex_auto_full_access
+        ));
+        content.push_str(&format!(
+            "claude_auto_full_access = {}\n",
+            self.agent_permissions.claude_auto_full_access
+        ));
         content.push('\n');
         for agent in &self.agents {
             content.push_str("[[agents]]\n");
@@ -1192,6 +1230,7 @@ mod tests {
     fn config_round_trips_opencode_provider_models() {
         with_temp_home("opencode-roundtrip", || {
             let mut config = Config::default();
+            config.agent_permissions.codex_auto_full_access = false;
             let opencode = config
                 .agents
                 .iter_mut()
@@ -1220,6 +1259,8 @@ mod tests {
             config.save();
 
             let loaded = Config::load();
+            assert!(!loaded.agent_permissions.codex_auto_full_access);
+            assert!(loaded.agent_permissions.claude_auto_full_access);
             let opencode = loaded
                 .agents
                 .iter()
@@ -1236,6 +1277,18 @@ mod tests {
             assert_eq!(opencode.providers[0].models.len(), 1);
             assert_eq!(opencode.providers[0].models[0].id, "gpt-4o");
             assert_eq!(opencode.providers[0].models[0].name, "GPT-4o");
+        });
+    }
+
+    #[test]
+    fn config_defaults_agent_permissions_to_enabled() {
+        with_temp_home("permissions-default", || {
+            let config = Config::default();
+            config.save();
+
+            let loaded = Config::load();
+            assert!(loaded.agent_permissions.codex_auto_full_access);
+            assert!(loaded.agent_permissions.claude_auto_full_access);
         });
     }
 }

@@ -40,7 +40,7 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                     app.close_agent_launcher();
                     app.dirty = true;
 
-                    relay::apply_relay_configs(&app.config.agents);
+                    relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
 
                     if from_fuzzy {
                         let dir_str = target_dir.to_string_lossy().to_string();

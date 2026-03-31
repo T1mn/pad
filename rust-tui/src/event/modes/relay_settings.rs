@@ -598,7 +598,7 @@ fn persist_relay_config(app: &mut App, agent_idx: usize) {
         }
     }
     app.config.save();
-    relay::apply_relay_configs(&app.config.agents);
+    relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
 }
 
 fn relay_field_count(app: &App) -> usize {

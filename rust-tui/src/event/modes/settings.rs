@@ -2,6 +2,7 @@ use super::relay_settings::{handle_relay_key, RelayHost};
 use crate::app::state::{SettingsDetailKind, SettingsFocus};
 use crate::app::App;
 use crate::log_debug;
+use crate::relay;
 use crate::telegram;
 use crossterm::event::KeyCode;
 
@@ -110,6 +111,10 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::Theme) => handle_theme_detail_mode(app, key),
         Some(SettingsDetailKind::Language) => handle_language_detail_mode(app, key),
         Some(SettingsDetailKind::AgentStyle) => handle_agent_style_detail_mode(app, key),
+        Some(SettingsDetailKind::CodexFullAccess) => handle_codex_full_access_detail_mode(app, key),
+        Some(SettingsDetailKind::ClaudeFullAccess) => {
+            handle_claude_full_access_detail_mode(app, key)
+        }
         Some(SettingsDetailKind::Relay) => handle_relay_detail_mode(app, key),
         Some(SettingsDetailKind::Telegram) => handle_telegram_detail_mode(app, key),
         Some(SettingsDetailKind::AutoRefresh) => handle_auto_refresh_detail_mode(app, key),
@@ -264,6 +269,36 @@ fn handle_auto_refresh_detail_mode(app: &mut App, key: KeyCode) -> bool {
         KeyCode::Enter | KeyCode::Char(' ') => {
             app.config.auto_refresh = !app.config.auto_refresh;
             app.config.save();
+            app.dirty = true;
+        }
+        _ => {}
+    }
+    true
+}
+
+fn handle_codex_full_access_detail_mode(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            app.config.agent_permissions.codex_auto_full_access =
+                !app.config.agent_permissions.codex_auto_full_access;
+            app.config.save();
+            relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
+            app.dirty = true;
+        }
+        _ => {}
+    }
+    true
+}
+
+fn handle_claude_full_access_detail_mode(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            app.config.agent_permissions.claude_auto_full_access =
+                !app.config.agent_permissions.claude_auto_full_access;
+            app.config.save();
+            relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
             app.dirty = true;
         }
         _ => {}
