@@ -113,6 +113,7 @@ locale_map!(ZH_CN,
     "agent_style.desc_status_hide" => "进入时强制隐藏状态栏",
     "agent_style.desc_status_keep" => "不改变状态栏",
     "agent_style.footer" => "j/k: 移动 | Enter/Space: 切换 | Esc: 返回",
+    "settings.on" => "开",
     "settings.off" => "关",
     "settings.configure" => "配置",
     // Status bar
@@ -293,6 +294,7 @@ locale_map!(ZH_TW,
     "agent_style.desc_status_hide" => "進入時強制隱藏狀態列",
     "agent_style.desc_status_keep" => "不改變狀態列",
     "agent_style.footer" => "j/k: 移動 | Enter/Space: 切換 | Esc: 返回",
+    "settings.on" => "開",
     "settings.off" => "關",
     "settings.configure" => "配置",
     "status.search" => "搜尋",
@@ -463,6 +465,7 @@ locale_map!(EN,
     "agent_style.desc_status_hide" => "Force status bar off",
     "agent_style.desc_status_keep" => "Do not change status bar",
     "agent_style.footer" => "j/k: move | Enter/Space: toggle | Esc: back",
+    "settings.on" => "On",
     "settings.off" => "Off",
     "settings.configure" => "Configure",
     "status.search" => "SEARCH",
@@ -633,6 +636,7 @@ locale_map!(JA,
     "agent_style.desc_status_hide" => "接続時にステータスバーを非表示",
     "agent_style.desc_status_keep" => "ステータスバーを変更しない",
     "agent_style.footer" => "j/k: 移動 | Enter/Space: 切替 | Esc: 戻る",
+    "settings.on" => "オン",
     "settings.off" => "オフ",
     "settings.configure" => "設定",
     "status.search" => "検索",
@@ -803,6 +807,7 @@ locale_map!(DE,
     "agent_style.desc_status_hide" => "Statusleiste ausblenden",
     "agent_style.desc_status_keep" => "Statusleiste nicht ändern",
     "agent_style.footer" => "j/k: bewegen | Enter/Space: umschalten | Esc: zurück",
+    "settings.on" => "Ein",
     "settings.off" => "Aus",
     "settings.configure" => "Konfigurieren",
     "status.search" => "SUCHE",
@@ -973,6 +978,7 @@ locale_map!(FR,
     "agent_style.desc_status_hide" => "Forcer la barre d'état cachée",
     "agent_style.desc_status_keep" => "Ne pas changer la barre d'état",
     "agent_style.footer" => "j/k: déplacer | Enter/Space: basculer | Esc: retour",
+    "settings.on" => "Activé",
     "settings.off" => "Désactivé",
     "settings.configure" => "Configurer",
     "status.search" => "RECHERCHE",
@@ -1109,3 +1115,183 @@ locale_map!(FR,
     "theme.header_theme" => "Thème",
     "theme.header_desc" => "Description",
 );
+
+#[cfg(test)]
+mod tests {
+    use super::{t, Locale};
+    use std::collections::HashSet;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn settings_on_is_defined_for_all_locales() {
+        assert_eq!(t(Locale::ZhCN, "settings.on"), "开");
+        assert_eq!(t(Locale::ZhTW, "settings.on"), "開");
+        assert_eq!(t(Locale::En, "settings.on"), "On");
+        assert_eq!(t(Locale::Ja, "settings.on"), "オン");
+        assert_eq!(t(Locale::De, "settings.on"), "Ein");
+        assert_eq!(t(Locale::Fr, "settings.on"), "Activé");
+    }
+
+    #[test]
+    fn all_static_i18n_keys_are_defined() {
+        let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let defined = parse_defined_i18n_keys(
+            &fs::read_to_string(src_dir.join("i18n.rs")).expect("read i18n.rs"),
+        );
+
+        let mut missing = Vec::new();
+        for path in rust_files_under(&src_dir) {
+            let source = fs::read_to_string(&path).expect("read source");
+            for key in extract_static_i18n_keys(&source) {
+                if !defined.contains(key.as_str()) {
+                    missing.push(format!("{} :: {}", path.display(), key));
+                }
+            }
+        }
+
+        missing.sort();
+        missing.dedup();
+
+        assert!(
+            missing.is_empty(),
+            "missing i18n keys:\n{}",
+            missing.join("\n")
+        );
+    }
+
+    fn rust_files_under(dir: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        collect_rust_files(dir, &mut files);
+        files
+    }
+
+    fn collect_rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
+        let entries = fs::read_dir(dir).expect("read dir");
+        for entry in entries {
+            let entry = entry.expect("dir entry");
+            let path = entry.path();
+            if path.is_dir() {
+                collect_rust_files(&path, files);
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+                files.push(path);
+            }
+        }
+    }
+
+    fn parse_defined_i18n_keys(source: &str) -> HashSet<String> {
+        let mut keys = HashSet::new();
+        let bytes = source.as_bytes();
+        let mut idx = 0;
+
+        while idx < bytes.len() {
+            if bytes[idx] != b'"' {
+                idx += 1;
+                continue;
+            }
+
+            let Some(end) = find_string_end(bytes, idx + 1) else {
+                break;
+            };
+            let token = &source[idx + 1..end];
+            let after = source[end + 1..].trim_start();
+            if after.starts_with("=>") {
+                keys.insert(token.to_string());
+            }
+            idx = end + 1;
+        }
+
+        keys
+    }
+
+    fn extract_static_i18n_keys(source: &str) -> Vec<String> {
+        let mut keys = Vec::new();
+        let bytes = source.as_bytes();
+        let mut idx = 0usize;
+        let allow_bare_t = source.contains("use crate::i18n::{t,")
+            || source.contains("use crate::i18n::{")
+                && (source.contains("{t,") || source.contains(", t,") || source.contains(", t}"))
+            || source.contains("use super::{t,");
+
+        while idx < bytes.len() {
+            let matched = if bytes[idx..].starts_with(b"crate::i18n::t(") {
+                Some("crate::i18n::t(".len())
+            } else if allow_bare_t
+                && bytes[idx..].starts_with(b"t(")
+                && idx > 0
+                && !is_identifier_byte(bytes[idx - 1])
+            {
+                Some("t(".len())
+            } else {
+                None
+            };
+
+            let Some(needle_len) = matched else {
+                idx += 1;
+                continue;
+            };
+
+            let call_start = idx + needle_len;
+            if let Some((key, advance)) = parse_i18n_call_key(&source[call_start..]) {
+                keys.push(key);
+                idx = call_start + advance;
+            } else {
+                idx = call_start;
+            }
+        }
+
+        keys
+    }
+
+    fn parse_i18n_call_key(source: &str) -> Option<(String, usize)> {
+        let bytes = source.as_bytes();
+        let mut depth = 0usize;
+        let mut idx = 0usize;
+
+        while idx < bytes.len() {
+            match bytes[idx] {
+                b'(' => depth += 1,
+                b')' => {
+                    if depth == 0 {
+                        return None;
+                    }
+                    depth -= 1;
+                }
+                b',' if depth == 0 => break,
+                b'"' => idx = find_string_end(bytes, idx + 1)?,
+                _ => {}
+            }
+            idx += 1;
+        }
+
+        if idx >= bytes.len() || bytes[idx] != b',' {
+            return None;
+        }
+
+        let mut key_start = idx + 1;
+        while key_start < bytes.len() && bytes[key_start].is_ascii_whitespace() {
+            key_start += 1;
+        }
+        if bytes.get(key_start) != Some(&b'"') {
+            return None;
+        }
+
+        let key_end = find_string_end(bytes, key_start + 1)?;
+        Some((source[key_start + 1..key_end].to_string(), key_end + 1))
+    }
+
+    fn find_string_end(bytes: &[u8], mut idx: usize) -> Option<usize> {
+        while idx < bytes.len() {
+            match bytes[idx] {
+                b'\\' => idx += 2,
+                b'"' => return Some(idx),
+                _ => idx += 1,
+            }
+        }
+        None
+    }
+
+    fn is_identifier_byte(byte: u8) -> bool {
+        byte.is_ascii_alphanumeric() || byte == b'_'
+    }
+}

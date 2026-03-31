@@ -71,6 +71,15 @@ impl App {
                     panel.last_user_prompt = event.prompt.clone();
                     panel.last_assistant_message = None;
                     panel.has_unread_stop = false;
+                }
+                "stop" => {
+                    panel.state = AgentState::Waiting;
+                    panel.state_source = AgentStateSource::Hook;
+                    panel.is_active = false;
+                    panel.has_unread_stop = !panel_item_focused;
+                    if event.last_assistant_message.is_some() {
+                        panel.last_assistant_message = event.last_assistant_message.clone();
+                    }
                     pending_thread_sort_activity = Some((
                         panel.agent_type.clone(),
                         event
@@ -84,15 +93,6 @@ impl App {
                         panel.working_dir.clone(),
                         unix_now_ts(),
                     ));
-                }
-                "stop" => {
-                    panel.state = AgentState::Waiting;
-                    panel.state_source = AgentStateSource::Hook;
-                    panel.is_active = false;
-                    panel.has_unread_stop = !panel_item_focused;
-                    if event.last_assistant_message.is_some() {
-                        panel.last_assistant_message = event.last_assistant_message.clone();
-                    }
                 }
                 _ => {}
             }
@@ -176,7 +176,7 @@ impl App {
             .clone()
             .or(activity.transcript_path.clone())
             .unwrap_or_else(|| format!("{}:{}", activity.agent_type, activity.working_dir));
-        if event.event == "user_prompt_submit" {
+        if event.event == "stop" {
             self.record_thread_sort_activity(
                 &activity.agent_type,
                 activity.session_id.as_deref(),
@@ -593,6 +593,25 @@ mod tests {
         }
     }
 
+    fn submit_event(pane_id: Option<&str>) -> HookEvent {
+        HookEvent {
+            event: "user_prompt_submit".into(),
+            session_id: Some("session-1".into()),
+            transcript_path: None,
+            cwd: Some("/tmp/demo".into()),
+            prompt: Some("ship it".into()),
+            last_assistant_message: None,
+            timestamp: None,
+            tmux: HookTmuxInfo {
+                pane_id: pane_id.map(str::to_string),
+                session_name: Some("0".into()),
+                window_index: Some("1".into()),
+                pane_index: Some("1".into()),
+                pane_current_path: Some("/tmp/demo".into()),
+            },
+        }
+    }
+
     #[test]
     fn stop_hook_marks_panel_unread_when_panel_item_is_not_focused() {
         let mut app = App::new();
@@ -705,6 +724,53 @@ mod tests {
             .app_thread_activity
             .contains_key(&format!("recent:{}", APP_THREAD_ACTIVITY_MAX_ENTRIES + 7)));
         assert!(!app.sidebar.app_thread_activity.contains_key("recent:0"));
+    }
+
+    #[test]
+    fn pane_sort_activity_updates_only_on_stop_hook() {
+        let mut app = App::new();
+        app.panels.push(AgentPanel {
+            session: "0".into(),
+            window: "main".into(),
+            window_index: "1".into(),
+            pane: "1".into(),
+            pane_id: "%1".into(),
+            agent_type: AgentType::Codex,
+            working_dir: "/tmp/demo".into(),
+            is_active: true,
+            state: AgentState::Idle,
+            state_source: AgentStateSource::Scanner,
+            transcript_path: None,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            git_info: None,
+            pid: None,
+            start_time: None,
+            agent_session_id: Some("session-1".into()),
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+        });
+
+        app.apply_hook_event(submit_event(Some("%1")));
+        assert!(app.sidebar.thread_sort_activity.is_empty());
+
+        app.apply_hook_event(stop_event("%1"));
+        assert!(!app.sidebar.thread_sort_activity.is_empty());
+    }
+
+    #[test]
+    fn app_sort_activity_updates_only_on_stop_hook() {
+        let mut app = App::new();
+
+        app.apply_hook_event(submit_event(None));
+        assert!(app.sidebar.thread_sort_activity.is_empty());
+
+        let mut event = stop_event("%1");
+        event.tmux.pane_id = None;
+        event.cwd = Some("/tmp/demo".into());
+        app.apply_hook_event(event);
+        assert!(!app.sidebar.thread_sort_activity.is_empty());
     }
 
     #[test]

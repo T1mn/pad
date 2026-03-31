@@ -147,7 +147,17 @@ pub fn create_session_with_agent(
 
     let current_status = tmux_status_value(&session_name);
     let desired_status = app.config.desired_agent_style.status.as_str();
-    let status_restore_value = apply_desired_status(desired_status, &current_status, &session_name);
+    let keep_source_status = if desired_status == "keep" {
+        pad_session.as_deref().map(tmux_status_value)
+    } else {
+        None
+    };
+    let status_restore_value = apply_desired_status(
+        desired_status,
+        &current_status,
+        keep_source_status.as_deref(),
+        &session_name,
+    );
     app.saved_tmux_status = status_restore_value.clone();
     app.saved_tmux_status_target = status_restore_value.as_ref().map(|_| session_name.clone());
 
@@ -287,25 +297,56 @@ fn tmux_status_value(target_session: &str) -> String {
 fn apply_desired_status(
     desired_status: &str,
     current_status: &str,
+    keep_source_status: Option<&str>,
     target_session: &str,
+) -> Option<String> {
+    let next_status = desired_status_override(desired_status, current_status, keep_source_status)?;
+
+    let _ = Command::new("tmux")
+        .args(["set", "-t", target_session, "status", &next_status])
+        .output();
+    Some(current_status.to_string())
+}
+
+fn desired_status_override(
+    desired_status: &str,
+    current_status: &str,
+    keep_source_status: Option<&str>,
 ) -> Option<String> {
     if current_status.is_empty() {
         return None;
     }
 
     match desired_status {
-        "show" if current_status != "on" => {
-            let _ = Command::new("tmux")
-                .args(["set", "-t", target_session, "status", "on"])
-                .output();
-            Some(current_status.to_string())
-        }
-        "hide" if current_status != "off" => {
-            let _ = Command::new("tmux")
-                .args(["set", "-t", target_session, "status", "off"])
-                .output();
-            Some(current_status.to_string())
-        }
+        "show" if current_status != "on" => Some("on".to_string()),
+        "hide" if current_status != "off" => Some("off".to_string()),
+        "keep" => keep_source_status
+            .filter(|status| !status.is_empty() && *status != current_status)
+            .map(str::to_string),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desired_status_override;
+
+    #[test]
+    fn keep_status_inherits_visible_status_from_pad_session() {
+        assert_eq!(
+            desired_status_override("keep", "off", Some("on")).as_deref(),
+            Some("on")
+        );
+    }
+
+    #[test]
+    fn keep_status_noops_when_status_already_matches_pad_session() {
+        assert_eq!(desired_status_override("keep", "on", Some("on")), None);
+    }
+
+    #[test]
+    fn keep_status_noops_without_pad_status() {
+        assert_eq!(desired_status_override("keep", "off", None), None);
+        assert_eq!(desired_status_override("keep", "off", Some("")), None);
     }
 }
