@@ -24,25 +24,29 @@ pub fn create_session_with_agent(
         .args(["has-session", "-t", &session_name])
         .output()?;
 
+    let launch_after_attach = should_launch_after_attach(agent_cmd);
     let target_output = if check.status.success() {
         log_debug!(
             "session: session '{}' already exists, opening new window",
             session_name
         );
-        // Session exists, open a new window with the agent
-        let out = Command::new("tmux")
-            .args([
-                "new-window",
-                "-P",
-                "-F",
-                target_format,
-                "-t",
-                &session_name,
-                "-c",
-                path,
-                agent_cmd,
-            ])
-            .output()?;
+        // Session exists, open a new window. Gemini is launched after attach so it
+        // can see a live client during terminal capability detection.
+        let mut cmd = Command::new("tmux");
+        cmd.args([
+            "new-window",
+            "-P",
+            "-F",
+            target_format,
+            "-t",
+            &session_name,
+            "-c",
+            path,
+        ]);
+        if !launch_after_attach {
+            cmd.arg(agent_cmd);
+        }
+        let out = cmd.output()?;
         log_debug!(
             "session: new-window status={} stderr={}",
             out.status,
@@ -51,21 +55,24 @@ pub fn create_session_with_agent(
         out
     } else {
         log_debug!("session: creating new session '{}'", session_name);
-        // Create new session with agent
-        let out = Command::new("tmux")
-            .args([
-                "new-session",
-                "-d",
-                "-P",
-                "-F",
-                target_format,
-                "-s",
-                &session_name,
-                "-c",
-                path,
-                agent_cmd,
-            ])
-            .output()?;
+        // Create new session. Gemini is launched after attach so it can see a
+        // live client during terminal capability detection.
+        let mut cmd = Command::new("tmux");
+        cmd.args([
+            "new-session",
+            "-d",
+            "-P",
+            "-F",
+            target_format,
+            "-s",
+            &session_name,
+            "-c",
+            path,
+        ]);
+        if !launch_after_attach {
+            cmd.arg(agent_cmd);
+        }
+        let out = cmd.output()?;
         log_debug!(
             "session: new-session status={} stderr={}",
             out.status,
@@ -208,7 +215,40 @@ pub fn create_session_with_agent(
         sw.map(|o| o.status)
     );
 
+    if launch_after_attach {
+        if let Some(target_pane) = target_pane.as_deref() {
+            launch_agent_after_attach(target_pane, agent_cmd);
+        }
+    }
+
     Ok(())
+}
+
+fn should_launch_after_attach(agent_cmd: &str) -> bool {
+    matches!(agent_cmd.trim(), "gemini" | "gemini-cli")
+}
+
+fn launch_agent_after_attach(target_pane: &str, agent_cmd: &str) {
+    let escaped_agent = shell_single_quote(agent_cmd);
+    let escaped_pane = shell_single_quote(target_pane);
+    let script = format!(
+        "sleep 0.2; tmux send-keys -t {pane} C-c; tmux send-keys -t {pane} 'clear' Enter; tmux send-keys -t {pane} {agent} Enter",
+        pane = escaped_pane,
+        agent = escaped_agent
+    );
+    let result = Command::new("tmux")
+        .args(["run-shell", "-b", &script])
+        .output();
+    log_debug!(
+        "session: delayed launch target_pane={} cmd={} result={:?}",
+        target_pane,
+        agent_cmd,
+        result.map(|o| o.status)
+    );
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r#"'\''"#))
 }
 
 fn current_root_binding(key: &str) -> Option<String> {

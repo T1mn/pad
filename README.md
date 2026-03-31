@@ -20,6 +20,17 @@ This flow shows the keyboard-native loop PAD is optimized for:
 
 If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49) directly.
 
+## Overview
+
+<img src="docs/media/first-annotated.png" alt="PAD home screen overview" width="960">
+
+The home screen is built around four fast scan points:
+
+1. `LIVE 6`: the top-level live inbox and current online session count.
+2. Highlighted session row: the active session selection in the left sidebar, organized for quick jumping between folders and agents.
+3. Preview header: core session metadata at a glance, including agent type, state, PID, branch, path, and SID.
+4. Preview turns: the latest Q/A pairs, so you can decide whether to attach before entering the pane.
+
 ## Core Features
 
 - Unified agent inbox for live panes and historical sessions

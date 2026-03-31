@@ -62,10 +62,37 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                         }
                     } else {
                         std::thread::spawn(move || {
-                            let _ = std::process::Command::new("tmux")
-                                .args(["new-window", "-c", &target_dir.to_string_lossy()])
-                                .arg(&agent_cmd)
-                                .spawn();
+                            if matches!(agent_cmd.trim(), "gemini" | "gemini-cli") {
+                                let target_dir = target_dir.to_string_lossy().to_string();
+                                if let Ok(out) = std::process::Command::new("tmux")
+                                    .args([
+                                        "new-window",
+                                        "-P",
+                                        "-F",
+                                        "#{pane_id}",
+                                        "-c",
+                                        &target_dir,
+                                    ])
+                                    .output()
+                                {
+                                    if out.status.success() {
+                                        let pane_id =
+                                            String::from_utf8_lossy(&out.stdout).trim().to_string();
+                                        let script = format!(
+                                            "sleep 0.2; tmux send-keys -t '{}' C-c; tmux send-keys -t '{}' 'clear' Enter; tmux send-keys -t '{}' '{}' Enter",
+                                            pane_id, pane_id, pane_id, agent_cmd
+                                        );
+                                        let _ = std::process::Command::new("tmux")
+                                            .args(["run-shell", "-b", &script])
+                                            .output();
+                                    }
+                                }
+                            } else {
+                                let _ = std::process::Command::new("tmux")
+                                    .args(["new-window", "-c", &target_dir.to_string_lossy()])
+                                    .arg(&agent_cmd)
+                                    .spawn();
+                            }
                         });
                     }
 
