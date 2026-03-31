@@ -160,9 +160,9 @@ pub(crate) fn build_thread_row(
 
 pub(crate) fn thread_subtitle(thread: &SidebarThread) -> String {
     thread
-        .subtitle
+        .last_user_prompt
         .as_deref()
-        .or(thread.last_user_prompt.as_deref())
+        .or(thread.subtitle.as_deref())
         .or_else(|| {
             thread
                 .cached_preview_turns
@@ -252,7 +252,9 @@ pub(crate) fn format_jump_badge(jump_badge: Option<usize>, slot_width: usize) ->
 
 #[cfg(test)]
 mod tests {
-    use super::format_jump_badge;
+    use super::{format_jump_badge, thread_subtitle};
+    use crate::model::{AgentState, AgentType};
+    use crate::sidebar::SidebarThread;
 
     #[test]
     fn jump_badge_is_fixed_width_and_limited_to_nine() {
@@ -260,5 +262,42 @@ mod tests {
         assert_eq!(format_jump_badge(Some(9), 4), "#9  ");
         assert_eq!(format_jump_badge(Some(10), 4), "    ");
         assert_eq!(format_jump_badge(None, 4), "    ");
+    }
+
+    #[test]
+    fn latest_prompt_wins_over_stale_subtitle() {
+        let thread = SidebarThread {
+            key: "thread:1".into(),
+            folder_key: "folder:/tmp".into(),
+            working_dir: "/tmp".into(),
+            folder_label: "tmp".into(),
+            agent_type: AgentType::Codex,
+            runtime_source: None,
+            session_id: Some("session-1".into()),
+            transcript_path: None,
+            title: "Test".into(),
+            upstream_title: None,
+            subtitle: Some("very old prompt".into()),
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 0,
+            sort_updated_at: 0,
+            live_pane_id: None,
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            last_user_prompt: Some("latest prompt".into()),
+            last_assistant_message: Some("latest answer".into()),
+            has_unread_stop: false,
+            archived: false,
+        };
+
+        assert_eq!(thread_subtitle(&thread), "latest prompt");
     }
 }
