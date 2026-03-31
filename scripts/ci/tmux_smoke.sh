@@ -7,6 +7,7 @@ PAD_BIN="${PAD_BIN:-${REPO_ROOT}/rust-tui/target/debug/pad}"
 SOCK="${TMPDIR:-/tmp}/pad-smoke-$$.sock"
 SMOKE_HOME="$(mktemp -d)"
 LOG_FILE="${SMOKE_HOME}/.pad/logs/pad.log"
+STATUS_FILE="${SMOKE_HOME}/.pad/pad-status.json"
 
 cleanup() {
   tmux -S "${SOCK}" kill-server >/dev/null 2>&1 || true
@@ -16,6 +17,36 @@ trap cleanup EXIT
 
 tm() {
   tmux -S "${SOCK}" "$@"
+}
+
+dump_diagnostics() {
+  echo "=== tmux smoke diagnostics ===" >&2
+  echo "PAD_BIN=${PAD_BIN}" >&2
+  echo "SMOKE_HOME=${SMOKE_HOME}" >&2
+  echo "--- tmux list-sessions ---" >&2
+  tm list-sessions >&2 || true
+  echo "--- tmux list-panes ---" >&2
+  tm list-panes -a -F '#{session_name}:#{window_index}.#{pane_index} #{pane_id} #{pane_current_command} #{pane_current_path}' >&2 || true
+  echo "--- pad pane capture ---" >&2
+  tm capture-pane -p -t "pad:0.0" >&2 || true
+  echo "--- agents pane 0 capture ---" >&2
+  tm capture-pane -p -t "agents:0.0" >&2 || true
+  echo "--- agents pane 1 capture ---" >&2
+  tm capture-pane -p -t "agents:0.1" >&2 || true
+  if [ -f "${STATUS_FILE}" ]; then
+    echo "--- status file ---" >&2
+    cat "${STATUS_FILE}" >&2
+  fi
+  if [ -f "${LOG_FILE}" ]; then
+    echo "--- pad.log ---" >&2
+    cat "${LOG_FILE}" >&2
+  fi
+}
+
+fail() {
+  echo "$1" >&2
+  dump_diagnostics
+  exit 1
 }
 
 wait_for_file() {
@@ -76,10 +107,21 @@ tm split-window -t agents:0 -h "${REPO_ROOT}/scripts/ci/mock_agent.sh claude"
 tm new-session -d -s pad -x 160 -y 48 \
   "/bin/sh -lc 'export HOME=${SMOKE_HOME}; export TERM=xterm-256color; cd ${REPO_ROOT}/rust-tui && ${PAD_BIN} --debug'"
 
-wait_for_file "${LOG_FILE}" 20
-wait_for_capture "pad:0.0" "在线" 20
-wait_for_capture "pad:0.0" "CODEX" 20
-wait_for_capture "pad:0.0" "agents:0.0" 20
+if ! wait_for_file "${LOG_FILE}" 20; then
+  fail "pad log file was not created"
+fi
+if ! wait_for_file "${STATUS_FILE}" 20; then
+  fail "pad status file was not created"
+fi
+if ! wait_for_log "agent=Codex" 20; then
+  fail "pad did not scan the mock codex pane"
+fi
+if ! wait_for_log "agent=Claude" 20; then
+  fail "pad did not scan the mock claude pane"
+fi
+if ! wait_for_capture "pad:0.0" "CODEX" 20; then
+  fail "pad UI did not render the codex panel"
+fi
 
 tm send-keys -t pad:0.0 Enter
 sleep 1
@@ -87,18 +129,23 @@ tm send-keys -t pad:0.0 2
 sleep 1
 tm send-keys -t pad:0.0 Enter
 
-wait_for_log "attach.cross_session: handoff complete" 20
-wait_for_log "install_return_bindings: start" 20
+if ! wait_for_log "attach.cross_session: handoff complete" 20; then
+  fail "pad did not complete cross-session attach"
+fi
+if ! wait_for_log "install_return_bindings: start" 20; then
+  fail "pad did not install return bindings"
+fi
 
 return_cmd="$(tm list-keys -T root | awk '/ F12 / { sub(/^.*run-shell /, ""); print; exit }')"
 if [ -z "${return_cmd}" ]; then
-  echo "missing F12 return binding" >&2
-  exit 1
+  fail "missing F12 return binding"
 fi
 return_cmd="${return_cmd#\"}"
 return_cmd="${return_cmd%\"}"
 tm run-shell "${return_cmd}"
 
-wait_for_log "[return] after_return_select" 20
+if ! wait_for_log "[return] after_return_select" 20; then
+  fail "pad did not return to the original pane"
+fi
 
 echo "tmux smoke passed"

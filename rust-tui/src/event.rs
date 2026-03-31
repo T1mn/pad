@@ -2,7 +2,10 @@ use crate::app::state::Mode;
 use crate::app::App;
 use crate::log_debug;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
+};
 use std::io;
 use std::time::Duration;
 
@@ -11,6 +14,7 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 #[cfg(test)]
 use ratatui::layout::Rect;
 
+#[cfg_attr(test, allow(dead_code))]
 mod attach;
 mod event_pipeline;
 mod key_pipeline;
@@ -40,11 +44,35 @@ pub async fn run_app(
     loop_core::run_app(terminal, app).await
 }
 
+#[cfg(not(test))]
 fn handle_normal_mode(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
     key: KeyEvent,
 ) -> io::Result<()> {
+    handle_normal_mode_impl(terminal, app, key, handle_attach)
+}
+
+#[cfg(test)]
+fn handle_normal_mode<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+    key: KeyEvent,
+) -> io::Result<()> {
+    handle_normal_mode_impl(terminal, app, key, |_terminal, _app| {
+        Err(io::Error::other("attach is not supported in event tests"))
+    })
+}
+
+fn handle_normal_mode_impl<B: Backend, F>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+    key: KeyEvent,
+    mut attach_fn: F,
+) -> io::Result<()>
+where
+    F: FnMut(&mut Terminal<B>, &mut App) -> io::Result<()>,
+{
     const DOUBLE_SPACE_WINDOW: Duration = Duration::from_millis(250);
 
     log_debug!(
@@ -280,7 +308,7 @@ fn handle_normal_mode(
                     .selected_preview_thread()
                     .is_some_and(|thread| thread.is_live())
                 {
-                    handle_attach(terminal, app)?;
+                    attach_fn(terminal, app)?;
                 } else {
                     app.invalidate_preview();
                     app.dirty = true;
@@ -331,6 +359,7 @@ fn handle_preview_tab(app: &mut App) {
     }
 }
 
+#[cfg_attr(test, allow(dead_code))]
 fn handle_attach(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
@@ -407,6 +436,7 @@ mod tests {
         PreviewView,
     };
     use crossterm::event::{KeyEventKind, KeyEventState, KeyModifiers};
+    use ratatui::backend::TestBackend;
 
     fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
         AgentPanel {
@@ -431,6 +461,10 @@ mod tests {
             last_assistant_message: None,
             has_unread_stop: false,
         }
+    }
+
+    fn test_terminal() -> ratatui::Terminal<TestBackend> {
+        ratatui::Terminal::new(TestBackend::new(100, 20)).unwrap()
     }
 
     fn left_click(column: u16, row: u16) -> MouseEvent {
@@ -610,7 +644,7 @@ mod tests {
         app.sync_sidebar_selection();
         app.select_sidebar_index(1, false);
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
         app.flush_pending_sidebar_space_action();
 
@@ -630,7 +664,7 @@ mod tests {
         app.panels.push(sample_panel("%2", "/tmp/beta"));
         app.sync_sidebar_selection();
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
 
@@ -649,7 +683,7 @@ mod tests {
         app.sync_sidebar_selection();
         app.select_sidebar_index(1, false);
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char(' '))).unwrap();
 
@@ -677,7 +711,7 @@ mod tests {
         app.preview.focus = FocusTarget::Preview;
         app.sync_sidebar_selection();
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
 
         assert!(app.preview.focus == FocusTarget::Panel);
@@ -706,7 +740,7 @@ mod tests {
         app.preview.focus = FocusTarget::Preview;
         app.sync_sidebar_selection();
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Tab)).unwrap();
 
@@ -729,7 +763,7 @@ mod tests {
         app.invalidate_sidebar_visible_cache();
         app.sync_sidebar_selection();
 
-        let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(io::stdout())).unwrap();
+        let mut terminal = test_terminal();
         handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char('j'))).unwrap();
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
 
