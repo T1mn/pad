@@ -1311,7 +1311,7 @@ dependencies = [
 
 [[package]]
 name = "pad"
-version = "0.6.3"
+version = "0.6.4"
 dependencies = [
  "block2",
  "crossterm 0.28.1",
