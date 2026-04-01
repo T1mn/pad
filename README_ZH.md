@@ -2,16 +2,19 @@
   <h1>PAD</h1>
   <p><strong>别再来回找 pane 了。在一个地方跑完整个 AI 工作流。</strong></p>
   <p><code>pad</code> 是 PAD 的命令行入口。PAD = Panel for Agent Development。</p>
-  <p>PAD 是一个原生基于 tmux 的控制面板，用来管理 Codex、Claude Code、Gemini CLI、Kimi、OpenCode、Aider、Cursor 等终端 AI 智能体。</p>
-  <p>它解决的是这样一个场景：agent 多了、session 多了、pane 多了之后，你需要一个足够快的地方来判断现在谁在工作、谁刚刚有输出、下一步该跳去哪里。</p>
+  <p>PAD 是一个原生基于 tmux 的控制面板，当前重点支持 Codex、Claude Code 和 Gemini CLI，也提供其他终端 AI 智能体的基础 launcher / pane 能力。</p>
+  <p>它就是给这种时刻准备的：tmux 里 agent 一多，session 一多，哪个还在跑、哪个刚出结果、下一个该进哪个 pane，很快就乱了。</p>
+  <p>先看谁动了，再决定要不要 attach；先把答案读一眼，再跳进正确的 pane。</p>
   <p><a href="README.md">English</a> | 中文</p>
 </div>
+
+如果你平时会在 tmux 里同时开两个以上 agent session，PAD 基本很快就能派上用场。
 
 ## 演示
 
 <video src="https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49" controls muted loop playsinline width="960"></video>
 
-这就是 PAD 的核心循环：
+实际用起来大概就是这样：
 
 - 打开 PAD，用 `c` 新建一个 session
 - 把任务发给 agent，然后用 `F12` 回到主面板
@@ -23,14 +26,14 @@
 
 ## 为什么要有 PAD
 
-当你同时开了多个 tmux pane、多个 agent、多个 session 之后，常规工作流会很快变乱：
+tmux 里同时跑多个 agent 之后，最烦的往往不是“不会用”，而是这些很碎的事：
 
 - 哪个 pane 刚刚动过？
 - 哪个 session 现在还在工作？
 - 我到底要不要 attach，还是 preview 里已经有答案了？
 - 我 archive 这个 thread，到底只是隐藏，还是会真的删掉数据？
 
-PAD 把这些动作都收进一个地方：扫描、预览、attach、archive、再快速回退。
+PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然后再快速退回来继续看全局。
 
 ## 30 秒上手路径
 
@@ -41,12 +44,13 @@ PAD 把这些动作都收进一个地方：扫描、预览、attach、archive、
 
 ## 核心能力
 
-- 统一的 live + history agent inbox
-- attach 之前先 preview
-- 最近几轮 Q/A 的 detail 视图
-- 原生 tmux attach 和安全返回
-- 只更新本地索引、不动上游原始 session 数据的 archive 语义
-- 全键盘操作的 settings、search、tree 和 session 创建
+- 左侧一栏同时看 live pane 和最近的 session history
+- attach 之前先把最近几轮对话读一眼
+- `Enter` 进去，`F12` / `Ctrl+Q` 退回 PAD
+- archive 只动 PAD 自己的索引，不碰上游原始 session 数据
+- 支持的 agent relay / proxy 配置
+- 在支持的平台上发送完成通知
+- 全键盘操作的 search、settings、tree 和 session 创建
 
 ## PAD 不做什么
 
@@ -112,17 +116,13 @@ Help 把键盘模型直接放在 UI 里，不需要你切出去翻文档。
 3. Actions 区：attach、create、delete、refresh、focus 切换、preview 控制等核心操作集中展示
 4. 退出提示：底栏始终显示如何最快返回主界面
 
-## 功能列表
+## 其他能力
 
-- 自动检测 tmux 中的 AI agent pane
-- 键盘优先的 TUI 导航与实时 preview
-- Git 信息显示：分支、提交、变更数
-- 工作状态感知：呼吸灯、thinking / busy 状态
-- 面板搜索与过滤
-- 带语法预览的文件树
-- PTY attach：通过 `F12` / `Ctrl+Q` 安全返回 PAD
+- Preview 头部直接看 Git 信息：分支、提交、变更数
+- Live agent pane 的 busy / waiting 状态提示
+- 文件树浏览和文件预览
 - 主题切换
-- Agent 启动器：直接从目录树新建 agent session
+- 从目录树直接启动 agent session
 
 ## 安装
 
@@ -194,15 +194,20 @@ pad --version    # 查看版本
 | `F1` | 设置 |
 | `q` | 退出 |
 
-## 支持的 Agent
+## Agent 支持情况
+
+完整 session 工作流支持：
 
 - 🟣 Claude (`claude`)
 - 🔵 Codex (`codex`)
-- 🟢 Kimi (`kimi-cli`)
 - 🔷 Gemini (`gemini-cli`)
+
+基础 launcher / pane 工作流支持：
+
+- 🟢 Kimi (`kimi-cli`)
 - 🟠 OpenCode (`opencode`)
-- 🟡 Aider (`aider`)
-- 🟤 Cursor (`cursor`)
+
+PAD 仍然可以识别并 attach 到其他终端 agent，但 history、archive 和 session-aware preview 目前主要围绕 Codex、Claude 和 Gemini。
 
 ## License
 

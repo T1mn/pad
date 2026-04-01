@@ -2,16 +2,19 @@
   <h1>PAD</h1>
   <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
   <p><code>pad</code> is the CLI for PAD: Panel for Agent Development.</p>
-  <p>PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, OpenCode, Aider, Cursor, and other terminal AI agents.</p>
-  <p>Built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.</p>
+  <p>PAD is a tmux-native control panel focused on Codex, Claude Code, and Gemini CLI, with basic launcher and pane support for other terminal AI agents.</p>
+  <p>Built for the moment when two agent panes turn into six, half of them are mid-run, and you can no longer tell what deserves your attention first.</p>
+  <p>See what moved. Read the answer before you attach. Jump into the right pane and get back out fast.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
+
+If you already keep more than one agent session open in tmux, PAD starts paying for itself almost immediately.
 
 ## Demo
 
 <video src="https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49" controls muted loop playsinline width="960"></video>
 
-This is the core loop:
+What this looks like in practice:
 
 - Open PAD and create a fresh session with `c`
 - Send work, return to the dashboard with `F12`, and keep the session running
@@ -23,14 +26,14 @@ If your Markdown viewer does not render inline video, open the [demo video](http
 
 ## Why PAD
 
-When you have more than one tmux pane, more than one agent, and more than one session, the usual workflow gets noisy fast.
+The usual tmux workflow breaks down in a very boring way:
 
 - Which pane moved last?
 - Which session is still working?
 - Do I need to attach, or is the answer already in preview?
 - If I archive this thread, am I hiding it or actually deleting something?
 
-PAD gives you one place to scan, preview, attach, archive, and jump back out.
+PAD gives you one place to scan, preview, attach, archive, and jump back out without losing your place.
 
 ## 30-Second Workflow
 
@@ -41,12 +44,13 @@ PAD gives you one place to scan, preview, attach, archive, and jump back out.
 
 ## Core Features
 
-- Unified live + historical agent inbox
-- Preview before attach
-- Detail view for recent Q/A turns
-- tmux-native attach and safe return
-- Index-only archive semantics that keep upstream session data intact
-- Keyboard-first settings, search, tree, and session creation
+- One sidebar for live panes and recent session history
+- Read the latest turns before you attach
+- Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
+- Archive threads without touching upstream session data
+- Relay / proxy settings for supported agents
+- Completion notifications on supported desktop backends
+- Keyboard-first search, settings, tree, and session creation
 
 ## What PAD Does Not Do
 
@@ -112,17 +116,13 @@ Help keeps the keyboard model discoverable inside the UI, so you do not have to 
 3. Actions section: attach, create, delete, refresh, focus switching, and preview controls live in one place.
 4. Close hint: the footer shows the shortest way back out.
 
-## Features
+## Also Included
 
-- 🔍 Auto-detect AI agent panels across all tmux sessions
-- 📊 TUI with keyboard navigation and live preview
-- 🌿 Git integration — branch, commit, changed files
-- ⚡ Activity detection — spinners, "thinking" markers
-- 🔎 Search and filter panels
-- 🌲 File tree explorer with syntax-highlighted preview
-- 🚀 PTY attach — jump into any panel with F12/Ctrl+Q to return
-- 🎨 Theme selector (Dracula, Nord, Catppuccin, etc.)
-- 🤖 Agent launcher — start new AI agents from the tree view
+- Git context in the preview header: branch, commit, and changed files
+- Busy / waiting state indicators for live agent panes
+- File tree browsing with file preview
+- Theme switching
+- Agent launcher from the tree view
 
 ## Install
 
@@ -193,15 +193,20 @@ Release and platform notes:
 | `F1` | Settings |
 | `q` | Quit |
 
-## Supported Agents
+## Agent Support
+
+Fully supported session workflows:
 
 - 🟣 Claude (`claude`)
 - 🔵 Codex (`codex`)
-- 🟢 Kimi (`kimi-cli`)
 - 🔷 Gemini (`gemini-cli`)
+
+Basic launcher / pane workflows:
+
+- 🟢 Kimi (`kimi-cli`)
 - 🟠 OpenCode (`opencode`)
-- 🟡 Aider (`aider`)
-- 🟤 Cursor (`cursor`)
+
+PAD can still detect and attach to other terminal agents, but history, archive, and session-aware preview are currently centered on Codex, Claude, and Gemini.
 
 ## License
 
