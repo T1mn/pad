@@ -1,10 +1,10 @@
 <div align="center">
   <h1>PAD</h1>
   <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
-  <p><code>pad</code> is the CLI for PAD: Panel for Agent Development.</p>
-  <p>PAD is a tmux-native control panel focused on Codex, Claude Code, and Gemini CLI, with basic launcher and pane support for other terminal AI agents.</p>
-  <p>When tmux fills up with agent sessions, PAD helps you see what moved and jump into the right pane fast.</p>
-  <p>Lightweight by design: small binary, low memory overhead, fast preview, and session-level monitoring instead of heavy workspace indexing.</p>
+  <p><code>pad</code> = Panel for Agent Development.</p>
+  <p>Pure Rust. Tmux-native. Built for terminal agents.</p>
+  <p>See what moved, preview the latest turn, and jump into the right pane fast.</p>
+  <p>Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
@@ -16,11 +16,11 @@ If you already keep more than one agent session open in tmux, PAD starts paying 
 
 What this looks like in practice:
 
-- Open PAD and create a fresh session with `c`
-- Send work, return to the dashboard with `F12`, and keep the session running
-- Read the breathing activity indicator to see that the agent is still working in the background
-- Double-tap `Tab` to jump from the session list into the latest preview detail
-- Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach again
+- Scan live sessions from the left tree without hunting through tmux panes
+- Read the latest preview on the right before you attach
+- Hit `Tab` to open the latest detail view and `Shift+J` / `Shift+K` to move across Q&A turns
+- Create a fresh session with `c`, send work, then jump back to PAD with `F12`
+- Use the activity indicator to see which session is still running in the background
 
 If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8) directly.
 
@@ -46,12 +46,14 @@ PAD gives you one place to scan, preview, attach, archive, and jump back out wit
 
 - One sidebar for live panes and recent session history
 - Read the latest turns before you attach
-- Lightweight and fast: small footprint, low memory use, and quick session previews
+- Pure Rust TUI with a small footprint and quick session-aware previews
+- Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
 - Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
 - Archive threads without touching upstream session data
 - Relay / proxy settings for supported agents
 - Completion notifications when an agent finishes, on supported desktop backends
+- Telegram bot daemon for remote updates and quick session access
 - Keyboard-first search, settings, tree, and session creation
 
 ## What PAD Does Not Do
@@ -164,6 +166,7 @@ PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On W
 pad              # Launch TUI
 pad --help       # Show help
 pad --version    # Show version
+pad telegram-bot # Launch Telegram bot daemon
 ```
 
 Release and platform notes:
