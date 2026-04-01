@@ -12,7 +12,7 @@
 
 ## 演示
 
-<video src="https://raw.githubusercontent.com/T1mn/pad/master/docs/media/demo.mp4" controls muted loop playsinline width="960"></video>
+<video src="https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8" controls muted loop playsinline width="960"></video>
 
 实际用起来大概就是这样：
 
@@ -22,7 +22,7 @@
 - 双击 `Tab` 从 session 列表跳进最新 preview detail
 - 用 `Shift+J` / `Shift+K` 在 preview detail 中切换最近几轮 Q/A
 
-如果你的 Markdown 查看器不支持内联视频，可以直接打开这个[演示视频](https://raw.githubusercontent.com/T1mn/pad/master/docs/media/demo.mp4)。
+如果你的 Markdown 查看器不支持内联视频，可以直接打开这个[演示视频](https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8)。
 
 ## 为什么要有 PAD
 
