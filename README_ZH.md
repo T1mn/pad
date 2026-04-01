@@ -214,6 +214,10 @@ pad telegram-bot # 启动 Telegram Bot 守护进程
 
 PAD 仍然可以识别并 attach 到其他终端 agent，但 history、archive 和 session-aware preview 目前主要围绕 Codex、Claude 和 Gemini。
 
+## 致谢
+
+感谢更广泛的终端工具社区在早期提供的反馈与测试，也感谢我一路上在 linux.do 学到的很多对这个项目有帮助的东西。
+
 ## License
 
 MIT

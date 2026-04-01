@@ -213,6 +213,10 @@ Basic launcher / pane workflows:
 
 PAD can still detect and attach to other terminal agents, but history, archive, and session-aware preview are currently centered on Codex, Claude, and Gemini.
 
+## Acknowledgements
+
+Thanks to the broader terminal tooling community for early feedback and testing. I also learned a lot of practical, project-helpful ideas from linux.do along the way.
+
 ## License
 
 MIT
