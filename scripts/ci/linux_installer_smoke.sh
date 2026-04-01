@@ -10,23 +10,25 @@ BOOTSTRAP="${BOOTSTRAP:?BOOTSTRAP is required}"
 docker run --rm \
   -v "${REPO_ROOT}:/workspace" \
   -w /workspace \
+  -e "BOOTSTRAP=${BOOTSTRAP}" \
   "${IMAGE}" \
-  bash -lc "
-    set -euo pipefail
+  /bin/sh -lc '
+    set -eu
     export DEBIAN_FRONTEND=noninteractive
 
-    ${BOOTSTRAP}
+    printf "%s\n" "$BOOTSTRAP" >/tmp/pad-bootstrap.sh
+    /bin/sh /tmp/pad-bootstrap.sh
 
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-    . \"\$HOME/.cargo/env\"
+    curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+    . \"$HOME/.cargo/env\"
 
     PAD_INSTALL_FORCE_SOURCE=1 \
     PAD_INSTALL_ASSUME_YES=1 \
-    INSTALL_DIR=\"\$HOME/.local/bin\" \
+    INSTALL_DIR=\"$HOME/.local/bin\" \
     bash ./install.sh
 
-    \"\$HOME/.local/bin/pad\" --help >/dev/null
-    \"\$HOME/.local/bin/pad\" --version
-    \"\$HOME/.local/bin/pad\" --tmux-doctor
+    \"$HOME/.local/bin/pad\" --help >/dev/null
+    \"$HOME/.local/bin/pad\" --version
+    \"$HOME/.local/bin/pad\" --tmux-doctor
     tmux -V
-  "
+  '

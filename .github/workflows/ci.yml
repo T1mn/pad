@@ -13,8 +13,14 @@ permissions:
 
 jobs:
   rust-checks:
-    name: Rust checks
-    runs-on: ubuntu-latest
+    name: Rust checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-22.04
     defaults:
       run:
         working-directory: rust-tui
@@ -45,8 +51,10 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
-          - macos-latest
+          - ubuntu-24.04
+          - ubuntu-22.04
+          - macos-15
+          - macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -71,8 +79,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: ubuntu-20.04
+            image: ubuntu:20.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+          - name: ubuntu-22.04
+            image: ubuntu:22.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
           - name: debian-12
             image: debian:12
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+          - name: debian-13
+            image: debian:13
             bootstrap: |
               apt-get update
               apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
@@ -85,10 +108,22 @@ jobs:
             image: fedora:41
             bootstrap: |
               dnf install -y bash curl ca-certificates gcc gcc-c++ make pkgconf-pkg-config openssl-devel git sudo which tar gzip xz sed
+          - name: fedora-42
+            image: fedora:42
+            bootstrap: |
+              dnf install -y bash curl ca-certificates gcc gcc-c++ make pkgconf-pkg-config openssl-devel git sudo which tar gzip xz sed
           - name: archlinux
             image: archlinux:latest
             bootstrap: |
               pacman -Sy --noconfirm bash curl ca-certificates base-devel pkgconf openssl git sudo which tar gzip xz sed
+          - name: alpine-3.20
+            image: alpine:3.20
+            bootstrap: |
+              apk add --no-cache bash curl ca-certificates build-base pkgconf openssl-dev git sudo tar gzip xz sed
+          - name: alpine-3.22
+            image: alpine:3.22
+            bootstrap: |
+              apk add --no-cache bash curl ca-certificates build-base pkgconf openssl-dev git sudo tar gzip xz sed
     steps:
       - uses: actions/checkout@v4
 
@@ -99,8 +134,14 @@ jobs:
         run: bash ./scripts/ci/linux_installer_smoke.sh
 
   macos-build:
-    name: macOS build
-    runs-on: macos-latest
+    name: macOS build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-15
+          - macos-14
     defaults:
       run:
         working-directory: rust-tui
