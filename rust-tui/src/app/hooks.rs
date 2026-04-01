@@ -457,8 +457,9 @@ fn completion_notification_body(
     fallback_prompt: Option<&str>,
     working_dir: Option<&str>,
 ) -> String {
-    lookup_notification_title(agent_type, session_id)
-        .or_else(|| fallback_prompt.map(normalize_notification_text))
+    fallback_prompt
+        .map(normalize_notification_text)
+        .or_else(|| lookup_notification_title(agent_type, session_id))
         .filter(|text| !text.is_empty())
         .unwrap_or_else(|| notification_workdir_fallback(working_dir, session_id))
 }
@@ -573,6 +574,76 @@ mod tests {
     use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
     use crate::notify::NotificationRequest;
     use crate::sidebar::ThreadActivityOverride;
+    use rusqlite::Connection;
+    use std::path::Path;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_stamp() -> u128 {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            + NEXT_ID.fetch_add(1, Ordering::Relaxed) as u128
+    }
+
+    fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("home env lock");
+        let home = std::env::temp_dir().join(format!("pad-hooks-{name}-{}", temp_stamp()));
+        std::fs::create_dir_all(&home).expect("create temp home");
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+        let result = f(&home);
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        std::fs::remove_dir_all(&home).ok();
+        result
+    }
+
+    fn create_codex_threads_db(path: &Path) {
+        let connection = Connection::open(path).expect("open sqlite");
+        connection
+            .execute_batch(
+                "CREATE TABLE threads (
+                    id TEXT PRIMARY KEY,
+                    cwd TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    rollout_path TEXT NOT NULL,
+                    title TEXT,
+                    first_user_message TEXT,
+                    source TEXT,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    archived_at INTEGER
+                );",
+            )
+            .expect("create threads table");
+    }
+
+    fn insert_codex_thread(path: &Path, thread_id: &str, title: &str) {
+        let connection = Connection::open(path).expect("open sqlite");
+        connection
+            .execute(
+                "INSERT INTO threads (
+                    id, cwd, updated_at, rollout_path, title, first_user_message, source, archived, archived_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, NULL)",
+                (
+                    thread_id,
+                    "/tmp/demo",
+                    1_i64,
+                    format!("/tmp/{thread_id}.jsonl"),
+                    title,
+                    "old first prompt",
+                    "cli",
+                ),
+            )
+            .expect("insert thread");
+    }
 
     fn stop_event(pane_id: &str) -> HookEvent {
         HookEvent {
@@ -820,5 +891,25 @@ mod tests {
 
         assert!(body.ends_with("..."));
         assert!(body.chars().count() <= 75);
+    }
+
+    #[test]
+    fn completion_notification_prefers_latest_prompt_over_persisted_codex_title() {
+        with_temp_home("notify-latest-prompt", |home| {
+            let codex_dir = home.join(".codex");
+            std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+            let db_path = codex_dir.join("state_5.sqlite");
+            create_codex_threads_db(&db_path);
+            insert_codex_thread(&db_path, "session-1", "Very old title");
+
+            let request = super::build_completion_notification(
+                &AgentType::Codex,
+                Some("session-1"),
+                Some("Latest prompt should win over the old title"),
+                Some("/tmp/demo"),
+            );
+
+            assert_eq!(request.body, "Latest prompt should win over the old title");
+        });
     }
 }

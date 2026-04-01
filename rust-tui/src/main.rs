@@ -8,7 +8,8 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::error::Error;
-use std::io;
+use std::io::{self, IsTerminal};
+use std::process::Command;
 
 mod app;
 mod chat;
@@ -48,6 +49,9 @@ mod ui;
 use app::App;
 use scanner::scan_panels;
 
+const PAD_BOOTSTRAP_ENV: &str = "PAD_TMUX_BOOTSTRAPPED";
+const PAD_DEFAULT_SESSION: &str = "pad";
+
 #[cfg(unix)]
 async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
@@ -74,11 +78,87 @@ fn should_restore_tmux_state(app: &App) -> bool {
         || app.saved_tmux_status.is_some()
 }
 
+fn is_info_only_command(args: &[String]) -> bool {
+    args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--help" | "-h" | "--version" | "-V" | "--tmux-doctor"
+        )
+    })
+}
+
+fn is_telegram_daemon_command(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == "telegram-bot")
+}
+
+fn should_bootstrap_into_tmux(
+    args: &[String],
+    tmux_env_present: bool,
+    tmux_pane_present: bool,
+    already_bootstrapped: bool,
+    stdin_is_tty: bool,
+    stdout_is_tty: bool,
+) -> bool {
+    if is_info_only_command(args) || is_telegram_daemon_command(args) {
+        return false;
+    }
+    if already_bootstrapped {
+        return false;
+    }
+    if tmux_env_present && tmux_pane_present {
+        return false;
+    }
+    stdin_is_tty && stdout_is_tty
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r#"'\''"#))
+}
+
+fn bootstrap_command(args: &[String], executable: &std::path::Path) -> String {
+    let mut parts = vec![
+        "env".to_string(),
+        format!("{PAD_BOOTSTRAP_ENV}=1"),
+        shell_single_quote(&executable.to_string_lossy()),
+    ];
+    for arg in args.iter().skip(1) {
+        parts.push(shell_single_quote(arg));
+    }
+    parts.join(" ")
+}
+
+fn bootstrap_into_tmux(args: &[String]) -> Result<(), Box<dyn Error>> {
+    let executable = std::env::current_exe()?;
+    let inner_command = bootstrap_command(args, &executable);
+    let mut command = Command::new("tmux");
+    command.args([
+        "new-session",
+        "-A",
+        "-s",
+        PAD_DEFAULT_SESSION,
+        &inner_command,
+    ]);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        let err = command.exec();
+        Err(Box::new(err))
+    }
+
+    #[cfg(not(unix))]
+    {
+        let status = command.status()?;
+        std::process::exit(status.code().unwrap_or(1));
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
-    if args.iter().any(|a| a == "--help" || a == "-h") {
+    if is_info_only_command(&args) && args.iter().any(|a| a == "--help" || a == "-h") {
         println!("PAD - Panel for Agent Development");
         println!();
         println!("Usage: pad [OPTIONS]");
@@ -106,12 +186,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    if args.iter().any(|a| a == "--version" || a == "-V") {
+    if is_info_only_command(&args) && args.iter().any(|a| a == "--version" || a == "-V") {
         println!("pad {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 
-    if args.iter().any(|a| a == "--tmux-doctor") {
+    if is_info_only_command(&args) && args.iter().any(|a| a == "--tmux-doctor") {
         let report = system_check::tmux_doctor()?;
         for line in report.summary_lines() {
             println!("{line}");
@@ -127,8 +207,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    let telegram_daemon = args.iter().any(|a| a == "telegram-bot");
+    let telegram_daemon = is_telegram_daemon_command(&args);
     let debug = args.iter().any(|a| a == "--debug" || a == "-d");
+    let tmux_env_present = std::env::var_os("TMUX").is_some();
+    let tmux_pane_present = std::env::var_os("TMUX_PANE").is_some();
+    let already_bootstrapped = std::env::var_os(PAD_BOOTSTRAP_ENV).is_some();
+    if should_bootstrap_into_tmux(
+        &args,
+        tmux_env_present,
+        tmux_pane_present,
+        already_bootstrapped,
+        io::stdin().is_terminal(),
+        io::stdout().is_terminal(),
+    ) {
+        let _ = system_check::ensure_tmux_available()?;
+        return bootstrap_into_tmux(&args);
+    }
     paths::ensure_runtime_layout()?;
     if telegram_daemon {
         logger::init_with_path(paths::telegram_bot_log_path())?;
@@ -250,4 +344,89 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     res?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    #[test]
+    fn bootstrap_needed_for_interactive_plain_launch() {
+        assert!(should_bootstrap_into_tmux(
+            &args(&["pad", "--debug"]),
+            false,
+            false,
+            false,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    fn bootstrap_skips_info_and_daemon_commands() {
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad", "--help"]),
+            false,
+            false,
+            false,
+            true,
+            true,
+        ));
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad", "telegram-bot"]),
+            false,
+            false,
+            false,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    fn bootstrap_skips_when_already_inside_tmux_or_reentered() {
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad"]),
+            true,
+            true,
+            false,
+            true,
+            true,
+        ));
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad"]),
+            false,
+            false,
+            true,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    fn bootstrap_skips_without_interactive_terminal() {
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad"]),
+            false,
+            false,
+            false,
+            false,
+            true,
+        ));
+    }
+
+    #[test]
+    fn bootstrap_command_quotes_executable_and_args() {
+        let command = bootstrap_command(
+            &args(&["pad", "--debug", "work tree"]),
+            std::path::Path::new("/tmp/pad bin"),
+        );
+        assert_eq!(
+            command,
+            "env PAD_TMUX_BOOTSTRAPPED=1 '/tmp/pad bin' '--debug' 'work tree'"
+        );
+    }
 }
