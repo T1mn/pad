@@ -40,6 +40,7 @@ mod telegram;
 mod test_support;
 mod theme;
 mod thread_meta;
+mod tmux_capabilities;
 mod tmux_dispatch;
 mod tree;
 mod ui;
@@ -87,6 +88,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("  -h, --help     Show help");
         println!("  -V, --version  Show version");
         println!("  -d, --debug    Enable debug logging (~/.pad/logs/pad.log)");
+        println!("      --tmux-doctor  Probe tmux compatibility and print capability details");
         println!();
         println!("Key bindings:");
         println!("  j/k or ↑/↓     Move selection");
@@ -106,6 +108,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!("pad {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--tmux-doctor") {
+        let report = system_check::tmux_doctor()?;
+        for line in report.summary_lines() {
+            println!("{line}");
+        }
+        let required = report.missing_required_capabilities();
+        if !required.is_empty() {
+            println!("required missing: {}", required.join(", "));
+        }
+        let optional = report.missing_optional_capabilities();
+        if !optional.is_empty() {
+            println!("optional missing: {}", optional.join(", "));
+        }
         return Ok(());
     }
 
@@ -129,7 +147,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return telegram::run_daemon().await;
     }
 
-    system_check::ensure_tmux_available()?;
+    let tmux_report = system_check::ensure_tmux_available()?;
+    for line in tmux_report.summary_lines() {
+        log_debug!("tmux_probe: {}", line);
+    }
 
     // Install panic hook to restore terminal and log panic info
     std::panic::set_hook(Box::new(|info| {
@@ -156,9 +177,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         EnableBracketedPaste
     )?;
     // Ensure tmux sends focus events to the terminal
-    let _ = std::process::Command::new("tmux")
-        .args(["set", "-g", "focus-events", "on"])
-        .output();
+    if tmux_report.capabilities.focus_events {
+        let _ = std::process::Command::new("tmux")
+            .args(["set", "-g", "focus-events", "on"])
+            .output();
+    } else {
+        log_debug!("tmux_probe: skip focus-events enable because capability is unavailable");
+    }
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 

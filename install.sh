@@ -83,6 +83,20 @@ check_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
+require_command() {
+  local cmd="$1"
+  local hint="${2:-}"
+  if check_command "$cmd"; then
+    return 0
+  fi
+
+  err "✗ Required command not found: ${cmd}"
+  if [ -n "$hint" ]; then
+    say "  ${hint}"
+  fi
+  exit 1
+}
+
 resolved_release_version() {
   if [ -n "${PAD_RESOLVED_RELEASE_VERSION:-}" ]; then
     echo "${PAD_RESOLVED_RELEASE_VERSION}"
@@ -151,7 +165,7 @@ detect_tmux_install_plan() {
       fi
       ;;
     linux)
-      for tool in apt-get dnf pacman zypper brew; do
+      for tool in apt-get dnf yum pacman zypper apk brew; do
         if check_command "$tool"; then
           echo "$tool"
           return 0
@@ -167,8 +181,10 @@ tmux_manual_hint() {
     brew) echo "brew install tmux" ;;
     apt-get) echo "sudo apt-get update && sudo apt-get install -y tmux" ;;
     dnf) echo "sudo dnf install -y tmux" ;;
+    yum) echo "sudo yum install -y tmux" ;;
     pacman) echo "sudo pacman -Sy --noconfirm tmux" ;;
     zypper) echo "sudo zypper --non-interactive install tmux" ;;
+    apk) echo "sudo apk add tmux" ;;
     *) echo "install tmux with your system package manager" ;;
   esac
 }
@@ -183,6 +199,16 @@ run_as_root_or_sudo() {
   fi
 }
 
+ensure_root_or_sudo() {
+  if [ "$(id -u)" -eq 0 ] || check_command sudo; then
+    return 0
+  fi
+
+  err "✗ tmux installation requires root or sudo access"
+  say "  Manual command: $(tmux_manual_hint "$1")"
+  exit 1
+}
+
 install_tmux() {
   if check_tmux; then
     ok "✓ tmux already installed: $(tmux -V 2>/dev/null || echo tmux)"
@@ -191,18 +217,19 @@ install_tmux() {
 
   local plan
   if ! plan="$(detect_tmux_install_plan)"; then
-    warn "! tmux is required at runtime, but no supported package manager was detected"
-    warn "  Install tmux manually, then run pad in the same environment"
-    return 0
+    err "✗ tmux is required at runtime, but no supported package manager was detected"
+    say "  Install tmux manually, then run pad in the same environment"
+    exit 1
   fi
 
   warn "! tmux is not installed"
   if ! prompt_yes "PAD requires tmux at runtime. Install tmux now?"; then
-    warn "  Skipped tmux installation"
-    warn "  Manual command: $(tmux_manual_hint "$plan")"
-    return 0
+    err "✗ tmux installation was declined"
+    say "  Manual command: $(tmux_manual_hint "$plan")"
+    exit 1
   fi
 
+  ensure_root_or_sudo "$plan"
   say "${BLUE}Installing tmux via ${plan}...${NC}"
   case "$plan" in
     brew)
@@ -215,11 +242,17 @@ install_tmux() {
     dnf)
       run_as_root_or_sudo dnf install -y tmux
       ;;
+    yum)
+      run_as_root_or_sudo yum install -y tmux
+      ;;
     pacman)
       run_as_root_or_sudo pacman -Sy --noconfirm tmux
       ;;
     zypper)
       run_as_root_or_sudo zypper --non-interactive install tmux
+      ;;
+    apk)
+      run_as_root_or_sudo apk add tmux
       ;;
   esac
 
@@ -396,6 +429,9 @@ main() {
     return 0
   fi
 
+  require_command curl "Install curl first, then run the installer again."
+  require_command tar "Install tar first, then run the installer again."
+
   say "=============================================="
   say "  PAD - Panel for Agent Development"
   say "=============================================="
@@ -407,6 +443,10 @@ main() {
   fi
 
   install_tmux
+  if ! check_tmux; then
+    err "✗ PAD was installed, but tmux is still unavailable"
+    exit 1
+  fi
   show_path_hint
   show_success
 }
