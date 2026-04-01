@@ -120,7 +120,10 @@ fn opencode_managed_state_path() -> PathBuf {
 }
 
 fn home_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn codex_permission_state_path() -> PathBuf {
@@ -968,7 +971,6 @@ mod tests {
     use super::*;
     use crate::theme::{AgentConfig, AgentPermissionsConfig, ProviderConfig};
     use std::path::PathBuf;
-    use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn sample_provider(base_url: &str, api_key: &str) -> ProviderConfig {
@@ -995,11 +997,6 @@ mod tests {
         }
     }
 
-    fn test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     fn temp_home(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1009,7 +1006,9 @@ mod tests {
     }
 
     fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-        let _guard = test_lock().lock().expect("lock relay tests");
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock relay tests");
         let home = temp_home(name);
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).expect("create temp home");
@@ -1378,7 +1377,7 @@ mod tests {
                 api_key: None,
             };
 
-            apply_runtime_configs(&[agent.clone()], &sample_permissions());
+            apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions());
 
             let disabled = AgentPermissionsConfig {
                 codex_auto_full_access: false,
@@ -1459,7 +1458,7 @@ mod tests {
                 api_key: None,
             };
 
-            apply_runtime_configs(&[agent.clone()], &sample_permissions());
+            apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions());
 
             let disabled = AgentPermissionsConfig {
                 codex_auto_full_access: false,

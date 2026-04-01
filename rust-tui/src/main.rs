@@ -36,6 +36,8 @@ mod session_cache;
 mod sidebar;
 mod system_check;
 mod telegram;
+#[cfg(test)]
+mod test_support;
 mod theme;
 mod thread_meta;
 mod tmux_dispatch;

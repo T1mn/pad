@@ -3,8 +3,8 @@
   <p><strong>别再来回找 pane 了。在一个地方跑完整个 AI 工作流。</strong></p>
   <p><code>pad</code> 是 PAD 的命令行入口。PAD = Panel for Agent Development。</p>
   <p>PAD 是一个原生基于 tmux 的控制面板，当前重点支持 Codex、Claude Code 和 Gemini CLI，也提供其他终端 AI 智能体的基础 launcher / pane 能力。</p>
-  <p>它就是给这种时刻准备的：tmux 里 agent 一多，session 一多，哪个还在跑、哪个刚出结果、下一个该进哪个 pane，很快就乱了。</p>
-  <p>先看谁动了，再决定要不要 attach；先把答案读一眼，再跳进正确的 pane。</p>
+  <p>tmux 里 agent session 一多，PAD 能帮你更快看清谁动了、该进哪个 pane。</p>
+  <p>设计上尽量轻：体积小、内存占用低、preview 快，并且是 session 级监听，不做重型索引。</p>
   <p><a href="README.md">English</a> | 中文</p>
 </div>
 
@@ -46,10 +46,12 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 
 - 左侧一栏同时看 live pane 和最近的 session history
 - attach 之前先把最近几轮对话读一眼
+- 轻量且快：二进制体积小、内存占用低、session preview 响应快
+- session 级监听，活动追踪更聚焦，也更省资源
 - `Enter` 进去，`F12` / `Ctrl+Q` 退回 PAD
 - archive 只动 PAD 自己的索引，不碰上游原始 session 数据
 - 支持的 agent relay / proxy 配置
-- 在支持的平台上发送完成通知
+- 在支持的平台上，在 agent 完成任务后发送桌面通知
 - 全键盘操作的 search、settings、tree 和 session 创建
 
 ## PAD 不做什么

@@ -3,7 +3,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub fn pad_home_dir() -> PathBuf {
-    dirs::home_dir()
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".pad")
 }
