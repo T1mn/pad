@@ -4,6 +4,7 @@
   <p><code>pad</code> is the CLI for PAD: Panel for Agent Development.</p>
   <p>PAD is a tmux-native control panel for Codex, Claude Code, Gemini CLI, Kimi, OpenCode, Aider, Cursor, and other terminal AI agents.</p>
   <p>Built for the moment when you have more than one agent, more than one session, and you need a fast way to see what is running, what just moved, and where to jump next.</p>
+  <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
 ## Demo

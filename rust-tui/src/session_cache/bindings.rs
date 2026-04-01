@@ -1,9 +1,9 @@
 use super::model::{
-    snapshot_from_record, CachedPaneBinding, HookBindingContext, SessionCacheIndex,
-    SessionCacheSnapshot,
+    snapshot_from_record, CachedPaneBinding, CachedSessionRecord, HookBindingContext,
+    SessionCacheIndex, SessionCacheSnapshot,
 };
 use crate::model::{AgentPanel, SessionCacheState};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub(super) fn find_snapshot_for_panel(
     index: &SessionCacheIndex,
@@ -44,6 +44,23 @@ pub(super) fn find_snapshot_for_panel(
     }
 
     None
+}
+
+pub(super) fn load_snapshots_for_agent_type(
+    index: &SessionCacheIndex,
+    agent_type: &str,
+) -> HashMap<String, SessionCacheSnapshot> {
+    index
+        .sessions
+        .iter()
+        .filter(|record| record.agent_type == agent_type)
+        .map(|record| {
+            (
+                record.agent_session_id.clone(),
+                snapshot_from_record(record, snapshot_state(record)),
+            )
+        })
+        .collect()
 }
 
 pub(super) fn upsert_binding(
@@ -100,6 +117,13 @@ fn lookup_snapshot(
         .iter()
         .find(|record| record.agent_session_id == session_id)
         .map(|record| snapshot_from_record(record, state))
+}
+
+fn snapshot_state(record: &CachedSessionRecord) -> SessionCacheState {
+    match record.last_source.as_str() {
+        "resolver" => SessionCacheState::Confirmed,
+        _ => SessionCacheState::Cached,
+    }
 }
 
 fn is_subagent_session(panel: &AgentPanel, session_id: &str) -> bool {
