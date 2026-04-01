@@ -12,7 +12,7 @@ If you already keep more than one agent session open in tmux, PAD starts paying 
 
 ## Demo
 
-<video src="https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49" controls muted loop playsinline width="960"></video>
+<video src="https://raw.githubusercontent.com/T1mn/pad/master/docs/media/demo.mp4" controls muted loop playsinline width="960"></video>
 
 What this looks like in practice:
 
@@ -22,7 +22,7 @@ What this looks like in practice:
 - Double-tap `Tab` to jump from the session list into the latest preview detail
 - Use `Shift+J` / `Shift+K` to move across Q&A turns inside preview detail before you attach again
 
-If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/f4e7f833-a1a1-49ce-9d7c-9fdb9686ef49) directly.
+If your Markdown viewer does not render inline video, open the [demo video](https://raw.githubusercontent.com/T1mn/pad/master/docs/media/demo.mp4) directly.
 
 ## Why PAD
 
