@@ -44,14 +44,14 @@ impl TmuxProbeReport {
         if !self.capabilities.literal_send_keys {
             missing.push("send-keys -l");
         }
-        if !self.capabilities.control_mode_flags {
-            missing.push("control-mode attach flags");
-        }
         missing
     }
 
     pub fn missing_optional_capabilities(&self) -> Vec<&'static str> {
         let mut missing = Vec::new();
+        if !self.capabilities.control_mode_flags {
+            missing.push("control-mode attach flags");
+        }
         if !self.capabilities.bracketed_paste {
             missing.push("bracketed paste");
         }
@@ -517,7 +517,7 @@ mod tests {
                 root_key_table: true,
                 literal_send_keys: false,
                 bracketed_paste: false,
-                control_mode_flags: true,
+                control_mode_flags: false,
                 focus_events: false,
             },
             notes: Vec::new(),
@@ -529,7 +529,11 @@ mod tests {
         );
         assert_eq!(
             report.missing_optional_capabilities(),
-            vec!["bracketed paste", "focus-events"]
+            vec![
+                "control-mode attach flags",
+                "bracketed paste",
+                "focus-events"
+            ]
         );
     }
 }
