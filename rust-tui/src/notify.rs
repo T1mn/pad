@@ -1,7 +1,7 @@
 use std::io;
 #[cfg(any(target_os = "linux", test))]
 use std::path::Path;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::process::{Command, Stdio};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,7 +26,9 @@ pub fn notify_completion(request: &NotificationRequest) -> io::Result<bool> {
 
     #[cfg(target_os = "macos")]
     {
-        macos::notify_completion(request)
+        let spec = macos::command_spec(request);
+        spawn_notification(&spec.program, &spec.args)?;
+        Ok(true)
     }
 
     #[cfg(target_os = "linux")]
@@ -91,7 +93,7 @@ struct LinuxCommandSpec {
     args: Vec<String>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn spawn_notification(program: &str, args: &[String]) -> io::Result<()> {
     let mut child = Command::new(program)
         .args(args)
@@ -136,91 +138,29 @@ fn executable_exists(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 mod macos {
     use super::NotificationRequest;
-    use block2::RcBlock;
-    use objc2_foundation::{NSError, NSString};
-    use objc2_user_notifications::{
-        UNAuthorizationOptions, UNMutableNotificationContent, UNNotificationRequest,
-        UNUserNotificationCenter,
-    };
-    use std::io;
-    use std::sync::mpsc;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-    pub(super) fn notify_completion(request: &NotificationRequest) -> io::Result<bool> {
-        let request = request.clone();
-        std::thread::Builder::new()
-            .name("pad-macos-notify".into())
-            .spawn(move || {
-                let _ = dispatch_notification(request);
-            })
-            .map_err(io::Error::other)?;
-        Ok(true)
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(super) struct MacCommandSpec {
+        pub program: String,
+        pub args: Vec<String>,
     }
 
-    fn dispatch_notification(request: NotificationRequest) -> Result<(), String> {
-        let center = UNUserNotificationCenter::currentNotificationCenter();
-
-        let (auth_tx, auth_rx) = mpsc::channel();
-        let auth_block = RcBlock::new(move |granted, error: *mut NSError| {
-            let _ = auth_tx.send((bool::from(granted), error_message(error)));
-        });
-        center.requestAuthorizationWithOptions_completionHandler(
-            UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
-            &auth_block,
-        );
-
-        let (granted, auth_error) = auth_rx
-            .recv_timeout(Duration::from_secs(2))
-            .map_err(|err| format!("authorization callback timed out: {err}"))?;
-        if let Some(error) = auth_error {
-            return Err(format!("authorization failed: {error}"));
+    pub(super) fn command_spec(request: &NotificationRequest) -> MacCommandSpec {
+        MacCommandSpec {
+            program: "osascript".into(),
+            args: vec![
+                "-e".into(),
+                "on run argv".into(),
+                "-e".into(),
+                "display notification (item 2 of argv) with title (item 1 of argv)".into(),
+                "-e".into(),
+                "end run".into(),
+                request.title.clone(),
+                request.body.clone(),
+            ],
         }
-        if !granted {
-            return Ok(());
-        }
-
-        let content = UNMutableNotificationContent::new();
-        let title = NSString::from_str(&request.title);
-        let body = NSString::from_str(&request.body);
-        content.setTitle(&title);
-        content.setBody(&body);
-
-        let identifier = NSString::from_str(&format!("pad-{}", notification_id()));
-        let notification = UNNotificationRequest::requestWithIdentifier_content_trigger(
-            &identifier,
-            &content,
-            None,
-        );
-
-        let (add_tx, add_rx) = mpsc::channel();
-        let add_block = RcBlock::new(move |error: *mut NSError| {
-            let _ = add_tx.send(error_message(error));
-        });
-        center.addNotificationRequest_withCompletionHandler(&notification, Some(&add_block));
-
-        match add_rx.recv_timeout(Duration::from_secs(2)) {
-            Ok(None) => Ok(()),
-            Ok(Some(error)) => Err(format!("notification request failed: {error}")),
-            Err(err) => Err(format!("notification request callback timed out: {err}")),
-        }
-    }
-
-    fn error_message(error: *mut NSError) -> Option<String> {
-        if error.is_null() {
-            None
-        } else {
-            Some(unsafe { (&*error).localizedDescription().to_string() })
-        }
-    }
-
-    fn notification_id() -> u128 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0)
     }
 }
 
@@ -318,5 +258,20 @@ mod tests {
             std::env::remove_var("PATH");
         }
         let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn macos_uses_osascript_with_argument_passing() {
+        let spec = macos::command_spec(&request());
+
+        assert_eq!(spec.program, "osascript");
+        assert_eq!(spec.args[0], "-e");
+        assert_eq!(spec.args[1], "on run argv");
+        assert_eq!(
+            spec.args[3],
+            "display notification (item 2 of argv) with title (item 1 of argv)"
+        );
+        assert_eq!(spec.args[6], request().title);
+        assert_eq!(spec.args[7], request().body);
     }
 }
