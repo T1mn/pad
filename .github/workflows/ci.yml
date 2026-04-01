@@ -62,6 +62,41 @@ jobs:
           bash ./install.sh
           "${INSTALL_DIR}/pad" --help
           "${INSTALL_DIR}/pad" --version
+          "${INSTALL_DIR}/pad" --tmux-doctor
+
+  linux-installer-matrix:
+    name: Linux installer smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian-12
+            image: debian:12
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+          - name: ubuntu-24.04
+            image: ubuntu:24.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+          - name: fedora-41
+            image: fedora:41
+            bootstrap: |
+              dnf install -y bash curl ca-certificates gcc gcc-c++ make pkgconf-pkg-config openssl-devel git sudo which tar gzip xz sed
+          - name: archlinux
+            image: archlinux:latest
+            bootstrap: |
+              pacman -Sy --noconfirm bash curl ca-certificates base-devel pkgconf openssl git sudo which tar gzip xz sed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker installer smoke
+        env:
+          IMAGE: ${{ matrix.image }}
+          BOOTSTRAP: ${{ matrix.bootstrap }}
+        run: bash ./scripts/ci/linux_installer_smoke.sh
 
   macos-build:
     name: macOS build

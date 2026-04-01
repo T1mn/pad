@@ -1,9 +1,10 @@
+use crate::tmux_capabilities::{probe_tmux_capabilities, TmuxProbeReport};
 use std::io::{self, IsTerminal, Write};
 use std::process::Command;
 
-pub fn ensure_tmux_available() -> io::Result<()> {
+pub fn ensure_tmux_available() -> io::Result<TmuxProbeReport> {
     if tmux_exists() {
-        return Ok(());
+        return ensure_tmux_compatible();
     }
 
     let Some(plan) = detect_install_plan() else {
@@ -38,7 +39,7 @@ pub fn ensure_tmux_available() -> io::Result<()> {
 
     if tmux_exists() {
         eprintln!("tmux 安装完成。");
-        Ok(())
+        ensure_tmux_compatible()
     } else {
         Err(io::Error::other(
             "tmux 安装流程已执行，但仍未检测到 tmux，请手动检查系统环境。",
@@ -46,13 +47,24 @@ pub fn ensure_tmux_available() -> io::Result<()> {
     }
 }
 
+pub fn tmux_doctor() -> io::Result<TmuxProbeReport> {
+    if !tmux_exists() {
+        return Err(io::Error::other(
+            "tmux is not installed or not available in PATH.",
+        ));
+    }
+    ensure_tmux_compatible()
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InstallPlan {
     Brew,
     Apt,
     Dnf,
+    Yum,
     Pacman,
     Zypper,
+    Apk,
 }
 
 impl InstallPlan {
@@ -61,8 +73,10 @@ impl InstallPlan {
             Self::Brew => "brew install tmux",
             Self::Apt => "sudo apt-get update && sudo apt-get install -y tmux",
             Self::Dnf => "sudo dnf install -y tmux",
+            Self::Yum => "sudo yum install -y tmux",
             Self::Pacman => "sudo pacman -Sy --noconfirm tmux",
             Self::Zypper => "sudo zypper --non-interactive install tmux",
+            Self::Apk => "sudo apk add tmux",
         }
     }
 }
@@ -87,10 +101,14 @@ fn detect_install_plan_for(os: &str, command_exists: &dyn Fn(&str) -> bool) -> O
                 Some(InstallPlan::Apt)
             } else if command_exists("dnf") {
                 Some(InstallPlan::Dnf)
+            } else if command_exists("yum") {
+                Some(InstallPlan::Yum)
             } else if command_exists("pacman") {
                 Some(InstallPlan::Pacman)
             } else if command_exists("zypper") {
                 Some(InstallPlan::Zypper)
+            } else if command_exists("apk") {
+                Some(InstallPlan::Apk)
             } else if command_exists("brew") {
                 Some(InstallPlan::Brew)
             } else {
@@ -122,6 +140,32 @@ fn install_tmux(plan: &InstallPlan) -> io::Result<()> {
     Ok(())
 }
 
+fn ensure_tmux_compatible() -> io::Result<TmuxProbeReport> {
+    let report = probe_tmux_capabilities().map_err(io::Error::other)?;
+    let required = report.missing_required_capabilities();
+    if required.is_empty() {
+        return Ok(report);
+    }
+
+    let version = report.version_raw.trim();
+    let mut message = format!(
+        "tmux compatibility probe failed for `{}`. Missing required capabilities: {}.",
+        version,
+        required.join(", ")
+    );
+    let optional = report.missing_optional_capabilities();
+    if !optional.is_empty() {
+        message.push_str(&format!(
+            " Optional capabilities unavailable: {}.",
+            optional.join(", ")
+        ));
+    }
+    if !report.notes.is_empty() {
+        message.push_str(&format!(" Probe notes: {}.", report.notes.join(" | ")));
+    }
+    Err(io::Error::other(message))
+}
+
 fn install_steps(plan: InstallPlan) -> Vec<(&'static str, Vec<&'static str>)> {
     let use_sudo = command_exists("sudo");
     match plan {
@@ -146,6 +190,13 @@ fn install_steps(plan: InstallPlan) -> Vec<(&'static str, Vec<&'static str>)> {
                 vec![("dnf", vec!["install", "-y", "tmux"])]
             }
         }
+        InstallPlan::Yum => {
+            if use_sudo {
+                vec![("sudo", vec!["yum", "install", "-y", "tmux"])]
+            } else {
+                vec![("yum", vec!["install", "-y", "tmux"])]
+            }
+        }
         InstallPlan::Pacman => {
             if use_sudo {
                 vec![("sudo", vec!["pacman", "-Sy", "--noconfirm", "tmux"])]
@@ -161,6 +212,13 @@ fn install_steps(plan: InstallPlan) -> Vec<(&'static str, Vec<&'static str>)> {
                 )]
             } else {
                 vec![("zypper", vec!["--non-interactive", "install", "tmux"])]
+            }
+        }
+        InstallPlan::Apk => {
+            if use_sudo {
+                vec![("sudo", vec!["apk", "add", "tmux"])]
+            } else {
+                vec![("apk", vec!["add", "tmux"])]
             }
         }
     }
