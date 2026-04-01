@@ -120,13 +120,7 @@ mod tests {
     use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
     use std::path::Path;
     use std::path::PathBuf;
-    use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     fn temp_home(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
@@ -137,7 +131,9 @@ mod tests {
     }
 
     fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-        let _guard = test_lock().lock().expect("lock backend tests");
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock backend tests");
         let home = temp_home(name);
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).expect("create temp home");

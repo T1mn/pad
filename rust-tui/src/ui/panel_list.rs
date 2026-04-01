@@ -210,9 +210,7 @@ fn visible_thread_jump_badges(items: &[SidebarItem]) -> Vec<Option<usize>> {
     items
         .iter()
         .map(|item| {
-            if item.as_thread().is_none() {
-                return None;
-            }
+            item.as_thread()?;
             let badge = (next_jump_badge <= 9).then_some(next_jump_badge);
             next_jump_badge += 1;
             badge

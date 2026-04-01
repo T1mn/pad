@@ -3,8 +3,8 @@
   <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
   <p><code>pad</code> is the CLI for PAD: Panel for Agent Development.</p>
   <p>PAD is a tmux-native control panel focused on Codex, Claude Code, and Gemini CLI, with basic launcher and pane support for other terminal AI agents.</p>
-  <p>Built for the moment when two agent panes turn into six, half of them are mid-run, and you can no longer tell what deserves your attention first.</p>
-  <p>See what moved. Read the answer before you attach. Jump into the right pane and get back out fast.</p>
+  <p>When tmux fills up with agent sessions, PAD helps you see what moved and jump into the right pane fast.</p>
+  <p>Lightweight by design: small binary, low memory overhead, fast preview, and session-level monitoring instead of heavy workspace indexing.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
@@ -46,10 +46,12 @@ PAD gives you one place to scan, preview, attach, archive, and jump back out wit
 
 - One sidebar for live panes and recent session history
 - Read the latest turns before you attach
+- Lightweight and fast: small footprint, low memory use, and quick session previews
+- Session-level monitoring so activity tracking stays focused and cheap
 - Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
 - Archive threads without touching upstream session data
 - Relay / proxy settings for supported agents
-- Completion notifications on supported desktop backends
+- Completion notifications when an agent finishes, on supported desktop backends
 - Keyboard-first search, settings, tree, and session creation
 
 ## What PAD Does Not Do

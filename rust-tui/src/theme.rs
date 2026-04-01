@@ -1194,16 +1194,12 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     fn with_temp_home<T>(name: &str, f: impl FnOnce() -> T) -> T {
-        let _guard = test_lock().lock().expect("lock theme tests");
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock theme tests");
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("time")
