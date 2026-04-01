@@ -1,6 +1,8 @@
 use crate::claude_history::ClaudeThreadRef;
+use crate::codex_state::CodexThreadRef;
 use crate::gemini_history::GeminiThreadRef;
 use crate::model::{AgentPanel, AgentState, AgentType};
+use crate::session_cache::SessionCacheSnapshot;
 use crate::thread_meta::{ThreadMeta, ThreadMetaKey};
 use std::collections::{HashMap, HashSet};
 use std::io;
@@ -26,6 +28,11 @@ pub fn build_sidebar_folders(
     let mut codex_history_threads = 0usize;
     let mut claude_history_threads = 0usize;
     let mut gemini_history_threads = 0usize;
+    let codex_session_snapshots = if !live_only || archived_threads_view {
+        crate::session_cache::load_snapshots_by_agent_type(&AgentType::Codex)
+    } else {
+        HashMap::new()
+    };
     let claude_threads = if archived_threads_view {
         crate::claude_history::all_archived_threads().ok()
     } else if live_only {
@@ -108,6 +115,7 @@ pub fn build_sidebar_folders(
                     folder,
                     activity_overrides,
                     thread_sort_activity,
+                    &codex_session_snapshots,
                     archived_threads_view,
                 );
                 claude_history_threads += merge_claude_threads(
@@ -387,6 +395,7 @@ fn merge_codex_threads(
     folder: &mut SidebarFolder,
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
+    codex_session_snapshots: &HashMap<String, SessionCacheSnapshot>,
     archived_threads_view: bool,
 ) -> usize {
     let threads = if archived_threads_view {
@@ -403,38 +412,11 @@ fn merge_codex_threads(
         if is_subagent_source(thread.source.as_deref()) {
             continue;
         }
-        let title = best_thread_title(thread.title.as_deref(), Some(thread.thread_id.as_str()));
-        let history_entry = SidebarThread {
-            key: format!("codex:{}", thread.thread_id),
-            folder_key: folder.key.clone(),
-            working_dir: folder.path.clone(),
-            folder_label: folder.label.clone(),
-            agent_type: AgentType::Codex,
-            runtime_source: None,
-            session_id: Some(thread.thread_id.clone()),
-            transcript_path: Some(thread.rollout_path.to_string_lossy().to_string()),
-            title,
-            upstream_title: thread.title.as_deref().and_then(clean_title),
-            subtitle: thread.first_user_message.as_deref().and_then(clean_title),
-            title_override: None,
-            note: None,
-            tags: Vec::new(),
-            pinned: false,
-            updated_at: thread.updated_at,
-            sort_updated_at: thread.updated_at,
-            live_pane_id: None,
-            live_location: None,
-            pid: None,
-            git_info: None,
-            state: AgentState::Idle,
-            is_active: false,
-            cached_preview_turns: Vec::new(),
-            session_cache_state: None,
-            last_user_prompt: None,
-            last_assistant_message: None,
-            has_unread_stop: false,
-            archived: thread.archived,
-        };
+        let history_entry = build_codex_history_entry(
+            folder,
+            &thread,
+            codex_session_snapshots.get(&thread.thread_id),
+        );
 
         merge_or_insert_thread(
             &mut folder.threads,
@@ -445,6 +427,96 @@ fn merge_codex_threads(
         merged += 1;
     }
     merged
+}
+
+fn build_codex_history_entry(
+    folder: &SidebarFolder,
+    thread: &CodexThreadRef,
+    snapshot: Option<&SessionCacheSnapshot>,
+) -> SidebarThread {
+    let title = best_thread_title(thread.title.as_deref(), Some(thread.thread_id.as_str()));
+    let mut history_entry = SidebarThread {
+        key: format!("codex:{}", thread.thread_id),
+        folder_key: folder.key.clone(),
+        working_dir: folder.path.clone(),
+        folder_label: folder.label.clone(),
+        agent_type: AgentType::Codex,
+        runtime_source: None,
+        session_id: Some(thread.thread_id.clone()),
+        transcript_path: Some(thread.rollout_path.to_string_lossy().to_string()),
+        title,
+        upstream_title: thread.title.as_deref().and_then(clean_title),
+        subtitle: None,
+        title_override: None,
+        note: None,
+        tags: Vec::new(),
+        pinned: false,
+        updated_at: thread.updated_at,
+        sort_updated_at: thread.updated_at,
+        live_pane_id: None,
+        live_location: None,
+        pid: None,
+        git_info: None,
+        state: AgentState::Idle,
+        is_active: false,
+        cached_preview_turns: Vec::new(),
+        session_cache_state: None,
+        last_user_prompt: None,
+        last_assistant_message: None,
+        has_unread_stop: false,
+        archived: thread.archived,
+    };
+
+    if let Some(snapshot) = snapshot {
+        apply_session_cache_snapshot(&mut history_entry, snapshot);
+    }
+
+    if history_entry.subtitle.is_none() {
+        history_entry.subtitle = thread.first_user_message.as_deref().and_then(clean_title);
+    }
+
+    history_entry
+}
+
+fn apply_session_cache_snapshot(thread: &mut SidebarThread, snapshot: &SessionCacheSnapshot) {
+    if thread.transcript_path.is_none() {
+        thread.transcript_path = snapshot.transcript_path.clone();
+    }
+
+    if !snapshot.recent_turns.is_empty() {
+        thread.cached_preview_turns = snapshot.recent_turns.clone();
+    }
+
+    if let Some(prompt) = snapshot
+        .last_user_prompt
+        .as_deref()
+        .and_then(clean_cached_prompt)
+        .or_else(|| {
+            snapshot
+                .recent_turns
+                .first()
+                .and_then(|turn| clean_cached_prompt(&turn.question))
+        })
+    {
+        thread.last_user_prompt = Some(prompt.clone());
+        thread.subtitle = Some(prompt);
+    }
+
+    if let Some(answer) = snapshot
+        .last_assistant_message
+        .as_deref()
+        .and_then(clean_title)
+    {
+        thread.last_assistant_message = Some(answer);
+    }
+
+    thread.session_cache_state = Some(snapshot.state);
+}
+
+fn clean_cached_prompt(text: &str) -> Option<String> {
+    clean_title(&crate::preview_source::codex::normalize_codex_user_text(
+        text, None,
+    ))
 }
 
 fn should_hide_live_panel(panel: &AgentPanel) -> bool {
@@ -626,7 +698,10 @@ fn merge_or_insert_thread(
             existing.upstream_title = history_entry.upstream_title;
         }
         if existing.subtitle.is_none() {
-            existing.subtitle = history_entry.subtitle;
+            existing.subtitle = history_entry
+                .last_user_prompt
+                .clone()
+                .or(history_entry.subtitle.clone());
         }
         if existing.title_override.is_none() {
             existing.title_override = history_entry.title_override;
@@ -652,6 +727,18 @@ fn merge_or_insert_thread(
         existing.sort_updated_at = existing.sort_updated_at.max(history_entry.sort_updated_at);
         if existing.runtime_source.is_none() {
             existing.runtime_source = history_entry.runtime_source;
+        }
+        if existing.cached_preview_turns.is_empty() {
+            existing.cached_preview_turns = history_entry.cached_preview_turns.clone();
+        }
+        if existing.session_cache_state.is_none() {
+            existing.session_cache_state = history_entry.session_cache_state;
+        }
+        if existing.last_user_prompt.is_none() {
+            existing.last_user_prompt = history_entry.last_user_prompt.clone();
+        }
+        if existing.last_assistant_message.is_none() {
+            existing.last_assistant_message = history_entry.last_assistant_message.clone();
         }
         apply_activity_override(existing, activity_overrides);
         apply_sort_activity(existing, thread_sort_activity);
@@ -803,4 +890,126 @@ fn file_mtime(path: &Path) -> Option<i64> {
         .duration_since(std::time::UNIX_EPOCH)
         .ok()
         .map(|duration| duration.as_secs() as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_codex_history_entry, merge_or_insert_thread};
+    use crate::codex_state::CodexThreadRef;
+    use crate::model::{AgentState, AgentType, PreviewTurn, SessionCacheState};
+    use crate::session_cache::SessionCacheSnapshot;
+    use crate::sidebar::model::{SidebarFolder, SidebarThread};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    fn folder() -> SidebarFolder {
+        SidebarFolder {
+            key: "/repo".into(),
+            path: "/repo".into(),
+            label: "repo".into(),
+            updated_at: 0,
+            threads: Vec::new(),
+        }
+    }
+
+    fn codex_thread() -> CodexThreadRef {
+        CodexThreadRef {
+            thread_id: "sid-1".into(),
+            cwd: PathBuf::from("/repo"),
+            updated_at: 42,
+            rollout_path: PathBuf::from("/repo/.codex/sid-1.jsonl"),
+            title: Some("upstream title".into()),
+            first_user_message: Some("old first prompt".into()),
+            source: None,
+            archived: false,
+        }
+    }
+
+    #[test]
+    fn codex_history_prefers_session_cache_prompt_for_subtitle() {
+        let thread = build_codex_history_entry(
+            &folder(),
+            &codex_thread(),
+            Some(&SessionCacheSnapshot {
+                agent_session_id: "sid-1".into(),
+                transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
+                recent_turns: vec![PreviewTurn {
+                    question: "newest prompt".into(),
+                    answer: Some("answer".into()),
+                }],
+                last_user_prompt: Some("newest prompt".into()),
+                last_assistant_message: Some("answer".into()),
+                state: SessionCacheState::Cached,
+            }),
+        );
+
+        assert_eq!(thread.subtitle.as_deref(), Some("newest prompt"));
+        assert_eq!(thread.last_user_prompt.as_deref(), Some("newest prompt"));
+        assert_eq!(thread.cached_preview_turns.len(), 1);
+    }
+
+    #[test]
+    fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
+        let mut threads = vec![SidebarThread {
+            key: "live:%1".into(),
+            folder_key: "/repo".into(),
+            working_dir: "/repo".into(),
+            folder_label: "repo".into(),
+            agent_type: AgentType::Codex,
+            runtime_source: None,
+            session_id: Some("sid-1".into()),
+            transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
+            title: "live".into(),
+            upstream_title: None,
+            subtitle: None,
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 1,
+            sort_updated_at: 1,
+            live_pane_id: Some("%1".into()),
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Vec::new(),
+            session_cache_state: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+            archived: false,
+        }];
+
+        let history = build_codex_history_entry(
+            &folder(),
+            &codex_thread(),
+            Some(&SessionCacheSnapshot {
+                agent_session_id: "sid-1".into(),
+                transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
+                recent_turns: vec![PreviewTurn {
+                    question: "newest prompt".into(),
+                    answer: None,
+                }],
+                last_user_prompt: Some("newest prompt".into()),
+                last_assistant_message: None,
+                state: SessionCacheState::Cached,
+            }),
+        );
+
+        merge_or_insert_thread(&mut threads, history, &[], &HashMap::new());
+
+        assert_eq!(threads.len(), 1);
+        assert_eq!(threads[0].subtitle.as_deref(), Some("newest prompt"));
+        assert_eq!(
+            threads[0].last_user_prompt.as_deref(),
+            Some("newest prompt")
+        );
+        assert_eq!(threads[0].cached_preview_turns.len(), 1);
+        assert_eq!(
+            threads[0].session_cache_state,
+            Some(SessionCacheState::Cached)
+        );
+    }
 }
