@@ -54,11 +54,13 @@ fn maybe_refresh_after_same_session_return(app: &mut App, ev: &Event) {
     // in tmux), refresh only after tmux actually switches the active pane back to pad.
     // This avoids treating the initial FocusLost from switching away as a return signal.
     if app.same_session_attached {
+        let trace_id = app.same_session_trace_id.as_deref().unwrap_or("-");
         let focus_state = super::pad_focus_state();
         if let Some((pad_pane_id, current_pane_id)) = focus_state {
             if current_pane_id == pad_pane_id {
                 log_debug!(
-                    "same_session_attached: pad pane active via {:?}, current_pane={} pad_pane={}, refreshing",
+                    "handoff trace={} stage=return.detected event={:?} current_pane={} pad_pane={} action=refresh",
+                    trace_id,
                     ev,
                     current_pane_id,
                     pad_pane_id
@@ -67,6 +69,7 @@ fn maybe_refresh_after_same_session_return(app: &mut App, ev: &Event) {
                 app.saved_tmux_bindings.clear();
                 app.saved_tmux_status = None;
                 app.saved_tmux_status_target = None;
+                app.same_session_trace_id = None;
                 app.refresh_panels();
                 app.invalidate_preview();
                 app.needs_clear = true;
@@ -76,7 +79,8 @@ fn maybe_refresh_after_same_session_return(app: &mut App, ev: &Event) {
                 Event::FocusLost | Event::FocusGained | Event::Resize(_, _)
             ) {
                 log_debug!(
-                    "same_session_attached: waiting return event={:?} current_pane={} pad_pane={}",
+                    "handoff trace={} stage=return.wait event={:?} current_pane={} pad_pane={}",
+                    trace_id,
                     ev,
                     current_pane_id,
                     pad_pane_id
@@ -87,7 +91,8 @@ fn maybe_refresh_after_same_session_return(app: &mut App, ev: &Event) {
             Event::FocusLost | Event::FocusGained | Event::Resize(_, _)
         ) {
             log_debug!(
-                "same_session_attached: waiting return event={:?} focus_state=unknown",
+                "handoff trace={} stage=return.wait event={:?} focus_state=unknown",
+                trace_id,
                 ev
             );
         }

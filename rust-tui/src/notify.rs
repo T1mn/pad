@@ -18,7 +18,7 @@ struct NotificationEnv {
     has_dbus_session: bool,
 }
 
-pub fn notify_completion(request: &NotificationRequest) -> io::Result<bool> {
+pub fn notify(request: &NotificationRequest) -> io::Result<bool> {
     if notifications_disabled() {
         let _ = request;
         return Ok(false);
@@ -46,6 +46,10 @@ pub fn notify_completion(request: &NotificationRequest) -> io::Result<bool> {
         let _ = request;
         Ok(false)
     }
+}
+
+pub fn notify_completion(request: &NotificationRequest) -> io::Result<bool> {
+    notify(request)
 }
 
 fn notifications_disabled() -> bool {
@@ -141,6 +145,7 @@ fn executable_exists(path: &Path) -> bool {
 #[cfg(any(target_os = "macos", test))]
 mod macos {
     use super::NotificationRequest;
+
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub(super) struct MacCommandSpec {
         pub program: String,
