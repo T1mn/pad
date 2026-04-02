@@ -211,7 +211,10 @@ pub fn create_session_with_agent(
         restore_parts.push(shell_trace_log_cmd(
             &trace_id,
             "return.before_switch",
-            &format!("pad_session={} pad_window={} pad_pane={}", pad_session, win_target, pane_id),
+            &format!(
+                "pad_session={} pad_window={} pad_pane={}",
+                pad_session, win_target, pane_id
+            ),
         ));
         restore_parts.push(format!("tmux switch-client -t '{}'", pad_session));
         restore_parts.push(format!("tmux select-window -t '{}'", win_target));
@@ -219,7 +222,10 @@ pub fn create_session_with_agent(
         restore_parts.push(shell_trace_log_cmd(
             &trace_id,
             "return.after_select",
-            &format!("pad_session={} pad_window={} pad_pane={}", pad_session, win_target, pane_id),
+            &format!(
+                "pad_session={} pad_window={} pad_pane={}",
+                pad_session, win_target, pane_id
+            ),
         ));
         let return_cmd = format!("{} {}", PAD_RETURN_BINDING_MARKER, restore_parts.join("; "));
         let run_shell_cmd = wrap_tmux_run_shell(&return_cmd);
@@ -238,7 +244,10 @@ pub fn create_session_with_agent(
             .output();
 
         app.same_session_attached = true;
-        log_debug!("handoff trace={} stage=create.same_session_attached", trace_id);
+        log_debug!(
+            "handoff trace={} stage=create.same_session_attached",
+            trace_id
+        );
     } else {
         log_debug!(
             "handoff trace={} stage=create.skip_return_binding reason=tmux_pane_missing",
@@ -280,7 +289,10 @@ pub fn create_session_with_agent(
         after_switch_snapshot.as_deref().unwrap_or("-")
     );
 
-    show_return_hint(app.same_session_trace_id.as_deref(), pad_client_tty.as_deref());
+    show_return_hint(
+        app.same_session_trace_id.as_deref(),
+        pad_client_tty.as_deref(),
+    );
 
     if launch_after_attach {
         if let Some(target_pane) = target_pane.as_deref() {
@@ -349,16 +361,7 @@ fn show_return_hint(trace_id: Option<&str>, client_tty: Option<&str>) {
     );
 
     let mut popup_cmd = Command::new("tmux");
-    popup_cmd.args([
-        "display-popup",
-        "-E",
-        "-w",
-        "52",
-        "-h",
-        "7",
-        "-T",
-        "PAD",
-    ]);
+    popup_cmd.args(["display-popup", "-E", "-w", "52", "-h", "7", "-T", "PAD"]);
     if let Some(client_tty) = client_tty {
         popup_cmd.args(["-c", client_tty]);
     }

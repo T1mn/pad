@@ -57,7 +57,10 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     let pad_pane_id = match std::env::var("TMUX_PANE") {
         Ok(id) => id,
         Err(_) => {
-            log_debug!("handoff trace={} stage=attach.skip reason=tmux_pane_missing", trace_id);
+            log_debug!(
+                "handoff trace={} stage=attach.skip reason=tmux_pane_missing",
+                trace_id
+            );
             return false;
         }
     };
@@ -277,7 +280,10 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
 
 /// Clean up F12/C-q root bindings and restore status bar — safety net for pad quit/crash.
 pub(super) fn restore_tmux_bindings(app: &mut App) {
-    let trace_id = app.same_session_trace_id.clone().unwrap_or_else(|| "-".to_string());
+    let trace_id = app
+        .same_session_trace_id
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
     let saved_f12 = app
         .saved_tmux_bindings
         .iter()
