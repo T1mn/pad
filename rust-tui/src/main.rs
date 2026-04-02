@@ -183,7 +183,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("  ?              Help");
         println!("  r              Refresh");
         println!("  c              Create session");
-        println!("  d              Delete panel");
+        println!("  d              Delete pane + hide thread");
         println!("  F1             Settings");
         println!("  q              Quit");
         return Ok(());
@@ -309,6 +309,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             log_debug!("扫描失败: {}", e);
         }
     }
+    app.seed_startup_thread_sort_activity_once();
 
     let res = {
         let run_app = event::run_app(&mut terminal, &mut app);

@@ -181,7 +181,9 @@ impl App {
 
         let sidebar_changed = self.sidebar_panels_changed(&panels);
         self.panels = panels;
-        if sidebar_changed
+        let startup_sort_seeded = self.seed_startup_thread_sort_activity_once();
+        if startup_sort_seeded
+            || sidebar_changed
             || (!self.panels.is_empty() && self.sidebar.visible_sidebar_items_cache.is_empty())
         {
             self.invalidate_sidebar_cache();

@@ -12,8 +12,8 @@ use ratatui::{
 pub fn draw_delete_confirm(f: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
     let l = app.locale;
-    let popup_width = 50;
-    let popup_height = 8;
+    let popup_width = 62;
+    let popup_height = 9;
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
     let popup_area = Rect::new(

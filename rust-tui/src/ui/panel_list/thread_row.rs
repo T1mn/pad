@@ -197,13 +197,7 @@ fn build_thread_subtitle_spans(
         content_width.saturating_sub(prefix_width + subtitle_width + tags_width + tags_gap_width);
     let mut spans = vec![
         Span::styled(prefix.to_string(), Style::default().bg(row_bg)),
-        Span::styled(
-            compact_subtitle,
-            Style::default()
-                .fg(color)
-                .bg(row_bg)
-                .add_modifier(Modifier::DIM),
-        ),
+        Span::styled(compact_subtitle, Style::default().fg(color).bg(row_bg)),
     ];
     spans.push(Span::styled(
         " ".repeat(spacer_width),
@@ -214,7 +208,7 @@ fn build_thread_subtitle_spans(
         spans.push(Span::styled(
             tags_text,
             Style::default()
-                .fg(color)
+                .fg(blend_color(color, row_bg, 0.72))
                 .bg(row_bg)
                 .add_modifier(Modifier::DIM),
         ));
