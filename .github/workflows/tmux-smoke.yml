@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     name: tmux smoke (${{ matrix.os }})
@@ -21,6 +25,7 @@ jobs:
         os:
           - ubuntu-24.04
           - ubuntu-22.04
+          - macos-26
           - macos-15
           - macos-14
     steps:
@@ -43,6 +48,11 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-tui -> target
 
       - name: Build debug binary
         working-directory: rust-tui
