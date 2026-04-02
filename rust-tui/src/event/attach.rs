@@ -11,6 +11,8 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, Write};
 use std::time::Duration;
 
+const PAD_RETURN_BINDING_MARKER: &str = "PAD_RETURN_BINDING=1;";
+
 fn summarize_log_text(text: &str) -> String {
     let single_line = text.trim().replace('\n', "\\n").replace('\r', "\\r");
     if single_line.is_empty() {
@@ -47,17 +49,24 @@ fn run_tmux_logged(context: &str, args: Vec<String>) -> Option<std::process::Out
 /// Snapshots zoom and status bar state, modifies them for the attach,
 /// and encodes restoration into the return command.
 fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: &str) -> bool {
+    let trace_id = app
+        .same_session_trace_id
+        .clone()
+        .unwrap_or_else(|| crate::app::new_handoff_trace("attach"));
+    app.same_session_trace_id = Some(trace_id.clone());
     let pad_pane_id = match std::env::var("TMUX_PANE") {
         Ok(id) => id,
         Err(_) => {
-            log_debug!("install_return_bindings: TMUX_PANE not set");
+            log_debug!("handoff trace={} stage=attach.skip reason=tmux_pane_missing", trace_id);
             return false;
         }
     };
 
     log_debug!(
-        "install_return_bindings: start target_pane={} pad_pane={}",
+        "handoff trace={} stage=attach.begin target_pane={} target_session={} pad_pane={}",
+        trace_id,
         target_pane_id,
+        target_session,
         pad_pane_id
     );
 
@@ -185,6 +194,10 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
 
     // Build return command: restore zoom + status, then navigate back to pad
     let mut restore_parts: Vec<String> = Vec::new();
+    restore_parts.push(shell_log_cmd(&format!(
+        "[handoff trace={}] stage=return.begin target_session={} target_pane={} pad_session={} pad_window={} pad_pane={}",
+        trace_id, target_session, target_pane_id, pad_session, pad_win_target, pad_pane_id
+    )));
     restore_parts.push(restore_binding_cmd(saved_f12.as_deref(), "F12"));
     restore_parts.push(restore_binding_cmd(saved_cq.as_deref(), "C-q"));
     if !restore_zoom_cmd.is_empty() {
@@ -228,7 +241,8 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
         pad_win_target, pad_pane_id
     )));
 
-    let return_cmd = restore_parts.join("; ");
+    let return_cmd = format!("{} {}", PAD_RETURN_BINDING_MARKER, restore_parts.join("; "));
+    let run_shell_cmd = wrap_tmux_run_shell(&return_cmd);
 
     let _ = run_tmux_logged(
         "install_return_bindings.bind_f12",
@@ -238,7 +252,7 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
             "root".to_string(),
             "F12".to_string(),
             "run-shell".to_string(),
-            return_cmd.clone(),
+            run_shell_cmd.clone(),
         ],
     );
     let _ = run_tmux_logged(
@@ -249,16 +263,21 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
             "root".to_string(),
             "C-q".to_string(),
             "run-shell".to_string(),
-            return_cmd.clone(),
+            run_shell_cmd.clone(),
         ],
     );
 
-    log_debug!("install_return_bindings: return_cmd={}", return_cmd);
+    log_debug!(
+        "handoff trace={} stage=attach.return_cmd cmd={}",
+        trace_id,
+        run_shell_cmd
+    );
     should_zoom
 }
 
 /// Clean up F12/C-q root bindings and restore status bar — safety net for pad quit/crash.
 pub(super) fn restore_tmux_bindings(app: &mut App) {
+    let trace_id = app.same_session_trace_id.clone().unwrap_or_else(|| "-".to_string());
     let saved_f12 = app
         .saved_tmux_bindings
         .iter()
@@ -286,10 +305,14 @@ pub(super) fn restore_tmux_bindings(app: &mut App) {
             .output();
     }
 
-    log_debug!("restore_tmux_bindings: restored root bindings and status");
+    log_debug!(
+        "handoff trace={} stage=restore_tmux_bindings restored root bindings and status",
+        trace_id
+    );
     app.saved_tmux_bindings.clear();
     app.saved_tmux_status = None;
     app.saved_tmux_status_target = None;
+    app.same_session_trace_id = None;
 }
 
 fn current_root_binding(key: &str) -> Option<String> {
@@ -306,7 +329,17 @@ fn current_root_binding(key: &str) -> Option<String> {
         .lines()
         .map(str::trim)
         .find(|line| line.contains(&format!(" {} ", key)))
+        .filter(|line| !is_pad_managed_binding(line))
         .map(|line| line.to_string())
+}
+
+fn is_pad_managed_binding(line: &str) -> bool {
+    line.contains(PAD_RETURN_BINDING_MARKER)
+        || (line.contains("run-shell")
+            && line.contains("tmux select-window -t '")
+            && line.contains("tmux select-pane -t '")
+            && (line.contains("tmux switch-client -t '")
+                || line.contains("[return] before_return_select")))
 }
 
 fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> String {
@@ -319,10 +352,14 @@ fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+fn wrap_tmux_run_shell(script: &str) -> String {
+    format!("sh -lc {}", shell_single_quote(script))
+}
+
 fn shell_log_cmd(message: &str) -> String {
     let log_path = crate::paths::log_path().to_string_lossy().to_string();
     format!(
-        "printf '%s\\n' {} >> {}",
+        "printf '[%s] %s\\n' \"$(date '+%H:%M:%S')\" {} >> {}",
         shell_single_quote(&format!("[return] {}", message)),
         shell_single_quote(&log_path)
     )

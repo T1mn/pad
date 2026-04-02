@@ -209,7 +209,7 @@ fn draw_thread_meta_editor(f: &mut Frame, app: &App, area: Rect) {
 pub fn draw_help(f: &mut Frame, app: &App, area: Rect) {
     let theme = &app.theme;
     let l = app.locale;
-    let help_area = crate::ui::layout::popup_area(54, 30, area);
+    let help_area = crate::ui::layout::popup_area(68, 32, area);
 
     render_modal_surface(f, help_area, theme);
 

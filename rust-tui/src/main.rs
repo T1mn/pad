@@ -53,23 +53,26 @@ const PAD_BOOTSTRAP_ENV: &str = "PAD_TMUX_BOOTSTRAPPED";
 const PAD_DEFAULT_SESSION: &str = "pad";
 
 #[cfg(unix)]
-async fn shutdown_signal() {
+async fn shutdown_signal() -> &'static str {
     use tokio::signal::unix::{signal, SignalKind};
 
     let mut sigint = signal(SignalKind::interrupt()).expect("install SIGINT handler");
     let mut sigterm = signal(SignalKind::terminate()).expect("install SIGTERM handler");
     let mut sighup = signal(SignalKind::hangup()).expect("install SIGHUP handler");
+    let mut sigpipe = signal(SignalKind::pipe()).expect("install SIGPIPE handler");
 
     tokio::select! {
-        _ = sigint.recv() => {}
-        _ = sigterm.recv() => {}
-        _ = sighup.recv() => {}
+        _ = sigint.recv() => "SIGINT",
+        _ = sigterm.recv() => "SIGTERM",
+        _ = sighup.recv() => "SIGHUP",
+        _ = sigpipe.recv() => "SIGPIPE",
     }
 }
 
 #[cfg(not(unix))]
-async fn shutdown_signal() {
+async fn shutdown_signal() -> &'static str {
     let _ = tokio::signal::ctrl_c().await;
+    "CTRL_C"
 }
 
 fn should_restore_tmux_state(app: &App) -> bool {
@@ -313,7 +316,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         tokio::select! {
             res = &mut run_app => res,
-            _ = shutdown_signal() => {
+            signal = shutdown_signal() => {
+                log_debug!(
+                    "handoff trace=- stage=main.shutdown_signal signal={}",
+                    signal
+                );
                 log_debug!("收到终止信号，开始清理退出");
                 Ok(())
             }
@@ -336,9 +343,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     terminal.show_cursor()?;
 
     if let Err(ref err) = res {
+        log_debug!(
+            "handoff trace={} stage=main.exit result=error err={:?}",
+            app.same_session_trace_id.as_deref().unwrap_or("-"),
+            err
+        );
         log_debug!("退出错误: {:?}", err);
         println!("{:?}", err);
     } else {
+        log_debug!(
+            "handoff trace={} stage=main.exit result=ok",
+            app.same_session_trace_id.as_deref().unwrap_or("-")
+        );
         log_debug!("pad 正常退出");
     }
 

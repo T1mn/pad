@@ -15,11 +15,11 @@ pub(super) fn render_modal_surface(f: &mut Frame, area: Rect, theme: &Theme) {
         width: area.width.saturating_add(if area.x > 0 { 2 } else { 1 }),
         height: area.height.saturating_add(if area.y > 0 { 2 } else { 1 }),
     };
+    f.render_widget(Clear, overscan_area);
     f.render_widget(
         Block::default().style(Style::default().bg(modal_surface_bg(theme))),
         overscan_area,
     );
-    f.render_widget(Clear, area);
     let surface = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(modal_border(theme)))

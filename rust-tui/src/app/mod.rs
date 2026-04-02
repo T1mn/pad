@@ -57,6 +57,7 @@ pub struct App {
     pub should_quit: bool,
     pub dirty: bool,
     pub same_session_attached: bool,
+    pub same_session_trace_id: Option<String>,
     #[allow(dead_code)]
     pub pending_status_restore: bool,
     pub saved_tmux_bindings: Vec<String>,
@@ -137,6 +138,7 @@ impl App {
             should_quit: false,
             dirty: true,
             same_session_attached: false,
+            same_session_trace_id: None,
             pending_status_restore: false,
             saved_tmux_bindings: Vec::new(),
             saved_tmux_status: None,
@@ -253,4 +255,13 @@ pub(crate) fn unix_now_ts() -> i64 {
         .ok()
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or_default()
+}
+
+pub(crate) fn new_handoff_trace(prefix: &str) -> String {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    format!("{prefix}-{stamp}-{}", std::process::id())
 }
