@@ -26,8 +26,8 @@ jobs:
           [[ "${GITHUB_REF_TYPE}" == "tag" ]] || { echo "not a tag push"; exit 1; }
           tag_ver="${GITHUB_REF_NAME#v}"
           cargo_ver="$(grep -m1 '^version' rust-tui/Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')"
-          [[ "${tag_ver}" == "${cargo_ver}" ]] || {
-            echo "tag version ${tag_ver} != Cargo.toml ${cargo_ver}"
+          [[ "${tag_ver}" == "${cargo_ver}" || "${tag_ver}" =~ ^${cargo_ver}[-._][A-Za-z0-9._-]+$ ]] || {
+            echo "tag version ${tag_ver} is not compatible with Cargo.toml ${cargo_ver}"
             exit 1
           }
 

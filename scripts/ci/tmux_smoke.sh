@@ -90,6 +90,23 @@ wait_for_log() {
   return 1
 }
 
+wait_for_root_binding() {
+  local key="$1"
+  local needle="${2:-}"
+  local timeout="${3:-20}"
+  local i=0
+  local line=""
+  while [ "${i}" -lt "${timeout}" ]; do
+    line="$(tm list-keys -T root 2>/dev/null | awk "/ ${key} / { print; exit }")"
+    if [ -n "${line}" ] && { [ -z "${needle}" ] || grep -Fq "${needle}" <<<"${line}"; }; then
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
 if [ ! -x "${PAD_BIN}" ]; then
   echo "pad binary not found: ${PAD_BIN}" >&2
   exit 1
@@ -132,17 +149,15 @@ tm send-keys -t pad:0.0 Enter
 if ! wait_for_log "attach.cross_session: handoff complete" 20; then
   fail "pad did not complete cross-session attach"
 fi
-if ! wait_for_log "install_return_bindings: start" 20; then
+if ! wait_for_root_binding "F12" "PAD_RETURN_BINDING=1;" 20; then
   fail "pad did not install return bindings"
 fi
 
-return_cmd="$(tm list-keys -T root | awk '/ F12 / { sub(/^.*run-shell /, ""); print; exit }')"
+return_cmd="$(sed -n 's/^.*stage=attach\.return_cmd cmd=//p' "${LOG_FILE}" | tail -n 1)"
 if [ -z "${return_cmd}" ]; then
-  fail "missing F12 return binding"
+  fail "missing logged return command"
 fi
-return_cmd="${return_cmd#\"}"
-return_cmd="${return_cmd%\"}"
-tm run-shell "${return_cmd}"
+eval "${return_cmd}"
 
 if ! wait_for_log "[return] after_return_select" 20; then
   fail "pad did not return to the original pane"
