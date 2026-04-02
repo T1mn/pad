@@ -2,13 +2,48 @@
   <h1>PAD</h1>
   <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
   <p><code>pad</code> = Panel for Agent Development.</p>
-  <p>Pure Rust. Tmux-native. Built for terminal agents.</p>
-  <p>See what moved, preview the latest turn, and jump into the right pane fast.</p>
-  <p>Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
 If you already keep more than one agent session open in tmux, PAD starts paying for itself almost immediately.
+
+## TL;DR
+
+- Pure Rust. Tmux-native. Built for terminal agents.
+- See what moved, read preview first, then jump into the right pane.
+- Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.
+
+## Install
+
+Requires: `tmux` at runtime.
+
+Supported runtime environments:
+
+- macOS
+- Linux
+- WSL2
+
+```bash
+# One-line installer
+curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
+
+# Or from a local clone
+git clone https://github.com/T1mn/pad.git
+cd pad
+./install.sh
+```
+
+The installer tries a pre-built release first, falls back to a source build if needed, and will offer to install `tmux` automatically when it is missing.
+
+Manual source build:
+
+```bash
+cd pad/rust-tui
+cargo build --profile dist
+cp target/dist/pad ~/.local/bin/
+```
+
+PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On WSL2, install and run both inside WSL.
 
 ## Demo
 
@@ -127,38 +162,6 @@ Help keeps the keyboard model discoverable inside the UI, so you do not have to 
 - File tree browsing with file preview
 - Theme switching
 - Agent launcher from the tree view
-
-## Install
-
-Requires: `tmux` at runtime.
-
-Supported runtime environments:
-
-- macOS
-- Linux
-- WSL2
-
-```bash
-# One-line installer
-curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
-
-# Or from a local clone
-git clone https://github.com/T1mn/pad.git
-cd pad
-./install.sh
-```
-
-The installer tries a pre-built release first, falls back to a source build if needed, and will offer to install `tmux` automatically when it is missing.
-
-Manual source build:
-
-```bash
-cd pad/rust-tui
-cargo build --profile dist
-cp target/dist/pad ~/.local/bin/
-```
-
-PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On WSL2, install and run both inside WSL.
 
 ## Usage
 
