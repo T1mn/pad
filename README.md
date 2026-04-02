@@ -197,7 +197,7 @@ Release and platform notes:
 | `Space` | Expand/collapse directory |
 | `Space` twice | Expand/collapse all session folders |
 | `c` | Create new session |
-| `d` | Delete panel |
+| `d` | Delete pane and hide thread in PAD |
 | `r` | Refresh |
 | `Ctrl+F` | Search panels |
 | `/` | Open settings |
