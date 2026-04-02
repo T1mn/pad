@@ -2,13 +2,49 @@
   <h1>PAD</h1>
   <p><strong>别再来回找 pane 了。在一个地方跑完整个 AI 工作流。</strong></p>
   <p><code>pad</code> = Panel for Agent Development。</p>
-  <p>纯 Rust 打造，原生基于 tmux，专为终端智能体而生。</p>
-  <p>看清谁动了，先读 preview，再进对的 pane。</p>
-  <p>当前 macOS 实测：dist 二进制约 3.7 MB，空闲运行时约 12 MB RSS。</p>
   <p><a href="README.md">English</a> | 中文</p>
 </div>
 
 如果你平时会在 tmux 里同时开两个以上 agent session，PAD 基本很快就能派上用场。
+
+## 一句话总结（太长不看）
+
+- 纯 Rust 打造，原生基于 tmux，专为终端智能体而生。
+- 看清谁动了，先读 preview，再进对的 pane。
+- 当前 macOS 实测：dist 二进制约 3.7 MB，空闲运行时约 12 MB RSS。
+
+## 安装
+
+运行时依赖：`tmux`
+
+支持的运行环境：
+
+- macOS
+- Linux
+- WSL2
+
+```bash
+# 一行安装
+curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
+
+# 或者从本地 clone 安装
+git clone https://github.com/T1mn/pad.git
+cd pad
+./install.sh
+```
+
+安装脚本会优先尝试下载预编译 release，失败后再回退到源码构建；如果系统里没有 `tmux`，它也会提示你自动安装。
+
+手动源码构建：
+
+```bash
+cd pad/rust-tui
+cargo build --profile dist
+cp target/dist/pad ~/.local/bin/
+```
+
+PAD 是 tmux-first 的工具。`pad` 和 `tmux` 需要运行在同一个环境里。  
+如果你在 WSL2 下使用，请确保两者都安装并运行在 WSL 内部。
 
 ## 演示
 
@@ -127,39 +163,6 @@ Help 把键盘模型直接放在 UI 里，不需要你切出去翻文档。
 - 文件树浏览和文件预览
 - 主题切换
 - 从目录树直接启动 agent session
-
-## 安装
-
-运行时依赖：`tmux`
-
-支持的运行环境：
-
-- macOS
-- Linux
-- WSL2
-
-```bash
-# 一行安装
-curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
-
-# 或者从本地 clone 安装
-git clone https://github.com/T1mn/pad.git
-cd pad
-./install.sh
-```
-
-安装脚本会优先尝试下载预编译 release，失败后再回退到源码构建；如果系统里没有 `tmux`，它也会提示你自动安装。
-
-手动源码构建：
-
-```bash
-cd pad/rust-tui
-cargo build --profile dist
-cp target/dist/pad ~/.local/bin/
-```
-
-PAD 是 tmux-first 的工具。`pad` 和 `tmux` 需要运行在同一个环境里。  
-如果你在 WSL2 下使用，请确保两者都安装并运行在 WSL 内部。
 
 ## 使用
 
