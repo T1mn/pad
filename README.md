@@ -1,16 +1,18 @@
 <div align="center">
   <h1>PAD</h1>
-  <p><strong>Stop hunting panes. Run your AI workflow from one place.</strong></p>
+  <p><strong>One workspace for multiple AI agents in tmux.</strong></p>
   <p><code>pad</code> = Panel for Agent Development.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
-If you already keep more than one agent session open in tmux, PAD starts paying for itself almost immediately.
+PAD gives you one place to manage Codex, Claude Code, Gemini, and other terminal agents.
+You can see which session moved, read recent conversation history, and only then jump into the right pane.
 
 ## TL;DR
 
+- Manage multiple AI agent sessions from one workspace.
+- Read recent conversation history before you attach to a pane.
 - Pure Rust. Tmux-native. Built for terminal agents.
-- See what moved, read preview first, then jump into the right pane.
 - Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.
 
 ## Install
@@ -51,8 +53,8 @@ PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On W
 
 What this looks like in practice:
 
-- Scan live sessions from the left tree without hunting through tmux panes
-- Read the latest preview on the right before you attach
+- Manage multiple agents in one workspace instead of hunting across tmux panes
+- Read the latest preview and recent turns on the right before you attach
 - Hit `Tab` to open the latest detail view and `Shift+J` / `Shift+K` to move across Q&A turns
 - Create a fresh session with `c`, send work, then jump back to PAD with `F12`
 - Use the activity indicator to see which session is still running in the background
@@ -63,12 +65,13 @@ If your Markdown viewer does not render inline video, open the [demo video](http
 
 The usual tmux workflow breaks down in a very boring way:
 
+- I have Codex, Claude Code, and Gemini open. Which one actually moved?
 - Which pane moved last?
 - Which session is still working?
-- Do I need to attach, or is the answer already in preview?
+- Do I need to attach, or is the answer already visible in recent history?
 - If I archive this thread, am I hiding it or actually deleting something?
 
-PAD gives you one place to scan, preview, attach, archive, and jump back out without losing your place.
+PAD gives you one workspace to scan, preview, attach, archive, and jump back out without losing your place.
 
 ## 30-Second Workflow
 
@@ -79,8 +82,8 @@ PAD gives you one place to scan, preview, attach, archive, and jump back out wit
 
 ## Core Features
 
-- One sidebar for live panes and recent session history
-- Read the latest turns before you attach
+- One workspace view for live Codex, Claude Code, Gemini, and other agent sessions
+- See recent session history and latest turns without entering the pane
 - Pure Rust TUI with a small footprint and quick session-aware previews
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
