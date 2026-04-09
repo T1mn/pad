@@ -35,7 +35,7 @@ cd pad
 ./install.sh
 ```
 
-The installer tries a pre-built release first, validates that the downloaded binary can run on the current machine, and falls back to a local source build when needed. It also installs `tmux` automatically when missing, and will bootstrap Rust plus common build tools when a source build is required.
+The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. It also installs `tmux` automatically when missing, and will bootstrap Rust plus common build tools when a source build is required.
 
 Manual source build:
 
@@ -179,6 +179,13 @@ Release and platform notes:
 
 - [Platform Support](docs/platform-support.md)
 - [Release Checklist](docs/release-checklist.md)
+
+Linux release assets are published in separate families:
+
+- `pad-*-linux-x86_64-glibc-2.35.tar.gz`
+- `pad-*-linux-aarch64-glibc-2.35.tar.gz`
+- `pad-*-linux-x86_64-musl.tar.gz`
+- `pad-*-linux-aarch64-musl.tar.gz`
 
 ## Key Bindings
 

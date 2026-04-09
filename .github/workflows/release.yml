@@ -77,12 +77,12 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64.tar.gz -C target/dist pad
+          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64-glibc-2.35.tar.gz -C target/dist pad
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-x86_64
+          name: linux-x86_64-glibc-2.35
           path: rust-tui/dist/*.tar.gz
 
   build-linux-arm64:
@@ -117,12 +117,92 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64.tar.gz -C target/aarch64-unknown-linux-gnu/dist pad
+          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64-glibc-2.35.tar.gz -C target/aarch64-unknown-linux-gnu/dist pad
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-aarch64
+          name: linux-aarch64-glibc-2.35
+          path: rust-tui/dist/*.tar.gz
+
+  build-linux-musl:
+    needs: tag-check
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-tui -> target
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build
+        run: cross build --profile dist --target x86_64-unknown-linux-musl
+
+      - name: Smoke packaged binary
+        run: |
+          ./target/x86_64-unknown-linux-musl/dist/pad --help
+          ./target/x86_64-unknown-linux-musl/dist/pad --version
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64-musl.tar.gz -C target/x86_64-unknown-linux-musl/dist pad
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-musl
+          path: rust-tui/dist/*.tar.gz
+
+  build-linux-musl-arm64:
+    needs: tag-check
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-tui -> target
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build
+        run: cross build --profile dist --target aarch64-unknown-linux-musl
+
+      - name: Inspect packaged binary
+        run: file ./target/aarch64-unknown-linux-musl/dist/pad
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64-musl.tar.gz -C target/aarch64-unknown-linux-musl/dist pad
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64-musl
           path: rust-tui/dist/*.tar.gz
 
   build-macos:
@@ -192,6 +272,8 @@ jobs:
     needs:
       - build-linux
       - build-linux-arm64
+      - build-linux-musl
+      - build-linux-musl-arm64
       - build-macos
     runs-on: ubuntu-latest
     steps:
@@ -217,8 +299,10 @@ jobs:
             `pad` requires `tmux` at runtime. On WSL2, install and run both `tmux` and `pad` inside WSL.
 
             ### Manual download
-            - Linux x86_64: `pad-*-linux-x86_64.tar.gz`
-            - Linux ARM64: `pad-*-linux-aarch64.tar.gz`
+            - Linux x86_64 (glibc 2.35): `pad-*-linux-x86_64-glibc-2.35.tar.gz`
+            - Linux ARM64 (glibc 2.35): `pad-*-linux-aarch64-glibc-2.35.tar.gz`
+            - Linux x86_64 (musl): `pad-*-linux-x86_64-musl.tar.gz`
+            - Linux ARM64 (musl): `pad-*-linux-aarch64-musl.tar.gz`
             - macOS universal: `pad-*-macos-universal.tar.gz`
 
             ```bash

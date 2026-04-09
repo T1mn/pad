@@ -15,8 +15,10 @@ PAD (`pad`) is tested for:
 
 ## Supported release targets
 
-- Linux x86_64
-- Linux aarch64
+- Linux x86_64 (glibc 2.35)
+- Linux aarch64 (glibc 2.35)
+- Linux x86_64 (musl)
+- Linux aarch64 (musl)
 - macOS universal
 
 ## Current non-goals

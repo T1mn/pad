@@ -61,6 +61,52 @@ get_os() {
   esac
 }
 
+get_linux_libc() {
+  if [ "$(get_os)" != "linux" ]; then
+    echo "unknown"
+    return 0
+  fi
+
+  if check_command ldd; then
+    local ldd_output
+    ldd_output="$(ldd --version 2>&1 || true)"
+    case "$ldd_output" in
+      *musl*) echo "musl"; return 0 ;;
+      *"GNU libc"*|*GLIBC*|*glibc*) echo "glibc"; return 0 ;;
+    esac
+  fi
+
+  if getconf GNU_LIBC_VERSION >/dev/null 2>&1; then
+    echo "glibc"
+  else
+    echo "unknown"
+  fi
+}
+
+get_glibc_version() {
+  local version=""
+
+  version="$(getconf GNU_LIBC_VERSION 2>/dev/null | sed -n 's/.* \([0-9][0-9.]*\)$/\1/p' | head -n1 || true)"
+  if [ -n "$version" ]; then
+    echo "$version"
+    return 0
+  fi
+
+  if check_command ldd; then
+    version="$(ldd --version 2>&1 | sed -n '1{s/.* \([0-9][0-9.]*\)$/\1/p;q;}')"
+    if [ -n "$version" ]; then
+      echo "$version"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+version_lt() {
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ] && [ "$1" != "$2" ]
+}
+
 normalize_version() {
   local value="$1"
   if [ "$value" = "latest" ]; then
@@ -129,6 +175,51 @@ release_download_url() {
   local filename="$2"
   local base="${RELEASE_BASE_URL%/}"
   echo "${base}/${version}/${filename}"
+}
+
+release_filenames_for_platform() {
+  local version="$1"
+  local os arch libc_family glibc_version
+
+  os="$(get_os)"
+  arch="$(get_arch)"
+
+  if [ "$arch" = "unsupported" ] || [ "$os" = "unsupported" ]; then
+    return 1
+  fi
+
+  if [ "$os" = "macos" ]; then
+    printf '%s\n' "pad-${version}-macos-universal.tar.gz"
+    return 0
+  fi
+
+  libc_family="$(get_linux_libc)"
+  case "$libc_family" in
+    musl)
+      printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
+      return 0
+      ;;
+    glibc)
+      glibc_version="$(get_glibc_version || true)"
+      if [ -n "$glibc_version" ] && version_lt "$glibc_version" "2.35"; then
+        printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+        printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
+        printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
+        return 0
+      fi
+      printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
+      return 0
+      ;;
+    *)
+      printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
+      return 0
+      ;;
+  esac
 }
 
 validate_installed_binary() {
@@ -421,7 +512,7 @@ install_from_binary() {
     return 1
   fi
 
-  local os arch version filename url tmp_dir
+  local os arch version filename url tmp_dir libc_family runtime_note
   os="$(get_os)"
   arch="$(get_arch)"
 
@@ -429,39 +520,50 @@ install_from_binary() {
     return 1
   fi
 
-  if [ "$os" = "macos" ]; then
-    arch="universal"
-  fi
-
   if ! version="$(resolved_release_version)"; then
     warn "  Could not resolve latest release version"
     return 1
   fi
 
-  filename="pad-${version}-${os}-${arch}.tar.gz"
-  url="$(release_download_url "${version}" "${filename}")"
-
   say "${BLUE}Trying to download pre-built binary...${NC}"
-  say "  Platform: ${os}/${arch}"
+  if [ "$os" = "linux" ]; then
+    libc_family="$(get_linux_libc)"
+    runtime_note="${libc_family}"
+    if [ "$libc_family" = "glibc" ]; then
+      runtime_note="${runtime_note} $(get_glibc_version || echo unknown)"
+    fi
+    say "  Platform: ${os}/${arch}"
+    say "  Runtime:  ${runtime_note}"
+  else
+    say "  Platform: ${os}/universal"
+  fi
   say "  Version:  ${version}"
-  say "  URL:      ${url}"
 
-  tmp_dir="$(mktemp -d)"
-  TEMP_DIRS+=("${tmp_dir}")
+  while IFS= read -r filename; do
+    [ -n "$filename" ] || continue
+    url="$(release_download_url "${version}" "${filename}")"
+    say "  Trying:   ${filename}"
 
-  if ! curl -fsSL "$url" -o "${tmp_dir}/pad.tar.gz" 2>/dev/null; then
-    warn "  Download failed (artifact may not exist for this platform/version)"
-    return 1
-  fi
+    tmp_dir="$(mktemp -d)"
+    TEMP_DIRS+=("${tmp_dir}")
 
-  tar -xzf "${tmp_dir}/pad.tar.gz" -C "${tmp_dir}"
-  mkdir -p "${INSTALL_DIR}"
-  mv "${tmp_dir}/pad" "${INSTALL_DIR}/pad"
-  chmod +x "${INSTALL_DIR}/pad"
-  if ! validate_installed_binary "${INSTALL_DIR}/pad"; then
-    return 1
-  fi
-  ok "✓ Installed binary to ${INSTALL_DIR}/pad"
+    if ! curl -fsSL "$url" -o "${tmp_dir}/pad.tar.gz" 2>/dev/null; then
+      warn "  Download failed for ${filename}"
+      continue
+    fi
+
+    tar -xzf "${tmp_dir}/pad.tar.gz" -C "${tmp_dir}"
+    mkdir -p "${INSTALL_DIR}"
+    mv "${tmp_dir}/pad" "${INSTALL_DIR}/pad"
+    chmod +x "${INSTALL_DIR}/pad"
+    if ! validate_installed_binary "${INSTALL_DIR}/pad"; then
+      continue
+    fi
+    ok "✓ Installed binary to ${INSTALL_DIR}/pad"
+    return 0
+  done < <(release_filenames_for_platform "${version}")
+
+  return 1
 }
 
 download_source_tree() {
