@@ -33,7 +33,7 @@ cd pad
 ./install.sh
 ```
 
-安装脚本会优先尝试下载预编译 release，并验证下载的二进制能否在当前机器上运行；如果不兼容，则会提示后回退到本地源码构建。系统里缺少 `tmux` 时，它也会提示你自动安装；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
+安装脚本会优先尝试下载预编译 release，并在 Linux 上按运行时环境优先选择匹配的 glibc 或 musl 包；下载后还会验证二进制能否在当前机器上运行。只有在没有可用预编译包时，才会提示后回退到本地源码构建。系统里缺少 `tmux` 时，它也会提示你自动安装；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
 
 手动源码构建：
 
@@ -177,6 +177,13 @@ pad telegram-bot # 启动 Telegram Bot 守护进程
 
 - [平台支持说明](docs/platform-support.md)
 - [发布检查清单](docs/release-checklist.md)
+
+Linux 发布产物现在按运行时家族分开：
+
+- `pad-*-linux-x86_64-glibc-2.35.tar.gz`
+- `pad-*-linux-aarch64-glibc-2.35.tar.gz`
+- `pad-*-linux-x86_64-musl.tar.gz`
+- `pad-*-linux-aarch64-musl.tar.gz`
 
 ## 快捷键
 
