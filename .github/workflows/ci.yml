@@ -210,7 +210,7 @@ jobs:
           - name: rockylinux-9
             image: rockylinux:9
             bootstrap: |
-              dnf install -y bash curl ca-certificates sudo tar gzip xz sed
+              dnf install -y bash ca-certificates sudo tar gzip xz sed
           - name: fedora-41
             image: fedora:41
             bootstrap: |
