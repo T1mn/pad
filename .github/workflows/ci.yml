@@ -238,7 +238,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-prebuilt-fixtures
-          path: ${{ github.workspace }}
+          path: ${{ github.workspace }}/pad-release-fixtures
 
       - name: Docker installer smoke
         env:
