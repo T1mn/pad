@@ -105,7 +105,7 @@ impl App {
             if let Some(snapshot) = persisted_snapshot.as_ref() {
                 panel.agent_session_id = Some(snapshot.agent_session_id.clone());
                 panel.transcript_path = snapshot.transcript_path.clone();
-                panel.cached_preview_turns = snapshot.recent_turns.clone();
+                panel.cached_preview_turns = snapshot.recent_turns.clone().into();
                 panel.last_user_prompt = snapshot.last_user_prompt.clone();
                 panel.last_assistant_message = snapshot.last_assistant_message.clone();
                 panel.session_cache_state = Some(SessionCacheState::Confirmed);
@@ -700,7 +700,7 @@ mod tests {
             state: AgentState::Busy,
             state_source: AgentStateSource::Scanner,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,
@@ -733,7 +733,7 @@ mod tests {
             state: AgentState::Waiting,
             state_source: AgentStateSource::Hook,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,
@@ -814,7 +814,7 @@ mod tests {
             state: AgentState::Idle,
             state_source: AgentStateSource::Scanner,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,

@@ -227,14 +227,14 @@ impl App {
         let previous_view = self.preview.view;
         let previous_session_origin = self.preview.session_origin;
         let previous_session_id = self.preview.session_id.clone();
-        let previous_content = self.preview.content.clone();
-        let previous_turns = self.preview.turns.clone();
         let previous_selected_turn = self.preview.selected_turn;
         let previous_expanded_turn = self.preview.expanded_turn;
         let previous_list_scroll = self.preview.list_scroll;
         let previous_detail_scroll = self.preview.detail_scroll;
         let previous_follow_bottom = self.preview.follow_bottom;
         let previous_follow_selection = self.preview.follow_selection;
+        let content_changed = self.preview.content != update.content;
+        let turns_changed = self.preview.turns != update.turns;
         let should_follow_bottom = self.preview.follow_bottom
             || self.preview.pane_id.is_none()
             || self.preview.pane_id.as_deref() != Some(update.target_key.as_str());
@@ -273,7 +273,7 @@ impl App {
             self.preview.turns = update.turns.clone();
             self.preview.follow_bottom = false;
         } else {
-            self.preview.turns.clear();
+            self.preview.turns = Default::default();
             self.preview.session_origin = None;
             self.preview.session_id = None;
             self.preview.selected_turn = None;
@@ -382,8 +382,8 @@ impl App {
             || previous_view != self.preview.view
             || previous_session_origin != self.preview.session_origin
             || previous_session_id != self.preview.session_id
-            || previous_content != self.preview.content
-            || previous_turns != self.preview.turns
+            || content_changed
+            || turns_changed
             || previous_selected_turn != self.preview.selected_turn
             || previous_expanded_turn != self.preview.expanded_turn
             || previous_list_scroll != self.preview.list_scroll
@@ -723,7 +723,7 @@ mod tests {
             state,
             state_source: source,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,

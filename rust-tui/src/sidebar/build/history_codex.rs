@@ -81,7 +81,7 @@ pub(super) fn build_codex_history_entry(
         git_info: None,
         state: AgentState::Idle,
         is_active: false,
-        cached_preview_turns: Vec::new(),
+        cached_preview_turns: Default::default(),
         session_cache_state: None,
         last_user_prompt: None,
         last_assistant_message: None,
@@ -106,7 +106,7 @@ fn apply_session_cache_snapshot(thread: &mut SidebarThread, snapshot: &SessionCa
     }
 
     if !snapshot.recent_turns.is_empty() {
-        thread.cached_preview_turns = snapshot.recent_turns.clone();
+        thread.cached_preview_turns = snapshot.recent_turns.clone().into();
     }
 
     if let Some(prompt) = snapshot

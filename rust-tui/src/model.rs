@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::ops::Deref;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,6 +119,45 @@ pub struct PreviewTurn {
     pub answer: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SharedPreviewTurns(Arc<[PreviewTurn]>);
+
+impl SharedPreviewTurns {
+    pub fn to_vec(&self) -> Vec<PreviewTurn> {
+        self.0.as_ref().to_vec()
+    }
+
+    pub fn shares_allocation_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Default for SharedPreviewTurns {
+    fn default() -> Self {
+        Self(Arc::from([]))
+    }
+}
+
+impl From<Vec<PreviewTurn>> for SharedPreviewTurns {
+    fn from(turns: Vec<PreviewTurn>) -> Self {
+        Self(turns.into())
+    }
+}
+
+impl Deref for SharedPreviewTurns {
+    type Target = [PreviewTurn];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<[PreviewTurn]> for SharedPreviewTurns {
+    fn as_ref(&self) -> &[PreviewTurn] {
+        self.0.as_ref()
+    }
+}
+
 impl AgentState {
     pub fn icon(&self, animation_frame: usize) -> &'static str {
         match self {
@@ -151,7 +192,7 @@ pub struct AgentPanel {
     pub state: AgentState,
     pub state_source: AgentStateSource,
     pub transcript_path: Option<String>,
-    pub cached_preview_turns: Vec<PreviewTurn>,
+    pub cached_preview_turns: SharedPreviewTurns,
     pub session_cache_state: Option<SessionCacheState>,
     pub git_info: Option<GitInfo>,
     pub pid: Option<String>,
@@ -269,5 +310,23 @@ fn format_duration(secs: u64) -> String {
         format!("{}h", secs / 3600)
     } else {
         format!("{}d", secs / 86400)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PreviewTurn, SharedPreviewTurns};
+
+    #[test]
+    fn shared_preview_turns_clone_reuses_allocation() {
+        let turns = SharedPreviewTurns::from(vec![PreviewTurn {
+            question: "hello".into(),
+            answer: Some("world".into()),
+        }]);
+        let cloned = turns.clone();
+
+        assert!(turns.shares_allocation_with(&cloned));
+        assert_eq!(cloned[0].question, "hello");
+        assert_eq!(cloned[0].answer.as_deref(), Some("world"));
     }
 }

@@ -56,7 +56,7 @@ pub(super) fn merge_gemini_threads(
             git_info: None,
             state: AgentState::Idle,
             is_active: false,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: thread.last_user_message.clone(),
             last_assistant_message: thread.last_assistant_message.clone(),

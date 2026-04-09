@@ -284,7 +284,7 @@ mod tests {
             git_info: None,
             state: AgentState::Idle,
             is_active: false,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: Some("latest prompt".into()),
             last_assistant_message: Some("latest answer".into()),

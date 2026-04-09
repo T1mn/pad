@@ -30,7 +30,7 @@ mod cases {
             state: AgentState::Idle,
             state_source: AgentStateSource::Scanner,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,

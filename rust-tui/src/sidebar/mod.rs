@@ -10,8 +10,8 @@ pub use build::{build_sidebar_folders, thread_from_live_panel};
 pub use display::{best_thread_title, clean_title, folder_display_label};
 #[allow(unused_imports)]
 pub use model::{
-    thread_sort_activity_keys, SidebarFolder, SidebarItem, SidebarThread, ThreadActivityOverride,
-    ThreadRuntimeSource,
+    thread_sort_activity_keys, SidebarFolder, SidebarFolderSummary, SidebarItem, SidebarThread,
+    ThreadActivityOverride, ThreadRuntimeSource,
 };
 #[allow(unused_imports)]
 pub use search::build_visible_sidebar_items;

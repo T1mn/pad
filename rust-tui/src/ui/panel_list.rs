@@ -388,7 +388,7 @@ mod tests {
             state: crate::model::AgentState::Busy,
             state_source: crate::model::AgentStateSource::Scanner,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,
@@ -448,14 +448,17 @@ mod tests {
             git_info: None,
             state: crate::model::AgentState::Idle,
             is_active: false,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: None,
             last_assistant_message: None,
             has_unread_stop: false,
             archived: false,
         };
-        let items = vec![SidebarItem::Folder(folder), SidebarItem::Thread(thread)];
+        let items = vec![
+            SidebarItem::Folder(folder.summary()),
+            SidebarItem::Thread(thread),
+        ];
 
         assert_eq!(visible_thread_count(&items), 1);
     }
@@ -493,14 +496,14 @@ mod tests {
             git_info: None,
             state: crate::model::AgentState::Idle,
             is_active: false,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: None,
             last_assistant_message: None,
             has_unread_stop: false,
             archived: false,
         };
-        let mut items = vec![SidebarItem::Folder(folder.clone())];
+        let mut items = vec![SidebarItem::Folder(folder.summary())];
         for index in 1..=10 {
             items.push(SidebarItem::Thread(thread(index)));
         }

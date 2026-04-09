@@ -37,7 +37,7 @@ pub(super) fn apply_snapshot_to_panel(panel: &mut AgentPanel, snapshot: &Session
         normalize_snapshot_prompt(snapshot.last_user_prompt.as_deref(), &panel.agent_type);
     panel.agent_session_id = Some(snapshot.agent_session_id.clone());
     panel.transcript_path = snapshot.transcript_path.clone();
-    panel.cached_preview_turns = recent_turns.clone();
+    panel.cached_preview_turns = recent_turns.clone().into();
     panel.last_user_prompt = last_user_prompt;
     panel.last_assistant_message = snapshot.last_assistant_message.clone();
     panel.session_cache_state = Some(snapshot.state);

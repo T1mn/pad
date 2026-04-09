@@ -1,5 +1,5 @@
 use crate::model::{
-    AgentState, AgentType, GitInfo, PreviewSessionOrigin, PreviewTurn, SessionCacheState,
+    AgentState, AgentType, GitInfo, PreviewSessionOrigin, SessionCacheState, SharedPreviewTurns,
 };
 
 #[allow(dead_code)]
@@ -47,7 +47,7 @@ pub struct SidebarThread {
     pub git_info: Option<GitInfo>,
     pub state: AgentState,
     pub is_active: bool,
-    pub cached_preview_turns: Vec<PreviewTurn>,
+    pub cached_preview_turns: SharedPreviewTurns,
     pub session_cache_state: Option<SessionCacheState>,
     pub last_user_prompt: Option<String>,
     pub last_assistant_message: Option<String>,
@@ -64,10 +64,20 @@ pub struct SidebarFolder {
     pub threads: Vec<SidebarThread>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SidebarFolderSummary {
+    pub key: String,
+    pub path: String,
+    pub label: String,
+    pub updated_at: i64,
+    pub thread_count: usize,
+    pub has_unread_stop: bool,
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SidebarItem {
-    Folder(SidebarFolder),
+    Folder(SidebarFolderSummary),
     Thread(SidebarThread),
 }
 
@@ -107,6 +117,17 @@ impl SidebarThread {
 }
 
 impl SidebarFolder {
+    pub fn summary(&self) -> SidebarFolderSummary {
+        SidebarFolderSummary {
+            key: self.key.clone(),
+            path: self.path.clone(),
+            label: self.label.clone(),
+            updated_at: self.updated_at,
+            thread_count: self.threads.len(),
+            has_unread_stop: self.threads.iter().any(|thread| thread.has_unread_stop),
+        }
+    }
+
     pub fn primary_thread(&self) -> Option<SidebarThread> {
         self.threads
             .iter()
@@ -133,7 +154,7 @@ impl SidebarItem {
         }
     }
 
-    pub fn as_folder(&self) -> Option<&SidebarFolder> {
+    pub fn as_folder(&self) -> Option<&SidebarFolderSummary> {
         match self {
             SidebarItem::Folder(folder) => Some(folder),
             _ => None,
