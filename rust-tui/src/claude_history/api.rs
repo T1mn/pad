@@ -1,4 +1,7 @@
-use super::db::{mutate_thread_archive_state_at, query_thread_for_id_at, query_threads_at, upsert_hook_session_at};
+use super::db::{
+    mutate_thread_archive_state_at, query_thread_for_id_at, query_threads_at,
+    upsert_hook_session_at,
+};
 use super::model::{ClaudeThreadRef, ThreadArchiveFilter, CLAUDE_INDEX_DB_FILE};
 use super::scan::sync_index_at;
 use std::io;

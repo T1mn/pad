@@ -648,6 +648,7 @@ mod tests {
     fn stop_event(pane_id: &str) -> HookEvent {
         HookEvent {
             event: "stop".into(),
+            turn_id: Some("turn-1".into()),
             session_id: Some("session-1".into()),
             transcript_path: None,
             cwd: None,
@@ -667,6 +668,7 @@ mod tests {
     fn submit_event(pane_id: Option<&str>) -> HookEvent {
         HookEvent {
             event: "user_prompt_submit".into(),
+            turn_id: Some("turn-1".into()),
             session_id: Some("session-1".into()),
             transcript_path: None,
             cwd: Some("/tmp/demo".into()),

@@ -1,9 +1,9 @@
-use super::*;
 use super::helpers::{
     archive_deleted_thread, delete_failed_title, delete_hide_failed_title, failure_toast_title,
     parse_thread_tags, success_toast_title, thread_action_subject, thread_meta_save_failed_title,
     thread_meta_toast,
 };
+use super::*;
 
 impl App {
     pub fn delete_panel(&mut self, panel: &crate::model::AgentPanel) {

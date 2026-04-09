@@ -50,8 +50,7 @@ impl App {
             .iter()
             .map(|a| (a.name.clone(), a.cmd.clone()))
             .collect();
-        self.sidebar.agent_launcher =
-            Some(AgentLauncher::with_agents(target_dir, agent_tuples));
+        self.sidebar.agent_launcher = Some(AgentLauncher::with_agents(target_dir, agent_tuples));
         self.mode = Mode::AgentLauncher;
         self.dirty = true;
     }

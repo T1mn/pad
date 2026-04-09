@@ -107,21 +107,8 @@ pub(super) async fn process_direct_hook_event(
 
     match event.event.as_str() {
         "user_prompt_submit" => {
-            let matches_prompt = event
-                .prompt
-                .as_deref()
-                .map(|prompt| {
-                    format!("{:x}", md5::compute(prompt.as_bytes())) == pending_snapshot.prompt_hash
-                })
-                .unwrap_or(true);
-            if matches_prompt {
-                if let Some(pending) = state.pending.as_mut() {
-                    pending.phase = "awaiting_stop".to_string();
-                    pending.accepted_at = Some(now_ts());
-                    if event.transcript_path.is_some() {
-                        pending.transcript_path = event.transcript_path.clone();
-                    }
-                }
+            if pending_matches_submit_prompt(&pending_snapshot, event) {
+                advance_pending_to_awaiting_stop(state.pending.as_mut(), event, false);
                 refresh_pending_feedback(&config, &mut state, true);
                 save_state(&state)?;
                 log_debug!(
@@ -132,30 +119,20 @@ pub(super) async fn process_direct_hook_event(
             }
         }
         "stop" => {
-            let answer = event
-                .last_assistant_message
-                .clone()
-                .filter(|text| !text.trim().is_empty())
-                .or_else(|| latest_answer_for_pane(&pending_snapshot.pane_id));
-            let request_id = pending_snapshot.request_id.clone();
-            let chat_id = pending_snapshot.chat_id.clone();
-            finalize_pending_feedback(&config, &pending_snapshot, tg(locale, "phase.completed"));
-            state.pending = None;
+            if !hook_event_matches_pending_turn(&pending_snapshot, event) {
+                log_debug!(
+                    "telegram: ignored stop for pane={} pending_turn={:?} event_turn={:?}",
+                    pane_id,
+                    pending_snapshot.turn_id,
+                    event.turn_id
+                );
+                return Ok(());
+            }
+            let completion =
+                complete_pending_request(&config, &mut state, &pending_snapshot, event, locale)
+                    .await;
             save_state(&state)?;
-            let result_text = answer.unwrap_or_else(|| tg(locale, "result.missing").to_string());
-            send_text(
-                &config.telegram.bot_token,
-                &chat_id,
-                &tg_fmt2(locale, "result.completed", &request_id, result_text),
-            )
-            .await
-            .map_err(|err| io::Error::other(err.to_string()))?;
-            log_debug!(
-                "telegram: direct hook completed request {} total_ms={} run_ms={}",
-                request_id,
-                now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot)),
-                now_ms_i64().saturating_sub(pending_accepted_ms(&pending_snapshot))
-            );
+            log_pending_completion("direct hook", &pending_snapshot, &completion);
         }
         _ => {}
     }
@@ -233,9 +210,10 @@ pub(super) fn remember_processed_hook_event(state: &mut TelegramState, event: &H
 
 fn hook_event_signature(event: &HookEvent) -> String {
     format!(
-        "{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}",
         event.event,
         event.tmux.pane_id.as_deref().unwrap_or(""),
+        event.turn_id.as_deref().unwrap_or(""),
         event.timestamp.as_deref().unwrap_or(""),
         event.session_id.as_deref().unwrap_or(""),
         event
@@ -268,29 +246,15 @@ pub(super) async fn apply_hook_event_to_pending(
     config: &Config,
     state: &mut TelegramState,
     event: &HookEvent,
-) -> Result<bool, Box<dyn std::error::Error>> {
+) -> TelegramResult<bool> {
     let locale = telegram_locale(config);
     let Some(pending_snapshot) = state.pending.as_ref().cloned() else {
         return Ok(true);
     };
     match event.event.as_str() {
         "user_prompt_submit" => {
-            let matches_prompt = event
-                .prompt
-                .as_deref()
-                .map(|prompt| {
-                    format!("{:x}", md5::compute(prompt.as_bytes())) == pending_snapshot.prompt_hash
-                })
-                .unwrap_or(true);
-            if matches_prompt {
-                if let Some(pending) = state.pending.as_mut() {
-                    pending.phase = "awaiting_stop".to_string();
-                    pending.accepted_at = Some(now_ts());
-                    pending.accepted_at_ms = Some(now_ms_i64());
-                    if event.transcript_path.is_some() {
-                        pending.transcript_path = event.transcript_path.clone();
-                    }
-                }
+            if pending_matches_submit_prompt(&pending_snapshot, event) {
+                advance_pending_to_awaiting_stop(state.pending.as_mut(), event, true);
                 refresh_pending_feedback(config, state, true);
                 log_debug!(
                     "telegram: pending request {} reached awaiting_stop dispatch_to_submit_ms={}",
@@ -301,28 +265,18 @@ pub(super) async fn apply_hook_event_to_pending(
             Ok(false)
         }
         "stop" => {
-            let answer = event
-                .last_assistant_message
-                .clone()
-                .filter(|text| !text.trim().is_empty())
-                .or_else(|| latest_answer_for_pane(&pending_snapshot.pane_id));
-            let request_id = pending_snapshot.request_id.clone();
-            let chat_id = pending_snapshot.chat_id.clone();
-            finalize_pending_feedback(config, &pending_snapshot, tg(locale, "phase.completed"));
-            state.pending = None;
-            let result_text = answer.unwrap_or_else(|| tg(locale, "result.missing").to_string());
-            send_text(
-                &config.telegram.bot_token,
-                &chat_id,
-                &tg_fmt2(locale, "result.completed", &request_id, result_text),
-            )
-            .await?;
-            log_debug!(
-                "telegram: completed request {} total_ms={} run_ms={}",
-                request_id,
-                now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot)),
-                now_ms_i64().saturating_sub(pending_accepted_ms(&pending_snapshot))
-            );
+            if !hook_event_matches_pending_turn(&pending_snapshot, event) {
+                log_debug!(
+                    "telegram: ignored journal stop for pane={} pending_turn={:?} event_turn={:?}",
+                    pending_snapshot.pane_id,
+                    pending_snapshot.turn_id,
+                    event.turn_id
+                );
+                return Ok(false);
+            }
+            let completion =
+                complete_pending_request(config, state, &pending_snapshot, event, locale).await;
+            log_pending_completion("journal", &pending_snapshot, &completion);
             Ok(true)
         }
         _ => Ok(false),
@@ -331,4 +285,407 @@ pub(super) async fn apply_hook_event_to_pending(
 
 pub(super) fn sync_state_from_disk_public(state: &mut TelegramState) {
     sync_state_from_disk(state);
+}
+
+fn hook_event_matches_pending_turn(pending: &PendingRequest, event: &HookEvent) -> bool {
+    match (pending.turn_id.as_deref(), event.turn_id.as_deref()) {
+        (Some(_), None) if pending.agent_kind == "codex" => false,
+        (Some(expected), Some(actual)) => expected == actual,
+        _ => true,
+    }
+}
+
+fn pending_matches_submit_prompt(pending: &PendingRequest, event: &HookEvent) -> bool {
+    event
+        .prompt
+        .as_deref()
+        .map(|prompt| format!("{:x}", md5::compute(prompt.as_bytes())) == pending.prompt_hash)
+        .unwrap_or(true)
+}
+
+fn advance_pending_to_awaiting_stop(
+    pending: Option<&mut PendingRequest>,
+    event: &HookEvent,
+    record_accepted_at_ms: bool,
+) {
+    let Some(pending) = pending else {
+        return;
+    };
+    pending.phase = "awaiting_stop".to_string();
+    pending.accepted_at = Some(now_ts());
+    if record_accepted_at_ms {
+        pending.accepted_at_ms = Some(now_ms_i64());
+    }
+    if event.turn_id.is_some() {
+        pending.turn_id = event.turn_id.clone();
+    }
+    if event.transcript_path.is_some() {
+        pending.transcript_path = event.transcript_path.clone();
+    }
+    if pending.result_scan_offset == 0 {
+        if let Some(path) = pending.transcript_path.as_deref() {
+            pending.result_scan_offset = transcript_len(path);
+        }
+    }
+}
+
+async fn complete_pending_request(
+    config: &Config,
+    state: &mut TelegramState,
+    pending_snapshot: &PendingRequest,
+    event: &HookEvent,
+    locale: crate::i18n::Locale,
+) -> PendingCompletionOutcome {
+    let resolved = await_pending_result_text(pending_snapshot, event).await;
+    cache_pending_completion(state.pending.as_mut(), locale, &resolved);
+    match deliver_pending_result(config, state, locale).await {
+        Ok(()) => PendingCompletionOutcome::delivered(&resolved),
+        Err(err) => PendingCompletionOutcome::deferred(&resolved, err.to_string()),
+    }
+}
+
+fn cache_pending_completion(
+    pending: Option<&mut PendingRequest>,
+    locale: crate::i18n::Locale,
+    resolved: &ResolvedPendingResult,
+) {
+    let Some(pending) = pending else {
+        return;
+    };
+    pending.phase = "delivering_result".to_string();
+    pending.completed_text = Some(
+        resolved
+            .text
+            .clone()
+            .unwrap_or_else(|| tg(locale, "result.missing").to_string()),
+    );
+    pending.completed_source = Some(resolved.source.to_string());
+    pending.delivery_retry_at = 0;
+    pending.last_status_at = None;
+}
+
+fn log_pending_completion(
+    channel: &str,
+    pending_snapshot: &PendingRequest,
+    completion: &PendingCompletionOutcome,
+) {
+    if let Some(err) = completion.error.as_deref() {
+        log_debug!(
+            "telegram: {} deferred result delivery request {} total_ms={} run_ms={} result_source={} result_chars={} err={}",
+            channel,
+            pending_snapshot.request_id,
+            now_ms_i64().saturating_sub(pending_sent_ms(pending_snapshot)),
+            now_ms_i64().saturating_sub(pending_accepted_ms(pending_snapshot)),
+            completion.source,
+            completion.char_count,
+            err
+        );
+    } else {
+        log_debug!(
+            "telegram: {} completed request {} total_ms={} run_ms={} result_source={} result_chars={}",
+            channel,
+            pending_snapshot.request_id,
+            now_ms_i64().saturating_sub(pending_sent_ms(pending_snapshot)),
+            now_ms_i64().saturating_sub(pending_accepted_ms(pending_snapshot)),
+            completion.source,
+            completion.char_count
+        );
+    }
+}
+
+async fn await_pending_result_text(
+    pending: &PendingRequest,
+    event: &HookEvent,
+) -> ResolvedPendingResult {
+    let initial = resolve_pending_result_text(pending, event);
+    if pending.agent_kind != "codex" || initial.source == "transcript_completion" {
+        return initial;
+    }
+
+    // Codex can emit Stop before the final assistant message is appended to the
+    // transcript. Give the transcript a short window to catch up before falling
+    // back to the hook payload.
+    const RETRIES: usize = 24;
+    const SLEEP_MS: u64 = 250;
+    for attempt in 1..=RETRIES {
+        sleep(Duration::from_millis(SLEEP_MS)).await;
+        let retried = resolve_pending_result_text(pending, event);
+        if retried.source == "transcript_completion" {
+            log_debug!(
+                "telegram: codex transcript caught up pane={} after_retry={} wait_ms={}",
+                pending.pane_id,
+                attempt,
+                attempt as u64 * SLEEP_MS
+            );
+            return retried;
+        }
+    }
+
+    log_debug!(
+        "telegram: codex transcript still missing pane={} after_wait_ms={} fallback_source={}",
+        pending.pane_id,
+        RETRIES as u64 * SLEEP_MS,
+        initial.source
+    );
+    initial
+}
+
+fn resolve_pending_result_text(
+    pending: &PendingRequest,
+    event: &HookEvent,
+) -> ResolvedPendingResult {
+    let hook_text = event
+        .last_assistant_message
+        .clone()
+        .filter(|text| !text.trim().is_empty());
+    let transcript_text = pending.transcript_path.as_deref().and_then(|path| {
+        crate::chat::approval::scan_codex_answer_updates(
+            std::path::Path::new(path),
+            pending.result_scan_offset,
+            pending.turn_id.as_deref().or(event.turn_id.as_deref()),
+        )
+        .ok()
+        .flatten()
+    });
+
+    if pending.agent_kind == "codex" {
+        if let (Some(hook), Some(transcript)) = (hook_text.as_deref(), transcript_text.as_deref()) {
+            if hook.trim() != transcript.trim() {
+                log_debug!(
+                    "telegram: codex stop payload mismatch pane={} hook_chars={} transcript_chars={} preferring=transcript_completion",
+                    pending.pane_id,
+                    hook.chars().count(),
+                    transcript.chars().count()
+                );
+            }
+        }
+        if transcript_text.is_some() {
+            return ResolvedPendingResult::new(transcript_text, "transcript_completion");
+        }
+        if hook_text.is_some() {
+            return ResolvedPendingResult::new(hook_text, "hook_payload");
+        }
+        return ResolvedPendingResult::new(None, "missing");
+    }
+
+    if hook_text.is_some() {
+        ResolvedPendingResult::new(hook_text, "hook_payload")
+    } else if transcript_text.is_some() {
+        ResolvedPendingResult::new(transcript_text, "transcript_delta")
+    } else {
+        ResolvedPendingResult::new(None, "missing")
+    }
+}
+
+struct ResolvedPendingResult {
+    text: Option<String>,
+    source: &'static str,
+    char_count: usize,
+}
+
+impl ResolvedPendingResult {
+    fn new(text: Option<String>, source: &'static str) -> Self {
+        let char_count = text
+            .as_ref()
+            .map(|value| value.chars().count())
+            .unwrap_or(0);
+        Self {
+            text,
+            source,
+            char_count,
+        }
+    }
+}
+
+struct PendingCompletionOutcome {
+    source: &'static str,
+    char_count: usize,
+    error: Option<String>,
+}
+
+impl PendingCompletionOutcome {
+    fn delivered(resolved: &ResolvedPendingResult) -> Self {
+        Self {
+            source: resolved.source,
+            char_count: resolved.char_count,
+            error: None,
+        }
+    }
+
+    fn deferred(resolved: &ResolvedPendingResult, error: String) -> Self {
+        Self {
+            source: resolved.source,
+            char_count: resolved.char_count,
+            error: Some(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hook::HookTmuxInfo;
+    use std::fs;
+
+    #[test]
+    fn codex_stop_prefers_transcript_completion_over_stale_hook_payload() {
+        let path = std::env::temp_dir().join(format!(
+            "pad-codex-stop-prefer-transcript-{}.jsonl",
+            std::process::id()
+        ));
+        let old = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"old answer\"}]}}\n";
+        let new = concat!(
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"final_answer\",\"content\":[{\"type\":\"output_text\",\"text\":\"new answer\"}]}}\n",
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"turn-new\",\"last_agent_message\":\"new answer\"}}\n"
+        );
+        fs::write(&path, format!("{old}{new}")).unwrap();
+
+        let pending = PendingRequest {
+            request_id: "tg-1".into(),
+            chat_id: "1".into(),
+            pane_id: "%1".into(),
+            agent_kind: "codex".into(),
+            target_label: "CODEX • test".into(),
+            prompt_text: "hi".into(),
+            prompt_hash: "abc".into(),
+            turn_id: Some("turn-new".into()),
+            sent_at: 100,
+            sent_at_ms: 100_000,
+            accepted_at: Some(101),
+            accepted_at_ms: Some(101_000),
+            last_status_at: None,
+            draft_id: 1,
+            phase: "awaiting_stop".into(),
+            transcript_path: Some(path.to_string_lossy().into_owned()),
+            result_scan_offset: old.len() as u64,
+            approval_scan_offset: 0,
+            approval_call_id: None,
+            approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
+        };
+        let event = HookEvent {
+            event: "stop".into(),
+            turn_id: Some("turn-old".into()),
+            session_id: Some("s1".into()),
+            transcript_path: pending.transcript_path.clone(),
+            cwd: None,
+            prompt: None,
+            last_assistant_message: Some("stale hook payload".into()),
+            timestamp: Some("2026-04-07T00:00:00Z".into()),
+            tmux: HookTmuxInfo {
+                pane_id: Some("%1".into()),
+                session_name: Some("0".into()),
+                window_index: Some("1".into()),
+                pane_index: Some("1".into()),
+                pane_current_path: None,
+            },
+        };
+
+        let resolved = resolve_pending_result_text(&pending, &event);
+        assert_eq!(resolved.source, "transcript_completion");
+        assert_eq!(resolved.text.as_deref(), Some("new answer"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn pending_turn_must_match_stop_turn_when_both_exist() {
+        let pending = PendingRequest {
+            request_id: "tg-1".into(),
+            chat_id: "1".into(),
+            pane_id: "%1".into(),
+            agent_kind: "codex".into(),
+            target_label: "CODEX • test".into(),
+            prompt_text: "hi".into(),
+            prompt_hash: "abc".into(),
+            turn_id: Some("turn-a".into()),
+            sent_at: 100,
+            sent_at_ms: 100_000,
+            accepted_at: Some(101),
+            accepted_at_ms: Some(101_000),
+            last_status_at: None,
+            draft_id: 1,
+            phase: "awaiting_stop".into(),
+            transcript_path: None,
+            result_scan_offset: 0,
+            approval_scan_offset: 0,
+            approval_call_id: None,
+            approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
+        };
+        let event = HookEvent {
+            event: "stop".into(),
+            turn_id: Some("turn-b".into()),
+            session_id: Some("s1".into()),
+            transcript_path: None,
+            cwd: None,
+            prompt: None,
+            last_assistant_message: Some("wrong turn".into()),
+            timestamp: Some("2026-04-07T00:00:00Z".into()),
+            tmux: HookTmuxInfo {
+                pane_id: Some("%1".into()),
+                session_name: Some("0".into()),
+                window_index: Some("1".into()),
+                pane_index: Some("1".into()),
+                pane_current_path: None,
+            },
+        };
+
+        assert!(!hook_event_matches_pending_turn(&pending, &event));
+    }
+
+    #[test]
+    fn codex_stop_without_turn_id_is_ignored_when_pending_turn_exists() {
+        let pending = PendingRequest {
+            request_id: "tg-1".into(),
+            chat_id: "1".into(),
+            pane_id: "%1".into(),
+            agent_kind: "codex".into(),
+            target_label: "CODEX • test".into(),
+            prompt_text: "hi".into(),
+            prompt_hash: "abc".into(),
+            turn_id: Some("turn-a".into()),
+            sent_at: 100,
+            sent_at_ms: 100_000,
+            accepted_at: Some(101),
+            accepted_at_ms: Some(101_000),
+            last_status_at: None,
+            draft_id: 1,
+            phase: "awaiting_stop".into(),
+            transcript_path: None,
+            result_scan_offset: 0,
+            approval_scan_offset: 0,
+            approval_call_id: None,
+            approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
+        };
+        let event = HookEvent {
+            event: "stop".into(),
+            turn_id: None,
+            session_id: Some("s1".into()),
+            transcript_path: None,
+            cwd: None,
+            prompt: None,
+            last_assistant_message: Some("missing turn".into()),
+            timestamp: Some("2026-04-08T00:00:00Z".into()),
+            tmux: HookTmuxInfo {
+                pane_id: Some("%1".into()),
+                session_name: Some("0".into()),
+                window_index: Some("1".into()),
+                pane_index: Some("1".into()),
+                pane_current_path: None,
+            },
+        };
+
+        assert!(!hook_event_matches_pending_turn(&pending, &event));
+    }
 }

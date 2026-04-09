@@ -126,6 +126,8 @@ pub(super) fn tg(locale: crate::i18n::Locale, key: &str) -> &str {
         "phase.accepted" => "Submitted",
         "phase.working" if zh => "进行中 · {}s",
         "phase.working" => "Working · {}s",
+        "phase.delivering" if zh => "发送结果中",
+        "phase.delivering" => "Delivering result",
         "phase.completed" if zh => "已完成",
         "phase.completed" => "Completed",
         "typing.action" => "typing",

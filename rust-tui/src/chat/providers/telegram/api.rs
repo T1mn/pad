@@ -68,7 +68,9 @@ struct TelegramCommandSpec {
     description: String,
 }
 
-pub(super) async fn fetch_me(token: &str) -> Result<TelegramMe, Box<dyn std::error::Error>> {
+pub(super) async fn fetch_me(
+    token: &str,
+) -> Result<TelegramMe, Box<dyn std::error::Error + Send + Sync>> {
     let result = telegram_api::<TelegramMe>(token, "getMe", &json!({}), 15).await?;
     Ok(result)
 }
@@ -76,7 +78,7 @@ pub(super) async fn fetch_me(token: &str) -> Result<TelegramMe, Box<dyn std::err
 pub(super) async fn get_updates(
     token: &str,
     offset: i64,
-) -> Result<Vec<TelegramUpdate>, Box<dyn std::error::Error>> {
+) -> Result<Vec<TelegramUpdate>, Box<dyn std::error::Error + Send + Sync>> {
     telegram_api::<Vec<TelegramUpdate>>(
         token,
         "getUpdates",
@@ -94,7 +96,7 @@ pub(super) async fn send_text(
     token: &str,
     chat_id: &str,
     text: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chunks = chunk_text(text, TELEGRAM_MAX_TEXT_LEN);
     let total = chunks.len();
     for (idx, chunk) in chunks.into_iter().enumerate() {
@@ -121,7 +123,7 @@ pub(super) async fn send_chat_action(
     token: &str,
     chat_id: &str,
     action: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _: serde_json::Value = telegram_api(
         token,
         "sendChatAction",
@@ -140,7 +142,7 @@ pub(super) async fn send_message_draft(
     chat_id: &str,
     draft_id: i64,
     text: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _: serde_json::Value = telegram_api(
         token,
         "sendMessageDraft",
@@ -166,7 +168,7 @@ pub(super) async fn answer_callback_query(
     token: &str,
     callback_query_id: &str,
     text: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let payload = match text {
         Some(text) => json!({
             "callback_query_id": callback_query_id,
@@ -189,7 +191,7 @@ pub(super) async fn answer_callback_query(
 pub(super) async fn set_my_commands(
     token: &str,
     locale: crate::i18n::Locale,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let commands = vec![
         TelegramCommandSpec {
             command: "start",
@@ -239,14 +241,14 @@ pub(super) async fn set_my_commands(
 pub(super) async fn send_message(
     token: &str,
     payload: &serde_json::Value,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
     telegram_api(token, "sendMessage", payload, TELEGRAM_TIMEOUT_SECS).await
 }
 
 pub(super) async fn edit_message(
     token: &str,
     payload: &serde_json::Value,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
     telegram_api(
         token,
         "editMessageText",
@@ -261,7 +263,7 @@ async fn telegram_api<T: for<'de> Deserialize<'de>>(
     method: &str,
     payload: &serde_json::Value,
     timeout_secs: u64,
-) -> Result<T, Box<dyn std::error::Error>> {
+) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
     let url = format!("https://api.telegram.org/bot{}/{}", token, method);
     let started_at = Instant::now();
     let response = TELEGRAM_HTTP

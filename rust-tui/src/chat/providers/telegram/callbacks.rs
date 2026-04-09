@@ -1,10 +1,23 @@
 use super::*;
 
+pub(super) fn approval_callback_data(request_id: &str, choice: &str) -> String {
+    format!("approval:{}:{}", request_id, choice)
+}
+
+pub(super) fn parse_approval_callback_data(data: &str) -> Option<(&str, &str)> {
+    let rest = data.strip_prefix("approval:")?;
+    let (request_id, choice) = rest.rsplit_once(':')?;
+    if request_id.is_empty() || choice.is_empty() {
+        return None;
+    }
+    Some((request_id, choice))
+}
+
 pub(super) async fn handle_callback_query(
     config: &Config,
     state: &mut TelegramState,
     query: TelegramCallbackQuery,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let Some(message) = query.message else {
         answer_callback_query(
@@ -56,7 +69,7 @@ pub(super) async fn handle_callback_query(
         send_pad_status_report(config, state, &chat_id).await?;
         answer_callback_query(&config.telegram.bot_token, &query.id, None).await?;
     } else if let Some(pane_id) = data.strip_prefix("use-pane:") {
-        let panels = live_panels()?;
+        let panels = live_panels().map_err(telegram_error)?;
         if let Some(panel) = panels.iter().find(|panel| panel.pane_id == pane_id) {
             let selected = SelectedTarget {
                 pane_id: panel.pane_id.clone(),
@@ -83,7 +96,16 @@ pub(super) async fn handle_callback_query(
             )
             .await?;
         }
-    } else if let Some(choice) = data.strip_prefix("approval:") {
+    } else if data.starts_with("approval:") {
+        let Some((request_id, choice)) = parse_approval_callback_data(data) else {
+            answer_callback_query(
+                &config.telegram.bot_token,
+                &query.id,
+                Some(tg(locale, "approval.none")),
+            )
+            .await?;
+            return Ok(());
+        };
         let Some(pending_snapshot) = state.pending.as_ref().cloned() else {
             answer_callback_query(
                 &config.telegram.bot_token,
@@ -94,6 +116,15 @@ pub(super) async fn handle_callback_query(
             return Ok(());
         };
         if pending_snapshot.agent_kind != "codex" || pending_snapshot.approval_call_id.is_none() {
+            answer_callback_query(
+                &config.telegram.bot_token,
+                &query.id,
+                Some(tg(locale, "approval.none")),
+            )
+            .await?;
+            return Ok(());
+        }
+        if pending_snapshot.request_id != request_id {
             answer_callback_query(
                 &config.telegram.bot_token,
                 &query.id,
@@ -116,8 +147,12 @@ pub(super) async fn handle_callback_query(
                 return Ok(());
             }
         };
-        match tmux_dispatch::send_approval_key(&pending_snapshot.pane_id, key) {
-            Ok(()) => {
+        let approval_send_error = {
+            let send_result = tmux_dispatch::send_approval_key(&pending_snapshot.pane_id, key);
+            send_result.err().map(|err| err.to_string())
+        };
+        match approval_send_error {
+            None => {
                 invalidate_live_panels();
                 if let Some(pending) = state.pending.as_mut() {
                     pending.phase = "awaiting_stop".to_string();
@@ -133,11 +168,11 @@ pub(super) async fn handle_callback_query(
                 )
                 .await?;
             }
-            Err(err) => {
+            Some(err_text) => {
                 answer_callback_query(
                     &config.telegram.bot_token,
                     &query.id,
-                    Some(&tg_fmt(locale, "approval.failed", err)),
+                    Some(&tg_fmt(locale, "approval.failed", err_text)),
                 )
                 .await?;
             }
@@ -159,7 +194,7 @@ pub(super) async fn send_codex_approval_prompt(
     chat_id: &str,
     pending: &PendingRequest,
     request: &CodexApprovalRequest,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let body = format!(
         "{}\n{}: {}\n\n{}",
@@ -177,16 +212,16 @@ pub(super) async fn send_codex_approval_prompt(
                 "inline_keyboard": [[
                     {
                         "text": tg(locale, "approval.button.once"),
-                        "callback_data": "approval:y"
+                        "callback_data": approval_callback_data(&pending.request_id, "y")
                     },
                     {
                         "text": tg(locale, "approval.button.always"),
-                        "callback_data": "approval:a"
+                        "callback_data": approval_callback_data(&pending.request_id, "a")
                     }
                 ], [
                     {
                         "text": tg(locale, "approval.button.reject"),
-                        "callback_data": "approval:n"
+                        "callback_data": approval_callback_data(&pending.request_id, "n")
                     }
                 ]]
             }

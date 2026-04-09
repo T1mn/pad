@@ -1,5 +1,5 @@
-use super::*;
 use super::helpers::settings_item_search_blob;
+use super::*;
 use crate::app::state::RelayView;
 
 impl App {

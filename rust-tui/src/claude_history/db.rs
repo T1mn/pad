@@ -1,4 +1,6 @@
-use super::model::{ClaudeThreadRef, IndexedClaudeThread, ThreadArchiveFilter, ACTIVE_THREAD_MAX_AGE_SECS};
+use super::model::{
+    ClaudeThreadRef, IndexedClaudeThread, ThreadArchiveFilter, ACTIVE_THREAD_MAX_AGE_SECS,
+};
 use super::util::{normalize_path, now_ts, to_io_error};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::fs;

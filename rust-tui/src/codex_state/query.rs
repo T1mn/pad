@@ -134,7 +134,10 @@ pub(crate) fn read_threads_from_db(
     rows.collect::<Result<Vec<_>, _>>().map_err(to_io_error)
 }
 
-pub(crate) fn read_thread_for_id(db_path: &Path, thread_id: &str) -> io::Result<Option<CodexThreadRef>> {
+pub(crate) fn read_thread_for_id(
+    db_path: &Path,
+    thread_id: &str,
+) -> io::Result<Option<CodexThreadRef>> {
     if !db_path.exists() {
         return Ok(None);
     }
