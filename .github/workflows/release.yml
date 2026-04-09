@@ -268,6 +268,88 @@ jobs:
           name: macos-universal
           path: rust-tui/dist/*.tar.gz
 
+  validate-linux-release-compat:
+    needs:
+      - build-linux
+      - build-linux-musl
+    name: Validate Linux release install (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-20.04
+            image: ubuntu:20.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: ubuntu-22.04
+            image: ubuntu:22.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: ubuntu-24.04
+            image: ubuntu:24.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: debian-12
+            image: debian:12
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: debian-13
+            image: debian:13
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: rockylinux-8
+            image: rockylinux:8
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo tar gzip xz sed
+          - name: rockylinux-9
+            image: rockylinux:9
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo tar gzip xz sed
+          - name: fedora-41
+            image: fedora:41
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo which tar gzip xz sed
+          - name: fedora-42
+            image: fedora:42
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo which tar gzip xz sed
+          - name: archlinux
+            image: archlinux:latest
+            bootstrap: |
+              pacman -Sy --noconfirm bash curl ca-certificates sudo which tar gzip xz sed
+          - name: alpine-3.20
+            image: alpine:3.20
+            bootstrap: |
+              apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
+          - name: alpine-3.22
+            image: alpine:3.22
+            bootstrap: |
+              apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x86_64 Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: linux-x86_64-*
+          path: .pad-release/${{ github.ref_name }}
+          merge-multiple: true
+
+      - name: Validate release installer path
+        env:
+          IMAGE: ${{ matrix.image }}
+          BOOTSTRAP: ${{ matrix.bootstrap }}
+          INSTALL_MODE: prebuilt
+          PAD_TEST_VERSION: ${{ github.ref_name }}
+          PAD_TEST_RELEASE_BASE_URL: file:///workspace/.pad-release
+        run: bash ./scripts/ci/linux_installer_smoke.sh
+
   release:
     needs:
       - build-linux
@@ -275,6 +357,7 @@ jobs:
       - build-linux-musl
       - build-linux-musl-arm64
       - build-macos
+      - validate-linux-release-compat
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
