@@ -348,7 +348,8 @@ mod tests {
             cached_preview_turns: vec![PreviewTurn {
                 question: "hello".into(),
                 answer: Some("world".into()),
-            }],
+            }]
+            .into(),
             session_cache_state: Some(SessionCacheState::Cached),
             agent_session_id: None,
             session_origin: Some(PreviewSessionOrigin::Pane),

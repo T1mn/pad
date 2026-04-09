@@ -6,8 +6,8 @@ mod turns;
 
 use crate::i18n::{self, Locale};
 use crate::model::{
-    AgentPanel, AgentState, AgentType, PreviewSessionOrigin, PreviewSource, PreviewTurn,
-    SessionCacheState,
+    AgentPanel, AgentState, AgentType, PreviewSessionOrigin, PreviewSource, SessionCacheState,
+    SharedPreviewTurns,
 };
 use std::time::Instant;
 
@@ -26,7 +26,7 @@ pub struct PreviewRequest {
     pub working_dir: String,
     pub state: AgentState,
     pub transcript_path: Option<String>,
-    pub cached_preview_turns: Vec<PreviewTurn>,
+    pub cached_preview_turns: SharedPreviewTurns,
     pub session_cache_state: Option<SessionCacheState>,
     pub agent_session_id: Option<String>,
     pub session_origin: Option<PreviewSessionOrigin>,
@@ -42,14 +42,14 @@ pub struct PreviewUpdate {
     pub source: PreviewSource,
     pub session_origin: Option<PreviewSessionOrigin>,
     pub session_id: Option<String>,
-    pub turns: Vec<PreviewTurn>,
+    pub turns: SharedPreviewTurns,
     pub transcript_path: Option<String>,
     pub session_cache_state: Option<SessionCacheState>,
     pub updated_at: Option<i64>,
 }
 
 struct SessionPreviewData {
-    turns: Vec<PreviewTurn>,
+    turns: SharedPreviewTurns,
     session_origin: PreviewSessionOrigin,
     session_id: Option<String>,
     transcript_path: Option<String>,
@@ -109,7 +109,7 @@ pub fn load_preview(request: &PreviewRequest, mode: &str, locale: Locale) -> Pre
             PreviewSource::Tmux,
             None,
             None,
-            Vec::new(),
+            SharedPreviewTurns::default(),
             None,
             None,
             None,
@@ -130,7 +130,7 @@ pub fn load_preview(request: &PreviewRequest, mode: &str, locale: Locale) -> Pre
                 PreviewSource::Tmux,
                 None,
                 None,
-                Vec::new(),
+                SharedPreviewTurns::default(),
                 None,
                 None,
                 None,
@@ -140,7 +140,7 @@ pub fn load_preview(request: &PreviewRequest, mode: &str, locale: Locale) -> Pre
                 PreviewSource::Session,
                 None,
                 None,
-                Vec::new(),
+                SharedPreviewTurns::default(),
                 None,
                 None,
                 None,
@@ -275,7 +275,7 @@ fn load_session_preview(
                     );
                 }
                 return Ok(SessionPreviewData {
-                    turns,
+                    turns: turns.into(),
                     session_origin: target.origin,
                     session_id: target.session_id,
                     transcript_path: Some(transcript_string),
@@ -391,7 +391,7 @@ mod tests {
             working_dir: "/tmp/demo".into(),
             state: AgentState::Idle,
             transcript_path: None,
-            cached_preview_turns: Vec::<PreviewTurn>::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             agent_session_id: None,
             session_origin: None,
@@ -432,7 +432,8 @@ mod tests {
             cached_preview_turns: vec![PreviewTurn {
                 question: "hello".into(),
                 answer: Some("world".into()),
-            }],
+            }]
+            .into(),
             session_cache_state: Some(SessionCacheState::Confirmed),
             agent_session_id: Some("019d2e9d-9010-79a2-b381-52af55b198f6".into()),
             session_origin: Some(PreviewSessionOrigin::App),
@@ -477,7 +478,7 @@ mod tests {
                 working_dir: String::new(),
                 state: AgentState::Idle,
                 transcript_path: Some(path.display().to_string()),
-                cached_preview_turns: Vec::new(),
+                cached_preview_turns: Default::default(),
                 session_cache_state: None,
                 agent_session_id: session_id.clone(),
                 session_origin: Some(PreviewSessionOrigin::App),
@@ -525,7 +526,7 @@ mod tests {
                 assert_eq!(update.source, PreviewSource::Session);
             });
             let cached_request = PreviewRequest {
-                cached_preview_turns: turns.clone(),
+                cached_preview_turns: turns.clone().into(),
                 session_cache_state: Some(SessionCacheState::Confirmed),
                 known_updated_at: target.updated_at,
                 ..request.clone()

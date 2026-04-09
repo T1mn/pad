@@ -96,7 +96,7 @@ pub fn persist_resolved_session(
     let transcript = transcript_path.to_string_lossy().to_string();
     if panel.session_cache_state == Some(SessionCacheState::Confirmed)
         && panel.transcript_path.as_deref() == Some(transcript.as_str())
-        && panel.cached_preview_turns == normalized_turns
+        && panel.cached_preview_turns.as_ref() == normalized_turns.as_slice()
     {
         return Ok(());
     }

@@ -49,7 +49,7 @@ pub(super) fn merge_claude_threads(
             git_info: None,
             state: AgentState::Idle,
             is_active: false,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: None,
             last_assistant_message: None,

@@ -1,5 +1,5 @@
 use super::FocusTarget;
-use crate::model::{PreviewSessionOrigin, PreviewSource, PreviewTurn, PreviewView};
+use crate::model::{PreviewSessionOrigin, PreviewSource, PreviewView, SharedPreviewTurns};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -38,7 +38,7 @@ pub struct PreviewPlainCache {
 
 #[derive(Clone)]
 pub struct ThreadPreviewCacheEntry {
-    pub turns: Vec<PreviewTurn>,
+    pub turns: SharedPreviewTurns,
     pub session_cache_state: Option<crate::model::SessionCacheState>,
     pub transcript_path: Option<String>,
     pub session_id: Option<String>,
@@ -68,7 +68,7 @@ pub struct PreviewState {
     pub view: PreviewView,
     pub session_origin: Option<PreviewSessionOrigin>,
     pub session_id: Option<String>,
-    pub turns: Vec<PreviewTurn>,
+    pub turns: SharedPreviewTurns,
     pub selected_turn: Option<usize>,
     pub expanded_turn: Option<usize>,
     pub detail_cache: Option<PreviewDetailCache>,
@@ -108,7 +108,7 @@ impl PreviewState {
             view: PreviewView::Plain,
             session_origin: None,
             session_id: None,
-            turns: Vec::new(),
+            turns: SharedPreviewTurns::default(),
             selected_turn: None,
             expanded_turn: None,
             detail_cache: None,

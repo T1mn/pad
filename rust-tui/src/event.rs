@@ -451,7 +451,7 @@ mod tests {
             state: AgentState::Idle,
             state_source: AgentStateSource::Scanner,
             transcript_path: None,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
             pid: None,
@@ -561,7 +561,8 @@ mod tests {
                 question: "second".into(),
                 answer: Some("two".into()),
             },
-        ];
+        ]
+        .into();
         app.preview.view = PreviewView::SessionList;
 
         let area = Rect::new(0, 0, 100, 30);
@@ -594,7 +595,8 @@ mod tests {
                 question: "second".into(),
                 answer: Some("two".into()),
             },
-        ];
+        ]
+        .into();
         app.preview.view = PreviewView::SessionList;
         app.preview.selected_turn = Some(0);
 
@@ -704,7 +706,8 @@ mod tests {
         app.preview.turns = vec![PreviewTurn {
             question: "first".into(),
             answer: Some("one".into()),
-        }];
+        }]
+        .into();
         app.preview.view = PreviewView::SessionDetail;
         app.preview.selected_turn = Some(0);
         app.preview.expanded_turn = Some(0);
@@ -733,7 +736,8 @@ mod tests {
                 question: "second".into(),
                 answer: Some("two".into()),
             },
-        ];
+        ]
+        .into();
         app.preview.view = PreviewView::SessionDetail;
         app.preview.selected_turn = Some(1);
         app.preview.expanded_turn = Some(1);

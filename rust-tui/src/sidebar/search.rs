@@ -27,7 +27,7 @@ pub fn build_visible_sidebar_items(
             continue;
         }
 
-        items.push(SidebarItem::Folder(folder.clone()));
+        items.push(SidebarItem::Folder(folder.summary()));
 
         let is_expanded = searching || expanded_folders.contains(&folder.key);
         if is_expanded {
@@ -112,7 +112,7 @@ mod tests {
             git_info: None,
             state: AgentState::Idle,
             is_active: true,
-            cached_preview_turns: Vec::new(),
+            cached_preview_turns: Default::default(),
             session_cache_state: None,
             last_user_prompt: None,
             last_assistant_message: None,
@@ -138,6 +138,13 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert!(matches!(items[0], SidebarItem::Folder(_)));
         assert!(matches!(items[1], SidebarItem::Thread(_)));
+        match &items[0] {
+            SidebarItem::Folder(folder) => {
+                assert_eq!(folder.thread_count, 2);
+                assert!(!folder.has_unread_stop);
+            }
+            _ => panic!("expected folder item"),
+        }
     }
 
     #[test]
