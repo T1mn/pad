@@ -1,5 +1,5 @@
 use crate::hook::HookEvent;
-use crate::model::{AgentPanel, AgentType, PreviewTurn, SessionCacheState};
+use crate::model::{AgentPanel, AgentType, PreviewTurn, SessionCacheState, SharedPreviewTurns};
 use serde::{Deserialize, Serialize};
 
 pub(super) const CACHE_VERSION: u32 = 1;
@@ -10,7 +10,7 @@ pub const SESSION_HISTORY_TURN_LIMIT: usize = 50;
 pub struct SessionCacheSnapshot {
     pub agent_session_id: String,
     pub transcript_path: Option<String>,
-    pub recent_turns: Vec<PreviewTurn>,
+    pub recent_turns: SharedPreviewTurns,
     pub last_user_prompt: Option<String>,
     pub last_assistant_message: Option<String>,
     pub state: SessionCacheState,
@@ -85,7 +85,7 @@ pub(super) fn snapshot_from_record(
     SessionCacheSnapshot {
         agent_session_id: record.agent_session_id.clone(),
         transcript_path: record.transcript_path.clone(),
-        recent_turns: record.recent_turns.clone(),
+        recent_turns: record.recent_turns.clone().into(),
         last_user_prompt: record.last_user_prompt.clone(),
         last_assistant_message: record.last_assistant_message.clone(),
         state,

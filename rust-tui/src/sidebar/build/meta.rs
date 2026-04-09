@@ -2,6 +2,7 @@ use crate::model::AgentType;
 use crate::thread_meta::{ThreadMeta, ThreadMetaKey};
 use std::collections::{HashMap, HashSet};
 use std::io;
+use std::sync::Arc;
 
 use super::super::display::clean_title;
 use super::super::model::{SidebarFolder, SidebarThread};
@@ -22,7 +23,7 @@ pub(super) fn apply_thread_metadata(folders: &mut HashMap<String, SidebarFolder>
 
     for folder in folders.values_mut() {
         for thread in &mut folder.threads {
-            apply_thread_meta_lookup(thread, &meta_map);
+            apply_thread_meta_lookup(Arc::make_mut(thread), &meta_map);
         }
     }
 }

@@ -1,8 +1,9 @@
 use crate::sidebar::model::{SidebarThread, ThreadActivityOverride};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub(super) fn merge_or_insert_thread(
-    threads: &mut Vec<SidebarThread>,
+    threads: &mut Vec<Arc<SidebarThread>>,
     mut history_entry: SidebarThread,
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
@@ -20,6 +21,7 @@ pub(super) fn merge_or_insert_thread(
                 || (existing.transcript_path.is_some()
                     && existing.transcript_path == history_entry.transcript_path))
     }) {
+        let existing = Arc::make_mut(existing);
         existing.session_id = existing.session_id.clone().or(history_entry.session_id);
         existing.transcript_path = existing
             .transcript_path
@@ -80,7 +82,7 @@ pub(super) fn merge_or_insert_thread(
         return;
     }
 
-    threads.push(history_entry);
+    threads.push(Arc::new(history_entry));
 }
 
 pub(super) fn apply_sort_activity(

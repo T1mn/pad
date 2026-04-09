@@ -9,6 +9,7 @@ use crate::claude_history::ClaudeThreadRef;
 use crate::gemini_history::GeminiThreadRef;
 use crate::model::{AgentPanel, AgentType};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::display::folder_display_label;
@@ -113,7 +114,9 @@ pub fn build_sidebar_folders(
                         hidden_live_panels += 1;
                         continue;
                     }
-                    folder.threads.push(live::thread_from_live_panel(panel));
+                    folder
+                        .threads
+                        .push(Arc::new(live::thread_from_live_panel(panel)));
                     live_panel_threads += 1;
                 }
             }
@@ -145,7 +148,11 @@ pub fn build_sidebar_folders(
                 );
             }
             for thread in &mut folder.threads {
-                apply_sort_activity(thread, thread_sort_activity, startup_thread_sort_activity);
+                apply_sort_activity(
+                    Arc::make_mut(thread),
+                    thread_sort_activity,
+                    startup_thread_sort_activity,
+                );
             }
             folder.threads.sort_by(thread_sort_key);
             folder.updated_at = folder
@@ -167,7 +174,11 @@ pub fn build_sidebar_folders(
     apply_thread_metadata(&mut folders);
     for folder in folders.values_mut() {
         for thread in &mut folder.threads {
-            apply_sort_activity(thread, thread_sort_activity, startup_thread_sort_activity);
+            apply_sort_activity(
+                Arc::make_mut(thread),
+                thread_sort_activity,
+                startup_thread_sort_activity,
+            );
         }
         folder.threads.sort_by(thread_sort_key);
         folder.updated_at = folder

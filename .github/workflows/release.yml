@@ -36,7 +36,7 @@ jobs:
 
   build-linux:
     needs: tag-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: rust-tui
@@ -87,7 +87,7 @@ jobs:
 
   build-linux-arm64:
     needs: tag-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: rust-tui

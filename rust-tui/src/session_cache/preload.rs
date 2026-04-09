@@ -1,7 +1,9 @@
 use super::bindings::find_snapshot_for_panel;
 use super::model::{supports_cached_session, SessionCacheSnapshot};
 use super::storage::{load_index, prune_index, save_index};
-use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn};
+use crate::model::{
+    AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn, SharedPreviewTurns,
+};
 
 pub fn preload_panels(panels: &mut [AgentPanel]) -> std::io::Result<()> {
     let mut index = load_index();
@@ -31,18 +33,17 @@ pub fn preload_panels(panels: &mut [AgentPanel]) -> std::io::Result<()> {
 }
 
 pub(super) fn apply_snapshot_to_panel(panel: &mut AgentPanel, snapshot: &SessionCacheSnapshot) {
-    let recent_turns =
-        normalize_snapshot_turns(snapshot.recent_turns.as_slice(), &panel.agent_type);
+    let recent_turns = normalize_snapshot_turns(&snapshot.recent_turns, &panel.agent_type);
     let last_user_prompt =
         normalize_snapshot_prompt(snapshot.last_user_prompt.as_deref(), &panel.agent_type);
     panel.agent_session_id = Some(snapshot.agent_session_id.clone());
     panel.transcript_path = snapshot.transcript_path.clone();
-    panel.cached_preview_turns = recent_turns.clone().into();
+    panel.cached_preview_turns = recent_turns.clone();
     panel.last_user_prompt = last_user_prompt;
     panel.last_assistant_message = snapshot.last_assistant_message.clone();
     panel.session_cache_state = Some(snapshot.state);
 
-    if latest_turn_missing_answer(&recent_turns) {
+    if latest_turn_missing_answer(recent_turns.as_ref()) {
         panel.state = AgentState::Busy;
         panel.state_source = AgentStateSource::Hook;
         panel.is_active = true;
@@ -64,9 +65,12 @@ pub(super) fn latest_turn_missing_answer(turns: &[PreviewTurn]) -> bool {
         .unwrap_or(false)
 }
 
-fn normalize_snapshot_turns(turns: &[PreviewTurn], agent_type: &AgentType) -> Vec<PreviewTurn> {
+fn normalize_snapshot_turns(
+    turns: &SharedPreviewTurns,
+    agent_type: &AgentType,
+) -> SharedPreviewTurns {
     if *agent_type != AgentType::Codex {
-        return turns.to_vec();
+        return turns.clone();
     }
 
     turns
@@ -81,7 +85,8 @@ fn normalize_snapshot_turns(turns: &[PreviewTurn], agent_type: &AgentType) -> Ve
                 Some(turn)
             }
         })
-        .collect()
+        .collect::<Vec<_>>()
+        .into()
 }
 
 fn normalize_snapshot_prompt(value: Option<&str>, agent_type: &AgentType) -> Option<String> {

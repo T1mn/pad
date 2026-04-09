@@ -3,7 +3,7 @@ use super::model::{
     SessionCacheIndex, SessionCacheSnapshot,
 };
 use crate::model::{AgentPanel, SessionCacheState};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub(super) fn find_snapshot_for_panel(
     index: &SessionCacheIndex,
@@ -11,35 +11,35 @@ pub(super) fn find_snapshot_for_panel(
 ) -> Option<SessionCacheSnapshot> {
     let agent_type = panel.agent_type.to_string();
 
-    let exact_matches = index
-        .pane_bindings
-        .iter()
-        .filter(|binding| binding.pane_id == panel.pane_id && binding.agent_type == agent_type)
-        .map(|binding| binding.agent_session_id.clone())
-        .filter(|session_id| !is_subagent_session(panel, session_id))
-        .collect::<HashSet<_>>();
+    let exact_match = find_unique_session_id(
+        panel,
+        index
+            .pane_bindings
+            .iter()
+            .filter(|binding| binding.pane_id == panel.pane_id && binding.agent_type == agent_type)
+            .map(|binding| binding.agent_session_id.as_str()),
+    );
 
-    if exact_matches.len() == 1 {
-        let session_id = exact_matches.iter().next()?;
+    if let Some(session_id) = exact_match {
         return lookup_snapshot(index, session_id, SessionCacheState::Cached);
     }
 
-    let fallback_matches = index
-        .pane_bindings
-        .iter()
-        .filter(|binding| {
-            binding.agent_type == agent_type
-                && binding.path == panel.working_dir
-                && binding.session_name == panel.session
-                && binding.window_index == panel.window_index
-                && binding.pane_index == panel.pane
-        })
-        .map(|binding| binding.agent_session_id.clone())
-        .filter(|session_id| !is_subagent_session(panel, session_id))
-        .collect::<HashSet<_>>();
+    let fallback_match = find_unique_session_id(
+        panel,
+        index
+            .pane_bindings
+            .iter()
+            .filter(|binding| {
+                binding.agent_type == agent_type
+                    && binding.path == panel.working_dir
+                    && binding.session_name == panel.session
+                    && binding.window_index == panel.window_index
+                    && binding.pane_index == panel.pane
+            })
+            .map(|binding| binding.agent_session_id.as_str()),
+    );
 
-    if fallback_matches.len() == 1 {
-        let session_id = fallback_matches.iter().next()?;
+    if let Some(session_id) = fallback_match {
         return lookup_snapshot(index, session_id, SessionCacheState::Cached);
     }
 
@@ -124,6 +124,26 @@ fn snapshot_state(record: &CachedSessionRecord) -> SessionCacheState {
         "resolver" => SessionCacheState::Confirmed,
         _ => SessionCacheState::Cached,
     }
+}
+
+fn find_unique_session_id<'a>(
+    panel: &AgentPanel,
+    session_ids: impl Iterator<Item = &'a str>,
+) -> Option<&'a str> {
+    let mut unique = None;
+
+    for session_id in session_ids {
+        if is_subagent_session(panel, session_id) {
+            continue;
+        }
+        match unique {
+            None => unique = Some(session_id),
+            Some(existing) if existing == session_id => {}
+            Some(_) => return None,
+        }
+    }
+
+    unique
 }
 
 fn is_subagent_session(panel: &AgentPanel, session_id: &str) -> bool {

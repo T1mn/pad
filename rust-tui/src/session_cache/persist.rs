@@ -7,6 +7,7 @@ use super::storage::{load_index, prune_index, save_index};
 use super::util::{clean_text, now_ts, prefer_non_empty};
 use crate::hook::HookEvent;
 use crate::model::{AgentPanel, AgentType, PreviewTurn, SessionCacheState};
+use std::borrow::Borrow;
 use std::io;
 use std::path::Path;
 
@@ -92,7 +93,7 @@ pub fn persist_resolved_session(
         return Ok(());
     };
 
-    let normalized_turns = normalize_turns(turns.to_vec(), panel.agent_type == AgentType::Codex);
+    let normalized_turns = normalize_turns(turns, panel.agent_type == AgentType::Codex);
     let transcript = transcript_path.to_string_lossy().to_string();
     if panel.session_cache_state == Some(SessionCacheState::Confirmed)
         && panel.transcript_path.as_deref() == Some(transcript.as_str())
@@ -106,16 +107,18 @@ pub fn persist_resolved_session(
     let now = now_ts();
     let agent_type = panel.agent_type.to_string();
     let record_idx = upsert_session_record(&mut index, agent_session_id, &agent_type, now);
-    index.sessions[record_idx].transcript_path = Some(transcript);
-    index.sessions[record_idx].recent_turns = normalized_turns.clone();
-    index.sessions[record_idx].last_user_prompt =
-        normalized_turns.first().map(|turn| turn.question.clone());
-    index.sessions[record_idx].last_assistant_message = normalized_turns
+    let last_user_prompt = normalized_turns.first().map(|turn| turn.question.clone());
+    let last_assistant_message = normalized_turns
         .first()
         .and_then(|turn| turn.answer.clone());
-    index.sessions[record_idx].last_source = "resolver".to_string();
-    index.sessions[record_idx].last_seen_at = now;
-    index.sessions[record_idx].updated_at = now;
+    let record = &mut index.sessions[record_idx];
+    record.transcript_path = Some(transcript);
+    record.recent_turns = normalized_turns;
+    record.last_user_prompt = last_user_prompt;
+    record.last_assistant_message = last_assistant_message;
+    record.last_source = "resolver".to_string();
+    record.last_seen_at = now;
+    record.updated_at = now;
 
     upsert_binding(
         &mut index,
@@ -211,10 +214,15 @@ fn upsert_session_record(
     index.sessions.len().saturating_sub(1)
 }
 
-fn normalize_turns(turns: Vec<PreviewTurn>, normalize_codex_prompts: bool) -> Vec<PreviewTurn> {
+fn normalize_turns<I, T>(turns: I, normalize_codex_prompts: bool) -> Vec<PreviewTurn>
+where
+    I: IntoIterator<Item = T>,
+    T: Borrow<PreviewTurn>,
+{
     let mut normalized = turns
         .into_iter()
         .filter_map(|turn| {
+            let turn = turn.borrow();
             let question = if normalize_codex_prompts {
                 crate::preview_source::codex::normalize_codex_user_text(&turn.question, None)
             } else {
@@ -253,4 +261,36 @@ fn normalize_cached_codex_prompt(value: Option<String>, normalize_codex: bool) -
             Some(normalized)
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_turns;
+    use crate::model::PreviewTurn;
+
+    #[test]
+    fn normalize_turns_matches_for_owned_and_borrowed_inputs() {
+        let turns = vec![
+            PreviewTurn {
+                question: "  hello  ".to_string(),
+                answer: Some("  world  ".to_string()),
+            },
+            PreviewTurn {
+                question: "   ".to_string(),
+                answer: Some("drop".to_string()),
+            },
+        ];
+
+        let from_owned = normalize_turns(turns.clone(), false);
+        let from_borrowed = normalize_turns(&turns, false);
+
+        assert_eq!(from_owned, from_borrowed);
+        assert_eq!(
+            from_owned,
+            vec![PreviewTurn {
+                question: "hello".to_string(),
+                answer: Some("world".to_string()),
+            }]
+        );
+    }
 }

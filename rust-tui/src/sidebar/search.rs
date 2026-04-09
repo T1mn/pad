@@ -16,7 +16,7 @@ pub fn build_visible_sidebar_items(
             folder
                 .threads
                 .iter()
-                .filter(|thread| thread_matches_search(thread, &query))
+                .filter(|thread| thread_matches_search(thread.as_ref(), &query))
                 .cloned()
                 .collect::<Vec<_>>()
         } else {
@@ -86,6 +86,7 @@ mod tests {
     use super::super::model::ThreadRuntimeSource;
     use super::*;
     use crate::model::{AgentState, AgentType};
+    use std::sync::Arc;
 
     fn sample_thread(key: &str, title: &str) -> SidebarThread {
         SidebarThread {
@@ -129,8 +130,8 @@ mod tests {
             label: "demo · tmp".into(),
             updated_at: 1,
             threads: vec![
-                sample_thread("a", "hello world"),
-                sample_thread("b", "other"),
+                Arc::new(sample_thread("a", "hello world")),
+                Arc::new(sample_thread("b", "other")),
             ],
         };
 
@@ -145,6 +146,26 @@ mod tests {
             }
             _ => panic!("expected folder item"),
         }
+    }
+
+    #[test]
+    fn visible_items_reuse_thread_allocation_when_folder_is_expanded() {
+        let shared_thread = Arc::new(sample_thread("a", "hello world"));
+        let folder = SidebarFolder {
+            key: "/tmp/demo".into(),
+            path: "/tmp/demo".into(),
+            label: "demo · tmp".into(),
+            updated_at: 1,
+            threads: vec![shared_thread.clone()],
+        };
+        let expanded = std::collections::HashSet::from([String::from("/tmp/demo")]);
+
+        let items = build_visible_sidebar_items(&[folder], &expanded, "");
+
+        let SidebarItem::Thread(visible_thread) = &items[1] else {
+            panic!("expected thread item");
+        };
+        assert!(Arc::ptr_eq(&shared_thread, visible_thread));
     }
 
     #[test]

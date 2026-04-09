@@ -357,6 +357,7 @@ mod tests {
     use super::*;
     use crate::model::AgentPanel;
     use crate::sidebar::{SidebarFolder, SidebarThread};
+    use std::sync::Arc;
 
     #[test]
     fn shimmer_preserves_text_content() {
@@ -457,7 +458,7 @@ mod tests {
         };
         let items = vec![
             SidebarItem::Folder(folder.summary()),
-            SidebarItem::Thread(thread),
+            SidebarItem::Thread(Arc::new(thread)),
         ];
 
         assert_eq!(visible_thread_count(&items), 1);
@@ -505,7 +506,7 @@ mod tests {
         };
         let mut items = vec![SidebarItem::Folder(folder.summary())];
         for index in 1..=10 {
-            items.push(SidebarItem::Thread(thread(index)));
+            items.push(SidebarItem::Thread(Arc::new(thread(index))));
         }
 
         let badges = visible_thread_jump_badges(&items);

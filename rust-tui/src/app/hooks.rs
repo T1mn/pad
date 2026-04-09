@@ -105,7 +105,7 @@ impl App {
             if let Some(snapshot) = persisted_snapshot.as_ref() {
                 panel.agent_session_id = Some(snapshot.agent_session_id.clone());
                 panel.transcript_path = snapshot.transcript_path.clone();
-                panel.cached_preview_turns = snapshot.recent_turns.clone().into();
+                panel.cached_preview_turns = snapshot.recent_turns.clone();
                 panel.last_user_prompt = snapshot.last_user_prompt.clone();
                 panel.last_assistant_message = snapshot.last_assistant_message.clone();
                 panel.session_cache_state = Some(SessionCacheState::Confirmed);

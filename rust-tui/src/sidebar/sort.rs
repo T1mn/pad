@@ -1,4 +1,5 @@
 use super::model::{SidebarFolder, SidebarThread};
+use std::sync::Arc;
 
 pub fn folder_sort_key(left: &SidebarFolder, right: &SidebarFolder) -> std::cmp::Ordering {
     right
@@ -7,7 +8,10 @@ pub fn folder_sort_key(left: &SidebarFolder, right: &SidebarFolder) -> std::cmp:
         .then_with(|| left.label.cmp(&right.label))
 }
 
-pub fn thread_sort_key(left: &SidebarThread, right: &SidebarThread) -> std::cmp::Ordering {
+pub fn thread_sort_key(
+    left: &Arc<SidebarThread>,
+    right: &Arc<SidebarThread>,
+) -> std::cmp::Ordering {
     right
         .sort_timestamp()
         .cmp(&left.sort_timestamp())
