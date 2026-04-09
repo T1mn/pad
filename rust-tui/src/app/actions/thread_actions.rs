@@ -192,7 +192,7 @@ impl App {
         self.sidebar.thread_meta_editing = true;
         self.sidebar.thread_meta_edit_kind = ThreadMetaEditKind::Title;
         self.sidebar.thread_meta_buffer = thread.title.clone();
-        self.sidebar.thread_meta_target = Some(thread);
+        self.sidebar.thread_meta_target = Some(thread.as_ref().clone());
         self.mode = Mode::ThreadActionConfirm;
         self.dirty = true;
         true
@@ -207,7 +207,7 @@ impl App {
         self.sidebar.thread_meta_editing = true;
         self.sidebar.thread_meta_edit_kind = ThreadMetaEditKind::Tags;
         self.sidebar.thread_meta_buffer = thread.tags.join(", ");
-        self.sidebar.thread_meta_target = Some(thread);
+        self.sidebar.thread_meta_target = Some(thread.as_ref().clone());
         self.mode = Mode::ThreadActionConfirm;
         self.dirty = true;
         true
@@ -307,7 +307,7 @@ impl App {
                 ) && thread.archived == archived
                     && thread.session_id.is_some() =>
             {
-                Some(thread)
+                Some(thread.as_ref().clone())
             }
             _ => None,
         }

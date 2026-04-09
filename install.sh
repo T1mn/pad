@@ -6,6 +6,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
+RELEASE_BASE_URL="${PAD_RELEASE_BASE_URL:-https://github.com/${REPO}/releases/download}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -123,6 +124,32 @@ resolved_release_version() {
   echo "$version"
 }
 
+release_download_url() {
+  local version="$1"
+  local filename="$2"
+  local base="${RELEASE_BASE_URL%/}"
+  echo "${base}/${version}/${filename}"
+}
+
+validate_installed_binary() {
+  local binary_path="$1"
+  local log_file
+  log_file="$(mktemp)"
+  TEMP_DIRS+=("${log_file}")
+
+  if "${binary_path}" --version >"${log_file}" 2>&1; then
+    return 0
+  fi
+
+  warn "  Installed binary failed self-check; falling back to source build"
+  if grep -q 'GLIBC_[0-9]' "${log_file}"; then
+    warn "  Detected glibc version mismatch on this system"
+  fi
+  sed -n '1,6{s/^/    /;p;}' "${log_file}"
+  rm -f "${binary_path}"
+  return 1
+}
+
 find_local_repo_root() {
   if [ -f "${SCRIPT_DIR}/rust-tui/Cargo.toml" ]; then
     echo "${SCRIPT_DIR}"
@@ -143,17 +170,38 @@ prompt_yes() {
     return 0
   fi
 
-  if [ ! -t 0 ]; then
-    return 1
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf "%s [y/N]\n> " "$prompt" >/dev/tty
+    local answer=""
+    IFS= read -r answer </dev/tty || true
+    case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
+      y|yes) return 0 ;;
+      *) return 1 ;;
+    esac
   fi
 
-  printf "%s [y/N]\n> " "$prompt" >&2
-  local answer=""
-  IFS= read -r answer || true
-  case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
-    y|yes) return 0 ;;
-    *) return 1 ;;
+  warn "! ${prompt} (non-interactive install: proceeding automatically)"
+  return 0
+}
+
+detect_build_install_plan() {
+  case "$(get_os)" in
+    macos)
+      if check_command brew; then
+        echo "brew"
+        return 0
+      fi
+      ;;
+    linux)
+      for tool in apt-get dnf yum pacman zypper apk brew; do
+        if check_command "$tool"; then
+          echo "$tool"
+          return 0
+        fi
+      done
+      ;;
   esac
+  return 1
 }
 
 detect_tmux_install_plan() {
@@ -264,6 +312,110 @@ install_tmux() {
   fi
 }
 
+build_tools_ready() {
+  check_command cc && check_command pkg-config
+}
+
+build_tools_manual_hint() {
+  case "$1" in
+    brew) echo "brew install pkgconf" ;;
+    apt-get) echo "sudo apt-get update && sudo apt-get install -y build-essential pkg-config" ;;
+    dnf) echo "sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config" ;;
+    yum) echo "sudo yum install -y gcc gcc-c++ make pkgconfig" ;;
+    pacman) echo "sudo pacman -Sy --noconfirm base-devel pkgconf" ;;
+    zypper) echo "sudo zypper --non-interactive install gcc gcc-c++ make pkg-config" ;;
+    apk) echo "sudo apk add build-base pkgconf" ;;
+    *) echo "install a C toolchain and pkg-config with your system package manager" ;;
+  esac
+}
+
+confirm_source_build_fallback() {
+  say ""
+  say "No compatible prebuilt binary was found for this environment, or the downloaded binary could not run."
+  say "この環境に対応する事前ビルド済みバイナリが見つからないか、ダウンロードしたバイナリを実行できませんでした。"
+  say "当前环境没有可用的预编译二进制，或下载的二进制无法运行。"
+  say ""
+  prompt_yes "Continue with a local source build? / ローカルでソースビルドを続行しますか？ / 是否继续本地源码编译？"
+}
+
+install_build_tools() {
+  if build_tools_ready; then
+    return 0
+  fi
+
+  local plan
+  if ! plan="$(detect_build_install_plan)"; then
+    err "✗ A local source build requires a C toolchain and pkg-config, but no supported package manager was detected"
+    say "  Manual command: install a C toolchain and pkg-config for your system"
+    exit 1
+  fi
+
+  if ! prompt_yes "PAD needs local build tools for a source install. Install them now?"; then
+    err "✗ Build tool installation was declined"
+    say "  Manual command: $(build_tools_manual_hint "$plan")"
+    exit 1
+  fi
+
+  ensure_root_or_sudo "$plan"
+  say "${BLUE}Installing build tools via ${plan}...${NC}"
+  case "$plan" in
+    brew)
+      brew install pkgconf
+      ;;
+    apt-get)
+      run_as_root_or_sudo apt-get update
+      run_as_root_or_sudo apt-get install -y build-essential pkg-config
+      ;;
+    dnf)
+      run_as_root_or_sudo dnf install -y gcc gcc-c++ make pkgconf-pkg-config
+      ;;
+    yum)
+      run_as_root_or_sudo yum install -y gcc gcc-c++ make pkgconfig
+      ;;
+    pacman)
+      run_as_root_or_sudo pacman -Sy --noconfirm base-devel pkgconf
+      ;;
+    zypper)
+      run_as_root_or_sudo zypper --non-interactive install gcc gcc-c++ make pkg-config
+      ;;
+    apk)
+      run_as_root_or_sudo apk add build-base pkgconf
+      ;;
+  esac
+
+  if ! build_tools_ready; then
+    err "✗ Build tool installation completed but required commands are still missing"
+    exit 1
+  fi
+}
+
+install_rust() {
+  if check_rust; then
+    return 0
+  fi
+
+  if ! prompt_yes "Rust is required for a local source build. Install Rust now? / ローカルのソースビルドには Rust が必要です。今すぐ Rust をインストールしますか？ / 本地源码编译需要 Rust。现在安装 Rust 吗？"; then
+    err "✗ Rust installation was declined"
+    say "  Manual command: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    exit 1
+  fi
+
+  say "${BLUE}Installing Rust toolchain...${NC}"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+
+  if [ -f "${HOME}/.cargo/env" ]; then
+    # shellcheck disable=SC1090
+    . "${HOME}/.cargo/env"
+  else
+    export PATH="${HOME}/.cargo/bin:${PATH}"
+  fi
+
+  if ! check_rust; then
+    err "✗ Rust installation completed but cargo is still unavailable"
+    exit 1
+  fi
+}
+
 install_from_binary() {
   if [ "${FORCE_SOURCE}" = "1" ]; then
     return 1
@@ -287,7 +439,7 @@ install_from_binary() {
   fi
 
   filename="pad-${version}-${os}-${arch}.tar.gz"
-  url="https://github.com/${REPO}/releases/download/${version}/${filename}"
+  url="$(release_download_url "${version}" "${filename}")"
 
   say "${BLUE}Trying to download pre-built binary...${NC}"
   say "  Platform: ${os}/${arch}"
@@ -306,6 +458,9 @@ install_from_binary() {
   mkdir -p "${INSTALL_DIR}"
   mv "${tmp_dir}/pad" "${INSTALL_DIR}/pad"
   chmod +x "${INSTALL_DIR}/pad"
+  if ! validate_installed_binary "${INSTALL_DIR}/pad"; then
+    return 1
+  fi
   ok "✓ Installed binary to ${INSTALL_DIR}/pad"
 }
 
@@ -341,16 +496,8 @@ install_from_source() {
   say ""
   say "${BLUE}Building from source...${NC}"
 
-  if ! check_rust; then
-    err "✗ Rust/Cargo not found"
-    say ""
-    say "Install Rust:"
-    say "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    say ""
-    say "Or download a pre-built binary from:"
-    say "  https://github.com/${REPO}/releases"
-    exit 1
-  fi
+  install_build_tools
+  install_rust
 
   if repo_root="$(find_local_repo_root)"; then
     say "  Source:   local checkout (${repo_root})"
@@ -416,6 +563,8 @@ Environment variables:
   PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
   PAD_INSTALL_FORCE_SOURCE
                          Skip binary download and build from source when set to 1
+  PAD_RELEASE_BASE_URL   Override the release download base URL
+                         Useful for CI and local installer smoke tests
 
 Notes:
   - PAD requires tmux at runtime.
@@ -438,6 +587,10 @@ main() {
   say ""
 
   if ! install_from_binary; then
+    if ! confirm_source_build_fallback; then
+      err "✗ Local source build was declined"
+      exit 1
+    fi
     warn "Falling back to source build..."
     install_from_source
   fi

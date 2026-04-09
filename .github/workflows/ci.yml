@@ -79,11 +79,38 @@ jobs:
         with:
           workspaces: rust-tui -> target
 
+      - name: Build dist binary
+        working-directory: rust-tui
+        run: cargo build --profile dist
+
+      - name: Prepare local release archive
+        shell: bash
+        env:
+          PAD_TEST_VERSION: v0.0.0-ci
+        run: |
+          set -euo pipefail
+          release_dir="${GITHUB_WORKSPACE}/.pad-release/${PAD_TEST_VERSION}"
+          mkdir -p "${release_dir}"
+          case "${RUNNER_OS}" in
+            Linux)
+              filename="pad-${PAD_TEST_VERSION}-linux-x86_64.tar.gz"
+              ;;
+            macOS)
+              filename="pad-${PAD_TEST_VERSION}-macos-universal.tar.gz"
+              ;;
+            *)
+              echo "unsupported runner: ${RUNNER_OS}" >&2
+              exit 1
+              ;;
+          esac
+          tar -czf "${release_dir}/${filename}" -C "${GITHUB_WORKSPACE}/rust-tui/target/dist" pad
+
       - name: Run installer from checkout
         env:
-          PAD_INSTALL_FORCE_SOURCE: "1"
           PAD_INSTALL_ASSUME_YES: "1"
+          PAD_RELEASE_BASE_URL: file://${{ github.workspace }}/.pad-release
           INSTALL_DIR: ${{ github.workspace }}/.pad-bin
+          VERSION: v0.0.0-ci
         run: |
           bash ./install.sh
           "${INSTALL_DIR}/pad" --help

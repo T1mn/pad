@@ -1,6 +1,7 @@
 use crate::model::{
     AgentState, AgentType, GitInfo, PreviewSessionOrigin, SessionCacheState, SharedPreviewTurns,
 };
+use std::sync::Arc;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,7 +62,7 @@ pub struct SidebarFolder {
     pub path: String,
     pub label: String,
     pub updated_at: i64,
-    pub threads: Vec<SidebarThread>,
+    pub threads: Vec<Arc<SidebarThread>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,7 +79,7 @@ pub struct SidebarFolderSummary {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SidebarItem {
     Folder(SidebarFolderSummary),
-    Thread(SidebarThread),
+    Thread(Arc<SidebarThread>),
 }
 
 impl SidebarThread {
@@ -135,7 +136,7 @@ impl SidebarFolder {
             .or_else(|| self.threads.iter().find(|thread| thread.is_live()))
             .or_else(|| self.threads.iter().find(|thread| thread.is_active))
             .or_else(|| self.threads.first())
-            .cloned()
+            .map(|thread| thread.as_ref().clone())
     }
 }
 
@@ -163,7 +164,7 @@ impl SidebarItem {
 
     pub fn as_thread(&self) -> Option<&SidebarThread> {
         match self {
-            SidebarItem::Thread(thread) => Some(thread),
+            SidebarItem::Thread(thread) => Some(thread.as_ref()),
             _ => None,
         }
     }

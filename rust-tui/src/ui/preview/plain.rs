@@ -20,41 +20,7 @@ pub(crate) fn draw_plain_preview(
     theme: &Theme,
 ) {
     let viewport = if with_block { block.inner(area) } else { area };
-    let target_key = app.preview.pane_id.clone().unwrap_or_default();
-    let theme_name = theme.name.to_string();
-    let content = app.preview.content.clone();
-    let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
-        cache.target_key == target_key
-            && cache.width == viewport.width
-            && cache.theme_name == theme_name
-            && cache.content == content
-    });
-    if !cache_hit {
-        let started_at = Instant::now();
-        let lines: Vec<Line<'static>> = content
-            .lines()
-            .map(|line| Line::from(format_line(line, theme)))
-            .collect();
-        let wrapped_rows = wrapped_row_count_for_lines(&lines, viewport.width as usize);
-        let elapsed = started_at.elapsed();
-        if elapsed >= Duration::from_millis(8) {
-            crate::log_debug!(
-                "preview.plain: render_slow target={} width={} lines={} elapsed_ms={}",
-                target_key,
-                viewport.width,
-                lines.len(),
-                elapsed.as_millis()
-            );
-        }
-        app.preview.plain_cache = Some(PreviewPlainCache {
-            target_key,
-            width: viewport.width,
-            theme_name,
-            content,
-            lines,
-            wrapped_rows,
-        });
-    }
+    ensure_plain_preview_cache(app, viewport.width);
 
     let scroll = resolve_preview_scroll_from_cache(app, viewport);
     let lines = app
@@ -73,6 +39,46 @@ pub(crate) fn draw_plain_preview(
     }
 
     f.render_widget(paragraph, area);
+}
+
+pub(crate) fn ensure_plain_preview_cache(app: &mut App, width: u16) {
+    let target_key = app.preview.pane_id.as_deref().unwrap_or_default();
+    let theme_name = app.theme.name;
+    let content = app.preview.content.as_str();
+    let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
+        cache.target_key == target_key
+            && cache.width == width
+            && cache.theme_name == theme_name
+            && cache.content == content
+    });
+    if cache_hit {
+        return;
+    }
+
+    let started_at = Instant::now();
+    let lines: Vec<Line<'static>> = content
+        .lines()
+        .map(|line| Line::from(format_line(line, &app.theme)))
+        .collect();
+    let wrapped_rows = wrapped_row_count_for_lines(&lines, width as usize);
+    let elapsed = started_at.elapsed();
+    if elapsed >= Duration::from_millis(8) {
+        crate::log_debug!(
+            "preview.plain: render_slow target={} width={} lines={} elapsed_ms={}",
+            target_key,
+            width,
+            lines.len(),
+            elapsed.as_millis()
+        );
+    }
+    app.preview.plain_cache = Some(PreviewPlainCache {
+        target_key: target_key.to_string(),
+        width,
+        theme_name: theme_name.to_string(),
+        content: content.to_string(),
+        lines,
+        wrapped_rows,
+    });
 }
 
 pub(crate) fn resolve_preview_scroll_from_cache(app: &mut App, viewport: Rect) -> u16 {
@@ -160,5 +166,31 @@ pub(crate) fn wrapped_row_count_for_lines(lines: &[Line<'_>], viewport_width: us
         1
     } else {
         total
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_plain_preview_cache;
+    use crate::app::App;
+
+    #[test]
+    fn ensure_plain_preview_cache_reuses_existing_cache_when_context_is_unchanged() {
+        let mut app = App::new();
+        app.preview.pane_id = Some("%1".into());
+        app.preview.content = "plain text".into();
+
+        ensure_plain_preview_cache(&mut app, 12);
+        let initial_cache = app.preview.plain_cache.clone().expect("cache built");
+
+        ensure_plain_preview_cache(&mut app, 12);
+        let repeated_cache = app.preview.plain_cache.expect("cache reused");
+
+        assert_eq!(initial_cache.target_key, repeated_cache.target_key);
+        assert_eq!(initial_cache.width, repeated_cache.width);
+        assert_eq!(initial_cache.theme_name, repeated_cache.theme_name);
+        assert_eq!(initial_cache.content, repeated_cache.content);
+        assert_eq!(initial_cache.wrapped_rows, repeated_cache.wrapped_rows);
+        assert_eq!(initial_cache.lines.len(), repeated_cache.lines.len());
     }
 }

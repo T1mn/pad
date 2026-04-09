@@ -6,6 +6,7 @@ use crate::session_cache::SessionCacheSnapshot;
 use crate::sidebar::model::{SidebarFolder, SidebarThread};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 fn folder() -> SidebarFolder {
     SidebarFolder {
@@ -41,7 +42,8 @@ fn codex_history_prefers_session_cache_prompt_for_subtitle() {
             recent_turns: vec![PreviewTurn {
                 question: "newest prompt".into(),
                 answer: Some("answer".into()),
-            }],
+            }]
+            .into(),
             last_user_prompt: Some("newest prompt".into()),
             last_assistant_message: Some("answer".into()),
             state: SessionCacheState::Cached,
@@ -56,7 +58,7 @@ fn codex_history_prefers_session_cache_prompt_for_subtitle() {
 
 #[test]
 fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
-    let mut threads = vec![SidebarThread {
+    let mut threads = vec![Arc::new(SidebarThread {
         key: "live:%1".into(),
         folder_key: "/repo".into(),
         working_dir: "/repo".into(),
@@ -86,7 +88,7 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         last_assistant_message: None,
         has_unread_stop: false,
         archived: false,
-    }];
+    })];
 
     let history = build_codex_history_entry(
         &folder(),
@@ -97,7 +99,8 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
             recent_turns: vec![PreviewTurn {
                 question: "newest prompt".into(),
                 answer: None,
-            }],
+            }]
+            .into(),
             last_user_prompt: Some("newest prompt".into()),
             last_assistant_message: None,
             state: SessionCacheState::Cached,

@@ -35,7 +35,7 @@ cd pad
 ./install.sh
 ```
 
-The installer tries a pre-built release first, falls back to a source build if needed, and will offer to install `tmux` automatically when it is missing.
+The installer tries a pre-built release first, validates that the downloaded binary can run on the current machine, and falls back to a local source build when needed. It also installs `tmux` automatically when missing, and will bootstrap Rust plus common build tools when a source build is required.
 
 Manual source build:
 

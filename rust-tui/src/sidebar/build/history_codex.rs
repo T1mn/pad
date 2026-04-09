@@ -106,7 +106,7 @@ fn apply_session_cache_snapshot(thread: &mut SidebarThread, snapshot: &SessionCa
     }
 
     if !snapshot.recent_turns.is_empty() {
-        thread.cached_preview_turns = snapshot.recent_turns.clone().into();
+        thread.cached_preview_turns = snapshot.recent_turns.clone();
     }
 
     if let Some(prompt) = snapshot

@@ -248,51 +248,18 @@ pub(crate) fn preview_visible_plain_text_rows(app: &mut App, area: Rect) -> Vec<
 }
 
 fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
-    let target_key = app.preview.pane_id.clone().unwrap_or_default();
-    let theme_name = app.theme.name.to_string();
-    let content = app.preview.content.clone();
-    let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
-        cache.target_key == target_key
-            && cache.width == area.width
-            && cache.theme_name == theme_name
-            && cache.content == content
-    });
-
-    if !cache_hit {
-        let lines: Vec<Line<'static>> = content
-            .lines()
-            .map(|line| Line::from(super::markdown::format_line(line, &app.theme)))
-            .collect();
-        let wrapped_rows = super::plain::wrapped_row_count_for_lines(&lines, area.width as usize);
-        app.preview.plain_cache = Some(crate::app::PreviewPlainCache {
-            target_key,
-            width: area.width,
-            theme_name,
-            content,
-            lines,
-            wrapped_rows,
-        });
-    }
+    super::plain::ensure_plain_preview_cache(app, area.width);
 
     let scroll = super::plain::resolve_preview_scroll_from_cache(app, area) as usize;
-    let wrapped = app
-        .preview
+    app.preview
         .plain_cache
         .as_ref()
-        .map(|cache| {
-            cache
-                .lines
-                .iter()
-                .flat_map(|line| super::markdown::wrap_styled_line(line, area.width as usize))
-                .map(|line| line_to_plain_string(&line))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
-    wrapped
         .into_iter()
+        .flat_map(|cache| cache.lines.iter())
+        .flat_map(|line| super::markdown::wrap_styled_line(line, area.width as usize))
         .skip(scroll)
         .take(area.height as usize)
+        .map(|line| line_to_plain_string(&line))
         .collect()
 }
 
@@ -429,4 +396,28 @@ fn shortened_thread_path(thread: &SidebarThread, max_len: usize) -> String {
         .map(|(i, _)| i)
         .unwrap_or(0);
     format!("...{}", &path[start..])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preview_visible_plain_text_rows;
+    use crate::app::App;
+    use crate::model::{PreviewSource, PreviewView};
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
+        let mut app = App::new();
+        app.preview.source = PreviewSource::Tmux;
+        app.preview.view = PreviewView::Plain;
+        app.preview.pane_id = Some("%1".into());
+        app.preview.content = "abcd\nefgh".into();
+        app.preview.follow_bottom = false;
+        app.preview.scroll = 1;
+
+        let rows = preview_visible_plain_text_rows(&mut app, Rect::new(0, 0, 2, 2));
+
+        assert_eq!(rows, vec!["cd".to_string(), "ef".to_string()]);
+        assert!(app.preview.plain_cache.is_some());
+    }
 }

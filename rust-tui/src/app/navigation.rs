@@ -5,29 +5,22 @@ use crate::model::AgentPanel;
 use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 impl App {
-    fn visible_thread_sidebar_indices(items: &[SidebarItem]) -> Vec<usize> {
-        items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| item.as_thread().map(|_| index))
-            .collect()
-    }
-
-    fn sidebar_navigable_indices_for(items: &[SidebarItem]) -> Vec<usize> {
-        items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| {
-                if Self::sidebar_item_is_navigable(items, index, item) {
-                    Some(index)
-                } else {
-                    None
-                }
-            })
-            .collect()
+    fn nth_visible_thread_sidebar_index(items: &[SidebarItem], target: usize) -> Option<usize> {
+        let mut visible_threads = 0usize;
+        for (index, item) in items.iter().enumerate() {
+            if item.as_thread().is_none() {
+                continue;
+            }
+            if visible_threads == target {
+                return Some(index);
+            }
+            visible_threads += 1;
+        }
+        None
     }
 
     fn sidebar_item_is_navigable(items: &[SidebarItem], index: usize, item: &SidebarItem) -> bool {
@@ -45,25 +38,34 @@ impl App {
         current: Option<usize>,
         forward: bool,
     ) -> Option<usize> {
-        let candidates = Self::sidebar_navigable_indices_for(items);
-        if candidates.is_empty() {
-            return None;
+        let mut first = None;
+        let mut last = None;
+        let mut next = None;
+        let mut previous = None;
+
+        for (index, item) in items.iter().enumerate() {
+            if !Self::sidebar_item_is_navigable(items, index, item) {
+                continue;
+            }
+
+            first.get_or_insert(index);
+            last = Some(index);
+
+            if let Some(current) = current {
+                if index > current && next.is_none() {
+                    next = Some(index);
+                }
+                if index < current {
+                    previous = Some(index);
+                }
+            }
         }
 
         match current {
-            Some(current) if forward => candidates
-                .iter()
-                .copied()
-                .find(|index| *index > current)
-                .or_else(|| candidates.first().copied()),
-            Some(current) => candidates
-                .iter()
-                .rev()
-                .copied()
-                .find(|index| *index < current)
-                .or_else(|| candidates.last().copied()),
-            None if forward => candidates.first().copied(),
-            None => candidates.last().copied(),
+            Some(_) if forward => next.or(first),
+            Some(_) => previous.or(last),
+            None if forward => first,
+            None => last,
         }
     }
 
@@ -128,7 +130,7 @@ impl App {
             );
             for folder in &mut folders {
                 for thread in &mut folder.threads {
-                    self.apply_cached_preview_to_thread(thread);
+                    self.apply_cached_preview_to_thread(Arc::make_mut(thread));
                 }
                 folder.threads.sort_by(crate::sidebar::thread_sort_key);
                 folder.updated_at = folder
@@ -241,49 +243,59 @@ impl App {
     }
 
     pub fn sync_sidebar_selection(&mut self) {
-        let folders = self.sidebar_folders_ref().to_vec();
-        let items = self.visible_sidebar_items_ref().to_vec();
+        self.ensure_visible_sidebar_items_cache();
 
-        if items.is_empty() {
+        if self.sidebar.visible_sidebar_items_cache.is_empty() {
             self.sidebar.selected_sidebar_key = None;
             self.table_state.select(None);
             return;
         }
 
+        let pending_sidebar_selection_index = self.sidebar.pending_sidebar_selection_index.take();
         let mut selected_key = self.sidebar.selected_sidebar_key.clone();
-        let mut selected_index = selected_key
-            .as_deref()
-            .and_then(|key| items.iter().position(|item| item.key() == key));
 
-        if selected_index.is_none() {
-            if let Some(folder_key) = selected_key.as_deref().and_then(|key| {
-                folders.iter().find_map(|folder| {
-                    if folder.key == key || folder.threads.iter().any(|thread| thread.key == key) {
-                        Some(folder.key.clone())
-                    } else {
-                        None
+        let selected_index = {
+            let folders = &self.sidebar.sidebar_folders_cache;
+            let items = &self.sidebar.visible_sidebar_items_cache;
+
+            let mut selected_index = selected_key
+                .as_deref()
+                .and_then(|key| items.iter().position(|item| item.key() == key));
+
+            if selected_index.is_none() {
+                if let Some(folder_key) = selected_key.as_deref().and_then(|key| {
+                    folders.iter().find_map(|folder| {
+                        if folder.key == key
+                            || folder.threads.iter().any(|thread| thread.key == key)
+                        {
+                            Some(folder.key.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                }) {
+                    selected_index = items.iter().position(|item| item.key() == folder_key);
+                    if selected_index.is_some() {
+                        selected_key = Some(folder_key.to_string());
                     }
-                })
-            }) {
-                selected_index = items.iter().position(|item| item.key() == folder_key);
-                if selected_index.is_some() {
-                    selected_key = Some(folder_key);
                 }
             }
-        }
 
-        if selected_index.is_none() {
-            if let Some(preferred_index) = self.sidebar.pending_sidebar_selection_index.take() {
-                let clamped_index = preferred_index.min(items.len().saturating_sub(1));
-                selected_index = Some(clamped_index);
-                selected_key = items.get(clamped_index).map(|item| item.key().to_string());
+            if selected_index.is_none() {
+                if let Some(preferred_index) = pending_sidebar_selection_index {
+                    let clamped_index = preferred_index.min(items.len().saturating_sub(1));
+                    selected_index = Some(clamped_index);
+                    selected_key = items.get(clamped_index).map(|item| item.key().to_string());
+                }
             }
-        }
 
-        if selected_index.is_none() {
-            selected_index = Some(0);
-            selected_key = Some(items[0].key().to_string());
-        }
+            if selected_index.is_none() {
+                selected_key = Some(items[0].key().to_string());
+                Some(0)
+            } else {
+                selected_index
+            }
+        };
 
         self.sidebar.selected_sidebar_key = selected_key;
         self.table_state.select(selected_index);
@@ -327,7 +339,7 @@ impl App {
                 .iter()
                 .find(|candidate| candidate.key == folder.key)
                 .and_then(SidebarFolder::primary_thread)?,
-            SidebarItem::Thread(thread) => thread,
+            SidebarItem::Thread(thread) => thread.as_ref().clone(),
         };
         self.apply_cached_preview_to_thread(&mut thread);
         Some(thread)
@@ -370,9 +382,11 @@ impl App {
             return;
         }
 
-        let items = self.visible_sidebar_items_ref().to_vec();
         let current = self.table_state.selected();
-        let Some(i) = Self::next_navigable_sidebar_index(&items, current, true) else {
+        let Some(i) = ({
+            let items = self.visible_sidebar_items_ref();
+            Self::next_navigable_sidebar_index(items, current, true)
+        }) else {
             return;
         };
         let selected_key = self
@@ -404,9 +418,11 @@ impl App {
             return;
         }
 
-        let items = self.visible_sidebar_items_ref().to_vec();
         let current = self.table_state.selected();
-        let Some(i) = Self::next_navigable_sidebar_index(&items, current, false) else {
+        let Some(i) = ({
+            let items = self.visible_sidebar_items_ref();
+            Self::next_navigable_sidebar_index(items, current, false)
+        }) else {
             return;
         };
         let selected_key = self
@@ -427,10 +443,10 @@ impl App {
     }
 
     pub fn jump_to(&mut self, index: usize) {
-        let target_sidebar_index =
-            Self::visible_thread_sidebar_indices(self.visible_sidebar_items_ref())
-                .get(index)
-                .copied();
+        let target_sidebar_index = {
+            let items = self.visible_sidebar_items_ref();
+            Self::nth_visible_thread_sidebar_index(items, index)
+        };
         let Some(target_sidebar_index) = target_sidebar_index else {
             return;
         };

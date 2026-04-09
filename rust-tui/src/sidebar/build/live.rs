@@ -2,6 +2,7 @@ use super::meta::{apply_thread_meta, apply_thread_metadata, load_thread_meta_for
 use crate::model::{AgentPanel, AgentType};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use super::super::display::{clean_title, folder_display_label};
 use super::super::model::{SidebarFolder, SidebarThread};
@@ -21,7 +22,7 @@ pub(super) fn build_live_panel_fallback_folders(panels: &[AgentPanel]) -> Vec<Si
                 updated_at: 0,
                 threads: Vec::new(),
             });
-        folder.threads.push(thread_from_live_panel(panel));
+        folder.threads.push(Arc::new(thread_from_live_panel(panel)));
     }
 
     apply_thread_metadata(&mut folders);
