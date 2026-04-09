@@ -1,9 +1,46 @@
 use super::*;
+use tokio::task::JoinHandle;
 
-pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
+static EMBEDDED_DAEMON: LazyLock<Mutex<Option<JoinHandle<()>>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    run_daemon_loop(false).await
+}
+
+pub fn ensure_embedded_daemon_running() -> io::Result<bool> {
+    stop_external_daemon_if_running()?;
+
+    let mut handle_slot = EMBEDDED_DAEMON
+        .lock()
+        .map_err(|_| io::Error::other("telegram embedded daemon lock poisoned"))?;
+    if let Some(handle) = handle_slot.as_ref() {
+        if !handle.is_finished() {
+            return Ok(false);
+        }
+    }
+
+    let handle = tokio::spawn(async move {
+        if let Err(err) = run_daemon_loop(true).await {
+            log_debug!("telegram: embedded daemon exited with error: {}", err);
+        }
+    });
+    *handle_slot = Some(handle);
+    Ok(true)
+}
+
+async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mode = if embedded {
+        "telegram-bot-embedded"
+    } else {
+        "telegram-bot"
+    };
     let _status_guard =
-        runtime_status::StatusGuard::new(crate::paths::telegram_bot_status_path(), "telegram-bot")?;
-    log_debug!("telegram: daemon starting");
+        runtime_status::StatusGuard::new(crate::paths::telegram_bot_status_path(), mode)?;
+    log_debug!(
+        "telegram: daemon starting mode={}",
+        if embedded { "embedded" } else { "standalone" }
+    );
 
     let mut state = load_state().unwrap_or_default();
     if state.journal_position == 0 && state.pending.is_none() {
@@ -21,10 +58,18 @@ pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
             state = latest_state;
         }
         if !config.telegram.enabled {
+            if embedded {
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
             log_debug!("telegram: disabled in config, exiting");
             return Ok(());
         }
         if config.telegram.bot_token.trim().is_empty() {
+            if embedded {
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
             log_debug!("telegram: bot_token empty, exiting");
             return Ok(());
         }
@@ -33,32 +78,41 @@ pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
             || config.telegram.bot_username.is_empty()
             || config.language != last_language
         {
-            match fetch_me(&config.telegram.bot_token).await {
-                Ok(me) => {
-                    let username = me.username.unwrap_or_default();
-                    if config.telegram.bot_username != username {
-                        config.telegram.bot_username = username.clone();
-                        config.save();
-                    }
-                    if let Err(err) =
-                        set_my_commands(&config.telegram.bot_token, telegram_locale(&config)).await
-                    {
-                        log_debug!("telegram: setMyCommands failed: {}", err);
-                    }
-                    last_token = config.telegram.bot_token.clone();
-                    last_language = config.language.clone();
-                    log_debug!("telegram: authenticated as @{}", username);
-                }
+            let auth_result = fetch_me(&config.telegram.bot_token).await;
+            let me = match auth_result {
+                Ok(me) => Some(me),
                 Err(err) => {
-                    log_debug!("telegram: getMe failed: {}", err);
-                    sleep(Duration::from_secs(5)).await;
-                    continue;
+                    let err_text = err.to_string();
+                    log_debug!("telegram: getMe failed: {}", err_text);
+                    None
                 }
+            };
+            let Some(me) = me else {
+                sleep(Duration::from_secs(5)).await;
+                continue;
+            };
+
+            let username = me.username.unwrap_or_default();
+            if config.telegram.bot_username != username {
+                config.telegram.bot_username = username.clone();
+                config.save();
             }
+            if let Err(err) =
+                set_my_commands(&config.telegram.bot_token, telegram_locale(&config)).await
+            {
+                log_debug!("telegram: setMyCommands failed: {}", err);
+            }
+            last_token = config.telegram.bot_token.clone();
+            last_language = config.language.clone();
+            log_debug!("telegram: authenticated as @{}", username);
         }
 
         if let Err(err) = process_pending_timeout(&config, &mut state).await {
             log_debug!("telegram: pending timeout handling failed: {}", err);
+        }
+        let _ = save_state(&state);
+        if let Err(err) = process_pending_result_delivery(&config, &mut state).await {
+            log_debug!("telegram: pending result delivery failed: {}", err);
         }
         let _ = save_state(&state);
         if should_probe_hook_journal(&state) {
@@ -75,32 +129,37 @@ pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
         refresh_pending_feedback(&config, &mut state, false);
         let _ = save_state(&state);
 
-        match get_updates(&config.telegram.bot_token, state.update_offset).await {
-            Ok(updates) => {
-                for update in updates {
-                    if let Ok(latest_state) = load_state() {
-                        state = latest_state;
-                    }
-                    if !mark_update_processed(&mut state, update.update_id) {
-                        log_debug!(
-                            "telegram: skipping duplicate/stale update_id={} offset={}",
-                            update.update_id,
-                            state.update_offset
-                        );
-                        let _ = save_state(&state);
-                        continue;
-                    }
-                    let _ = save_state(&state);
-                    if let Err(err) = handle_update(&mut config, &mut state, update).await {
-                        log_debug!("telegram: update handling failed: {}", err);
-                    }
-                    let _ = save_state(&state);
-                }
-            }
+        let updates_result = get_updates(&config.telegram.bot_token, state.update_offset).await;
+        let updates = match updates_result {
+            Ok(updates) => Some(updates),
             Err(err) => {
-                log_debug!("telegram: getUpdates failed: {}", err);
-                sleep(Duration::from_secs(2)).await;
+                let err_text = err.to_string();
+                log_debug!("telegram: getUpdates failed: {}", err_text);
+                None
             }
+        };
+        let Some(updates) = updates else {
+            sleep(Duration::from_secs(2)).await;
+            continue;
+        };
+        for update in updates {
+            if let Ok(latest_state) = load_state() {
+                state = latest_state;
+            }
+            if !mark_update_processed(&mut state, update.update_id) {
+                log_debug!(
+                    "telegram: skipping duplicate/stale update_id={} offset={}",
+                    update.update_id,
+                    state.update_offset
+                );
+                let _ = save_state(&state);
+                continue;
+            }
+            let _ = save_state(&state);
+            if let Err(err) = handle_update(&mut config, &mut state, update).await {
+                log_debug!("telegram: update handling failed: {}", err);
+            }
+            let _ = save_state(&state);
         }
     }
 }
@@ -125,6 +184,10 @@ pub fn ensure_daemon_running(config: &Config) -> io::Result<bool> {
 }
 
 pub fn sync_daemon(config: &Config) -> io::Result<bool> {
+    if crate::chat::backend::pad_is_online() {
+        let _ = ensure_embedded_daemon_running()?;
+        return Ok(false);
+    }
     if !config.telegram.enabled || config.telegram.bot_token.trim().is_empty() {
         return stop_daemon();
     }
@@ -132,6 +195,10 @@ pub fn sync_daemon(config: &Config) -> io::Result<bool> {
 }
 
 pub fn restart_daemon(config: &Config) -> io::Result<bool> {
+    if crate::chat::backend::pad_is_online() {
+        let _ = ensure_embedded_daemon_running()?;
+        return Ok(false);
+    }
     let _ = stop_daemon()?;
     ensure_daemon_running(config)
 }
@@ -149,6 +216,9 @@ pub fn stop_daemon() -> io::Result<bool> {
     let mut stopped = false;
 
     if let Some(status) = runtime_status::read_status(&status_path) {
+        if status.pid == std::process::id() {
+            return Ok(false);
+        }
         if runtime_status::process_alive(status.pid) {
             stopped = true;
             #[cfg(unix)]
@@ -201,4 +271,12 @@ pub fn stop_daemon() -> io::Result<bool> {
     }
 
     Ok(stopped)
+}
+
+fn stop_external_daemon_if_running() -> io::Result<bool> {
+    let status_path = crate::paths::telegram_bot_status_path();
+    match runtime_status::read_status(&status_path) {
+        Some(status) if status.pid != std::process::id() => stop_daemon(),
+        _ => Ok(false),
+    }
 }

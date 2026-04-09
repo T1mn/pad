@@ -8,7 +8,7 @@ pub(super) struct DraftFeedbackGate {
 pub(super) async fn process_pending_timeout(
     config: &Config,
     state: &mut TelegramState,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let Some(pending) = state.pending.as_ref() else {
         return Ok(());
@@ -30,10 +30,29 @@ pub(super) async fn process_pending_timeout(
     Ok(())
 }
 
+pub(super) async fn process_pending_result_delivery(
+    config: &Config,
+    state: &mut TelegramState,
+) -> TelegramResult<()> {
+    let Some(pending) = state.pending.as_ref() else {
+        return Ok(());
+    };
+    if pending.phase != "delivering_result" {
+        return Ok(());
+    }
+    if pending.delivery_retry_at > now_ts() {
+        return Ok(());
+    }
+    if let Err(err) = deliver_pending_result(config, state, telegram_locale(config)).await {
+        log_debug!("telegram: result delivery retry failed: {}", err);
+    }
+    Ok(())
+}
+
 pub(super) async fn process_hook_journal(
     config: &Config,
     state: &mut TelegramState,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     super::hooks::sync_state_from_disk_public(state);
     let Some(_) = state.pending.clone() else {
         state.journal_position = journal_len();
@@ -94,11 +113,16 @@ pub(super) fn phase_label(locale: crate::i18n::Locale, phase: &str) -> String {
         "awaiting_submit" => tg(locale, "phase.awaiting_submit").to_string(),
         "awaiting_confirm" => tg(locale, "phase.awaiting_confirm").to_string(),
         "awaiting_stop" => tg(locale, "phase.accepted").to_string(),
+        "delivering_result" => tg(locale, "phase.delivering").to_string(),
         _ => phase.to_string(),
     }
 }
 
-pub(super) fn pending_status_text(locale: crate::i18n::Locale, pending: &PendingRequest, now: i64) -> String {
+pub(super) fn pending_status_text(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+    now: i64,
+) -> String {
     if pending.approval_call_id.is_some() {
         let mut lines = vec![
             tg(locale, "phase.awaiting_confirm").to_string(),
@@ -118,6 +142,7 @@ pub(super) fn pending_status_text(locale: crate::i18n::Locale, pending: &Pending
             }
             _ => tg(locale, "phase.accepted").to_string(),
         },
+        "delivering_result" => tg(locale, "phase.delivering").to_string(),
         _ => tg(locale, "phase.completed").to_string(),
     };
     format!("{}\n{}", headline, pending.target_label)
@@ -171,10 +196,48 @@ pub(super) fn finalize_pending_feedback(config: &Config, pending: &PendingReques
     });
 }
 
+pub(super) async fn deliver_pending_result(
+    config: &Config,
+    state: &mut TelegramState,
+    locale: crate::i18n::Locale,
+) -> TelegramResult<()> {
+    let Some(snapshot) = state.pending.as_ref().cloned() else {
+        return Ok(());
+    };
+    if snapshot.phase != "delivering_result" {
+        return Ok(());
+    }
+    let result_text = snapshot
+        .completed_text
+        .clone()
+        .unwrap_or_else(|| tg(locale, "result.missing").to_string());
+    let reply = tg_fmt2(
+        locale,
+        "result.completed",
+        &snapshot.request_id,
+        result_text,
+    );
+    match send_text(&config.telegram.bot_token, &snapshot.chat_id, &reply).await {
+        Ok(()) => {
+            finalize_pending_feedback(config, &snapshot, tg(locale, "phase.completed"));
+            state.pending = None;
+            Ok(())
+        }
+        Err(err) => {
+            if let Some(pending) = state.pending.as_mut() {
+                pending.delivery_attempts = pending.delivery_attempts.saturating_add(1);
+                pending.delivery_retry_at = now_ts().saturating_add(RESULT_DELIVERY_RETRY_SECS);
+                pending.last_status_at = None;
+            }
+            Err(err)
+        }
+    }
+}
+
 pub(super) async fn process_codex_pending_approval(
     config: &Config,
     state: &mut TelegramState,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let Some(snapshot) = state.pending.as_ref().cloned() else {
         return Ok(());
     };
@@ -188,7 +251,8 @@ pub(super) async fn process_codex_pending_approval(
     let transcript_path = match snapshot.transcript_path.clone() {
         Some(path) => path,
         None => {
-            let Some(path) = live_panels()?
+            let Some(path) = live_panels()
+                .map_err(telegram_error)?
                 .into_iter()
                 .find(|panel| panel.pane_id == snapshot.pane_id)
                 .and_then(|panel| panel.transcript_path)

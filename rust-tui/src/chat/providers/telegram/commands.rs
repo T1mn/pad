@@ -4,7 +4,7 @@ pub(super) async fn handle_update(
     config: &mut Config,
     state: &mut TelegramState,
     update: TelegramUpdate,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     if let Some(callback_query) = update.callback_query {
         return handle_callback_query(config, state, callback_query).await;
@@ -73,7 +73,7 @@ pub(super) async fn handle_command(
     state: &mut TelegramState,
     chat_id: &str,
     text: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let mut parts = text.trim().splitn(2, ' ');
     let command = parts.next().unwrap_or_default();
@@ -107,7 +107,7 @@ pub(super) async fn handle_command(
                 .await?;
                 return Ok(());
             };
-            let panels = live_panels()?;
+            let panels = live_panels().map_err(telegram_error)?;
             if !panels.iter().any(|panel| panel.pane_id == entry.pane_id) {
                 send_text(
                     &config.telegram.bot_token,
@@ -154,8 +154,12 @@ pub(super) async fn handle_command(
                 .await?;
                 return Ok(());
             };
-            match tmux_dispatch::send_escape(&target.pane_id) {
-                Ok(()) => {
+            let stop_send_error = {
+                let send_result = tmux_dispatch::send_escape(&target.pane_id);
+                send_result.err().map(|err| err.to_string())
+            };
+            match stop_send_error {
+                None => {
                     send_text(
                         &config.telegram.bot_token,
                         chat_id,
@@ -163,11 +167,11 @@ pub(super) async fn handle_command(
                     )
                     .await?;
                 }
-                Err(err) => {
+                Some(err_text) => {
                     send_text(
                         &config.telegram.bot_token,
                         chat_id,
-                        &tg_fmt(locale, "stop.failed", err),
+                        &tg_fmt(locale, "stop.failed", err_text),
                     )
                     .await?;
                 }
@@ -190,7 +194,7 @@ pub(super) async fn send_pad_status_report(
     config: &Config,
     state: &TelegramState,
     chat_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let pad_status = runtime_status::describe_status(&crate::paths::pad_status_path());
     let target = state
@@ -229,7 +233,7 @@ pub(super) async fn dispatch_codex_slash_command(
     command: &str,
     arg: &str,
     deadline_ms: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     if !pad_is_online() {
         send_text(
@@ -251,7 +255,7 @@ pub(super) async fn dispatch_codex_slash_command(
         return Ok(());
     };
 
-    let panels = live_panels()?;
+    let panels = live_panels().map_err(telegram_error)?;
     let Some(panel) = panels.iter().find(|panel| panel.pane_id == target.pane_id) else {
         send_text(
             &config.telegram.bot_token,
@@ -295,7 +299,7 @@ pub(super) async fn dispatch_codex_slash_command(
     let baseline = tmux_dispatch::capture_pane_tail(&panel.pane_id, 28)
         .map(|capture| summarize_pane_capture(&capture))
         .unwrap_or_default();
-    tmux_dispatch::dispatch_prompt(&panel.pane_id, &slash)?;
+    tmux_dispatch::dispatch_prompt(&panel.pane_id, &slash).map_err(telegram_error)?;
     invalidate_live_panels();
     log_debug!(
         "telegram: dispatched codex slash command pane={} command={}",
@@ -337,7 +341,7 @@ pub(super) async fn handle_plain_text(
     state: &mut TelegramState,
     chat_id: &str,
     text: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     if text.trim().is_empty() {
         return Ok(());
@@ -372,7 +376,7 @@ pub(super) async fn handle_plain_text(
         return Ok(());
     };
 
-    let panels = live_panels()?;
+    let panels = live_panels().map_err(telegram_error)?;
     let Some(panel) = panels.iter().find(|panel| panel.pane_id == target.pane_id) else {
         send_text(
             &config.telegram.bot_token,
@@ -402,10 +406,11 @@ pub(super) async fn handle_plain_text(
         return Ok(());
     }
 
-    tmux_dispatch::dispatch_prompt(&panel.pane_id, text)?;
+    tmux_dispatch::dispatch_prompt(&panel.pane_id, text).map_err(telegram_error)?;
     invalidate_live_panels();
     let request_id = format!("tg-{}", now_ts());
     let transcript_path = panel.transcript_path.clone();
+    let result_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
     let approval_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
     let sent_at = now_ts();
     let sent_at_ms = now_ms_i64();
@@ -417,6 +422,7 @@ pub(super) async fn handle_plain_text(
         target_label: compact_target_label(panel),
         prompt_text: text.to_string(),
         prompt_hash: format!("{:x}", md5::compute(text.as_bytes())),
+        turn_id: None,
         sent_at,
         sent_at_ms,
         accepted_at: None,
@@ -425,9 +431,14 @@ pub(super) async fn handle_plain_text(
         draft_id: now_ms_i64(),
         phase: "awaiting_submit".to_string(),
         transcript_path,
+        result_scan_offset,
         approval_scan_offset,
         approval_call_id: None,
         approval_justification: None,
+        completed_text: None,
+        completed_source: None,
+        delivery_attempts: 0,
+        delivery_retry_at: 0,
     });
     save_state(state)?;
     log_debug!(
@@ -445,7 +456,7 @@ pub(super) async fn send_help_message(
     state: &TelegramState,
     chat_id: &str,
     page: HelpPage,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let _: serde_json::Value = send_message(
         &config.telegram.bot_token,
@@ -461,7 +472,7 @@ pub(super) async fn edit_help_message(
     chat_id: &str,
     message_id: i64,
     page: HelpPage,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let _: serde_json::Value = edit_message(
         &config.telegram.bot_token,
@@ -481,9 +492,9 @@ pub(super) async fn send_agent_list(
     config: &Config,
     state: &mut TelegramState,
     chat_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> TelegramResult<()> {
     let locale = telegram_locale(config);
-    let panels = live_panels()?;
+    let panels = live_panels().map_err(telegram_error)?;
     let snapshot = panels
         .iter()
         .enumerate()
@@ -534,14 +545,14 @@ pub(super) async fn poll_slash_reply(
     slash: &str,
     baseline: &str,
     deadline_ms: u64,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
+) -> TelegramResult<Option<String>> {
     let started = Instant::now();
     let deadline = Duration::from_millis(deadline_ms);
     let mut candidate: Option<String> = None;
     let mut stable_hits = 0usize;
 
     loop {
-        let capture = tmux_dispatch::capture_pane_tail(pane_id, 28)?;
+        let capture = tmux_dispatch::capture_pane_tail(pane_id, 28).map_err(telegram_error)?;
         let capture = summarize_pane_capture(&capture);
         if !capture.is_empty() && capture != baseline {
             if !capture_looks_like_echo_only(&capture, slash) {

@@ -17,22 +17,6 @@ struct CachedPanels {
 
 static PANEL_CACHE: LazyLock<Mutex<Option<CachedPanels>>> = LazyLock::new(|| Mutex::new(None));
 
-pub(crate) fn latest_answer_for_pane(pane_id: &str) -> Option<String> {
-    let mut panels = scanner::scan_panels().ok()?;
-    let _ = session_cache::preload_panels(&mut panels);
-    let panel = panels.into_iter().find(|panel| panel.pane_id == pane_id)?;
-    panel
-        .last_assistant_message
-        .filter(|text| !text.trim().is_empty())
-        .or_else(|| {
-            panel
-                .cached_preview_turns
-                .first()
-                .and_then(|turn| turn.answer.clone())
-                .filter(|text| !text.trim().is_empty())
-        })
-}
-
 pub(crate) fn live_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error>> {
     if let Ok(cache) = PANEL_CACHE.lock() {
         if let Some(cache) = cache.as_ref() {

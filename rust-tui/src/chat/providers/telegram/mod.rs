@@ -17,6 +17,8 @@ use self::api::{
     TelegramUpdate,
 };
 #[cfg(test)]
+use self::callbacks::{approval_callback_data, parse_approval_callback_data};
+#[cfg(test)]
 use self::help::{build_help_keyboard, help_page_html};
 use self::help::{help_message_payload, HelpPage};
 use self::locale::{locale_prefers_chinese, telegram_locale, tg, tg_fmt, tg_fmt2, tg_fmt3};
@@ -26,8 +28,8 @@ use self::state::{
 };
 use crate::chat::approval::{scan_codex_approval_updates, transcript_len, CodexApprovalRequest};
 use crate::chat::backend::{
-    build_slash_command_text, compact_target_label, invalidate_live_panels, latest_answer_for_pane,
-    live_panels, pad_is_online, panel_display_title, summarize_pane_capture,
+    build_slash_command_text, compact_target_label, invalidate_live_panels, live_panels,
+    pad_is_online, panel_display_title, summarize_pane_capture,
 };
 use crate::hook::HookEvent;
 use crate::log_debug;
@@ -50,27 +52,33 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::sleep;
 
+type TelegramError = Box<dyn std::error::Error + Send + Sync>;
+type TelegramResult<T> = Result<T, TelegramError>;
+
+fn telegram_error(err: impl std::fmt::Display) -> TelegramError {
+    io::Error::other(err.to_string()).into()
+}
+
 use self::callbacks::{handle_callback_query, send_codex_approval_prompt};
-use self::commands::{
-    edit_help_message, handle_update, send_agent_list, send_pad_status_report,
-};
+use self::commands::{edit_help_message, handle_update, send_agent_list, send_pad_status_report};
 #[allow(unused_imports)]
 pub use self::daemon::{
-    daemon_is_running, ensure_daemon_running, restart_daemon, run_daemon, stop_daemon, sync_daemon,
+    daemon_is_running, ensure_daemon_running, ensure_embedded_daemon_running, restart_daemon,
+    run_daemon, stop_daemon, sync_daemon,
 };
+#[cfg(test)]
+use self::hooks::should_probe_hook_journal_inner;
 use self::hooks::{
     apply_hook_event_to_pending, daemon_socket_is_active, remember_processed_hook_event,
     should_probe_hook_journal, start_direct_hook_listener,
 };
 #[cfg(test)]
-use self::hooks::should_probe_hook_journal_inner;
-use self::pending::{
-    finalize_pending_feedback, pending_accepted_ms, pending_sent_ms, phase_label,
-    process_codex_pending_approval, process_hook_journal, process_pending_timeout,
-    refresh_pending_feedback, DraftFeedbackGate,
-};
-#[cfg(test)]
 use self::pending::pending_status_text;
+use self::pending::{
+    deliver_pending_result, pending_accepted_ms, pending_sent_ms, phase_label,
+    process_codex_pending_approval, process_hook_journal, process_pending_result_delivery,
+    process_pending_timeout, refresh_pending_feedback, DraftFeedbackGate,
+};
 use self::render::{
     build_agent_keyboard, format_agent_line, format_agent_line_for_button, truncate_chars,
     truncate_for_log,
@@ -79,6 +87,7 @@ use self::render::{
 const PENDING_TIMEOUT_SECS: i64 = 2 * 60 * 60;
 const JOURNAL_RECOVERY_RETRY_SECS: i64 = 3;
 const JOURNAL_RECOVERY_STALL_SECS: i64 = 5;
+const RESULT_DELIVERY_RETRY_SECS: i64 = 5;
 const SLASH_POLL_INTERVAL_MS: u64 = 90;
 static RECENT_HOOK_SIGNATURES: LazyLock<Mutex<Vec<String>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));

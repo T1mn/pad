@@ -1,8 +1,9 @@
 use super::{
-    build_agent_keyboard, build_help_keyboard, build_slash_command_text, chunk_text,
-    help_page_html, mark_update_processed, pending_status_text, remember_processed_hook_event,
-    scan_codex_approval_updates, should_probe_hook_journal_inner, summarize_pane_capture,
-    CodexApprovalRequest, HelpPage, PendingRequest, SelectedTarget, TelegramState,
+    approval_callback_data, build_agent_keyboard, build_help_keyboard, build_slash_command_text,
+    chunk_text, help_page_html, mark_update_processed, parse_approval_callback_data,
+    pending_status_text, remember_processed_hook_event, scan_codex_approval_updates,
+    should_probe_hook_journal_inner, summarize_pane_capture, CodexApprovalRequest, HelpPage,
+    PendingRequest, SelectedTarget, TelegramState,
 };
 use crate::hook::{HookEvent, HookTmuxInfo};
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
@@ -65,6 +66,7 @@ fn pending_status_moves_from_accepted_to_working() {
         target_label: "CODEX • rust-tui".into(),
         prompt_text: "hi".into(),
         prompt_hash: "abc".into(),
+        turn_id: None,
         sent_at: 100,
         sent_at_ms: 100_000,
         accepted_at: Some(100),
@@ -73,9 +75,14 @@ fn pending_status_moves_from_accepted_to_working() {
         draft_id: 123,
         phase: "awaiting_stop".into(),
         transcript_path: None,
+        result_scan_offset: 0,
         approval_scan_offset: 0,
         approval_call_id: None,
         approval_justification: None,
+        completed_text: None,
+        completed_source: None,
+        delivery_attempts: 0,
+        delivery_retry_at: 0,
     };
 
     let accepted = pending_status_text(crate::i18n::Locale::En, &pending, 102);
@@ -96,6 +103,7 @@ fn pending_status_reports_approval_needed() {
         target_label: "CODEX • rust-tui".into(),
         prompt_text: "hi".into(),
         prompt_hash: "abc".into(),
+        turn_id: None,
         sent_at: 100,
         sent_at_ms: 100_000,
         accepted_at: Some(100),
@@ -104,9 +112,14 @@ fn pending_status_reports_approval_needed() {
         draft_id: 123,
         phase: "awaiting_confirm".into(),
         transcript_path: None,
+        result_scan_offset: 0,
         approval_scan_offset: 0,
         approval_call_id: Some("call_1".into()),
         approval_justification: Some("Do you want to allow running cargo check?".into()),
+        completed_text: None,
+        completed_source: None,
+        delivery_attempts: 0,
+        delivery_retry_at: 0,
     };
 
     let text = pending_status_text(crate::i18n::Locale::En, &pending, 110);
@@ -226,9 +239,18 @@ fn help_keyboard_marks_active_page() {
 }
 
 #[test]
+fn approval_callback_data_round_trips_request_id_and_choice() {
+    let data = approval_callback_data("tg-123", "a");
+    assert_eq!(data, "approval:tg-123:a");
+    assert_eq!(parse_approval_callback_data(&data), Some(("tg-123", "a")));
+    assert_eq!(parse_approval_callback_data("approval:y"), None);
+}
+
+#[test]
 fn processed_hook_events_are_deduplicated_across_channels() {
     let event = HookEvent {
         event: "stop".into(),
+        turn_id: Some("turn-1".into()),
         session_id: Some("$1".into()),
         transcript_path: None,
         cwd: None,
@@ -261,6 +283,7 @@ fn journal_recovery_runs_immediately_for_pending_on_startup() {
             target_label: "CODEX • rust-tui".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
+            turn_id: None,
             sent_at: 100,
             sent_at_ms: 100_000,
             accepted_at: None,
@@ -269,9 +292,14 @@ fn journal_recovery_runs_immediately_for_pending_on_startup() {
             draft_id: 123,
             phase: "awaiting_submit".into(),
             transcript_path: None,
+            result_scan_offset: 0,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
         }),
         ..TelegramState::default()
     };
@@ -291,6 +319,7 @@ fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
             target_label: "CODEX • rust-tui".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
+            turn_id: None,
             sent_at: 101,
             sent_at_ms: 101_000,
             accepted_at: None,
@@ -299,13 +328,58 @@ fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
             draft_id: 123,
             phase: "awaiting_submit".into(),
             transcript_path: None,
+            result_scan_offset: 0,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
         }),
         ..TelegramState::default()
     };
 
     assert!(!should_probe_hook_journal_inner(&state, true, 103));
     assert!(should_probe_hook_journal_inner(&state, true, 106));
+}
+
+#[test]
+fn scan_codex_answer_updates_ignores_old_messages_before_offset() {
+    let path = std::env::temp_dir().join(format!("pad-codex-answer-{}.jsonl", std::process::id()));
+    let first = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"old\"}]}}\n";
+    let second = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"final_answer\",\"content\":[{\"type\":\"output_text\",\"text\":\"new\"}]}}\n";
+    fs::write(&path, format!("{first}{second}")).unwrap();
+
+    let result =
+        crate::chat::approval::scan_codex_answer_updates(&path, first.len() as u64, None).unwrap();
+    assert_eq!(result.as_deref(), Some("new"));
+
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn scan_codex_answer_updates_ignores_commentary_until_task_complete() {
+    let path = std::env::temp_dir().join(format!(
+        "pad-codex-answer-task-complete-{}.jsonl",
+        std::process::id()
+    ));
+    let commentary = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"intermediate\"}]}}\n";
+    fs::write(&path, commentary).unwrap();
+
+    let before_complete =
+        crate::chat::approval::scan_codex_answer_updates(&path, 0, Some("turn-1")).unwrap();
+    assert!(before_complete.is_none());
+
+    let completed = concat!(
+        "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"final_answer\",\"content\":[{\"type\":\"output_text\",\"text\":\"done\"}]}}\n",
+        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"turn-1\",\"last_agent_message\":\"done\"}}\n"
+    );
+    fs::write(&path, format!("{commentary}{completed}")).unwrap();
+
+    let after_complete =
+        crate::chat::approval::scan_codex_answer_updates(&path, 0, Some("turn-1")).unwrap();
+    assert_eq!(after_complete.as_deref(), Some("done"));
+
+    let _ = fs::remove_file(path);
 }

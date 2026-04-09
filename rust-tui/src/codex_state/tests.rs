@@ -1,6 +1,6 @@
 use super::archive::mutate_thread_archive_state_at;
-use super::query::{read_thread_for_id, read_threads_from_db};
 use super::pathing::select_latest_thread_for_cwd;
+use super::query::{read_thread_for_id, read_threads_from_db};
 use super::ThreadArchiveFilter;
 use rusqlite::Connection;
 use std::fs;
@@ -159,7 +159,8 @@ fn old_threads_without_recent_updated_at_are_filtered_out() {
         false,
     );
 
-    let stale_updated_at = super::util::unix_now_ts() - super::model::ACTIVE_THREAD_MAX_AGE_SECS - 60;
+    let stale_updated_at =
+        super::util::unix_now_ts() - super::model::ACTIVE_THREAD_MAX_AGE_SECS - 60;
     connection
         .execute(
             "UPDATE threads SET updated_at = ?1 WHERE id = ?2",
@@ -213,7 +214,8 @@ fn thread_for_id_reads_single_row_without_recent_filter() {
         &rollout_path,
         false,
     );
-    let stale_updated_at = super::util::unix_now_ts() - super::model::ACTIVE_THREAD_MAX_AGE_SECS - 60;
+    let stale_updated_at =
+        super::util::unix_now_ts() - super::model::ACTIVE_THREAD_MAX_AGE_SECS - 60;
     connection
         .execute(
             "UPDATE threads SET updated_at = ?1 WHERE id = ?2",

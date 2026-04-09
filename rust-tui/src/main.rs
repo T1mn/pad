@@ -239,9 +239,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         logger::log("pad 启动");
     }
+    paths::log_runtime_layout_status();
 
     if telegram_daemon {
-        return telegram::run_daemon().await;
+        return telegram::run_daemon()
+            .await
+            .map_err(|err| -> Box<dyn Error> { err });
+    }
+
+    let _status_guard = runtime_status::StatusGuard::new(crate::paths::pad_status_path(), "pad")?;
+    if hook::hook_socket_is_active() {
+        return Err(Box::new(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!(
+                "pad hook socket already active at {}",
+                crate::paths::hook_socket_path().display()
+            ),
+        )));
     }
 
     let tmux_report = system_check::ensure_tmux_available()?;
@@ -284,13 +298,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let _status_guard = runtime_status::StatusGuard::new(crate::paths::pad_status_path(), "pad")?;
     let mut app = App::new();
     relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
-    if let Err(err) = telegram::sync_daemon(&app.config) {
-        log_debug!("telegram: daemon sync failed during pad startup: {}", err);
+    if let Err(err) = telegram::ensure_embedded_daemon_running() {
+        log_debug!(
+            "telegram: embedded daemon start failed during pad startup: {}",
+            err
+        );
     }
-    app.hook_rx = Some(hook::start_hook_listener());
+    app.hook_rx = Some(hook::start_hook_listener()?);
     log_debug!(
         "配置加载: theme={}, auto_refresh={}",
         app.config.theme,

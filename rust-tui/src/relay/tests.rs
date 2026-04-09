@@ -174,7 +174,10 @@ fn gemini_provider_writes_env_and_preserves_settings_json() {
             env.get("GOOGLE_GEMINI_BASE_URL").map(String::as_str),
             Some("https://gemini-relay.example")
         );
-        assert_eq!(env.get("GEMINI_API_KEY").map(String::as_str), Some("gm-test"));
+        assert_eq!(
+            env.get("GEMINI_API_KEY").map(String::as_str),
+            Some("gm-test")
+        );
         assert_eq!(env.get("KEEP_ME").map(String::as_str), Some("1"));
 
         let value: serde_json::Value =
@@ -199,8 +202,11 @@ fn incomplete_gemini_provider_restores_original_files() {
         std::fs::create_dir_all(&gemini_dir).expect("create gemini dir");
         let settings_path = gemini_dir.join("settings.json");
         let env_path = gemini_dir.join(".env");
-        std::fs::write(&settings_path, r#"{"mcpServers":{"echo":{"command":"echo"}}}"#)
-            .expect("seed settings");
+        std::fs::write(
+            &settings_path,
+            r#"{"mcpServers":{"echo":{"command":"echo"}}}"#,
+        )
+        .expect("seed settings");
         std::fs::write(&env_path, "KEEP_ME=1\n").expect("seed env");
 
         let complete = AgentConfig {
@@ -508,7 +514,10 @@ fn runtime_configs_restore_previous_claude_permission_fields_when_disabled() {
             value.pointer("/sandbox/enabled").and_then(|v| v.as_bool()),
             Some(true)
         );
-        assert_eq!(value.pointer("/env/KEEP").and_then(|v| v.as_str()), Some("1"));
+        assert_eq!(
+            value.pointer("/env/KEEP").and_then(|v| v.as_str()),
+            Some("1")
+        );
         assert!(!claude_permission_state_path().exists());
     });
 }

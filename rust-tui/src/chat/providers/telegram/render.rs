@@ -1,6 +1,10 @@
 use super::*;
 
-pub(super) fn format_agent_line(idx: usize, panel: &AgentPanel, locale: crate::i18n::Locale) -> String {
+pub(super) fn format_agent_line(
+    idx: usize,
+    panel: &AgentPanel,
+    locale: crate::i18n::Locale,
+) -> String {
     let state = agent_state_label(&panel.state, locale);
     format!(
         "{}. [{}] {} ({})",
@@ -11,7 +15,10 @@ pub(super) fn format_agent_line(idx: usize, panel: &AgentPanel, locale: crate::i
     )
 }
 
-pub(super) fn format_agent_line_for_button(panel: &AgentPanel, locale: crate::i18n::Locale) -> String {
+pub(super) fn format_agent_line_for_button(
+    panel: &AgentPanel,
+    locale: crate::i18n::Locale,
+) -> String {
     format!(
         "[{}] {} ({})",
         panel.agent_type,

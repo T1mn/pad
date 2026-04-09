@@ -38,6 +38,8 @@ pub(super) struct PendingRequest {
     pub(super) target_label: String,
     pub(super) prompt_text: String,
     pub(super) prompt_hash: String,
+    #[serde(default)]
+    pub(super) turn_id: Option<String>,
     pub(super) sent_at: i64,
     #[serde(default)]
     pub(super) sent_at_ms: i64,
@@ -50,11 +52,21 @@ pub(super) struct PendingRequest {
     #[serde(default)]
     pub(super) transcript_path: Option<String>,
     #[serde(default)]
+    pub(super) result_scan_offset: u64,
+    #[serde(default)]
     pub(super) approval_scan_offset: u64,
     #[serde(default)]
     pub(super) approval_call_id: Option<String>,
     #[serde(default)]
     pub(super) approval_justification: Option<String>,
+    #[serde(default)]
+    pub(super) completed_text: Option<String>,
+    #[serde(default)]
+    pub(super) completed_source: Option<String>,
+    #[serde(default)]
+    pub(super) delivery_attempts: u32,
+    #[serde(default)]
+    pub(super) delivery_retry_at: i64,
 }
 
 pub(super) fn mark_update_processed(state: &mut TelegramState, update_id: i64) -> bool {

@@ -109,9 +109,15 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
 
     assert_eq!(threads.len(), 1);
     assert_eq!(threads[0].subtitle.as_deref(), Some("newest prompt"));
-    assert_eq!(threads[0].last_user_prompt.as_deref(), Some("newest prompt"));
+    assert_eq!(
+        threads[0].last_user_prompt.as_deref(),
+        Some("newest prompt")
+    );
     assert_eq!(threads[0].cached_preview_turns.len(), 1);
-    assert_eq!(threads[0].session_cache_state, Some(SessionCacheState::Cached));
+    assert_eq!(
+        threads[0].session_cache_state,
+        Some(SessionCacheState::Cached)
+    );
 }
 
 #[test]

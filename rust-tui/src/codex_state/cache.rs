@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Instant;
 
-pub(crate) fn load_cached_threads(db_path: &Path, filter: ThreadArchiveFilter) -> Option<Vec<super::CodexThreadRef>> {
+pub(crate) fn load_cached_threads(
+    db_path: &Path,
+    filter: ThreadArchiveFilter,
+) -> Option<Vec<super::CodexThreadRef>> {
     let cache_key = CacheKey {
         db_path: db_path.to_path_buf(),
         filter,

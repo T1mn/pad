@@ -1,7 +1,8 @@
 use crate::log_debug;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{self, Write};
+use std::os::unix::net::UnixStream as StdUnixStream;
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
@@ -19,6 +20,8 @@ pub struct HookTmuxInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookEvent {
     pub event: String,
+    #[serde(default)]
+    pub turn_id: Option<String>,
     pub session_id: Option<String>,
     pub transcript_path: Option<String>,
     pub cwd: Option<String>,
@@ -28,12 +31,32 @@ pub struct HookEvent {
     pub tmux: HookTmuxInfo,
 }
 
-pub fn start_hook_listener() -> mpsc::Receiver<HookEvent> {
+pub fn hook_socket_is_active() -> bool {
+    let path = crate::paths::hook_socket_path();
+    path.exists() && StdUnixStream::connect(path).is_ok()
+}
+
+pub fn start_hook_listener() -> io::Result<mpsc::Receiver<HookEvent>> {
     let socket_path = crate::paths::hook_socket_path();
     if let Some(parent) = socket_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent)?;
     }
-    let _ = std::fs::remove_file(&socket_path);
+    if socket_path.exists() {
+        if hook_socket_is_active() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "pad hook socket already active at {}",
+                    socket_path.display()
+                ),
+            ));
+        }
+        match std::fs::remove_file(&socket_path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+    }
     let (tx, rx) = mpsc::channel::<HookEvent>(32);
 
     tokio::spawn(async move {
@@ -64,7 +87,7 @@ pub fn start_hook_listener() -> mpsc::Receiver<HookEvent> {
         }
     });
 
-    rx
+    Ok(rx)
 }
 
 fn display_path(path: &Path) -> String {

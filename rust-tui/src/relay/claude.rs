@@ -27,7 +27,11 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
     write_text_file(&path, &updated);
 }
 
-pub(super) fn update_claude_settings_config(content: &str, base_url: &str, api_key: &str) -> String {
+pub(super) fn update_claude_settings_config(
+    content: &str,
+    base_url: &str,
+    api_key: &str,
+) -> String {
     let mut obj = parse_json_object(content);
     obj.as_object_mut()
         .expect("claude settings root object")
