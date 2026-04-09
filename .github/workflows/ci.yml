@@ -117,8 +117,62 @@ jobs:
           "${INSTALL_DIR}/pad" --version
           "${INSTALL_DIR}/pad" --tmux-doctor
 
+  linux-prebuilt-fixtures:
+    name: Linux prebuilt fixtures
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-tui -> target
+
+      - name: Build glibc dist binary
+        run: cargo build --profile dist
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build musl dist binary
+        run: cross build --profile dist --target x86_64-unknown-linux-musl
+
+      - name: Inspect glibc binary
+        run: |
+          file ./target/dist/pad
+          ldd ./target/dist/pad
+
+      - name: Inspect musl binary
+        run: file ./target/x86_64-unknown-linux-musl/dist/pad
+
+      - name: Prepare local Linux release archives
+        shell: bash
+        env:
+          PAD_TEST_VERSION: v0.0.0-ci
+        run: |
+          set -euo pipefail
+          release_dir="${GITHUB_WORKSPACE}/.pad-release/${PAD_TEST_VERSION}"
+          mkdir -p "${release_dir}"
+          tar -czf "${release_dir}/pad-${PAD_TEST_VERSION}-linux-x86_64-glibc-2.35.tar.gz" -C target/dist pad
+          tar -czf "${release_dir}/pad-${PAD_TEST_VERSION}-linux-x86_64-musl.tar.gz" -C target/x86_64-unknown-linux-musl/dist pad
+
+      - name: Upload local Linux release archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-prebuilt-fixtures
+          path: .pad-release
+
   linux-installer-matrix:
     name: Linux installer smoke (${{ matrix.name }})
+    needs: linux-prebuilt-fixtures
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -128,54 +182,97 @@ jobs:
             image: ubuntu:20.04
             bootstrap: |
               apt-get update
-              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
           - name: ubuntu-22.04
             image: ubuntu:22.04
             bootstrap: |
               apt-get update
-              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
           - name: debian-12
             image: debian:12
             bootstrap: |
               apt-get update
-              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
           - name: debian-13
             image: debian:13
             bootstrap: |
               apt-get update
-              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
           - name: ubuntu-24.04
             image: ubuntu:24.04
             bootstrap: |
               apt-get update
-              apt-get install -y bash curl ca-certificates build-essential pkg-config libssl-dev git sudo xz-utils tar gzip sed
+              apt-get install -y bash curl ca-certificates sudo xz-utils tar gzip sed
+          - name: rockylinux-8
+            image: rockylinux:8
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo tar gzip xz sed
+          - name: rockylinux-9
+            image: rockylinux:9
+            bootstrap: |
+              dnf install -y bash curl ca-certificates sudo tar gzip xz sed
           - name: fedora-41
             image: fedora:41
             bootstrap: |
-              dnf install -y bash curl ca-certificates gcc gcc-c++ make pkgconf-pkg-config openssl-devel git sudo which tar gzip xz sed
+              dnf install -y bash curl ca-certificates sudo which tar gzip xz sed
           - name: fedora-42
             image: fedora:42
             bootstrap: |
-              dnf install -y bash curl ca-certificates gcc gcc-c++ make pkgconf-pkg-config openssl-devel git sudo which tar gzip xz sed
+              dnf install -y bash curl ca-certificates sudo which tar gzip xz sed
           - name: archlinux
             image: archlinux:latest
             bootstrap: |
-              pacman -Sy --noconfirm bash curl ca-certificates base-devel pkgconf openssl git sudo which tar gzip xz sed
+              pacman -Sy --noconfirm bash curl ca-certificates sudo which tar gzip xz sed
           - name: alpine-3.20
             image: alpine:3.20
             bootstrap: |
-              apk add --no-cache bash curl ca-certificates build-base pkgconf openssl-dev git sudo tar gzip xz sed
+              apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
           - name: alpine-3.22
             image: alpine:3.22
             bootstrap: |
-              apk add --no-cache bash curl ca-certificates build-base pkgconf openssl-dev git sudo tar gzip xz sed
+              apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download local Linux release archives
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-prebuilt-fixtures
+          path: ${{ github.workspace }}
 
       - name: Docker installer smoke
         env:
           IMAGE: ${{ matrix.image }}
           BOOTSTRAP: ${{ matrix.bootstrap }}
+          INSTALL_MODE: prebuilt
+          PAD_TEST_VERSION: v0.0.0-ci
+          PAD_TEST_RELEASE_BASE_URL: file:///workspace/.pad-release
+        run: bash ./scripts/ci/linux_installer_smoke.sh
+
+  linux-source-fallback-smoke:
+    name: Linux source fallback smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-22.04
+            image: ubuntu:22.04
+            bootstrap: |
+              apt-get update
+              apt-get install -y bash curl ca-certificates build-essential pkg-config git sudo xz-utils tar gzip sed
+          - name: alpine-3.20
+            image: alpine:3.20
+            bootstrap: |
+              apk add --no-cache bash curl ca-certificates build-base pkgconf git sudo tar gzip xz sed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker source fallback smoke
+        env:
+          IMAGE: ${{ matrix.image }}
+          BOOTSTRAP: ${{ matrix.bootstrap }}
+          INSTALL_MODE: source
         run: bash ./scripts/ci/linux_installer_smoke.sh
 
   linux-musl-builds:

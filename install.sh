@@ -6,6 +6,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
+DISABLE_SOURCE_FALLBACK="${PAD_INSTALL_DISABLE_SOURCE_FALLBACK:-0}"
 RELEASE_BASE_URL="${PAD_RELEASE_BASE_URL:-https://github.com/${REPO}/releases/download}"
 
 RED='\033[0;31m'
@@ -81,6 +82,14 @@ get_linux_libc() {
   else
     echo "unknown"
   fi
+}
+
+get_linux_distro_id() {
+  if [ "$(get_os)" != "linux" ] || [ ! -r /etc/os-release ]; then
+    return 1
+  fi
+
+  sed -n 's/^ID=//p' /etc/os-release | head -n1 | tr -d '"'
 }
 
 get_glibc_version() {
@@ -179,7 +188,7 @@ release_download_url() {
 
 release_filenames_for_platform() {
   local version="$1"
-  local os arch libc_family glibc_version
+  local os arch libc_family glibc_version distro_id
 
   os="$(get_os)"
   arch="$(get_arch)"
@@ -194,6 +203,7 @@ release_filenames_for_platform() {
   fi
 
   libc_family="$(get_linux_libc)"
+  distro_id="$(get_linux_distro_id || true)"
   case "$libc_family" in
     musl)
       printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
@@ -201,6 +211,12 @@ release_filenames_for_platform() {
       return 0
       ;;
     glibc)
+      if [ "$distro_id" = "nixos" ]; then
+        printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+        printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
+        printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
+        return 0
+      fi
       glibc_version="$(get_glibc_version || true)"
       if [ -n "$glibc_version" ] && version_lt "$glibc_version" "2.35"; then
         printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
@@ -214,8 +230,8 @@ release_filenames_for_platform() {
       return 0
       ;;
     *)
-      printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
       printf '%s\n' "pad-${version}-linux-${arch}-musl.tar.gz"
+      printf '%s\n' "pad-${version}-linux-${arch}-glibc-2.35.tar.gz"
       printf '%s\n' "pad-${version}-linux-${arch}.tar.gz"
       return 0
       ;;
@@ -232,7 +248,7 @@ validate_installed_binary() {
     return 0
   fi
 
-  warn "  Installed binary failed self-check; falling back to source build"
+  warn "  Installed binary failed self-check; trying the next compatible artifact"
   if grep -q 'GLIBC_[0-9]' "${log_file}"; then
     warn "  Detected glibc version mismatch on this system"
   fi
@@ -559,6 +575,7 @@ install_from_binary() {
     if ! validate_installed_binary "${INSTALL_DIR}/pad"; then
       continue
     fi
+    say "  Selected: ${filename}"
     ok "✓ Installed binary to ${INSTALL_DIR}/pad"
     return 0
   done < <(release_filenames_for_platform "${version}")
@@ -663,6 +680,9 @@ Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
   PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_DISABLE_SOURCE_FALLBACK
+                         Fail instead of building from source when no compatible
+                         prebuilt binary can be installed
   PAD_INSTALL_FORCE_SOURCE
                          Skip binary download and build from source when set to 1
   PAD_RELEASE_BASE_URL   Override the release download base URL
@@ -689,6 +709,10 @@ main() {
   say ""
 
   if ! install_from_binary; then
+    if [ "${DISABLE_SOURCE_FALLBACK}" = "1" ]; then
+      err "✗ No compatible prebuilt binary could be installed and source fallback is disabled"
+      exit 1
+    fi
     if ! confirm_source_build_fallback; then
       err "✗ Local source build was declined"
       exit 1
