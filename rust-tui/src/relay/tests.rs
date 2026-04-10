@@ -96,6 +96,103 @@ fn complete_codex_provider_keeps_relay_config() {
 }
 
 #[test]
+fn codex_relay_normalizes_root_base_url_to_v1() {
+    with_temp_home("codex-root-base-url", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: vec![sample_provider("https://relay.example", "sk-test")],
+            active_provider: Some(0),
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        apply_relay_configs(&[agent]);
+
+        let config_path = codex_dir.join("config.toml");
+        let config = std::fs::read_to_string(&config_path).expect("read codex config");
+        let parsed: toml::Value = config.parse().expect("parse codex config");
+        assert_eq!(
+            parsed
+                .get("model_provider")
+                .and_then(|value| value.as_str()),
+            Some("relay_a")
+        );
+        assert_eq!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("relay_a"))
+                .and_then(|value| value.get("base_url"))
+                .and_then(|value| value.as_str()),
+            Some("https://relay.example/v1")
+        );
+        assert_eq!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("relay_a"))
+                .and_then(|value| value.get("wire_api"))
+                .and_then(|value| value.as_str()),
+            Some("responses")
+        );
+        assert_eq!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("relay_a"))
+                .and_then(|value| value.get("requires_openai_auth"))
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+
+        let auth_path = codex_dir.join("auth.json");
+        let auth: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&auth_path).expect("read codex auth"))
+                .expect("parse codex auth");
+        assert_eq!(
+            auth.get("OPENAI_API_KEY").and_then(|value| value.as_str()),
+            Some("sk-test")
+        );
+    });
+}
+
+#[test]
+fn codex_relay_preserves_explicit_v1_base_url() {
+    with_temp_home("codex-v1-base-url", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: vec![sample_provider("https://relay.example/v1", "sk-test")],
+            active_provider: Some(0),
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        apply_relay_configs(&[agent]);
+
+        let config_path = codex_dir.join("config.toml");
+        let config = std::fs::read_to_string(&config_path).expect("read codex config");
+        let parsed: toml::Value = config.parse().expect("parse codex config");
+        assert_eq!(
+            parsed
+                .get("model_providers")
+                .and_then(|value| value.get("relay_a"))
+                .and_then(|value| value.get("base_url"))
+                .and_then(|value| value.as_str()),
+            Some("https://relay.example/v1")
+        );
+    });
+}
+
+#[test]
 fn claude_provider_writes_cc_switch_style_env_settings() {
     with_temp_home("claude-write", |home| {
         let settings_path = home.join(".claude").join("settings.json");

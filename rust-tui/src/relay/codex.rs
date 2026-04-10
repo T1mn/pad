@@ -41,7 +41,7 @@ pub(super) fn apply_codex_agent_config(agent: &AgentConfig) {
             &content,
             &prov.codex_provider_name(),
             &prov.label,
-            &prov.base_url,
+            &prov.codex_base_url(),
             prov.codex_wire_api(),
         );
         let updated_auth = update_codex_auth_config(&auth_content, &api_key);
