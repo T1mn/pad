@@ -5,6 +5,7 @@ mod gemini;
 mod opencode;
 mod permissions;
 
+use crate::theme::CodexConfig;
 use crate::theme::{AgentConfig, AgentPermissionsConfig};
 
 /// Apply the active provider's relay/proxy config to each agent's native config files.
@@ -21,9 +22,13 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
 }
 
 /// Apply both relay/provider config and PAD-managed runtime permission overlays.
-pub fn apply_runtime_configs(agents: &[AgentConfig], permissions: &AgentPermissionsConfig) {
+pub fn apply_runtime_configs(
+    agents: &[AgentConfig],
+    permissions: &AgentPermissionsConfig,
+    codex: &CodexConfig,
+) {
     apply_relay_configs(agents);
-    permissions::apply_permission_overlays(agents, permissions);
+    permissions::apply_runtime_overlays(agents, permissions, codex);
 }
 
 #[cfg(test)]

@@ -64,7 +64,7 @@ impl App {
         Some(match item_id {
             "theme" => SettingsDetailKind::Theme,
             "auto_refresh" => SettingsDetailKind::AutoRefresh,
-            "codex_full_access" => SettingsDetailKind::CodexFullAccess,
+            "codex_settings" => SettingsDetailKind::CodexSettings,
             "claude_full_access" => SettingsDetailKind::ClaudeFullAccess,
             "relay" => SettingsDetailKind::Relay,
             "telegram" => SettingsDetailKind::Telegram,
@@ -121,6 +121,9 @@ impl App {
             }
             SettingsDetailKind::AgentStyle => {
                 self.agent_style_selected = 0;
+            }
+            SettingsDetailKind::CodexSettings => {
+                self.codex_settings_selected = 0;
             }
             _ => {}
         }
@@ -231,14 +234,36 @@ impl App {
                 true,
             ),
             (
-                "codex_full_access",
-                if self.config.agent_permissions.codex_auto_full_access {
-                    crate::i18n::t(l, "settings.on").to_string()
-                } else {
-                    crate::i18n::t(l, "settings.off").to_string()
-                },
-                "settings.codex_full_access",
-                "settings.codex_full_access",
+                "codex_settings",
+                format!(
+                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}",
+                    if self.config.agent_permissions.codex_auto_full_access {
+                        crate::i18n::t(l, "settings.on")
+                    } else {
+                        crate::i18n::t(l, "settings.off")
+                    },
+                    if self.config.codex.fast_mode {
+                        crate::i18n::t(l, "settings.on")
+                    } else {
+                        crate::i18n::t(l, "settings.off")
+                    },
+                    if self.config.codex.multi_agent {
+                        crate::i18n::t(l, "settings.on")
+                    } else {
+                        crate::i18n::t(l, "settings.off")
+                    },
+                    crate::i18n::t(
+                        l,
+                        match self.config.codex.web_search.as_str() {
+                            "cached" => "settings.codex_web_search_cached",
+                            "live" => "settings.codex_web_search_live",
+                            "disabled" => "settings.codex_web_search_disabled",
+                            _ => "settings.codex_web_search_default",
+                        }
+                    )
+                ),
+                "settings.codex_settings",
+                "settings.codex_settings",
                 true,
             ),
             (

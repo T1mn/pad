@@ -111,7 +111,7 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::Theme) => handle_theme_detail_mode(app, key),
         Some(SettingsDetailKind::Language) => handle_language_detail_mode(app, key),
         Some(SettingsDetailKind::AgentStyle) => handle_agent_style_detail_mode(app, key),
-        Some(SettingsDetailKind::CodexFullAccess) => handle_codex_full_access_detail_mode(app, key),
+        Some(SettingsDetailKind::CodexSettings) => handle_codex_settings_detail_mode(app, key),
         Some(SettingsDetailKind::ClaudeFullAccess) => {
             handle_claude_full_access_detail_mode(app, key)
         }
@@ -276,14 +276,49 @@ fn handle_auto_refresh_detail_mode(app: &mut App, key: KeyCode) -> bool {
     true
 }
 
-fn handle_codex_full_access_detail_mode(app: &mut App, key: KeyCode) -> bool {
+fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
+        KeyCode::Char('j') | KeyCode::Down => {
+            if app.codex_settings_selected < 3 {
+                app.codex_settings_selected += 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.codex_settings_selected > 0 {
+                app.codex_settings_selected -= 1;
+            }
+            app.dirty = true;
+        }
         KeyCode::Enter | KeyCode::Char(' ') => {
-            app.config.agent_permissions.codex_auto_full_access =
-                !app.config.agent_permissions.codex_auto_full_access;
+            match app.codex_settings_selected {
+                0 => {
+                    app.config.agent_permissions.codex_auto_full_access =
+                        !app.config.agent_permissions.codex_auto_full_access;
+                }
+                1 => {
+                    app.config.codex.fast_mode = !app.config.codex.fast_mode;
+                }
+                2 => {
+                    app.config.codex.multi_agent = !app.config.codex.multi_agent;
+                }
+                3 => {
+                    app.config.codex.web_search = match app.config.codex.web_search.as_str() {
+                        "cached" => "live".to_string(),
+                        "live" => "disabled".to_string(),
+                        "disabled" => "default".to_string(),
+                        _ => "cached".to_string(),
+                    };
+                }
+                _ => {}
+            }
             app.config.save();
-            relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
+            relay::apply_runtime_configs(
+                &app.config.agents,
+                &app.config.agent_permissions,
+                &app.config.codex,
+            );
             app.dirty = true;
         }
         _ => {}
@@ -298,7 +333,11 @@ fn handle_claude_full_access_detail_mode(app: &mut App, key: KeyCode) -> bool {
             app.config.agent_permissions.claude_auto_full_access =
                 !app.config.agent_permissions.claude_auto_full_access;
             app.config.save();
-            relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
+            relay::apply_runtime_configs(
+                &app.config.agents,
+                &app.config.agent_permissions,
+                &app.config.codex,
+            );
             app.dirty = true;
         }
         _ => {}
@@ -455,9 +494,36 @@ fn restart_telegram_daemon(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::handle_settings_mode;
-    use crate::app::state::{Mode, SettingsFocus};
+    use crate::app::state::{Mode, SettingsDetailKind, SettingsFocus};
     use crate::app::App;
     use crossterm::event::KeyCode;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn with_temp_home<T>(name: &str, f: impl FnOnce() -> T) -> T {
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock settings tests");
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let home = std::env::temp_dir().join(format!("pad-settings-{name}-{stamp}"));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).expect("create temp home");
+
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let result = f();
+
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        let _ = std::fs::remove_dir_all(&home);
+        result
+    }
 
     #[test]
     fn settings_search_enter_opens_first_match_directly() {
@@ -530,5 +596,69 @@ mod tests {
 
         handle_settings_mode(&mut app, KeyCode::Up);
         assert_eq!(app.settings_selected, 0);
+    }
+
+    #[test]
+    fn codex_settings_enter_toggles_all_switches_and_cycles_web_search() {
+        with_temp_home("codex-settings-toggle", || {
+            let mut app = App::new();
+            app.mode = Mode::Settings;
+            app.settings_open = true;
+            app.settings_focus = SettingsFocus::Detail;
+            app.active_settings_detail = Some(SettingsDetailKind::CodexSettings);
+            app.config.agent_permissions.codex_auto_full_access = false;
+            app.config.codex.fast_mode = false;
+            app.config.codex.multi_agent = false;
+            app.config.codex.web_search = "default".into();
+
+            app.codex_settings_selected = 0;
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.agent_permissions.codex_auto_full_access);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 1);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.fast_mode);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 2);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.multi_agent);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 3);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert_eq!(app.config.codex.web_search, "cached");
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert_eq!(app.config.codex.web_search, "live");
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert_eq!(app.config.codex.web_search, "disabled");
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert_eq!(app.config.codex.web_search, "default");
+        });
+    }
+
+    #[test]
+    fn codex_settings_navigation_is_bounded() {
+        with_temp_home("codex-settings-nav", || {
+            let mut app = App::new();
+            app.mode = Mode::Settings;
+            app.settings_open = true;
+            app.settings_focus = SettingsFocus::Detail;
+            app.active_settings_detail = Some(SettingsDetailKind::CodexSettings);
+            app.codex_settings_selected = 0;
+
+            handle_settings_mode(&mut app, KeyCode::Up);
+            assert_eq!(app.codex_settings_selected, 0);
+
+            for _ in 0..10 {
+                handle_settings_mode(&mut app, KeyCode::Down);
+            }
+            assert_eq!(app.codex_settings_selected, 3);
+
+            handle_settings_mode(&mut app, KeyCode::Esc);
+            assert!(matches!(app.settings_focus, SettingsFocus::List));
+            assert!(app.active_settings_detail.is_none());
+        });
     }
 }

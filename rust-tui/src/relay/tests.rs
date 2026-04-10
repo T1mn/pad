@@ -4,7 +4,7 @@ use super::common::{
     parse_env_file,
 };
 use super::{apply_relay_configs, apply_runtime_configs};
-use crate::theme::{AgentConfig, AgentPermissionsConfig, ProviderConfig};
+use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -30,6 +30,10 @@ fn sample_permissions() -> AgentPermissionsConfig {
         codex_auto_full_access: true,
         claude_auto_full_access: true,
     }
+}
+
+fn sample_codex_config() -> CodexConfig {
+    CodexConfig::default()
 }
 
 fn temp_home(name: &str) -> PathBuf {
@@ -477,7 +481,7 @@ fn runtime_configs_apply_codex_full_access_without_relay_provider() {
             api_key: None,
         };
 
-        apply_runtime_configs(&[agent], &sample_permissions());
+        apply_runtime_configs(&[agent], &sample_permissions(), &sample_codex_config());
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
         assert!(value.contains("approval_policy = \"never\""));
@@ -509,17 +513,301 @@ fn runtime_configs_restore_previous_codex_permission_fields_when_disabled() {
             api_key: None,
         };
 
-        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions());
+        apply_runtime_configs(
+            std::slice::from_ref(&agent),
+            &sample_permissions(),
+            &sample_codex_config(),
+        );
 
         let disabled = AgentPermissionsConfig {
             codex_auto_full_access: false,
             claude_auto_full_access: false,
         };
-        apply_runtime_configs(&[agent], &disabled);
+        apply_runtime_configs(&[agent], &disabled, &sample_codex_config());
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
         assert!(value.contains("approval_policy = \"on-request\""));
         assert!(!value.contains("sandbox_mode = \"danger-full-access\""));
+        assert!(!codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
+    with_temp_home("codex-fast-mode", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.fast_mode = true;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("service_tier = \"fast\""));
+        assert!(value.contains("fast_mode = true"));
+        assert!(codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
+    with_temp_home("codex-fast-mode-restore", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            "model = \"gpt-5\"\nservice_tier = \"default\"\n[features]\nfast_mode = false\n",
+        )
+        .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.fast_mode = true;
+        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
+
+        codex.fast_mode = false;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("service_tier = \"default\""));
+        assert!(value.contains("fast_mode = false"));
+    });
+}
+
+#[test]
+fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
+    with_temp_home("codex-multi-agent", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.multi_agent = true;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("multi_agent = true"));
+        assert!(codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
+    with_temp_home("codex-multi-agent-restore", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            "model = \"gpt-5\"\n[features]\nmulti_agent = false\n",
+        )
+        .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.multi_agent = true;
+        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
+
+        codex.multi_agent = false;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("multi_agent = false"));
+    });
+}
+
+#[test]
+fn runtime_configs_apply_codex_web_search_without_relay_provider() {
+    with_temp_home("codex-web-search", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.web_search = "live".into();
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("web_search = \"live\""));
+        assert!(codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
+    with_temp_home("codex-web-search-restore", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\nweb_search = \"cached\"\n")
+            .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.web_search = "live".into();
+        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
+
+        codex.web_search = "default".into();
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("web_search = \"cached\""));
+    });
+}
+
+#[test]
+fn runtime_configs_apply_combined_codex_overlays_together() {
+    with_temp_home("codex-combined-overlays", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            "model = \"gpt-5\"\napproval_policy = \"on-request\"\nservice_tier = \"default\"\nweb_search = \"cached\"\n[features]\nfast_mode = false\nmulti_agent = false\n",
+        )
+        .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.fast_mode = true;
+        codex.multi_agent = true;
+        codex.web_search = "live".into();
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("approval_policy = \"never\""));
+        assert!(value.contains("sandbox_mode = \"danger-full-access\""));
+        assert!(value.contains("service_tier = \"fast\""));
+        assert!(value.contains("web_search = \"live\""));
+        assert!(value.contains("fast_mode = true"));
+        assert!(value.contains("multi_agent = true"));
+        assert!(codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
+    with_temp_home("codex-combined-restore", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            "model = \"gpt-5\"\napproval_policy = \"on-request\"\nservice_tier = \"default\"\nweb_search = \"cached\"\n[features]\nfast_mode = false\nmulti_agent = false\n",
+        )
+        .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.fast_mode = true;
+        codex.multi_agent = true;
+        codex.web_search = "live".into();
+        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
+
+        let disabled = AgentPermissionsConfig {
+            codex_auto_full_access: false,
+            claude_auto_full_access: true,
+        };
+        codex.fast_mode = false;
+        codex.multi_agent = false;
+        codex.web_search = "default".into();
+        apply_runtime_configs(&[agent], &disabled, &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("approval_policy = \"on-request\""));
+        assert!(!value.contains("sandbox_mode = \"danger-full-access\""));
+        assert!(value.contains("service_tier = \"default\""));
+        assert!(value.contains("web_search = \"cached\""));
+        assert!(value.contains("fast_mode = false"));
+        assert!(value.contains("multi_agent = false"));
         assert!(!codex_permission_state_path().exists());
     });
 }
@@ -547,7 +835,7 @@ fn runtime_configs_apply_claude_full_access_without_relay_provider() {
             api_key: None,
         };
 
-        apply_runtime_configs(&[agent], &sample_permissions());
+        apply_runtime_configs(&[agent], &sample_permissions(), &sample_codex_config());
 
         let value: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&settings_path).expect("read"))
@@ -590,13 +878,17 @@ fn runtime_configs_restore_previous_claude_permission_fields_when_disabled() {
             api_key: None,
         };
 
-        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions());
+        apply_runtime_configs(
+            std::slice::from_ref(&agent),
+            &sample_permissions(),
+            &sample_codex_config(),
+        );
 
         let disabled = AgentPermissionsConfig {
             codex_auto_full_access: false,
             claude_auto_full_access: false,
         };
-        apply_runtime_configs(&[agent], &disabled);
+        apply_runtime_configs(&[agent], &disabled, &sample_codex_config());
 
         let value: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&settings_path).expect("read"))

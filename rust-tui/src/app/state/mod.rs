@@ -39,7 +39,7 @@ pub enum SettingsFocus {
 pub enum SettingsDetailKind {
     Theme,
     AutoRefresh,
-    CodexFullAccess,
+    CodexSettings,
     ClaudeFullAccess,
     Relay,
     Telegram,
