@@ -782,6 +782,34 @@ pub struct TelegramConfig {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct CodexConfig {
+    pub fast_mode: bool,
+    pub multi_agent: bool,
+    pub web_search: String,
+}
+
+impl CodexConfig {
+    fn normalized_web_search(value: &str) -> String {
+        match value {
+            "disabled" => "disabled".to_string(),
+            "live" => "live".to_string(),
+            "cached" => "cached".to_string(),
+            _ => "default".to_string(),
+        }
+    }
+}
+
+impl Default for CodexConfig {
+    fn default() -> Self {
+        Self {
+            fast_mode: false,
+            multi_agent: false,
+            web_search: "default".to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct AgentPermissionsConfig {
     pub codex_auto_full_access: bool,
     pub claude_auto_full_access: bool,
@@ -821,6 +849,7 @@ pub struct Config {
     pub preview: PreviewConfig,
     pub display: DisplayConfig,
     pub telegram: TelegramConfig,
+    pub codex: CodexConfig,
     pub agent_permissions: AgentPermissionsConfig,
 }
 
@@ -877,6 +906,7 @@ impl Default for Config {
             preview: PreviewConfig::default(),
             display: DisplayConfig::default(),
             telegram: TelegramConfig::default(),
+            codex: CodexConfig::default(),
             agent_permissions: AgentPermissionsConfig::default(),
         }
     }
@@ -966,6 +996,17 @@ impl Config {
             }
             if let Some(toml::Value::String(bot_username)) = telegram.get("bot_username") {
                 config.telegram.bot_username = bot_username.clone();
+            }
+        }
+        if let Some(toml::Value::Table(codex)) = table.get("codex") {
+            if let Some(toml::Value::Boolean(enabled)) = codex.get("fast_mode") {
+                config.codex.fast_mode = *enabled;
+            }
+            if let Some(toml::Value::Boolean(enabled)) = codex.get("multi_agent") {
+                config.codex.multi_agent = *enabled;
+            }
+            if let Some(toml::Value::String(mode)) = codex.get("web_search") {
+                config.codex.web_search = CodexConfig::normalized_web_search(mode);
             }
         }
         if let Some(toml::Value::Table(agent_permissions)) = table.get("agent_permissions") {
@@ -1242,6 +1283,10 @@ impl Config {
             "bot_username = \"{}\"\n",
             self.telegram.bot_username.replace('"', "\\\"")
         ));
+        content.push_str("\n[codex]\n");
+        content.push_str(&format!("fast_mode = {}\n", self.codex.fast_mode));
+        content.push_str(&format!("multi_agent = {}\n", self.codex.multi_agent));
+        content.push_str(&format!("web_search = \"{}\"\n", self.codex.web_search));
         content.push_str("\n[agent_permissions]\n");
         content.push_str(&format!(
             "codex_auto_full_access = {}\n",
@@ -1350,6 +1395,9 @@ mod tests {
         with_temp_home("opencode-roundtrip", || {
             let mut config = Config::default();
             config.agent_permissions.codex_auto_full_access = false;
+            config.codex.fast_mode = true;
+            config.codex.multi_agent = true;
+            config.codex.web_search = "live".into();
             let opencode = config
                 .agents
                 .iter_mut()
@@ -1380,6 +1428,9 @@ mod tests {
             let loaded = Config::load();
             assert!(!loaded.agent_permissions.codex_auto_full_access);
             assert!(loaded.agent_permissions.claude_auto_full_access);
+            assert!(loaded.codex.fast_mode);
+            assert!(loaded.codex.multi_agent);
+            assert_eq!(loaded.codex.web_search, "live");
             let opencode = loaded
                 .agents
                 .iter()

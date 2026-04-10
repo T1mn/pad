@@ -299,7 +299,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
-    relay::apply_runtime_configs(&app.config.agents, &app.config.agent_permissions);
+    relay::apply_runtime_configs(
+        &app.config.agents,
+        &app.config.agent_permissions,
+        &app.config.codex,
+    );
     if let Err(err) = telegram::ensure_embedded_daemon_running() {
         log_debug!(
             "telegram: embedded daemon start failed during pad startup: {}",

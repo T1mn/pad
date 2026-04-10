@@ -119,8 +119,8 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
             )
         }
         Some(SettingsDetailKind::AgentStyle) => (64, 12),
+        Some(SettingsDetailKind::CodexSettings) => (76, 15),
         Some(SettingsDetailKind::AutoRefresh)
-        | Some(SettingsDetailKind::CodexFullAccess)
         | Some(SettingsDetailKind::ClaudeFullAccess)
         | Some(SettingsDetailKind::PreviewMode)
         | Some(SettingsDetailKind::DisplayMode)
@@ -193,15 +193,7 @@ fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
             vec![detail_body_line(app.locale, kind)],
             "Enter/Space toggle · Esc back",
         ),
-        SettingsDetailKind::CodexFullAccess => draw_simple_detail(
-            f,
-            app,
-            area,
-            t(app.locale, "settings.codex_full_access"),
-            simple_value_line(app, kind),
-            vec![detail_body_line(app.locale, kind)],
-            "Enter/Space toggle · Esc back",
-        ),
+        SettingsDetailKind::CodexSettings => draw_codex_detail(f, app, area),
         SettingsDetailKind::ClaudeFullAccess => draw_simple_detail(
             f,
             app,
@@ -386,6 +378,76 @@ fn draw_agent_style_detail(f: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
+    let theme = &app.theme;
+    let l = app.locale;
+    let items: Vec<SelectionItem> = [
+        (
+            "settings.codex_yolo",
+            if app.config.agent_permissions.codex_auto_full_access {
+                t(l, "settings.on")
+            } else {
+                t(l, "settings.off")
+            },
+            "settings.codex_yolo_desc",
+        ),
+        (
+            "settings.codex_fast",
+            if app.config.codex.fast_mode {
+                t(l, "settings.on")
+            } else {
+                t(l, "settings.off")
+            },
+            "settings.codex_fast_desc",
+        ),
+        (
+            "settings.codex_multi_agent",
+            if app.config.codex.multi_agent {
+                t(l, "settings.on")
+            } else {
+                t(l, "settings.off")
+            },
+            "settings.codex_multi_agent_desc",
+        ),
+        (
+            "settings.codex_web_search",
+            t(
+                l,
+                match app.config.codex.web_search.as_str() {
+                    "cached" => "settings.codex_web_search_cached",
+                    "live" => "settings.codex_web_search_live",
+                    "disabled" => "settings.codex_web_search_disabled",
+                    _ => "settings.codex_web_search_default",
+                },
+            ),
+            "settings.codex_web_search_desc",
+        ),
+    ]
+    .iter()
+    .map(|(name_key, value, desc_key)| SelectionItem {
+        title: t(l, name_key).to_string(),
+        subtitle: Some(format!("{}  ·  {}", value, t(l, desc_key))),
+        keyword: Some(format!("{} {} {}", t(l, name_key), value, t(l, desc_key))),
+        detail: None,
+        disabled: false,
+    })
+    .collect();
+    let mut state = SelectionState {
+        selected: app.codex_settings_selected,
+        ..Default::default()
+    };
+    state.clamp_selected(items.len());
+    render_selection_surface(
+        f,
+        area,
+        theme,
+        t(l, "settings.codex_settings"),
+        &items,
+        &state,
+        Some("j/k move · Enter/Space toggle or cycle · Esc back"),
+    );
+}
+
 fn draw_telegram_detail(f: &mut Frame, app: &App, area: Rect) {
     let [header_area, body_area, footer_area] = Layout::vertical([
         Constraint::Length(1),
@@ -479,13 +541,6 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
                 t(l, "settings.off").to_string()
             }
         }
-        SettingsDetailKind::CodexFullAccess => {
-            if app.config.agent_permissions.codex_auto_full_access {
-                t(l, "settings.on").to_string()
-            } else {
-                t(l, "settings.off").to_string()
-            }
-        }
         SettingsDetailKind::ClaudeFullAccess => {
             if app.config.agent_permissions.claude_auto_full_access {
                 t(l, "settings.on").to_string()
@@ -510,9 +565,6 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
 fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
     match (locale, kind) {
         (Locale::ZhCN, SettingsDetailKind::AutoRefresh) => "控制面板扫描是否自动刷新".to_string(),
-        (Locale::ZhCN, SettingsDetailKind::CodexFullAccess) => {
-            "启动时自动植入 approval_policy=never 和 sandbox_mode=danger-full-access".to_string()
-        }
         (Locale::ZhCN, SettingsDetailKind::ClaudeFullAccess) => {
             "启动时自动植入 bypassPermissions，并关闭 Claude sandbox".to_string()
         }
@@ -525,10 +577,6 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         (Locale::ZhCN, SettingsDetailKind::Version) => "当前 pad 版本".to_string(),
         (_, SettingsDetailKind::AutoRefresh) => {
             "Controls whether pad refreshes scans automatically.".to_string()
-        }
-        (_, SettingsDetailKind::CodexFullAccess) => {
-            "Apply approval_policy=never and sandbox_mode=danger-full-access before launch."
-                .to_string()
         }
         (_, SettingsDetailKind::ClaudeFullAccess) => {
             "Apply bypassPermissions and disable Claude sandbox before launch.".to_string()

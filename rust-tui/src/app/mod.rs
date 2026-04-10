@@ -89,6 +89,7 @@ pub struct App {
     pub provider_test_rx: Option<mpsc::Receiver<ProviderTestResult>>,
     // Agent style settings
     pub agent_style_selected: usize,
+    pub codex_settings_selected: usize,
     // Telegram settings
     pub telegram_selected_field: usize,
     pub telegram_editing: bool,
@@ -163,6 +164,7 @@ impl App {
             provider_test_in_progress: false,
             provider_test_rx: None,
             agent_style_selected: 0,
+            codex_settings_selected: 0,
             telegram_selected_field: 0,
             telegram_editing: false,
             telegram_edit_buffer: String::new(),

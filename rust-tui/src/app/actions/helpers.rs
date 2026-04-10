@@ -32,12 +32,20 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
     match id {
         "theme" => &["theme", "color theme", "appearance"],
         "auto_refresh" => &["auto refresh", "refresh", "refresh interval"],
-        "codex_full_access" => &[
+        "codex_settings" => &[
             "codex",
+            "codex settings",
             "codex full access",
             "codex permissions",
             "approval policy",
             "sandbox mode",
+            "yolo",
+            "fast",
+            "service tier",
+            "multi agent",
+            "subagents",
+            "web search",
+            "search mode",
         ],
         "claude_full_access" => &[
             "claude",
