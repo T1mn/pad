@@ -80,7 +80,7 @@ pub(crate) fn build_thread_row(
             jump_badge_text,
             Style::default()
                 .fg(if is_selected {
-                    blend_color(theme.highlight_fg, theme.comment, 0.48)
+                    blend_color(theme.highlight_fg, theme.comment, 0.72)
                 } else {
                     theme.comment
                 })
@@ -116,7 +116,7 @@ pub(crate) fn build_thread_row(
                 meta,
                 Style::default()
                     .fg(if is_selected {
-                        blend_color(theme.highlight_fg, theme.comment, 0.42)
+                        blend_color(theme.highlight_fg, theme.comment, 0.66)
                     } else {
                         theme.comment
                     })
@@ -208,7 +208,7 @@ fn build_thread_subtitle_spans(
         spans.push(Span::styled(
             tags_text,
             Style::default()
-                .fg(blend_color(color, row_bg, 0.72))
+                .fg(blend_color(color, row_bg, 0.84))
                 .bg(row_bg)
                 .add_modifier(Modifier::DIM),
         ));

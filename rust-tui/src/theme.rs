@@ -34,7 +34,7 @@ impl Default for Theme {
 
 impl Theme {
     pub fn by_name(name: &str) -> Self {
-        match name {
+        let theme = match name {
             "dracula" => Self::dracula(),
             "nord" => Self::nord(),
             "catppuccin" => Self::catppuccin(),
@@ -50,7 +50,18 @@ impl Theme {
             "everforest" => Self::everforest(),
             "dark" => Self::dark(),
             _ => Self::default_theme(),
-        }
+        };
+
+        theme.with_readability_boost()
+    }
+
+    fn with_readability_boost(mut self) -> Self {
+        self.highlight_fg = readable_text_color(self.fg, self.highlight_fg, 0.62);
+        self.status_fg = readable_text_color(self.fg, self.status_fg, 0.82);
+        self.comment = readable_text_color(self.fg, self.comment, 0.38);
+        self.border = readable_text_color(self.fg, self.border, 0.22);
+        self.highlight_bg = readable_surface_color(self.fg, self.highlight_bg, 0.12);
+        self
     }
 
     fn default_theme() -> Self {
@@ -500,6 +511,56 @@ fn normalize_provider_name(raw: &str) -> String {
 
 fn trim_base_url(raw: &str) -> String {
     raw.trim().trim_end_matches('/').to_string()
+}
+
+fn readable_text_color(primary: Color, current: Color, mix: f32) -> Color {
+    blend_theme_color(primary, current, mix)
+}
+
+fn readable_surface_color(primary: Color, current: Color, mix: f32) -> Color {
+    blend_theme_color(primary, current, mix)
+}
+
+fn blend_theme_color(target: Color, base: Color, mix: f32) -> Color {
+    let mix = mix.clamp(0.0, 1.0);
+    match (theme_rgb(target), theme_rgb(base)) {
+        (Some((tr, tg, tb)), Some((br, bg, bb))) => Color::Rgb(
+            blend_theme_channel(tr, br, mix),
+            blend_theme_channel(tg, bg, mix),
+            blend_theme_channel(tb, bb, mix),
+        ),
+        _ if mix >= 0.5 => target,
+        _ => base,
+    }
+}
+
+fn blend_theme_channel(target: u8, base: u8, mix: f32) -> u8 {
+    let target = target as f32;
+    let base = base as f32;
+    (base + (target - base) * mix).round().clamp(0.0, 255.0) as u8
+}
+
+fn theme_rgb(color: Color) -> Option<(u8, u8, u8)> {
+    match color {
+        Color::Black => Some((0, 0, 0)),
+        Color::Red => Some((255, 0, 0)),
+        Color::Green => Some((0, 128, 0)),
+        Color::Yellow => Some((255, 255, 0)),
+        Color::Blue => Some((0, 0, 255)),
+        Color::Magenta => Some((255, 0, 255)),
+        Color::Cyan => Some((0, 255, 255)),
+        Color::Gray => Some((128, 128, 128)),
+        Color::DarkGray => Some((64, 64, 64)),
+        Color::LightRed => Some((255, 102, 102)),
+        Color::LightGreen => Some((144, 238, 144)),
+        Color::LightYellow => Some((255, 255, 224)),
+        Color::LightBlue => Some((173, 216, 230)),
+        Color::LightMagenta => Some((255, 153, 255)),
+        Color::LightCyan => Some((224, 255, 255)),
+        Color::White => Some((255, 255, 255)),
+        Color::Rgb(r, g, b) => Some((r, g, b)),
+        Color::Indexed(_) | Color::Reset => None,
+    }
 }
 
 fn push_unique_url(out: &mut Vec<String>, value: String) {
@@ -1390,5 +1451,17 @@ mod tests {
             codex_preferred_api_base_url("https://relay.example/openai/v1"),
             "https://relay.example/openai/v1"
         );
+    }
+
+    #[test]
+    fn readability_boost_keeps_status_text_close_to_primary_fg() {
+        let theme = Theme::by_name("catppuccin");
+        assert_eq!(theme.status_fg, theme.fg);
+    }
+
+    #[test]
+    fn readability_boost_lifts_comment_contrast() {
+        let boosted = Theme::by_name("one-dark");
+        assert_ne!(boosted.comment, Color::Rgb(92, 99, 112));
     }
 }

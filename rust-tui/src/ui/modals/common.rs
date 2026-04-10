@@ -28,11 +28,11 @@ pub(super) fn render_modal_surface(f: &mut Frame, area: Rect, theme: &Theme) {
 }
 
 fn modal_surface_bg(theme: &Theme) -> ratatui::style::Color {
-    blend_color(theme.highlight_bg, theme.bg, 0.22)
+    blend_color(theme.highlight_bg, theme.bg, 0.34)
 }
 
 fn modal_border(theme: &Theme) -> ratatui::style::Color {
-    blend_color(theme.border_focused, theme.border, 0.42)
+    blend_color(theme.border_focused, theme.border, 0.62)
 }
 
 fn blend_color(highlight: Color, base: Color, mix: f32) -> Color {
