@@ -611,7 +611,6 @@ impl App {
         self.provider_test_rx = Some(rx);
 
         tokio::spawn(async move {
-            let url = base_url.trim().trim_end_matches('/').to_string();
             let client = match reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
                 .redirect(reqwest::redirect::Policy::none())
@@ -634,33 +633,37 @@ impl App {
                 }
             };
 
-            let issue_request = |client: &reqwest::Client| {
-                let mut request = client.get(&url);
-                if let Some(token) = credential.as_ref().filter(|token| !token.trim().is_empty()) {
-                    request = request.bearer_auth(token);
-                }
-                request
-            };
+            let (success, http_status, latency, message) = if agent_name == "codex" {
+                probe_codex_provider(&client, &base_url, credential.as_deref()).await
+            } else {
+                let url = base_url.trim().trim_end_matches('/').to_string();
+                let issue_request = |client: &reqwest::Client| {
+                    let mut request = client.get(&url);
+                    if let Some(token) =
+                        credential.as_ref().filter(|token| !token.trim().is_empty())
+                    {
+                        request = request.bearer_auth(token);
+                    }
+                    request
+                };
 
-            let _ = issue_request(&client).send().await;
-            let started_at = std::time::Instant::now();
-            let result = issue_request(&client).send().await;
-            let latency_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                let _ = issue_request(&client).send().await;
+                let started_at = std::time::Instant::now();
+                let result = issue_request(&client).send().await;
+                let latency_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
-            let (success, http_status, latency, message) = match result {
-                Ok(response) => {
-                    let status = response.status().as_u16();
-                    let message = if agent_name == "codex" {
-                        format!(
-                            "Reachable for Codex relay probe: HTTP {} in {} ms",
-                            status, latency_ms
+                match result {
+                    Ok(response) => {
+                        let status = response.status().as_u16();
+                        (
+                            true,
+                            Some(status),
+                            Some(latency_ms),
+                            format!("Reachable: HTTP {} in {} ms", status, latency_ms),
                         )
-                    } else {
-                        format!("Reachable: HTTP {} in {} ms", status, latency_ms)
-                    };
-                    (true, Some(status), Some(latency_ms), message)
+                    }
+                    Err(err) => (false, None, None, format!("Request failed: {}", err)),
                 }
-                Err(err) => (false, None, None, format!("Request failed: {}", err)),
             };
 
             let _ = tx
@@ -700,6 +703,86 @@ impl App {
             }
         }
     }
+}
+
+async fn probe_codex_provider(
+    client: &reqwest::Client,
+    base_url: &str,
+    credential: Option<&str>,
+) -> (bool, Option<u16>, Option<u64>, String) {
+    let input_base = base_url.trim().trim_end_matches('/').to_string();
+    let candidates = crate::theme::codex_api_base_candidates(base_url);
+    if candidates.is_empty() {
+        return (false, None, None, "Base URL is empty".to_string());
+    }
+
+    let mut last_http_status = None;
+    let mut last_message = String::new();
+
+    for candidate in candidates {
+        let url = format!("{candidate}/models");
+        let started_at = std::time::Instant::now();
+        let mut request = client.get(&url);
+        if let Some(token) = credential.filter(|token| !token.trim().is_empty()) {
+            request = request.bearer_auth(token);
+        }
+
+        let response = match request.send().await {
+            Ok(response) => response,
+            Err(err) => {
+                last_message = format!("Codex relay probe failed for {}: {}", candidate, err);
+                continue;
+            }
+        };
+
+        let latency_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let status = response.status().as_u16();
+        last_http_status = Some(status);
+
+        let payload = match response.json::<serde_json::Value>().await {
+            Ok(payload) => payload,
+            Err(err) => {
+                last_message = format!(
+                    "Codex relay probe at {} returned a non-JSON /models response (HTTP {}): {}",
+                    candidate, status, err
+                );
+                continue;
+            }
+        };
+
+        let Some(models) = payload.get("data").and_then(|value| value.as_array()) else {
+            last_message = format!(
+                "Codex relay probe at {} returned an unexpected /models payload (HTTP {})",
+                candidate, status
+            );
+            continue;
+        };
+
+        let normalized = candidate != input_base;
+        let message = if normalized {
+            format!(
+                "Reachable for Codex relay probe via normalized API base {}: HTTP {} in {} ms ({} models)",
+                candidate,
+                status,
+                latency_ms,
+                models.len()
+            )
+        } else {
+            format!(
+                "Reachable for Codex relay probe: HTTP {} in {} ms ({} models)",
+                status,
+                latency_ms,
+                models.len()
+            )
+        };
+        return (true, Some(status), Some(latency_ms), message);
+    }
+
+    if last_message.is_empty() {
+        last_message = "Codex relay probe failed".to_string();
+    }
+
+    (false, last_http_status, None, last_message)
 }
 
 fn should_preserve_hook_state(panel: &AgentPanel) -> bool {

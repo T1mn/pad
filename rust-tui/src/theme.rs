@@ -1,4 +1,5 @@
 use ratatui::style::Color;
+use reqwest::Url;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -454,6 +455,10 @@ impl ProviderConfig {
         }
     }
 
+    pub fn codex_base_url(&self) -> String {
+        codex_preferred_api_base_url(&self.base_url)
+    }
+
     pub fn opencode_provider_key(&self) -> &str {
         if self.provider_key.trim().is_empty() {
             "provider"
@@ -491,6 +496,63 @@ fn normalize_provider_name(raw: &str) -> String {
     } else {
         normalized
     }
+}
+
+fn trim_base_url(raw: &str) -> String {
+    raw.trim().trim_end_matches('/').to_string()
+}
+
+fn push_unique_url(out: &mut Vec<String>, value: String) {
+    if !value.is_empty() && !out.iter().any(|existing| existing == &value) {
+        out.push(value);
+    }
+}
+
+pub(crate) fn codex_api_base_candidates(raw: &str) -> Vec<String> {
+    let trimmed = trim_base_url(raw);
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let mut candidates = Vec::new();
+    push_unique_url(&mut candidates, trimmed.clone());
+
+    let Ok(mut parsed) = Url::parse(&trimmed) else {
+        return candidates;
+    };
+
+    let path = parsed.path().trim_end_matches('/');
+    if path.is_empty() || path == "/" {
+        parsed.set_path("/v1");
+        push_unique_url(&mut candidates, trim_base_url(parsed.as_str()));
+    } else if path == "/v1" {
+        parsed.set_path("");
+        push_unique_url(&mut candidates, trim_base_url(parsed.as_str()));
+    }
+
+    candidates
+}
+
+pub(crate) fn codex_preferred_api_base_url(raw: &str) -> String {
+    let candidates = codex_api_base_candidates(raw);
+    if candidates.is_empty() {
+        return String::new();
+    }
+
+    let trimmed = trim_base_url(raw);
+    if let Ok(parsed) = Url::parse(&trimmed) {
+        let path = parsed.path().trim_end_matches('/');
+        if path.is_empty() || path == "/" {
+            if let Some(candidate) = candidates
+                .iter()
+                .find(|candidate| candidate.ends_with("/v1"))
+            {
+                return candidate.clone();
+            }
+        }
+    }
+
+    candidates[0].clone()
 }
 
 pub fn normalize_provider_key(raw: &str) -> String {
@@ -1286,5 +1348,47 @@ mod tests {
             assert!(loaded.agent_permissions.codex_auto_full_access);
             assert!(loaded.agent_permissions.claude_auto_full_access);
         });
+    }
+
+    #[test]
+    fn codex_base_url_candidates_try_root_and_v1_variants() {
+        assert_eq!(
+            codex_api_base_candidates("https://relay.example"),
+            vec![
+                "https://relay.example".to_string(),
+                "https://relay.example/v1".to_string()
+            ]
+        );
+        assert_eq!(
+            codex_api_base_candidates("https://relay.example/v1"),
+            vec![
+                "https://relay.example/v1".to_string(),
+                "https://relay.example".to_string()
+            ]
+        );
+        assert_eq!(
+            codex_api_base_candidates("https://relay.example/openai/v1"),
+            vec!["https://relay.example/openai/v1".to_string()]
+        );
+    }
+
+    #[test]
+    fn codex_base_url_prefers_v1_for_root_inputs() {
+        assert_eq!(
+            codex_preferred_api_base_url("https://relay.example"),
+            "https://relay.example/v1"
+        );
+        assert_eq!(
+            codex_preferred_api_base_url("https://relay.example/"),
+            "https://relay.example/v1"
+        );
+        assert_eq!(
+            codex_preferred_api_base_url("https://relay.example/v1"),
+            "https://relay.example/v1"
+        );
+        assert_eq!(
+            codex_preferred_api_base_url("https://relay.example/openai/v1"),
+            "https://relay.example/openai/v1"
+        );
     }
 }
