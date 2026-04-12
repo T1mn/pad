@@ -8,6 +8,13 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+#[derive(Clone, Debug)]
+struct PendingCodexTitleSummary {
+    session_id: String,
+    turns: Vec<crate::model::PreviewTurn>,
+    turn_count: usize,
+}
+
 impl App {
     pub fn apply_hook_event(&mut self, event: HookEvent) {
         let pane_id = match event.tmux.pane_id.clone() {
@@ -28,6 +35,7 @@ impl App {
         let mut pending_claude_history_upsert = None;
         let mut pending_thread_sort_activity = None;
         let mut pending_notification = None;
+        let mut pending_title_summary = None;
 
         if let Some(panel) = self.panels.iter_mut().find(|p| p.pane_id == pane_id) {
             if panel.agent_type == AgentType::Codex {
@@ -115,6 +123,12 @@ impl App {
                 pane_claude_history_upsert_args(panel, &event, persisted_snapshot.as_ref());
             pending_notification =
                 completion_notification_for_panel(panel, &event, persisted_snapshot.as_ref());
+            pending_title_summary = codex_title_summary_request_for_panel(
+                &self.config.codex,
+                panel,
+                &event,
+                persisted_snapshot.as_ref(),
+            );
 
             self.invalidate_sidebar_cache();
             if should_refresh_preview {
@@ -151,6 +165,10 @@ impl App {
 
         if let Some(request) = pending_notification {
             emit_completion_notification(request);
+        }
+
+        if let Some(request) = pending_title_summary {
+            self.trigger_codex_title_summary(request.session_id, request.turns, request.turn_count);
         }
     }
 
@@ -412,6 +430,40 @@ fn completion_notification_for_activity(
             .or(event.prompt.as_deref()),
         Some(activity.working_dir.as_str()),
     ))
+}
+
+fn codex_title_summary_request_for_panel(
+    codex_config: &crate::theme::CodexConfig,
+    panel: &AgentPanel,
+    event: &HookEvent,
+    persisted_snapshot: Option<&crate::session_cache::SessionCacheSnapshot>,
+) -> Option<PendingCodexTitleSummary> {
+    if !crate::title_summary::is_enabled(codex_config)
+        || event.event != "stop"
+        || panel.agent_type != AgentType::Codex
+    {
+        return None;
+    }
+
+    let session_id = panel
+        .agent_session_id
+        .clone()
+        .or_else(|| persisted_snapshot.map(|snapshot| snapshot.agent_session_id.clone()))
+        .or_else(|| event.session_id.clone())?;
+
+    let turns = persisted_snapshot
+        .map(|snapshot| snapshot.recent_turns.to_vec())
+        .unwrap_or_else(|| panel.cached_preview_turns.to_vec());
+    let turn_count = turns
+        .iter()
+        .filter(|turn| !turn.question.trim().is_empty())
+        .count();
+
+    Some(PendingCodexTitleSummary {
+        session_id,
+        turns,
+        turn_count,
+    })
 }
 
 fn build_completion_notification(

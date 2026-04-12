@@ -4,7 +4,9 @@ mod history_codex;
 mod history_gemini;
 mod live;
 mod meta;
+mod trash;
 
+use crate::app::state::ThreadListView;
 use crate::claude_history::ClaudeThreadRef;
 use crate::gemini_history::GeminiThreadRef;
 use crate::model::{AgentPanel, AgentType};
@@ -27,9 +29,13 @@ pub fn build_sidebar_folders(
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
     startup_thread_sort_activity: &HashMap<String, i64>,
-    archived_threads_view: bool,
+    thread_list_view: ThreadListView,
     live_only: bool,
 ) -> Vec<SidebarFolder> {
+    if thread_list_view == ThreadListView::Trash {
+        return trash::build_trash_folders();
+    }
+
     let build_started_at = Instant::now();
     let mut folders: HashMap<String, SidebarFolder> = HashMap::new();
     let mut live_panel_threads = 0usize;
@@ -37,6 +43,7 @@ pub fn build_sidebar_folders(
     let mut codex_history_threads = 0usize;
     let mut claude_history_threads = 0usize;
     let mut gemini_history_threads = 0usize;
+    let archived_threads_view = thread_list_view == ThreadListView::Archived;
     let codex_session_snapshots = if !live_only || archived_threads_view {
         crate::session_cache::load_snapshots_by_agent_type(&AgentType::Codex)
     } else {
@@ -173,6 +180,9 @@ pub fn build_sidebar_folders(
 
     apply_thread_metadata(&mut folders);
     for folder in folders.values_mut() {
+        folder
+            .threads
+            .retain(|thread| !thread.deleted || thread.live_pane_id.is_some());
         for thread in &mut folder.threads {
             apply_sort_activity(
                 Arc::make_mut(thread),

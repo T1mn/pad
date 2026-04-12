@@ -29,6 +29,7 @@ pub(super) fn run_pre_event_cycle(
     app.check_preview_detail_result();
     app.check_delayed_scan();
     app.check_provider_test_result();
+    app.check_title_summary_result();
     app.check_preview_update();
     let terminal_area: Rect = terminal.size()?.into();
     let preview_detail_width = super::mouse::normal_mouse_regions(app, terminal_area)
@@ -46,6 +47,8 @@ pub(super) fn run_pre_event_cycle(
 
 pub(super) fn run_tick_cycle(app: &mut App, state: &mut LoopState, tick_rate: Duration) {
     if state.last_tick.elapsed() >= tick_rate {
+        app.poll_external_relay_config_if_due();
+        app.apply_pending_external_relay_reload_if_ready();
         if app.should_tick_busy_animation() {
             app.busy_animation_frame = app.busy_animation_frame.wrapping_add(1);
             app.last_busy_animation_tick = Instant::now();

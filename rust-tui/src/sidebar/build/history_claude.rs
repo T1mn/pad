@@ -36,6 +36,7 @@ pub(super) fn merge_claude_threads(
             transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
             title: best_thread_title(thread.title.as_deref(), Some(thread.session_id.as_str())),
             upstream_title: thread.title.as_deref().and_then(clean_title),
+            generated_title: None,
             subtitle: None,
             title_override: None,
             note: None,
@@ -55,6 +56,7 @@ pub(super) fn merge_claude_threads(
             last_assistant_message: None,
             has_unread_stop: false,
             archived: thread.archived,
+            deleted: false,
         };
         merge_or_insert_thread(
             &mut folder.threads,

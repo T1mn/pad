@@ -91,6 +91,7 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
             .or_else(|| fallback_title.map(|value| value.to_string()))
             .unwrap_or_else(|| "untitled".to_string()),
         upstream_title,
+        generated_title: None,
         subtitle,
         title_override: None,
         note: None,
@@ -113,6 +114,7 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
         last_assistant_message: panel.last_assistant_message.clone(),
         has_unread_stop: panel.has_unread_stop,
         archived: false,
+        deleted: false,
     };
 
     if let Ok(Some(meta)) = panel

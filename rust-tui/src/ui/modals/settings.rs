@@ -119,11 +119,12 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
             )
         }
         Some(SettingsDetailKind::AgentStyle) => (64, 12),
-        Some(SettingsDetailKind::CodexSettings) => (76, 15),
+        Some(SettingsDetailKind::CodexSettings) => (76, 17),
         Some(SettingsDetailKind::AutoRefresh)
         | Some(SettingsDetailKind::ClaudeFullAccess)
         | Some(SettingsDetailKind::PreviewMode)
         | Some(SettingsDetailKind::DisplayMode)
+        | Some(SettingsDetailKind::Trash)
         | Some(SettingsDetailKind::Version) => (60, 10),
         Some(SettingsDetailKind::Relay) => relay_modal_size(app),
         Some(SettingsDetailKind::Telegram) => (72, 13),
@@ -223,6 +224,15 @@ fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
             simple_value_line(app, kind),
             vec![detail_body_line(app.locale, kind)],
             "Enter/Space toggle · Esc back",
+        ),
+        SettingsDetailKind::Trash => draw_simple_detail(
+            f,
+            app,
+            area,
+            t(app.locale, "settings.trash"),
+            simple_value_line(app, kind),
+            vec![detail_body_line(app.locale, kind)],
+            "Enter/Space open · Esc back",
         ),
         SettingsDetailKind::Language => draw_language_detail(f, app, area),
         SettingsDetailKind::Version => draw_simple_detail(
@@ -422,6 +432,15 @@ fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             ),
             "settings.codex_web_search_desc",
         ),
+        (
+            "settings.codex_title_summary",
+            if app.config.codex.title_summary {
+                t(l, "settings.on")
+            } else {
+                t(l, "settings.off")
+            },
+            "settings.codex_title_summary_desc",
+        ),
     ]
     .iter()
     .map(|(name_key, value, desc_key)| SelectionItem {
@@ -557,6 +576,9 @@ fn simple_value_line(app: &App, kind: SettingsDetailKind) -> String {
             "all" => t(l, "settings.display_mode_all").to_string(),
             _ => t(l, "settings.display_mode_live").to_string(),
         },
+        SettingsDetailKind::Trash => crate::thread_meta::deleted_thread_count()
+            .unwrap_or_default()
+            .to_string(),
         SettingsDetailKind::Version => env!("CARGO_PKG_VERSION").to_string(),
         _ => String::new(),
     }
@@ -574,6 +596,9 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         (Locale::ZhCN, SettingsDetailKind::DisplayMode) => {
             "切换只显示 live session 或显示全部 session".to_string()
         }
+        (Locale::ZhCN, SettingsDetailKind::Trash) => {
+            "打开 pad 回收站，查看或恢复被 d 隐藏的线程".to_string()
+        }
         (Locale::ZhCN, SettingsDetailKind::Version) => "当前 pad 版本".to_string(),
         (_, SettingsDetailKind::AutoRefresh) => {
             "Controls whether pad refreshes scans automatically.".to_string()
@@ -586,6 +611,9 @@ fn detail_body_line(locale: Locale, kind: SettingsDetailKind) -> String {
         }
         (_, SettingsDetailKind::DisplayMode) => {
             "Switch between live-only sessions and all sessions.".to_string()
+        }
+        (_, SettingsDetailKind::Trash) => {
+            "Open PAD trash to inspect or restore threads hidden by d.".to_string()
         }
         (_, SettingsDetailKind::Version) => "Current pad version.".to_string(),
         _ => String::new(),

@@ -19,8 +19,10 @@ pub use state::{
 };
 use state::{
     Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind, SettingsFocus, SidebarState,
+    ThreadListView,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 
@@ -87,6 +89,9 @@ pub struct App {
     // Provider connectivity test
     pub provider_test_in_progress: bool,
     pub provider_test_rx: Option<mpsc::Receiver<ProviderTestResult>>,
+    pub title_summary_tx: Option<mpsc::Sender<crate::title_summary::TitleSummaryResult>>,
+    pub title_summary_rx: Option<mpsc::Receiver<crate::title_summary::TitleSummaryResult>>,
+    pub title_summary_in_flight: HashSet<String>,
     // Agent style settings
     pub agent_style_selected: usize,
     pub codex_settings_selected: usize,
@@ -100,6 +105,11 @@ pub struct App {
     pub frame_budget_exceeded: bool,
     pub deferred_hook_events: Vec<HookEvent>,
     pub deferred_scan_result: Option<Vec<AgentPanel>>,
+    relay_config_last_poll_at: Instant,
+    relay_config_source_path: Option<PathBuf>,
+    relay_config_source_modified_ms: Option<u128>,
+    relay_config_source_len: Option<u64>,
+    pending_external_relay_reload: bool,
 }
 
 impl App {
@@ -163,6 +173,9 @@ impl App {
             needs_clear: false,
             provider_test_in_progress: false,
             provider_test_rx: None,
+            title_summary_tx: None,
+            title_summary_rx: None,
+            title_summary_in_flight: HashSet::new(),
             agent_style_selected: 0,
             codex_settings_selected: 0,
             telegram_selected_field: 0,
@@ -174,6 +187,11 @@ impl App {
             frame_budget_exceeded: false,
             deferred_hook_events: Vec::new(),
             deferred_scan_result: None,
+            relay_config_last_poll_at: Instant::now(),
+            relay_config_source_path: None,
+            relay_config_source_modified_ms: None,
+            relay_config_source_len: None,
+            pending_external_relay_reload: false,
         }
     }
 
@@ -213,6 +231,10 @@ impl App {
         self.sidebar.display_session_scope == "live"
     }
 
+    pub fn thread_list_view(&self) -> ThreadListView {
+        self.sidebar.thread_list_view
+    }
+
     pub fn apply_display_session_scope(&mut self, scope: &str, persist_default: bool) -> bool {
         let normalized = if scope == "all" { "all" } else { "live" };
         let runtime_changed = self.sidebar.display_session_scope != normalized;
@@ -239,7 +261,7 @@ impl App {
     }
 
     pub fn toggle_display_session_scope_view(&mut self) -> bool {
-        if self.sidebar.archived_threads_view {
+        if self.thread_list_view() != ThreadListView::Normal {
             return false;
         }
         let next_scope = if self.showing_live_sessions() {

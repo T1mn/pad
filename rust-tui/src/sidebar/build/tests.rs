@@ -1,9 +1,11 @@
 use super::activity::merge_or_insert_thread;
 use super::history_codex::build_codex_history_entry;
+use super::meta::apply_thread_meta;
 use crate::codex_state::CodexThreadRef;
 use crate::model::{AgentState, AgentType, PreviewTurn, SessionCacheState};
 use crate::session_cache::SessionCacheSnapshot;
 use crate::sidebar::model::{SidebarFolder, SidebarThread};
+use crate::thread_meta::ThreadMeta;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -69,6 +71,7 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
         title: "live".into(),
         upstream_title: None,
+        generated_title: None,
         subtitle: None,
         title_override: None,
         note: None,
@@ -88,6 +91,7 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         last_assistant_message: None,
         has_unread_stop: false,
         archived: false,
+        deleted: false,
     })];
 
     let history = build_codex_history_entry(
@@ -160,4 +164,50 @@ fn runtime_sort_activity_overrides_startup_seed() {
 
     assert_eq!(threads.len(), 1);
     assert_eq!(threads[0].sort_updated_at, 120);
+}
+
+#[test]
+fn manual_title_override_wins_over_generated_summary_for_title() {
+    let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
+    apply_thread_meta(
+        &mut thread,
+        &ThreadMeta {
+            title_override: Some("Manual title".into()),
+            generated_title: Some("Generated title".into()),
+            generated_turn_count: Some(9),
+            generated_updated_at: Some(123),
+            deleted: false,
+            deleted_at: None,
+            note: None,
+            pinned: false,
+            tags: Vec::new(),
+            updated_at: 123,
+        },
+    );
+
+    assert_eq!(thread.title, "Manual title");
+    assert_eq!(thread.generated_title.as_deref(), Some("Generated title"));
+}
+
+#[test]
+fn generated_summary_does_not_replace_session_title() {
+    let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
+    apply_thread_meta(
+        &mut thread,
+        &ThreadMeta {
+            title_override: None,
+            generated_title: Some("Generated title".into()),
+            generated_turn_count: Some(9),
+            generated_updated_at: Some(123),
+            deleted: false,
+            deleted_at: None,
+            note: None,
+            pinned: false,
+            tags: Vec::new(),
+            updated_at: 123,
+        },
+    );
+
+    assert_eq!(thread.title, "upstream title");
+    assert_eq!(thread.generated_title.as_deref(), Some("Generated title"));
 }

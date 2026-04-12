@@ -69,6 +69,7 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
             "display settings",
             "session scope",
         ],
+        "trash" => &["trash", "recycle bin", "deleted", "deleted threads"],
         "language" => &["language", "locale"],
         "version" => &["version", "about"],
         _ => &[],
@@ -94,12 +95,16 @@ pub(super) fn success_toast_title(
     match (is_cjk_locale(locale), kind, agent_type) {
         (true, ThreadActionKind::Archive, AgentType::Gemini) => "已在 pad 侧归档",
         (true, ThreadActionKind::Unarchive, AgentType::Gemini) => "已从 pad 侧恢复",
+        (true, ThreadActionKind::Restore, AgentType::Gemini) => "已从回收站恢复",
         (false, ThreadActionKind::Archive, AgentType::Gemini) => "Pad archived",
         (false, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad restored",
+        (false, ThreadActionKind::Restore, AgentType::Gemini) => "Restored from Trash",
         (true, ThreadActionKind::Archive, _) => "已归档",
         (true, ThreadActionKind::Unarchive, _) => "已恢复",
+        (true, ThreadActionKind::Restore, _) => "已恢复",
         (false, ThreadActionKind::Archive, _) => "Archived",
         (false, ThreadActionKind::Unarchive, _) => "Restored",
+        (false, ThreadActionKind::Restore, _) => "Restored",
     }
 }
 
@@ -167,35 +172,21 @@ pub(super) fn failure_toast_title(
     match (is_cjk_locale(locale), kind, agent_type) {
         (true, ThreadActionKind::Archive, AgentType::Gemini) => "Pad 归档失败",
         (true, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad 恢复失败",
+        (true, ThreadActionKind::Restore, AgentType::Gemini) => "回收站恢复失败",
         (false, ThreadActionKind::Archive, AgentType::Gemini) => "Pad archive failed",
         (false, ThreadActionKind::Unarchive, AgentType::Gemini) => "Pad restore failed",
+        (false, ThreadActionKind::Restore, AgentType::Gemini) => "Trash restore failed",
         (true, ThreadActionKind::Archive, _) => "归档失败",
         (true, ThreadActionKind::Unarchive, _) => "恢复失败",
+        (true, ThreadActionKind::Restore, _) => "恢复失败",
         (false, ThreadActionKind::Archive, _) => "Archive Failed",
         (false, ThreadActionKind::Unarchive, _) => "Restore Failed",
+        (false, ThreadActionKind::Restore, _) => "Restore Failed",
     }
 }
 
 fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
-}
-
-pub(super) fn archive_deleted_thread(thread: &SidebarThread) -> std::io::Result<bool> {
-    let Some(session_id) = thread.session_id.as_deref() else {
-        return Ok(false);
-    };
-    if thread.archived {
-        return Ok(false);
-    }
-
-    match thread.agent_type {
-        AgentType::Codex => crate::codex_state::archive_thread(session_id)?,
-        AgentType::Claude => crate::claude_history::archive_thread(session_id)?,
-        AgentType::Gemini => crate::gemini_history::archive_thread(session_id)?,
-        _ => return Ok(false),
-    }
-
-    Ok(true)
 }
 
 pub(super) fn delete_failed_title(locale: Locale) -> &'static str {

@@ -71,6 +71,7 @@ impl App {
             "agent_style" => SettingsDetailKind::AgentStyle,
             "preview_mode" => SettingsDetailKind::PreviewMode,
             "display_mode" => SettingsDetailKind::DisplayMode,
+            "trash" => SettingsDetailKind::Trash,
             "language" => SettingsDetailKind::Language,
             "version" => SettingsDetailKind::Version,
             _ => return None,
@@ -125,6 +126,7 @@ impl App {
             SettingsDetailKind::CodexSettings => {
                 self.codex_settings_selected = 0;
             }
+            SettingsDetailKind::Trash => {}
             _ => {}
         }
         self.settings_focus = SettingsFocus::Detail;
@@ -214,6 +216,7 @@ impl App {
             "all" => crate::i18n::t(l, "settings.display_mode_all"),
             _ => crate::i18n::t(l, "settings.display_mode_live"),
         };
+        let trash_count = crate::thread_meta::deleted_thread_count().unwrap_or_default();
         vec![
             (
                 "theme",
@@ -236,7 +239,7 @@ impl App {
             (
                 "codex_settings",
                 format!(
-                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}",
+                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}  ·  Sum {}",
                     if self.config.agent_permissions.codex_auto_full_access {
                         crate::i18n::t(l, "settings.on")
                     } else {
@@ -260,7 +263,12 @@ impl App {
                             "disabled" => "settings.codex_web_search_disabled",
                             _ => "settings.codex_web_search_default",
                         }
-                    )
+                    ),
+                    if self.config.codex.title_summary {
+                        crate::i18n::t(l, "settings.on")
+                    } else {
+                        crate::i18n::t(l, "settings.off")
+                    }
                 ),
                 "settings.codex_settings",
                 "settings.codex_settings",
@@ -314,6 +322,13 @@ impl App {
                 display_mode.to_string(),
                 "settings.display_mode",
                 "settings.display_mode",
+                true,
+            ),
+            (
+                "trash",
+                trash_count.to_string(),
+                "settings.trash",
+                "settings.trash",
                 true,
             ),
             (

@@ -18,6 +18,7 @@ pub(super) fn apply_codex_agent_config(agent: &AgentConfig) {
 
     if let Some(prov) = agent.active() {
         let api_key = prov.codex_auth_token().unwrap_or_default();
+        let provider_name = prov.codex_provider_name();
 
         let content = if path.exists() {
             std::fs::read_to_string(&path).unwrap_or_default()
@@ -39,7 +40,7 @@ pub(super) fn apply_codex_agent_config(agent: &AgentConfig) {
 
         let updated = update_codex_provider_config(
             &content,
-            &prov.codex_provider_name(),
+            &provider_name,
             &prov.label,
             &prov.codex_base_url(),
             prov.codex_wire_api(),
@@ -54,6 +55,10 @@ pub(super) fn apply_codex_agent_config(agent: &AgentConfig) {
         }
         let _ = std::fs::write(&path, updated);
         let _ = std::fs::write(&auth_path, updated_auth);
+
+        if current_model_provider(&content).as_deref() != Some(provider_name.as_str()) {
+            crate::codex_provider_sync::enqueue_sync_to_provider(provider_name.clone());
+        }
     } else {
         restore_codex_config();
         restore_codex_auth();
@@ -136,4 +141,11 @@ fn update_codex_auth_config(content: &str, api_key: &str) -> String {
         serialized.push('\n');
     }
     serialized
+}
+
+fn current_model_provider(content: &str) -> Option<String> {
+    let doc = parse_toml_document(content);
+    doc.get("model_provider")
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
 }

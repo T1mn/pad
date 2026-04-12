@@ -35,6 +35,7 @@ pub struct SidebarThread {
     pub transcript_path: Option<String>,
     pub title: String,
     pub upstream_title: Option<String>,
+    pub generated_title: Option<String>,
     pub subtitle: Option<String>,
     pub title_override: Option<String>,
     pub note: Option<String>,
@@ -54,6 +55,7 @@ pub struct SidebarThread {
     pub last_assistant_message: Option<String>,
     pub has_unread_stop: bool,
     pub archived: bool,
+    pub deleted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

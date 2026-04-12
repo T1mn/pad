@@ -1,4 +1,3 @@
-use super::helpers::archive_deleted_thread;
 use super::*;
 
 #[test]
@@ -78,54 +77,13 @@ fn settings_detail_persists_when_filtered_value_changes() {
 }
 
 #[test]
-fn archive_deleted_thread_requires_supported_agent_and_session_id() {
-    let base = SidebarThread {
-        key: "k".into(),
-        folder_key: "f".into(),
-        working_dir: "/tmp".into(),
-        folder_label: "tmp".into(),
-        agent_type: AgentType::OpenCode,
-        runtime_source: None,
-        session_id: None,
-        transcript_path: None,
-        title: "t".into(),
-        upstream_title: None,
-        subtitle: None,
-        title_override: None,
-        note: None,
-        tags: Vec::new(),
-        pinned: false,
-        updated_at: 0,
-        sort_updated_at: 0,
-        live_pane_id: Some("%1".into()),
-        live_location: None,
-        pid: None,
-        git_info: None,
-        state: crate::model::AgentState::Idle,
-        is_active: false,
-        cached_preview_turns: Default::default(),
-        session_cache_state: None,
-        last_user_prompt: None,
-        last_assistant_message: None,
-        has_unread_stop: false,
-        archived: false,
-    };
-
-    assert!(!archive_deleted_thread(&base).unwrap());
-
-    let supported_without_session = SidebarThread {
-        agent_type: AgentType::Codex,
-        ..base.clone()
-    };
-    assert!(!archive_deleted_thread(&supported_without_session).unwrap());
-
-    let already_archived = SidebarThread {
-        agent_type: AgentType::Codex,
-        session_id: Some("sid".into()),
-        archived: true,
-        ..base
-    };
-    assert!(!archive_deleted_thread(&already_archived).unwrap());
+fn settings_search_matches_trash_aliases() {
+    let mut app = App::new();
+    app.settings_search = "recycle bin".into();
+    assert!(app
+        .filtered_settings_items()
+        .iter()
+        .any(|(id, _, _, _, _)| *id == "trash"));
 }
 
 #[test]

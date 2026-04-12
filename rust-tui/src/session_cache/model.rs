@@ -40,6 +40,7 @@ pub(super) struct CachedSessionRecord {
 pub(super) struct CachedPaneBinding {
     pub agent_session_id: String,
     pub pane_id: String,
+    pub pane_pid: Option<String>,
     pub session_name: String,
     pub window_index: String,
     pub pane_index: String,
