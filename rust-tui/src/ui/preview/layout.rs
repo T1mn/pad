@@ -4,6 +4,7 @@ use super::session::{
     resolve_preview_scroll_for_line_count, resolve_session_list_scroll, visible_detail_window,
 };
 use crate::app::App;
+use crate::model::AgentType;
 use crate::sidebar::SidebarThread;
 use crate::theme::Theme;
 use ratatui::{
@@ -13,6 +14,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
 };
+
+const PREVIEW_INFO_LABEL_WIDTH: usize = 8;
 
 pub(crate) fn draw_preview_info_card(
     f: &mut Frame,
@@ -57,7 +60,7 @@ pub(crate) fn draw_preview_info_card(
         .as_deref()
         .or(thread.session_id.as_deref())
         .unwrap_or("—");
-    let label_width = 6usize;
+    let label_width = PREVIEW_INFO_LABEL_WIDTH;
     let header = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().bg(theme.highlight_bg).fg(theme.fg))
@@ -137,6 +140,30 @@ pub(crate) fn draw_preview_info_card(
                 Style::default().fg(theme.fg),
             ),
         ]),
+        Line::from(vec![
+            fixed_label("PROV", label_width, theme),
+            Span::styled(
+                truncate_to_width(
+                    &preview_provider_value(app, thread),
+                    inner.width.saturating_sub((label_width + 1) as u16) as usize,
+                ),
+                Style::default().fg(theme.fg),
+            ),
+        ]),
+        Line::from(vec![
+            fixed_label("SUMMARY", label_width, theme),
+            Span::styled(
+                truncate_to_width(
+                    if app.config.codex.title_summary {
+                        thread.generated_title.as_deref().unwrap_or("—")
+                    } else {
+                        "—"
+                    },
+                    inner.width.saturating_sub((label_width + 1) as u16) as usize,
+                ),
+                Style::default().fg(theme.fg),
+            ),
+        ]),
     ];
 
     let paragraph =
@@ -166,7 +193,7 @@ pub fn preview_sid_text_at(app: &mut App, area: Rect, column: u16, row: u16) -> 
         return None;
     }
 
-    let label_width = 6u16;
+    let label_width = PREVIEW_INFO_LABEL_WIDTH as u16;
     let value_x = inner.x.saturating_add(label_width + 1);
     let max_width = inner.width.saturating_sub(label_width + 1) as usize;
     let visible = truncate_to_width(session_id, max_width);
@@ -398,11 +425,48 @@ fn shortened_thread_path(thread: &SidebarThread, max_len: usize) -> String {
     format!("...{}", &path[start..])
 }
 
+fn preview_provider_value(app: &App, thread: &SidebarThread) -> String {
+    let agent_name = match thread.agent_type {
+        AgentType::OpenCode => "opencode",
+        _ => return agent_provider_value(app, &thread.agent_type.to_string(), thread),
+    };
+    agent_provider_value(app, agent_name, thread)
+}
+
+fn agent_provider_value(app: &App, agent_name: &str, thread: &SidebarThread) -> String {
+    let Some(agent) = app
+        .config
+        .agents
+        .iter()
+        .find(|agent| agent.name == agent_name)
+    else {
+        return "—".to_string();
+    };
+    let Some(provider) = agent.active() else {
+        return "—".to_string();
+    };
+
+    let label = provider.label.trim();
+    let url = match thread.agent_type {
+        AgentType::Codex => provider.codex_base_url(),
+        _ => provider.base_url.trim().trim_end_matches('/').to_string(),
+    };
+
+    match (label.is_empty(), url.is_empty()) {
+        (true, true) => "—".to_string(),
+        (false, true) => label.to_string(),
+        (true, false) => url,
+        (false, false) => format!("{label} · {url}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::preview_visible_plain_text_rows;
+    use super::{preview_provider_value, preview_visible_plain_text_rows};
     use crate::app::App;
-    use crate::model::{PreviewSource, PreviewView};
+    use crate::model::{AgentState, AgentType, PreviewSource, PreviewView};
+    use crate::sidebar::SidebarThread;
+    use crate::theme::ProviderConfig;
     use ratatui::layout::Rect;
 
     #[test]
@@ -419,5 +483,71 @@ mod tests {
 
         assert_eq!(rows, vec!["cd".to_string(), "ef".to_string()]);
         assert!(app.preview.plain_cache.is_some());
+    }
+
+    #[test]
+    fn preview_provider_value_uses_active_provider_url() {
+        let mut app = App::new();
+        if let Some(agent) = app
+            .config
+            .agents
+            .iter_mut()
+            .find(|agent| agent.name == "codex")
+        {
+            agent.providers = vec![ProviderConfig {
+                label: "relay-a".into(),
+                base_url: "http://127.0.0.1:8317".into(),
+                api_key: String::new(),
+                env_key: String::new(),
+                wire_api: "responses".into(),
+                provider_key: String::new(),
+                npm_package: String::new(),
+                models: Vec::new(),
+                test_status: None,
+                test_http_status: None,
+                test_latency_ms: None,
+                test_result: None,
+            }];
+            agent.active_provider = Some(0);
+        }
+
+        let thread = SidebarThread {
+            key: "codex:sid-1".into(),
+            folder_key: "/repo".into(),
+            working_dir: "/repo".into(),
+            folder_label: "repo".into(),
+            agent_type: AgentType::Codex,
+            runtime_source: None,
+            session_id: Some("sid-1".into()),
+            transcript_path: None,
+            title: "title".into(),
+            upstream_title: None,
+            generated_title: None,
+            subtitle: None,
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 0,
+            sort_updated_at: 0,
+            live_pane_id: None,
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Default::default(),
+            session_cache_state: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+            archived: false,
+            deleted: false,
+        };
+
+        assert_eq!(
+            preview_provider_value(&app, &thread),
+            "relay-a · http://127.0.0.1:8317/v1"
+        );
     }
 }

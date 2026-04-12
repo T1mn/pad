@@ -144,12 +144,10 @@ pub fn create_session_with_agent(
         pad_session
     );
 
-    let pad_client_tty = current_tmux_client_tty();
     let pad_client_snapshot = current_tmux_client_snapshot();
     log_debug!(
-        "handoff trace={} stage=create.client_context client_tty={:?} snapshot={}",
+        "handoff trace={} stage=create.client_context snapshot={}",
         trace_id,
-        pad_client_tty,
         pad_client_snapshot.as_deref().unwrap_or("-")
     );
 
@@ -289,11 +287,6 @@ pub fn create_session_with_agent(
         after_switch_snapshot.as_deref().unwrap_or("-")
     );
 
-    show_return_hint(
-        app.same_session_trace_id.as_deref(),
-        pad_client_tty.as_deref(),
-    );
-
     if launch_after_attach {
         if let Some(target_pane) = target_pane.as_deref() {
             launch_agent_after_attach(target_pane, agent_cmd);
@@ -344,74 +337,6 @@ fn shell_trace_log_cmd(trace_id: &str, stage: &str, details: &str) -> String {
     )
 }
 
-fn show_return_hint(trace_id: Option<&str>, client_tty: Option<&str>) {
-    let popup_script = concat!(
-        "printf '\\033[1mPAD\\033[0m\\n\\n'; ",
-        "printf 'F12 or Ctrl+Q to return to PAD\\n\\n'; ",
-        "printf 'This popup will close automatically in 3 seconds.\\n'; ",
-        "sleep 3"
-    );
-
-    let before_popup_snapshot = current_tmux_client_snapshot();
-    log_debug!(
-        "handoff trace={} stage=create.return_hint.begin backend=tmux-display-popup client_tty={:?} snapshot={}",
-        trace_id.unwrap_or("-"),
-        client_tty,
-        before_popup_snapshot.as_deref().unwrap_or("-")
-    );
-
-    let mut popup_cmd = Command::new("tmux");
-    popup_cmd.args(["display-popup", "-E", "-w", "52", "-h", "7", "-T", "PAD"]);
-    if let Some(client_tty) = client_tty {
-        popup_cmd.args(["-c", client_tty]);
-    }
-    popup_cmd.args(["sh", "-lc", popup_script]);
-    let popup = popup_cmd.output();
-
-    match popup {
-        Ok(output) if output.status.success() => {
-            let after_popup_snapshot = current_tmux_client_snapshot();
-            log_debug!(
-                "handoff trace={} stage=create.return_hint backend=tmux-display-popup delivered=true client_tty={:?} snapshot={}",
-                trace_id.unwrap_or("-"),
-                client_tty,
-                after_popup_snapshot.as_deref().unwrap_or("-")
-            );
-            return;
-        }
-        Ok(output) => {
-            log_debug!(
-                "handoff trace={} stage=create.return_hint.error backend=tmux-display-popup client_tty={:?} status={} stderr={}",
-                trace_id.unwrap_or("-"),
-                client_tty,
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            );
-        }
-        Err(err) => {
-            log_debug!(
-                "handoff trace={} stage=create.return_hint.error backend=tmux-display-popup client_tty={:?} err={}",
-                trace_id.unwrap_or("-"),
-                client_tty,
-                err
-            );
-        }
-    }
-
-    log_debug!(
-        "handoff trace={} stage=create.return_hint backend=tmux-display-message",
-        trace_id.unwrap_or("-")
-    );
-    let _ = Command::new("tmux")
-        .args([
-            "display-message",
-            "-d",
-            "4000",
-            "F12 or Ctrl+Q to return to PAD",
-        ])
-        .output();
-}
-
 fn current_root_binding(key: &str) -> Option<String> {
     let output = Command::new("tmux")
         .args(["list-keys", "-T", "root"])
@@ -428,16 +353,6 @@ fn current_root_binding(key: &str) -> Option<String> {
         .find(|line| line.contains(&format!(" {} ", key)))
         .filter(|line| !is_pad_managed_binding(line))
         .map(|line| line.to_string())
-}
-
-fn current_tmux_client_tty() -> Option<String> {
-    Command::new("tmux")
-        .args(["display-message", "-p", "#{client_tty}"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|value| !value.is_empty())
 }
 
 fn current_tmux_client_snapshot() -> Option<String> {

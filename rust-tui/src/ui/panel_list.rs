@@ -5,6 +5,7 @@ mod style;
 mod thread_row;
 
 use crate::app::state::FocusTarget;
+use crate::app::state::ThreadListView;
 use crate::app::App;
 use crate::i18n::Locale;
 use crate::sidebar::SidebarItem;
@@ -22,7 +23,7 @@ use ratatui::{
 pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let theme = app.theme.clone();
     let l = app.locale;
-    let archived_threads_view = app.sidebar.archived_threads_view;
+    let thread_list_view = app.thread_list_view();
     let showing_live = app.showing_live_sessions();
     let panel_is_focused = !app.sidebar.show_tree && app.preview.focus == FocusTarget::Panel;
     let selected_idx = app.table_state.selected();
@@ -36,11 +37,11 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
         theme.border
     };
     let focus_mark = if panel_is_focused { "●" } else { "○" };
-    let title = if archived_threads_view {
+    let title = if thread_list_view != ThreadListView::Normal {
         format!(
             " {} {} {} ",
             focus_mark,
-            archived_title_label(l),
+            special_view_title_label(l, thread_list_view),
             item_count
         )
     } else {
@@ -83,22 +84,22 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
         let show_scrollbar = total_h > inner.height as usize;
 
         if items.is_empty() {
-            let empty_msg = if archived_threads_view {
+            let empty_msg = if thread_list_view != ThreadListView::Normal {
                 vec![
                     Line::from(""),
                     Line::from(Span::styled(
-                        archived_empty_title(l),
+                        special_view_empty_title(l, thread_list_view),
                         Style::default()
                             .fg(theme.warning)
                             .add_modifier(Modifier::BOLD),
                     )),
                     Line::from(""),
                     Line::from(Span::styled(
-                        archived_empty_hint(l),
+                        special_view_empty_hint(l, thread_list_view),
                         Style::default().fg(theme.fg),
                     )),
                     Line::from(Span::styled(
-                        archived_empty_back_hint(l),
+                        special_view_empty_back_hint(l, thread_list_view),
                         Style::default().fg(theme.comment),
                     )),
                 ]
@@ -218,11 +219,23 @@ fn visible_thread_jump_badges(items: &[SidebarItem]) -> Vec<Option<usize>> {
         .collect()
 }
 
-fn archived_title_label(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "归档"
-    } else {
-        "Archived"
+fn special_view_title_label(locale: Locale, view: ThreadListView) -> &'static str {
+    match view {
+        ThreadListView::Archived => {
+            if is_cjk_locale(locale) {
+                "归档"
+            } else {
+                "Archived"
+            }
+        }
+        ThreadListView::Trash => {
+            if is_cjk_locale(locale) {
+                "回收站"
+            } else {
+                "Trash"
+            }
+        }
+        ThreadListView::Normal => "",
     }
 }
 
@@ -240,27 +253,63 @@ fn display_scope_title_label(locale: Locale, live_only: bool) -> &'static str {
     }
 }
 
-fn archived_empty_title(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "没有归档会话"
-    } else {
-        "No archived threads"
+fn special_view_empty_title(locale: Locale, view: ThreadListView) -> &'static str {
+    match view {
+        ThreadListView::Archived => {
+            if is_cjk_locale(locale) {
+                "没有归档会话"
+            } else {
+                "No archived threads"
+            }
+        }
+        ThreadListView::Trash => {
+            if is_cjk_locale(locale) {
+                "回收站为空"
+            } else {
+                "Trash is empty"
+            }
+        }
+        ThreadListView::Normal => "",
     }
 }
 
-fn archived_empty_hint(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "当前没有可恢复的归档会话"
-    } else {
-        "There are no archived threads to restore"
+fn special_view_empty_hint(locale: Locale, view: ThreadListView) -> &'static str {
+    match view {
+        ThreadListView::Archived => {
+            if is_cjk_locale(locale) {
+                "当前没有可恢复的归档会话"
+            } else {
+                "There are no archived threads to restore"
+            }
+        }
+        ThreadListView::Trash => {
+            if is_cjk_locale(locale) {
+                "还没有被 d 隐藏的线程"
+            } else {
+                "No threads have been hidden with d yet"
+            }
+        }
+        ThreadListView::Normal => "",
     }
 }
 
-fn archived_empty_back_hint(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "按 'Z' 返回普通视图"
-    } else {
-        "Press 'Z' to return to the main view"
+fn special_view_empty_back_hint(locale: Locale, view: ThreadListView) -> &'static str {
+    match view {
+        ThreadListView::Archived => {
+            if is_cjk_locale(locale) {
+                "按 'Z' 返回普通视图"
+            } else {
+                "Press 'Z' to return to the main view"
+            }
+        }
+        ThreadListView::Trash => {
+            if is_cjk_locale(locale) {
+                "从设置重新进入或按 Esc 退出特殊视图"
+            } else {
+                "Re-open from Settings or press Esc to leave the special view"
+            }
+        }
+        ThreadListView::Normal => "",
     }
 }
 
@@ -276,14 +325,14 @@ fn visible_thread_count(items: &[SidebarItem]) -> usize {
 }
 
 pub fn preferred_panel_width(app: &mut App) -> u16 {
-    let archived_threads_view = app.sidebar.archived_threads_view;
+    let thread_list_view = app.thread_list_view();
     let locale = app.locale;
     let live_only = app.showing_live_sessions();
-    let title_width = if archived_threads_view {
+    let title_width = if thread_list_view != ThreadListView::Normal {
         metrics::display_width(&format!(
             " {} {} {} ",
             "○",
-            archived_title_label(locale),
+            special_view_title_label(locale, thread_list_view),
             88
         ))
     } else {
@@ -436,6 +485,7 @@ mod tests {
             transcript_path: None,
             title: "Test".into(),
             upstream_title: None,
+            generated_title: None,
             subtitle: None,
             title_override: None,
             note: None,
@@ -455,6 +505,7 @@ mod tests {
             last_assistant_message: None,
             has_unread_stop: false,
             archived: false,
+            deleted: false,
         };
         let items = vec![
             SidebarItem::Folder(folder.summary()),
@@ -484,6 +535,7 @@ mod tests {
             transcript_path: None,
             title: format!("Test {index}"),
             upstream_title: None,
+            generated_title: None,
             subtitle: None,
             title_override: None,
             note: None,
@@ -503,6 +555,7 @@ mod tests {
             last_assistant_message: None,
             has_unread_stop: false,
             archived: false,
+            deleted: false,
         };
         let mut items = vec![SidebarItem::Folder(folder.summary())];
         for index in 1..=10 {

@@ -39,6 +39,7 @@ pub(super) fn merge_gemini_threads(
             transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
             title: best_thread_title(thread.title.as_deref(), Some(thread.session_id.as_str())),
             upstream_title: thread.title.as_deref().and_then(clean_title),
+            generated_title: None,
             subtitle: thread
                 .subtitle
                 .as_deref()
@@ -62,6 +63,7 @@ pub(super) fn merge_gemini_threads(
             last_assistant_message: thread.last_assistant_message.clone(),
             has_unread_stop: false,
             archived: thread.archived,
+            deleted: false,
         };
 
         merge_or_insert_thread(

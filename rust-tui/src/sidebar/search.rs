@@ -100,6 +100,7 @@ mod tests {
             transcript_path: None,
             title: title.into(),
             upstream_title: Some(title.into()),
+            generated_title: None,
             subtitle: Some("prompt".into()),
             title_override: None,
             note: None,
@@ -119,6 +120,7 @@ mod tests {
             last_assistant_message: None,
             has_unread_stop: false,
             archived: false,
+            deleted: false,
         }
     }
 

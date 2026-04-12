@@ -1,5 +1,7 @@
 use super::App;
-use crate::app::state::sidebar::{PendingSidebarSpaceAction, PendingSidebarSpaceActionKind};
+use crate::app::state::sidebar::{
+    PendingSidebarSpaceAction, PendingSidebarSpaceActionKind, ThreadListView,
+};
 use crate::log_debug;
 use crate::model::AgentPanel;
 use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
@@ -104,7 +106,7 @@ impl App {
     fn ensure_sidebar_folders_cache(&mut self) {
         if self.sidebar.sidebar_folders_dirty {
             let started_at = std::time::Instant::now();
-            let overrides = if self.sidebar.archived_threads_view {
+            let overrides = if self.thread_list_view() != ThreadListView::Normal {
                 Vec::new()
             } else {
                 self.prune_app_thread_activity(crate::app::unix_now_ts());
@@ -115,7 +117,8 @@ impl App {
                     .collect::<Vec<_>>()
             };
             let empty_startup_thread_sort_activity = HashMap::new();
-            let startup_thread_sort_activity = if self.sidebar.archived_threads_view {
+            let startup_thread_sort_activity = if self.thread_list_view() != ThreadListView::Normal
+            {
                 &empty_startup_thread_sort_activity
             } else {
                 &self.sidebar.startup_thread_sort_activity
@@ -125,8 +128,8 @@ impl App {
                 &overrides,
                 &self.sidebar.thread_sort_activity,
                 startup_thread_sort_activity,
-                self.sidebar.archived_threads_view,
-                !self.sidebar.archived_threads_view && self.showing_live_sessions(),
+                self.thread_list_view(),
+                self.thread_list_view() == ThreadListView::Normal && self.showing_live_sessions(),
             );
             for folder in &mut folders {
                 for thread in &mut folder.threads {
@@ -164,7 +167,7 @@ impl App {
             &[],
             &HashMap::new(),
             &HashMap::new(),
-            false,
+            ThreadListView::Normal,
             false,
         );
 
@@ -321,7 +324,9 @@ impl App {
     }
 
     pub fn selected_preview_thread(&mut self) -> Option<SidebarThread> {
-        if self.sidebar.selected_sidebar_key.is_none() && !self.sidebar.archived_threads_view {
+        if self.sidebar.selected_sidebar_key.is_none()
+            && self.thread_list_view() == ThreadListView::Normal
+        {
             if let Some(panel) = self
                 .table_state
                 .selected()

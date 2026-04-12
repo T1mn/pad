@@ -298,8 +298,10 @@ fn thread_action_modal_title(locale: Locale, kind: ThreadActionKind) -> &'static
     match (is_cjk_locale(locale), kind) {
         (true, ThreadActionKind::Archive) => "归档会话",
         (true, ThreadActionKind::Unarchive) => "恢复会话",
+        (true, ThreadActionKind::Restore) => "恢复线程",
         (false, ThreadActionKind::Archive) => "Archive Thread",
         (false, ThreadActionKind::Unarchive) => "Restore Thread",
+        (false, ThreadActionKind::Restore) => "Restore Thread",
     }
 }
 
@@ -315,11 +317,17 @@ fn thread_action_modal_confirm(
         (true, ThreadActionKind::Unarchive, crate::model::AgentType::Codex) => {
             "确认恢复这个 Codex 会话？".to_string()
         }
+        (true, ThreadActionKind::Restore, crate::model::AgentType::Codex) => {
+            "确认从回收站恢复这个 Codex 会话？".to_string()
+        }
         (true, ThreadActionKind::Archive, crate::model::AgentType::Claude) => {
             "确认归档这个 Claude 会话？".to_string()
         }
         (true, ThreadActionKind::Unarchive, crate::model::AgentType::Claude) => {
             "确认恢复这个 Claude 会话？".to_string()
+        }
+        (true, ThreadActionKind::Restore, crate::model::AgentType::Claude) => {
+            "确认从回收站恢复这个 Claude 会话？".to_string()
         }
         (true, ThreadActionKind::Archive, crate::model::AgentType::Gemini) => {
             "确认仅在 pad 侧归档这个 Gemini 会话？不会修改 ~/.gemini。".to_string()
@@ -327,17 +335,26 @@ fn thread_action_modal_confirm(
         (true, ThreadActionKind::Unarchive, crate::model::AgentType::Gemini) => {
             "确认从 pad 侧归档中恢复这个 Gemini 会话？不会修改 ~/.gemini。".to_string()
         }
+        (true, ThreadActionKind::Restore, crate::model::AgentType::Gemini) => {
+            "确认从回收站恢复这个 Gemini 会话？不会修改 ~/.gemini。".to_string()
+        }
         (false, ThreadActionKind::Archive, crate::model::AgentType::Codex) => {
             "Archive this Codex thread?".to_string()
         }
         (false, ThreadActionKind::Unarchive, crate::model::AgentType::Codex) => {
             "Restore this Codex thread?".to_string()
         }
+        (false, ThreadActionKind::Restore, crate::model::AgentType::Codex) => {
+            "Restore this Codex thread from trash?".to_string()
+        }
         (false, ThreadActionKind::Archive, crate::model::AgentType::Claude) => {
             "Archive this Claude thread?".to_string()
         }
         (false, ThreadActionKind::Unarchive, crate::model::AgentType::Claude) => {
             "Restore this Claude thread?".to_string()
+        }
+        (false, ThreadActionKind::Restore, crate::model::AgentType::Claude) => {
+            "Restore this Claude thread from trash?".to_string()
         }
         (false, ThreadActionKind::Archive, crate::model::AgentType::Gemini) => {
             "Archive this Gemini session in pad only? This does not modify ~/.gemini.".to_string()
@@ -346,10 +363,15 @@ fn thread_action_modal_confirm(
             "Restore this Gemini session from pad archive? This does not modify ~/.gemini."
                 .to_string()
         }
+        (false, ThreadActionKind::Restore, crate::model::AgentType::Gemini) => {
+            "Restore this Gemini session from trash? This does not modify ~/.gemini.".to_string()
+        }
         (true, ThreadActionKind::Archive, _) => "确认归档这个会话？".to_string(),
         (true, ThreadActionKind::Unarchive, _) => "确认恢复这个会话？".to_string(),
+        (true, ThreadActionKind::Restore, _) => "确认从回收站恢复这个会话？".to_string(),
         (false, ThreadActionKind::Archive, _) => "Archive this thread?".to_string(),
         (false, ThreadActionKind::Unarchive, _) => "Restore this thread?".to_string(),
+        (false, ThreadActionKind::Restore, _) => "Restore this thread from trash?".to_string(),
     }
 }
 

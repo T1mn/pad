@@ -62,9 +62,11 @@ fn apply_thread_meta_lookup(
 
 pub(super) fn apply_thread_meta(thread: &mut SidebarThread, meta: &ThreadMeta) {
     thread.title_override = meta.title_override.clone();
+    thread.generated_title = meta.generated_title.clone();
     thread.note = meta.note.clone();
     thread.pinned = meta.pinned;
     thread.tags = meta.tags.clone();
+    thread.deleted = meta.deleted;
 
     if let Some(override_title) = meta.title_override.as_deref().and_then(clean_title) {
         thread.title = override_title;

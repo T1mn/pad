@@ -271,6 +271,7 @@ mod tests {
             transcript_path: None,
             title: "Test".into(),
             upstream_title: None,
+            generated_title: None,
             subtitle: Some("very old prompt".into()),
             title_override: None,
             note: None,
@@ -290,6 +291,7 @@ mod tests {
             last_assistant_message: Some("latest answer".into()),
             has_unread_stop: false,
             archived: false,
+            deleted: false,
         };
 
         assert_eq!(thread_subtitle(&thread), "latest prompt");

@@ -1,9 +1,9 @@
 use super::helpers::{
-    archive_deleted_thread, delete_failed_title, delete_hide_failed_title, failure_toast_title,
-    parse_thread_tags, success_toast_title, thread_action_subject, thread_meta_save_failed_title,
-    thread_meta_toast,
+    delete_failed_title, delete_hide_failed_title, failure_toast_title, parse_thread_tags,
+    success_toast_title, thread_action_subject, thread_meta_save_failed_title, thread_meta_toast,
 };
 use super::*;
+use crate::app::state::ThreadListView;
 
 impl App {
     pub fn delete_panel(&mut self, panel: &crate::model::AgentPanel) {
@@ -33,11 +33,31 @@ impl App {
             Ok(output) if output.status.success() => {
                 self.apply_deleted_panel_locally(&panel.pane_id);
                 if let Some(thread) = target_thread.as_ref() {
-                    if let Err(err) = archive_deleted_thread(thread) {
-                        self.show_action_toast(
-                            delete_hide_failed_title(self.locale),
-                            &err.to_string(),
-                        );
+                    let should_soft_delete = thread
+                        .session_id
+                        .as_deref()
+                        .map(|session_id| {
+                            !self.panels.iter().any(|candidate| {
+                                candidate.pane_id != panel.pane_id
+                                    && candidate.agent_type == thread.agent_type
+                                    && candidate.agent_session_id.as_deref() == Some(session_id)
+                            })
+                        })
+                        .unwrap_or(false);
+
+                    if should_soft_delete {
+                        if let Some(session_id) = thread.session_id.as_deref() {
+                            if let Err(err) = crate::thread_meta::set_thread_deleted(
+                                &thread.agent_type.to_string(),
+                                session_id,
+                                true,
+                            ) {
+                                self.show_action_toast(
+                                    delete_hide_failed_title(self.locale),
+                                    &err.to_string(),
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -81,9 +101,23 @@ impl App {
     }
 
     pub fn toggle_archived_threads_view(&mut self) {
-        self.sidebar.archived_threads_view = !self.sidebar.archived_threads_view;
+        self.sidebar.thread_list_view = if self.thread_list_view() != ThreadListView::Normal {
+            ThreadListView::Normal
+        } else {
+            ThreadListView::Archived
+        };
+        self.reset_thread_list_view_state();
+    }
+
+    pub fn open_trash_threads_view(&mut self) {
+        self.sidebar.thread_list_view = ThreadListView::Trash;
+        self.reset_thread_list_view_state();
+    }
+
+    fn reset_thread_list_view_state(&mut self) {
         self.sidebar.pending_thread_action = None;
         self.sidebar.pending_sidebar_selection_index = None;
+        self.settings_open = false;
         self.mode = Mode::Normal;
         self.sidebar.selected_sidebar_key = None;
         self.table_state.select(None);
@@ -95,6 +129,9 @@ impl App {
     }
 
     pub fn request_archive_selected_thread(&mut self) -> bool {
+        if self.thread_list_view() == ThreadListView::Trash {
+            return false;
+        }
         let Some(thread) = self.selected_thread_action_target(false) else {
             return false;
         };
@@ -103,10 +140,16 @@ impl App {
     }
 
     pub fn request_unarchive_selected_thread(&mut self) -> bool {
-        let Some(thread) = self.selected_thread_action_target(true) else {
+        let target_archived = self.thread_list_view() == ThreadListView::Archived;
+        let Some(thread) = self.selected_thread_action_target(target_archived) else {
             return false;
         };
-        self.open_thread_action_confirm(thread, ThreadActionKind::Unarchive);
+        let kind = if self.thread_list_view() == ThreadListView::Trash {
+            ThreadActionKind::Restore
+        } else {
+            ThreadActionKind::Unarchive
+        };
+        self.open_thread_action_confirm(thread, kind);
         true
     }
 
@@ -161,6 +204,11 @@ impl App {
                     "restore is not supported for this agent type",
                 )),
             },
+            ThreadActionKind::Restore => crate::thread_meta::set_thread_deleted(
+                &action.thread.agent_type.to_string(),
+                session_id,
+                false,
+            ),
         };
         let ok = result.is_ok();
 
@@ -304,7 +352,9 @@ impl App {
                 if matches!(
                     thread.agent_type,
                     AgentType::Codex | AgentType::Claude | AgentType::Gemini
-                ) && thread.archived == archived
+                ) && (self.thread_list_view() == ThreadListView::Trash
+                    || thread.archived == archived)
+                    && (self.thread_list_view() != ThreadListView::Trash || thread.deleted)
                     && thread.session_id.is_some() =>
             {
                 Some(thread.as_ref().clone())

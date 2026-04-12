@@ -68,6 +68,7 @@ pub(super) fn build_codex_history_entry(
         transcript_path: Some(thread.rollout_path.to_string_lossy().to_string()),
         title,
         upstream_title: thread.title.as_deref().and_then(clean_title),
+        generated_title: None,
         subtitle: None,
         title_override: None,
         note: None,
@@ -87,6 +88,7 @@ pub(super) fn build_codex_history_entry(
         last_assistant_message: None,
         has_unread_stop: false,
         archived: thread.archived,
+        deleted: false,
     };
 
     if let Some(snapshot) = snapshot {

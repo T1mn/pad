@@ -46,6 +46,7 @@ pub enum SettingsDetailKind {
     AgentStyle,
     PreviewMode,
     DisplayMode,
+    Trash,
     Language,
     Version,
 }
@@ -70,4 +71,6 @@ pub use preview::{
     CopyToast, PreviewDetailCache, PreviewDetailRenderRequest, PreviewMouseSelection,
     PreviewPlainCache, PreviewState, ThreadPreviewCacheEntry,
 };
-pub use sidebar::{PendingThreadAction, SidebarState, ThreadActionKind, ThreadMetaEditKind};
+pub use sidebar::{
+    PendingThreadAction, SidebarState, ThreadActionKind, ThreadListView, ThreadMetaEditKind,
+};

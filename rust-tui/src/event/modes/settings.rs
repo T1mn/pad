@@ -120,6 +120,7 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::AutoRefresh) => handle_auto_refresh_detail_mode(app, key),
         Some(SettingsDetailKind::PreviewMode) => handle_preview_mode_detail_mode(app, key),
         Some(SettingsDetailKind::DisplayMode) => handle_display_mode_detail_mode(app, key),
+        Some(SettingsDetailKind::Trash) => handle_trash_detail_mode(app, key),
         Some(SettingsDetailKind::Version) => {
             match key {
                 KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
@@ -129,6 +130,15 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         }
         None => false,
     }
+}
+
+fn handle_trash_detail_mode(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
+        KeyCode::Enter | KeyCode::Char(' ') => app.open_trash_threads_view(),
+        _ => {}
+    }
+    true
 }
 
 fn handle_theme_detail_mode(app: &mut App, key: KeyCode) -> bool {
@@ -280,7 +290,7 @@ fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 3 {
+            if app.codex_settings_selected < 4 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -310,6 +320,9 @@ fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
                         "disabled" => "default".to_string(),
                         _ => "cached".to_string(),
                     };
+                }
+                4 => {
+                    app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
                 _ => {}
             }
@@ -610,6 +623,7 @@ mod tests {
             app.config.codex.fast_mode = false;
             app.config.codex.multi_agent = false;
             app.config.codex.web_search = "default".into();
+            app.config.codex.title_summary = false;
 
             app.codex_settings_selected = 0;
             handle_settings_mode(&mut app, KeyCode::Enter);
@@ -635,6 +649,13 @@ mod tests {
             assert_eq!(app.config.codex.web_search, "disabled");
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert_eq!(app.config.codex.web_search, "default");
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 4);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.title_summary);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(!app.config.codex.title_summary);
         });
     }
 
@@ -654,7 +675,7 @@ mod tests {
             for _ in 0..10 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 3);
+            assert_eq!(app.codex_settings_selected, 4);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

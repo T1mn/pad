@@ -8,6 +8,14 @@ use std::time::Instant;
 pub enum ThreadActionKind {
     Archive,
     Unarchive,
+    Restore,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThreadListView {
+    Normal,
+    Archived,
+    Trash,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,7 +57,7 @@ pub struct SidebarState {
     pub selected_sidebar_key: Option<String>,
     pub pending_sidebar_selection_index: Option<usize>,
     pub pending_space_action: Option<PendingSidebarSpaceAction>,
-    pub archived_threads_view: bool,
+    pub thread_list_view: ThreadListView,
     pub display_session_scope: String,
     pub app_thread_activity: HashMap<String, ThreadActivityOverride>,
     pub thread_sort_activity: HashMap<String, i64>,
@@ -78,7 +86,7 @@ impl SidebarState {
             selected_sidebar_key: None,
             pending_sidebar_selection_index: None,
             pending_space_action: None,
-            archived_threads_view: false,
+            thread_list_view: ThreadListView::Normal,
             display_session_scope,
             app_thread_activity: HashMap::new(),
             thread_sort_activity: HashMap::new(),

@@ -569,7 +569,7 @@ mod tests {
         let regions = mouse::normal_mouse_regions(&mut app, area);
         let click = left_click(
             regions.preview_content_area.x,
-            regions.preview_content_area.y + 3,
+            regions.preview_content_area.y + 4,
         );
 
         mouse::handle_normal_mouse(&mut app, area, click);
@@ -604,7 +604,7 @@ mod tests {
         let regions = mouse::normal_mouse_regions(&mut app, area);
         let gap_click = left_click(
             regions.preview_content_area.x,
-            regions.preview_content_area.y + 2,
+            regions.preview_content_area.y + 3,
         );
 
         mouse::handle_normal_mouse(&mut app, area, gap_click);

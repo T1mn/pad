@@ -7,6 +7,7 @@ mod cases {
     };
     use super::super::persist::merge_recent_turns;
     use super::super::preload::{apply_snapshot_to_panel, latest_turn_missing_answer};
+    use super::super::util::now_ts;
     use crate::model::{
         AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn, SessionCacheState,
     };
@@ -33,7 +34,7 @@ mod cases {
             cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info: None,
-            pid: None,
+            pid: Some(format!("pid-{}", pane_id)),
             start_time: None,
             agent_session_id: None,
             last_user_prompt: None,
@@ -82,6 +83,7 @@ mod cases {
 
     #[test]
     fn fallback_match_is_ambiguous_when_multiple_sessions_share_same_slot() {
+        let now = now_ts();
         let index = SessionCacheIndex {
             version: 1,
             sessions: vec![
@@ -118,22 +120,24 @@ mod cases {
                 CachedPaneBinding {
                     agent_session_id: "s1".to_string(),
                     pane_id: "%1".to_string(),
+                    pane_pid: Some("pid-%1".to_string()),
                     session_name: "dev".to_string(),
                     window_index: "1".to_string(),
                     pane_index: "0".to_string(),
                     path: "/repo".to_string(),
                     agent_type: "codex".to_string(),
-                    updated_at: 1,
+                    updated_at: now,
                 },
                 CachedPaneBinding {
                     agent_session_id: "s2".to_string(),
                     pane_id: "%2".to_string(),
+                    pane_pid: Some("pid-%2".to_string()),
                     session_name: "dev".to_string(),
                     window_index: "1".to_string(),
                     pane_index: "0".to_string(),
                     path: "/repo".to_string(),
                     agent_type: "codex".to_string(),
-                    updated_at: 1,
+                    updated_at: now,
                 },
             ],
         };
@@ -164,6 +168,7 @@ mod cases {
             pane_bindings: vec![CachedPaneBinding {
                 agent_session_id: "s1".to_string(),
                 pane_id: "%1".to_string(),
+                pane_pid: Some("pid-%1".to_string()),
                 session_name: "dev".to_string(),
                 window_index: "1".to_string(),
                 pane_index: "0".to_string(),
@@ -183,6 +188,7 @@ mod cases {
 
     #[test]
     fn fallback_match_allows_duplicate_bindings_for_same_session_id() {
+        let now = now_ts();
         let record = CachedSessionRecord {
             agent_session_id: "s1".to_string(),
             agent_type: "codex".to_string(),
@@ -205,22 +211,24 @@ mod cases {
                 CachedPaneBinding {
                     agent_session_id: "s1".to_string(),
                     pane_id: "%1".to_string(),
+                    pane_pid: Some("pid-%1".to_string()),
                     session_name: "dev".to_string(),
                     window_index: "1".to_string(),
                     pane_index: "0".to_string(),
                     path: "/repo".to_string(),
                     agent_type: "codex".to_string(),
-                    updated_at: 1,
+                    updated_at: now,
                 },
                 CachedPaneBinding {
                     agent_session_id: "s1".to_string(),
                     pane_id: "%2".to_string(),
+                    pane_pid: Some("pid-%2".to_string()),
                     session_name: "dev".to_string(),
                     window_index: "1".to_string(),
                     pane_index: "0".to_string(),
                     path: "/repo".to_string(),
                     agent_type: "codex".to_string(),
-                    updated_at: 1,
+                    updated_at: now,
                 },
             ],
         };
@@ -328,6 +336,83 @@ mod cases {
         assert_eq!(
             restored_panel.last_user_prompt.as_deref(),
             Some("[Image x1] 为什么有黑边？")
+        );
+    }
+
+    #[test]
+    fn exact_match_requires_recent_binding_when_pid_is_missing() {
+        let record = CachedSessionRecord {
+            agent_session_id: "s1".to_string(),
+            agent_type: "codex".to_string(),
+            transcript_path: Some("/tmp/a.jsonl".to_string()),
+            recent_turns: vec![PreviewTurn {
+                question: "q1".to_string(),
+                answer: None,
+            }],
+            last_user_prompt: None,
+            last_assistant_message: None,
+            last_seen_at: 1,
+            updated_at: 1,
+            last_source: "hook".to_string(),
+        };
+
+        let index = SessionCacheIndex {
+            version: 1,
+            sessions: vec![record],
+            pane_bindings: vec![CachedPaneBinding {
+                agent_session_id: "s1".to_string(),
+                pane_id: "%1".to_string(),
+                pane_pid: None,
+                session_name: "dev".to_string(),
+                window_index: "1".to_string(),
+                pane_index: "0".to_string(),
+                path: "/repo".to_string(),
+                agent_type: "codex".to_string(),
+                updated_at: 1,
+            }],
+        };
+
+        assert!(find_snapshot_for_panel(&index, &panel("%1", "dev", "1", "0", "/repo")).is_none());
+    }
+
+    #[test]
+    fn exact_match_keeps_working_for_stale_binding_when_pane_pid_matches() {
+        let record = CachedSessionRecord {
+            agent_session_id: "s1".to_string(),
+            agent_type: "codex".to_string(),
+            transcript_path: Some("/tmp/a.jsonl".to_string()),
+            recent_turns: vec![PreviewTurn {
+                question: "q1".to_string(),
+                answer: None,
+            }],
+            last_user_prompt: None,
+            last_assistant_message: None,
+            last_seen_at: 1,
+            updated_at: 1,
+            last_source: "hook".to_string(),
+        };
+
+        let index = SessionCacheIndex {
+            version: 1,
+            sessions: vec![record.clone()],
+            pane_bindings: vec![CachedPaneBinding {
+                agent_session_id: "s1".to_string(),
+                pane_id: "%1".to_string(),
+                pane_pid: Some("pid-%1".to_string()),
+                session_name: "old".to_string(),
+                window_index: "9".to_string(),
+                pane_index: "9".to_string(),
+                path: "/else".to_string(),
+                agent_type: "codex".to_string(),
+                updated_at: 1,
+            }],
+        };
+
+        let snapshot =
+            find_snapshot_for_panel(&index, &panel("%1", "dev", "1", "0", "/repo")).unwrap();
+        assert_eq!(
+            snapshot,
+            snapshot_from_record(&record, SessionCacheState::Cached)
         );
     }
 }

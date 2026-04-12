@@ -1,4 +1,4 @@
-use super::common::{fallback_color, pad_to_width, truncate_to_width};
+use super::common::{char_display_width, fallback_color, pad_to_width, truncate_to_width};
 use super::markdown::{
     detail_surface, flatten_lines_for_smooth_scrolling, markdown_options,
     normalize_session_detail_markdown, render_detail_content_line, render_detail_padding_line,
@@ -14,7 +14,7 @@ use ratatui::{
     Frame,
 };
 
-pub(crate) const SESSION_ITEM_CONTENT_HEIGHT: usize = 2;
+pub(crate) const SESSION_ITEM_CONTENT_HEIGHT: usize = 3;
 pub(crate) const SESSION_ITEM_GAP_HEIGHT: usize = 1;
 
 pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
@@ -190,15 +190,16 @@ pub(crate) fn render_session_card(
     width: usize,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
-    debug_assert_eq!(SESSION_ITEM_CONTENT_HEIGHT, 2);
+    debug_assert_eq!(SESSION_ITEM_CONTENT_HEIGHT, 3);
     let inner_width = width.saturating_sub(6).max(6);
     let q = truncate_to_width(
         &question_text_for_display(turn.question.trim()),
         inner_width,
     );
-    let a = truncate_to_width(
+    let answer_lines = split_preview_card_lines(
         &answer_text_for_display(turn.answer.as_deref().unwrap_or("...").trim()),
         inner_width,
+        2,
     );
     let block_bg = if selected {
         theme.highlight_bg
@@ -240,9 +241,66 @@ pub(crate) fn render_session_card(
         Line::from(vec![
             Span::styled("▌", marker_style),
             Span::styled(" A ", a_label_style),
-            Span::styled(a, text_style),
+            Span::styled(
+                answer_lines.first().cloned().unwrap_or_default(),
+                text_style,
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("▌", marker_style),
+            Span::styled("   ", Style::default().bg(block_bg)),
+            Span::styled(answer_lines.get(1).cloned().unwrap_or_default(), text_style),
         ]),
     ]
+}
+
+fn split_preview_card_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
+    let mut remaining = text.trim();
+    let mut lines = Vec::with_capacity(max_lines);
+
+    for idx in 0..max_lines {
+        if remaining.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+
+        if idx + 1 == max_lines {
+            lines.push(truncate_to_width(remaining, width));
+            remaining = "";
+            continue;
+        }
+
+        let (prefix, rest) = take_prefix_by_width(remaining, width);
+        lines.push(prefix.to_string());
+        remaining = rest;
+    }
+
+    lines
+}
+
+fn take_prefix_by_width(text: &str, max_width: usize) -> (&str, &str) {
+    if max_width == 0 || text.is_empty() {
+        return ("", text);
+    }
+
+    let mut used = 0usize;
+    let mut split_at = text.len();
+    for (idx, ch) in text.char_indices() {
+        let ch_width = char_display_width(ch);
+        if used + ch_width > max_width {
+            split_at = idx;
+            break;
+        }
+        used += ch_width;
+    }
+
+    if split_at == text.len() {
+        return (text, "");
+    }
+
+    let prefix = text[..split_at].trim_end();
+    let rest = text[split_at..].trim_start();
+    (prefix, rest)
 }
 
 pub(crate) fn build_session_list_lines(
@@ -445,7 +503,10 @@ pub(crate) fn visible_detail_window(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_session_list_lines, session_list_total_lines, session_turn_index_at_line};
+    use super::{
+        build_session_list_lines, render_session_card, session_list_total_lines,
+        session_turn_index_at_line,
+    };
     use crate::model::PreviewTurn;
     use crate::theme::Theme;
 
@@ -464,18 +525,48 @@ mod tests {
 
         let (lines, selected_range) =
             build_session_list_lines(&turns, Some(0), 40, &Theme::default());
-        assert_eq!(lines.len(), 5);
-        assert_eq!(selected_range, Some((0, 1)));
+        assert_eq!(lines.len(), 7);
+        assert_eq!(selected_range, Some((0, 2)));
     }
 
     #[test]
     fn gap_line_has_no_turn_hit_target() {
-        assert_eq!(session_list_total_lines(2), 5);
+        assert_eq!(session_list_total_lines(2), 7);
         assert_eq!(session_turn_index_at_line(0, 2), Some(0));
         assert_eq!(session_turn_index_at_line(1, 2), Some(0));
-        assert_eq!(session_turn_index_at_line(2, 2), None);
-        assert_eq!(session_turn_index_at_line(3, 2), Some(1));
+        assert_eq!(session_turn_index_at_line(2, 2), Some(0));
+        assert_eq!(session_turn_index_at_line(3, 2), None);
         assert_eq!(session_turn_index_at_line(4, 2), Some(1));
-        assert_eq!(session_turn_index_at_line(5, 2), None);
+        assert_eq!(session_turn_index_at_line(5, 2), Some(1));
+        assert_eq!(session_turn_index_at_line(6, 2), Some(1));
+        assert_eq!(session_turn_index_at_line(7, 2), None);
+    }
+
+    #[test]
+    fn session_card_renders_two_answer_lines() {
+        let lines = render_session_card(
+            &PreviewTurn {
+                question: "question".into(),
+                answer: Some("answer line one answer line two".into()),
+            },
+            false,
+            20,
+            &Theme::default(),
+        );
+
+        assert_eq!(lines.len(), 3);
+        assert!(lines[1]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>()
+            .contains("answer line"));
+        assert!(!lines[2]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>()
+            .trim()
+            .is_empty());
     }
 }

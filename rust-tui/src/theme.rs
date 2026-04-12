@@ -1,7 +1,7 @@
 use ratatui::style::Color;
 use reqwest::Url;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct Theme {
@@ -786,6 +786,7 @@ pub struct CodexConfig {
     pub fast_mode: bool,
     pub multi_agent: bool,
     pub web_search: String,
+    pub title_summary: bool,
 }
 
 impl CodexConfig {
@@ -805,6 +806,7 @@ impl Default for CodexConfig {
             fast_mode: false,
             multi_agent: false,
             web_search: "default".to_string(),
+            title_summary: false,
         }
     }
 }
@@ -917,26 +919,32 @@ impl Config {
         crate::paths::config_path()
     }
 
-    pub fn load() -> Self {
+    pub fn resolved_config_path() -> Option<PathBuf> {
         let path = Self::config_path();
         let legacy_path = crate::paths::legacy_config_path();
-        let load_path = if path.exists() {
-            path
+        if path.exists() {
+            Some(path)
         } else if legacy_path.exists() {
-            legacy_path
+            Some(legacy_path)
         } else {
+            None
+        }
+    }
+
+    pub fn load() -> Self {
+        let Some(load_path) = Self::resolved_config_path() else {
             return Self::default();
         };
 
-        let content = match std::fs::read_to_string(&load_path) {
-            Ok(c) => c,
-            Err(_) => return Self::default(),
-        };
+        Self::load_from_path(&load_path).unwrap_or_default()
+    }
 
-        let table: HashMap<String, toml::Value> = match toml::from_str(&content) {
-            Ok(t) => t,
-            Err(_) => return Self::default(),
-        };
+    pub fn load_from_path(path: &Path) -> Result<Self, String> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|err| format!("read {} failed: {err}", path.display()))?;
+
+        let table: HashMap<String, toml::Value> = toml::from_str(&content)
+            .map_err(|err| format!("parse {} failed: {err}", path.display()))?;
 
         let mut config = Self::default();
 
@@ -1007,6 +1015,9 @@ impl Config {
             }
             if let Some(toml::Value::String(mode)) = codex.get("web_search") {
                 config.codex.web_search = CodexConfig::normalized_web_search(mode);
+            }
+            if let Some(toml::Value::Boolean(enabled)) = codex.get("title_summary") {
+                config.codex.title_summary = *enabled;
             }
         }
         if let Some(toml::Value::Table(agent_permissions)) = table.get("agent_permissions") {
@@ -1242,7 +1253,7 @@ impl Config {
             }
         }
 
-        config
+        Ok(config)
     }
 
     pub fn save(&self) {
@@ -1287,6 +1298,7 @@ impl Config {
         content.push_str(&format!("fast_mode = {}\n", self.codex.fast_mode));
         content.push_str(&format!("multi_agent = {}\n", self.codex.multi_agent));
         content.push_str(&format!("web_search = \"{}\"\n", self.codex.web_search));
+        content.push_str(&format!("title_summary = {}\n", self.codex.title_summary));
         content.push_str("\n[agent_permissions]\n");
         content.push_str(&format!(
             "codex_auto_full_access = {}\n",
@@ -1398,6 +1410,7 @@ mod tests {
             config.codex.fast_mode = true;
             config.codex.multi_agent = true;
             config.codex.web_search = "live".into();
+            config.codex.title_summary = true;
             let opencode = config
                 .agents
                 .iter_mut()
@@ -1431,6 +1444,7 @@ mod tests {
             assert!(loaded.codex.fast_mode);
             assert!(loaded.codex.multi_agent);
             assert_eq!(loaded.codex.web_search, "live");
+            assert!(loaded.codex.title_summary);
             let opencode = loaded
                 .agents
                 .iter()
@@ -1502,6 +1516,39 @@ mod tests {
             codex_preferred_api_base_url("https://relay.example/openai/v1"),
             "https://relay.example/openai/v1"
         );
+    }
+
+    #[test]
+    fn resolved_config_path_prefers_pad_home_over_legacy_path() {
+        with_temp_home("resolved-config-path", || {
+            let pad_path = Config::config_path();
+            let legacy_path = crate::paths::legacy_config_path();
+            if let Some(parent) = legacy_path.parent() {
+                std::fs::create_dir_all(parent).expect("create legacy parent");
+            }
+            std::fs::write(&legacy_path, "theme = \"legacy\"\n").expect("write legacy config");
+            assert_eq!(Config::resolved_config_path(), Some(legacy_path.clone()));
+
+            if let Some(parent) = pad_path.parent() {
+                std::fs::create_dir_all(parent).expect("create pad parent");
+            }
+            std::fs::write(&pad_path, "theme = \"primary\"\n").expect("write primary config");
+            assert_eq!(Config::resolved_config_path(), Some(pad_path));
+        });
+    }
+
+    #[test]
+    fn load_from_path_reports_invalid_toml() {
+        with_temp_home("invalid-load-path", || {
+            let path = Config::config_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create pad parent");
+            }
+            std::fs::write(&path, "not valid = [").expect("write invalid config");
+
+            let err = Config::load_from_path(&path).expect_err("invalid TOML should fail");
+            assert!(err.contains("parse"));
+        });
     }
 
     #[test]
