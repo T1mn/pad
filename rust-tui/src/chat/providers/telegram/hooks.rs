@@ -119,10 +119,11 @@ pub(super) async fn process_direct_hook_event(
             }
         }
         "stop" => {
-            if !hook_event_matches_pending_turn(&pending_snapshot, event) {
+            if !pending_can_complete_from_stop(&pending_snapshot, event) {
                 log_debug!(
-                    "telegram: ignored stop for pane={} pending_turn={:?} event_turn={:?}",
+                    "telegram: ignored stop for pane={} pending_phase={} pending_turn={:?} event_turn={:?}",
                     pane_id,
+                    pending_snapshot.phase,
                     pending_snapshot.turn_id,
                     event.turn_id
                 );
@@ -265,10 +266,11 @@ pub(super) async fn apply_hook_event_to_pending(
             Ok(false)
         }
         "stop" => {
-            if !hook_event_matches_pending_turn(&pending_snapshot, event) {
+            if !pending_can_complete_from_stop(&pending_snapshot, event) {
                 log_debug!(
-                    "telegram: ignored journal stop for pane={} pending_turn={:?} event_turn={:?}",
+                    "telegram: ignored journal stop for pane={} pending_phase={} pending_turn={:?} event_turn={:?}",
                     pending_snapshot.pane_id,
+                    pending_snapshot.phase,
                     pending_snapshot.turn_id,
                     event.turn_id
                 );
@@ -285,6 +287,11 @@ pub(super) async fn apply_hook_event_to_pending(
 
 pub(super) fn sync_state_from_disk_public(state: &mut TelegramState) {
     sync_state_from_disk(state);
+}
+
+fn pending_can_complete_from_stop(pending: &PendingRequest, event: &HookEvent) -> bool {
+    matches!(pending.phase.as_str(), "awaiting_stop" | "awaiting_confirm")
+        && hook_event_matches_pending_turn(pending, event)
 }
 
 fn hook_event_matches_pending_turn(pending: &PendingRequest, event: &HookEvent) -> bool {
@@ -687,5 +694,54 @@ mod tests {
         };
 
         assert!(!hook_event_matches_pending_turn(&pending, &event));
+    }
+
+    #[test]
+    fn stop_is_ignored_while_pending_still_awaits_submit() {
+        let pending = PendingRequest {
+            request_id: "tg-1".into(),
+            chat_id: "1".into(),
+            pane_id: "%1".into(),
+            agent_kind: "codex".into(),
+            target_label: "CODEX • test".into(),
+            prompt_text: "hi".into(),
+            prompt_hash: "abc".into(),
+            turn_id: None,
+            sent_at: 100,
+            sent_at_ms: 100_000,
+            accepted_at: None,
+            accepted_at_ms: None,
+            last_status_at: None,
+            draft_id: 1,
+            phase: "awaiting_submit".into(),
+            transcript_path: None,
+            result_scan_offset: 0,
+            approval_scan_offset: 0,
+            approval_call_id: None,
+            approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
+        };
+        let event = HookEvent {
+            event: "stop".into(),
+            turn_id: Some("turn-old".into()),
+            session_id: Some("s1".into()),
+            transcript_path: None,
+            cwd: None,
+            prompt: None,
+            last_assistant_message: Some("old answer".into()),
+            timestamp: Some("2026-04-08T00:00:00Z".into()),
+            tmux: HookTmuxInfo {
+                pane_id: Some("%1".into()),
+                session_name: Some("0".into()),
+                window_index: Some("1".into()),
+                pane_index: Some("1".into()),
+                pane_current_path: None,
+            },
+        };
+
+        assert!(!pending_can_complete_from_stop(&pending, &event));
     }
 }
