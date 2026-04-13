@@ -27,7 +27,7 @@ pub fn compute_layout(
         ]
     } else {
         let min_left = 6;
-        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 34);
+        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 38);
         let left = preferred_left_width.unwrap_or(16).clamp(min_left, max_left);
         vec![Constraint::Length(left), Constraint::Min(0)]
     };
@@ -57,4 +57,18 @@ pub fn popup_area(content_w: u16, content_h: u16, terminal: Rect) -> Rect {
     let x = terminal.x + (terminal.width.saturating_sub(w)) / 2;
     let y = terminal.y + (terminal.height.saturating_sub(h)) / 2;
     Rect::new(x, y, w, h)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normal_layout_allows_wider_agents_panel_on_large_terminals() {
+        let area = Rect::new(0, 0, 140, 40);
+        let (_main, body) = compute_layout(area, false, Some(46));
+
+        assert_eq!(body[0].width, 38);
+        assert_eq!(body[1].width, 102);
+    }
 }

@@ -353,7 +353,7 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
             SidebarItem::Thread(thread) => {
                 let subtitle = thread_row::thread_subtitle(thread);
                 let title_width =
-                    metrics::display_width(&metrics::truncate_to_width(&thread.title, 34));
+                    metrics::display_width(&metrics::truncate_to_width(&thread.title, 38));
                 let subtitle_width =
                     metrics::display_width(&metrics::truncate_to_width(&subtitle, 32));
                 9 + title_width.max(subtitle_width)
@@ -361,7 +361,7 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
         })
         .max()
         .unwrap_or(10);
-    (content_width.max(title_width) as u16 + 4).clamp(6, 42)
+    (content_width.max(title_width) as u16 + 6).clamp(6, 46)
 }
 
 pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
