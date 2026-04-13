@@ -144,6 +144,14 @@ fn settings_status_body(app: &App) -> String {
                                 .config
                                 .agents
                                 .get(app.relay_selected_agent)
+                                .map(|agent| agent.name.as_str() == "codex")
+                                .unwrap_or(false)
+                            {
+                                crate::i18n::t(app.locale, "relay.footer_detail_codex").to_string()
+                            } else if app
+                                .config
+                                .agents
+                                .get(app.relay_selected_agent)
                                 .map(|agent| agent.name.as_str() == "opencode")
                                 .unwrap_or(false)
                             {

@@ -18,6 +18,10 @@ pub fn config_path() -> PathBuf {
     pad_home_dir().join("config.toml")
 }
 
+pub fn relay_export_path() -> PathBuf {
+    pad_home_dir().join("relay.yaml")
+}
+
 pub fn pad_db_path() -> PathBuf {
     pad_home_dir().join("pad.db")
 }

@@ -313,12 +313,6 @@ fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
         };
         if agent.name == "codex" {
             detail_lines.push(Line::from(""));
-            detail_lines.push(detail_line(theme, l, "relay.wire_api"));
-            detail_lines.push(Line::from(Span::styled(
-                prov.codex_wire_api().to_string(),
-                Style::default().fg(theme.fg),
-            )));
-            detail_lines.push(Line::from(""));
             detail_lines.push(Line::from(Span::styled(
                 format!(
                     "auth.json: {}  ·  config.toml: {}",
@@ -430,7 +424,7 @@ fn relay_detail_base_lines(app: &App) -> u16 {
         .get(app.relay_selected_agent)
         .map(|agent| agent.name.as_str())
     {
-        Some("codex") => 18,
+        Some("codex") => 14,
         Some("opencode") => 22,
         _ => 14,
     }
@@ -513,6 +507,14 @@ fn relay_detail_footer_text<'a>(app: &App, locale: Locale) -> &'a str {
                 crate::i18n::t(locale, "relay.footer_detail")
             }
         }
+    } else if app
+        .config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str() == "codex")
+        .unwrap_or(false)
+    {
+        crate::i18n::t(locale, "relay.footer_detail_codex")
     } else if app
         .config
         .agents
