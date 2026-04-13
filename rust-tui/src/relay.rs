@@ -7,6 +7,7 @@ mod permissions;
 
 use crate::theme::CodexConfig;
 use crate::theme::{AgentConfig, AgentPermissionsConfig};
+use std::path::PathBuf;
 
 /// Apply the active provider's relay/proxy config to each agent's native config files.
 pub fn apply_relay_configs(agents: &[AgentConfig]) {
@@ -29,6 +30,22 @@ pub fn apply_runtime_configs(
 ) {
     apply_relay_configs(agents);
     permissions::apply_runtime_overlays(agents, permissions, codex);
+}
+
+pub fn write_codex_relay_export(agent: &AgentConfig) -> std::io::Result<PathBuf> {
+    let path = crate::paths::relay_export_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, codex::export_codex_relay_yaml(agent))?;
+    Ok(path)
+}
+
+pub fn read_codex_relay_import(
+) -> Result<(Vec<crate::theme::ProviderConfig>, Option<usize>, PathBuf), String> {
+    let path = crate::paths::relay_export_path();
+    let (providers, active_provider) = codex::import_codex_relay_yaml(&path)?;
+    Ok((providers, active_provider, path))
 }
 
 #[cfg(test)]

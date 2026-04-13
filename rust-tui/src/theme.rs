@@ -1342,10 +1342,6 @@ impl Config {
                     "api_key = \"{}\"\n",
                     prov.api_key.replace('"', "\\\"")
                 ));
-                content.push_str(&format!(
-                    "wire_api = \"{}\"\n",
-                    prov.codex_wire_api().replace('"', "\\\"")
-                ));
                 if !prov.provider_key.trim().is_empty() {
                     content.push_str(&format!(
                         "provider_key = \"{}\"\n",
@@ -1461,6 +1457,37 @@ mod tests {
             assert_eq!(opencode.providers[0].models.len(), 1);
             assert_eq!(opencode.providers[0].models[0].id, "gpt-4o");
             assert_eq!(opencode.providers[0].models[0].name, "GPT-4o");
+        });
+    }
+
+    #[test]
+    fn config_save_omits_wire_api_entries() {
+        with_temp_home("save-omits-wire-api", || {
+            let mut config = Config::default();
+            let codex = config
+                .agents
+                .iter_mut()
+                .find(|agent| agent.name == "codex")
+                .expect("codex agent");
+            codex.providers.push(ProviderConfig {
+                label: "Relay".into(),
+                base_url: "https://relay.example/v1".into(),
+                api_key: "sk-test".into(),
+                env_key: String::new(),
+                wire_api: "responses_websocket".into(),
+                provider_key: "relay".into(),
+                npm_package: "@ai-sdk/openai-compatible".into(),
+                models: Vec::new(),
+                test_status: None,
+                test_http_status: None,
+                test_latency_ms: None,
+                test_result: None,
+            });
+            codex.active_provider = Some(0);
+            config.save();
+
+            let saved = std::fs::read_to_string(Config::config_path()).expect("read saved config");
+            assert!(!saved.contains("wire_api"));
         });
     }
 

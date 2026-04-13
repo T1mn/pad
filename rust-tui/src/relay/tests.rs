@@ -3,7 +3,9 @@ use super::common::{
     claude_permission_state_path, codex_permission_state_path, opencode_managed_state_path,
     parse_env_file,
 };
-use super::{apply_relay_configs, apply_runtime_configs};
+use super::{
+    apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
+};
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -141,7 +143,7 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
                 .and_then(|value| value.get("relay_a"))
                 .and_then(|value| value.get("wire_api"))
                 .and_then(|value| value.as_str()),
-            Some("responses")
+            None
         );
         assert_eq!(
             parsed
@@ -160,6 +162,67 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
             auth.get("OPENAI_API_KEY").and_then(|value| value.as_str()),
             Some("sk-test")
         );
+    });
+}
+
+#[test]
+fn codex_export_writes_pad_yaml_without_wire_api() {
+    with_temp_home("codex-export", |home| {
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: vec![sample_provider("https://relay.example", "sk-test")],
+            active_provider: Some(0),
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let path = write_codex_relay_export(&agent).expect("write export");
+        assert_eq!(path, home.join(".pad").join("relay.yaml"));
+
+        let exported = std::fs::read_to_string(path).expect("read export");
+        assert!(exported.contains("version: 1"));
+        assert!(exported.contains("codex:"));
+        assert!(exported.contains("active_provider: 0"));
+        assert!(exported.contains("provider_name: \"relay_a\""));
+        assert!(exported.contains("base_url: \"https://relay.example/v1\""));
+        assert!(exported.contains("api_key: \"sk-test\""));
+        assert!(!exported.contains("wire_api"));
+    });
+}
+
+#[test]
+fn codex_import_restores_exported_pad_yaml() {
+    with_temp_home("codex-import", |_home| {
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: vec![
+                sample_provider("https://relay.example", "sk-test"),
+                sample_provider("https://relay-b.example/v1", "sk-test-2"),
+            ],
+            active_provider: Some(1),
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let _ = write_codex_relay_export(&agent).expect("write export");
+        let (providers, active_provider, _path) = read_codex_relay_import().expect("read import");
+
+        assert_eq!(providers.len(), 2);
+        assert_eq!(active_provider, Some(1));
+        assert_eq!(providers[0].label, "Relay A");
+        assert_eq!(providers[0].base_url, "https://relay.example/v1");
+        assert_eq!(providers[0].api_key, "sk-test");
+        assert_eq!(providers[1].base_url, "https://relay-b.example/v1");
+        assert_eq!(providers[1].api_key, "sk-test-2");
+        assert!(providers
+            .iter()
+            .all(|provider| provider.wire_api.is_empty()));
     });
 }
 
