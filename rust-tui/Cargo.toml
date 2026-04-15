@@ -1,6 +1,6 @@
 [package]
 name = "pad"
-version = "0.6.10"
+version = "0.6.11"
 edition = "2021"
 authors = ["T1mn <tinggofun@gmail.com>"]
 description = "PAD (Panel for Agent Development) - tmux-first workspace for AI agents"
