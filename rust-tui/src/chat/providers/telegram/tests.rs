@@ -1,13 +1,85 @@
 use super::{
     approval_callback_data, build_agent_keyboard, build_help_keyboard, build_slash_command_text,
-    chunk_text, help_page_html, mark_update_processed, parse_approval_callback_data,
+    callbacks::approval_pending_index,
+    chunk_text,
+    commands::build_pad_status_body,
+    help_page_html,
+    hooks::matching_pending_request_index,
+    mark_update_processed, parse_approval_callback_data,
+    pending::{completed_reply_text, pending_status_summary_line},
     pending_status_text, remember_processed_hook_event, scan_codex_approval_updates,
-    should_probe_hook_journal_inner, summarize_pane_capture, CodexApprovalRequest, HelpPage,
-    PendingRequest, SelectedTarget, TelegramState,
+    should_probe_hook_journal_inner,
+    state::{load_state, next_draft_id, next_request_id, pending_request_index_by_pane},
+    summarize_pane_capture, CodexApprovalRequest, HelpPage, PendingRequest, SelectedTarget,
+    TelegramState,
 };
 use crate::hook::{HookEvent, HookTmuxInfo};
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn sample_pending(request_id: &str, pane_id: &str, phase: &str) -> PendingRequest {
+    PendingRequest {
+        request_id: request_id.into(),
+        chat_id: "1".into(),
+        pane_id: pane_id.into(),
+        agent_kind: "codex".into(),
+        target_label: format!("CODEX • {}", pane_id.trim_start_matches('%')),
+        session_id: Some(format!("session-{}", pane_id.trim_start_matches('%'))),
+        working_dir: format!("/tmp/{}", pane_id.trim_start_matches('%')),
+        prompt_text: "hi".into(),
+        prompt_hash: format!("{:x}", md5::compute("hi".as_bytes())),
+        turn_id: None,
+        sent_at: 100,
+        sent_at_ms: 100_000,
+        accepted_at: None,
+        accepted_at_ms: None,
+        last_status_at: None,
+        draft_id: 123,
+        phase: phase.into(),
+        transcript_path: None,
+        result_scan_offset: 0,
+        approval_scan_offset: 0,
+        approval_call_id: None,
+        approval_justification: None,
+        completed_text: None,
+        completed_source: None,
+        delivery_attempts: 0,
+        delivery_retry_at: 0,
+    }
+}
+
+fn temp_home(name: &str) -> PathBuf {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    std::env::temp_dir().join(format!("pad-telegram-tests-{name}-{stamp}"))
+}
+
+fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
+    let _guard = crate::test_support::home_env_lock()
+        .lock()
+        .expect("lock telegram tests");
+    let home = temp_home(name);
+    let _ = std::fs::remove_dir_all(&home);
+    std::fs::create_dir_all(&home).expect("create temp home");
+
+    let prev_home = std::env::var_os("HOME");
+    std::env::set_var("HOME", &home);
+
+    let result = f(&home);
+
+    if let Some(prev) = prev_home {
+        std::env::set_var("HOME", prev);
+    } else {
+        std::env::remove_var("HOME");
+    }
+    let _ = std::fs::remove_dir_all(&home);
+
+    result
+}
 
 #[test]
 fn chunk_text_splits_long_messages() {
@@ -58,32 +130,9 @@ fn agent_keyboard_uses_clickable_use_callbacks() {
 
 #[test]
 fn pending_status_moves_from_accepted_to_working() {
-    let pending = PendingRequest {
-        request_id: "tg-1".into(),
-        chat_id: "1".into(),
-        pane_id: "%1".into(),
-        agent_kind: "codex".into(),
-        target_label: "CODEX • rust-tui".into(),
-        prompt_text: "hi".into(),
-        prompt_hash: "abc".into(),
-        turn_id: None,
-        sent_at: 100,
-        sent_at_ms: 100_000,
-        accepted_at: Some(100),
-        accepted_at_ms: Some(100_000),
-        last_status_at: None,
-        draft_id: 123,
-        phase: "awaiting_stop".into(),
-        transcript_path: None,
-        result_scan_offset: 0,
-        approval_scan_offset: 0,
-        approval_call_id: None,
-        approval_justification: None,
-        completed_text: None,
-        completed_source: None,
-        delivery_attempts: 0,
-        delivery_retry_at: 0,
-    };
+    let mut pending = sample_pending("tg-1", "%1", "awaiting_stop");
+    pending.accepted_at = Some(100);
+    pending.accepted_at_ms = Some(100_000);
 
     let accepted = pending_status_text(crate::i18n::Locale::En, &pending, 102);
     let working = pending_status_text(crate::i18n::Locale::En, &pending, 106);
@@ -95,32 +144,11 @@ fn pending_status_moves_from_accepted_to_working() {
 
 #[test]
 fn pending_status_reports_approval_needed() {
-    let pending = PendingRequest {
-        request_id: "tg-1".into(),
-        chat_id: "1".into(),
-        pane_id: "%1".into(),
-        agent_kind: "codex".into(),
-        target_label: "CODEX • rust-tui".into(),
-        prompt_text: "hi".into(),
-        prompt_hash: "abc".into(),
-        turn_id: None,
-        sent_at: 100,
-        sent_at_ms: 100_000,
-        accepted_at: Some(100),
-        accepted_at_ms: Some(100_000),
-        last_status_at: None,
-        draft_id: 123,
-        phase: "awaiting_confirm".into(),
-        transcript_path: None,
-        result_scan_offset: 0,
-        approval_scan_offset: 0,
-        approval_call_id: Some("call_1".into()),
-        approval_justification: Some("Do you want to allow running cargo check?".into()),
-        completed_text: None,
-        completed_source: None,
-        delivery_attempts: 0,
-        delivery_retry_at: 0,
-    };
+    let mut pending = sample_pending("tg-1", "%1", "awaiting_confirm");
+    pending.accepted_at = Some(100);
+    pending.accepted_at_ms = Some(100_000);
+    pending.approval_call_id = Some("call_1".into());
+    pending.approval_justification = Some("Do you want to allow running cargo check?".into());
 
     let text = pending_status_text(crate::i18n::Locale::En, &pending, 110);
     assert!(text.contains("Needs approval"));
@@ -162,6 +190,52 @@ fn telegram_state_backfills_missing_last_processed_update_id() {
     assert_eq!(state.update_offset, 42);
     assert_eq!(state.last_processed_update_id, 0);
     assert_eq!(state.journal_position, 7);
+    assert!(state.pending_requests.is_empty());
+}
+
+#[test]
+fn telegram_state_loads_legacy_pending_field_into_pending_requests() {
+    with_temp_home("legacy-pending", |_home| {
+        let state_path = crate::paths::telegram_state_path();
+        std::fs::create_dir_all(state_path.parent().unwrap()).unwrap();
+        let body = r#"{
+            "update_offset": 42,
+            "journal_position": 7,
+            "agent_snapshot": [],
+            "pending": {
+                "request_id": "tg-legacy",
+                "chat_id": "1",
+                "pane_id": "%7",
+                "agent_kind": "codex",
+                "target_label": "CODEX • legacy",
+                "prompt_text": "hi",
+                "prompt_hash": "abc",
+                "turn_id": null,
+                "sent_at": 100,
+                "sent_at_ms": 100000,
+                "accepted_at": null,
+                "accepted_at_ms": null,
+                "last_status_at": null,
+                "draft_id": 123,
+                "phase": "awaiting_submit",
+                "transcript_path": null,
+                "result_scan_offset": 0,
+                "approval_scan_offset": 0,
+                "approval_call_id": null,
+                "approval_justification": null,
+                "completed_text": null,
+                "completed_source": null,
+                "delivery_attempts": 0,
+                "delivery_retry_at": 0
+            }
+        }"#;
+        fs::write(state_path, body).unwrap();
+
+        let state = load_state().unwrap();
+        assert_eq!(state.pending_requests.len(), 1);
+        assert_eq!(state.pending_requests[0].request_id, "tg-legacy");
+        assert_eq!(state.pending_requests[0].pane_id, "%7");
+    });
 }
 
 #[test]
@@ -273,34 +347,189 @@ fn processed_hook_events_are_deduplicated_across_channels() {
 }
 
 #[test]
+fn next_request_and_draft_ids_are_unique() {
+    assert_ne!(next_request_id(), next_request_id());
+    assert_ne!(next_draft_id(), next_draft_id());
+}
+
+#[test]
+fn pending_lookup_is_per_pane_not_global() {
+    let state = TelegramState {
+        pending_requests: vec![sample_pending("tg-1", "%1", "awaiting_submit")],
+        ..TelegramState::default()
+    };
+
+    assert_eq!(pending_request_index_by_pane(&state, "%1"), Some(0));
+    assert_eq!(pending_request_index_by_pane(&state, "%2"), None);
+}
+
+#[test]
+fn matching_pending_request_index_targets_correct_submit_event() {
+    let mut first = sample_pending("tg-1", "%1", "awaiting_submit");
+    first.prompt_hash = format!("{:x}", md5::compute("first".as_bytes()));
+    let mut second = sample_pending("tg-2", "%2", "awaiting_submit");
+    second.prompt_hash = format!("{:x}", md5::compute("second".as_bytes()));
+    let state = TelegramState {
+        pending_requests: vec![first, second],
+        ..TelegramState::default()
+    };
+    let event = HookEvent {
+        event: "user_prompt_submit".into(),
+        turn_id: Some("turn-2".into()),
+        session_id: Some("session-2".into()),
+        transcript_path: None,
+        cwd: Some("/tmp/2".into()),
+        prompt: Some("second".into()),
+        last_assistant_message: None,
+        timestamp: Some("2026-04-14T00:00:00Z".into()),
+        tmux: HookTmuxInfo {
+            pane_id: Some("%2".into()),
+            session_name: Some("0".into()),
+            window_index: Some("1".into()),
+            pane_index: Some("2".into()),
+            pane_current_path: Some("/tmp/2".into()),
+        },
+    };
+
+    assert_eq!(matching_pending_request_index(&state, &event), Some(1));
+}
+
+#[test]
+fn matching_pending_request_index_ignores_stale_stop_in_awaiting_submit() {
+    let mut first = sample_pending("tg-1", "%1", "awaiting_submit");
+    first.turn_id = Some("turn-1".into());
+    let mut second = sample_pending("tg-2", "%2", "awaiting_stop");
+    second.turn_id = Some("turn-2".into());
+    second.accepted_at = Some(101);
+    let state = TelegramState {
+        pending_requests: vec![first, second],
+        ..TelegramState::default()
+    };
+    let stale_event = HookEvent {
+        event: "stop".into(),
+        turn_id: Some("turn-1".into()),
+        session_id: Some("session-1".into()),
+        transcript_path: None,
+        cwd: None,
+        prompt: None,
+        last_assistant_message: Some("old answer".into()),
+        timestamp: Some("2026-04-14T00:00:00Z".into()),
+        tmux: HookTmuxInfo {
+            pane_id: Some("%1".into()),
+            session_name: Some("0".into()),
+            window_index: Some("1".into()),
+            pane_index: Some("1".into()),
+            pane_current_path: None,
+        },
+    };
+    let valid_event = HookEvent {
+        tmux: HookTmuxInfo {
+            pane_id: Some("%2".into()),
+            session_name: Some("0".into()),
+            window_index: Some("1".into()),
+            pane_index: Some("2".into()),
+            pane_current_path: None,
+        },
+        turn_id: Some("turn-2".into()),
+        session_id: Some("session-2".into()),
+        ..stale_event.clone()
+    };
+
+    assert_eq!(matching_pending_request_index(&state, &stale_event), None);
+    assert_eq!(
+        matching_pending_request_index(&state, &valid_event),
+        Some(1)
+    );
+}
+
+#[test]
+fn approval_lookup_selects_request_by_request_id() {
+    let mut first = sample_pending("tg-1", "%1", "awaiting_confirm");
+    first.approval_call_id = Some("call-1".into());
+    let mut second = sample_pending("tg-2", "%2", "awaiting_confirm");
+    second.approval_call_id = Some("call-2".into());
+    let state = TelegramState {
+        pending_requests: vec![first, second],
+        ..TelegramState::default()
+    };
+
+    assert_eq!(approval_pending_index(&state, "tg-2"), Some(1));
+}
+
+#[test]
+fn telegram_sound_helper_records_enabled_event() {
+    with_temp_home("telegram-sound", |_home| {
+        crate::sound::with_test_sound_capture(|| {
+            let _ = crate::sound::take_test_playbacks();
+            let mut config = crate::theme::Config::default();
+            config.sound.approval.enabled = true;
+
+            super::play_sound_event(&config, crate::sound::SoundEvent::Approval);
+
+            assert_eq!(
+                crate::sound::take_test_playbacks(),
+                vec![crate::sound::TestPlayback {
+                    event: Some(crate::sound::SoundEvent::Approval),
+                    preset: "ping".into(),
+                }]
+            );
+        });
+    });
+}
+
+#[test]
+fn completed_reply_includes_request_attribution() {
+    let mut pending = sample_pending("tg-1", "%9", "delivering_result");
+    pending.turn_id = Some("turn-9".into());
+    let reply = completed_reply_text(crate::i18n::Locale::En, &pending, "done");
+
+    assert!(reply.contains("Completed"));
+    assert!(reply.contains("Request: tg-1"));
+    assert!(reply.contains("Target: CODEX"));
+    assert!(reply.contains("Pane: %9"));
+    assert!(reply.contains("Session: session-9"));
+    assert!(reply.contains("Turn: turn-9"));
+    assert!(reply.contains("Dir: /tmp/9"));
+    assert!(reply.ends_with("done"));
+}
+
+#[test]
+fn pad_status_lists_all_pending_requests() {
+    let state = TelegramState {
+        selected_target: Some(SelectedTarget {
+            pane_id: "%2".into(),
+            label: "CODEX • 2".into(),
+        }),
+        pending_requests: vec![
+            sample_pending("tg-1", "%1", "awaiting_submit"),
+            sample_pending("tg-2", "%2", "awaiting_stop"),
+        ],
+        ..TelegramState::default()
+    };
+
+    let body = build_pad_status_body(crate::i18n::Locale::En, "online", &state);
+    assert!(body.contains("Pad: online"));
+    assert!(body.contains("Target: CODEX • 2"));
+    assert!(body.contains("tg-1"));
+    assert!(body.contains("tg-2"));
+    assert!(body.contains("%1"));
+    assert!(body.contains("%2"));
+}
+
+#[test]
+fn pending_status_summary_line_is_compact_but_identifiable() {
+    let pending = sample_pending("tg-1", "%1", "awaiting_submit");
+    let summary = pending_status_summary_line(crate::i18n::Locale::En, &pending);
+    assert!(summary.contains("tg-1"));
+    assert!(summary.contains("%1"));
+    assert!(summary.contains("CODEX • 1"));
+    assert!(summary.contains("Waiting for submit"));
+}
+
+#[test]
 fn journal_recovery_runs_immediately_for_pending_on_startup() {
     let state = TelegramState {
-        pending: Some(PendingRequest {
-            request_id: "tg-1".into(),
-            chat_id: "1".into(),
-            pane_id: "%1".into(),
-            agent_kind: "codex".into(),
-            target_label: "CODEX • rust-tui".into(),
-            prompt_text: "hi".into(),
-            prompt_hash: "abc".into(),
-            turn_id: None,
-            sent_at: 100,
-            sent_at_ms: 100_000,
-            accepted_at: None,
-            accepted_at_ms: None,
-            last_status_at: None,
-            draft_id: 123,
-            phase: "awaiting_submit".into(),
-            transcript_path: None,
-            result_scan_offset: 0,
-            approval_scan_offset: 0,
-            approval_call_id: None,
-            approval_justification: None,
-            completed_text: None,
-            completed_source: None,
-            delivery_attempts: 0,
-            delivery_retry_at: 0,
-        }),
+        pending_requests: vec![sample_pending("tg-1", "%1", "awaiting_submit")],
         ..TelegramState::default()
     };
 
@@ -311,36 +540,38 @@ fn journal_recovery_runs_immediately_for_pending_on_startup() {
 fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
     let state = TelegramState {
         last_journal_recovery_at: 100,
-        pending: Some(PendingRequest {
-            request_id: "tg-1".into(),
-            chat_id: "1".into(),
-            pane_id: "%1".into(),
-            agent_kind: "codex".into(),
-            target_label: "CODEX • rust-tui".into(),
-            prompt_text: "hi".into(),
-            prompt_hash: "abc".into(),
-            turn_id: None,
+        pending_requests: vec![PendingRequest {
             sent_at: 101,
             sent_at_ms: 101_000,
-            accepted_at: None,
-            accepted_at_ms: None,
-            last_status_at: None,
-            draft_id: 123,
-            phase: "awaiting_submit".into(),
-            transcript_path: None,
-            result_scan_offset: 0,
-            approval_scan_offset: 0,
-            approval_call_id: None,
-            approval_justification: None,
-            completed_text: None,
-            completed_source: None,
-            delivery_attempts: 0,
-            delivery_retry_at: 0,
-        }),
+            ..sample_pending("tg-1", "%1", "awaiting_submit")
+        }],
         ..TelegramState::default()
     };
 
     assert!(!should_probe_hook_journal_inner(&state, true, 103));
+    assert!(should_probe_hook_journal_inner(&state, true, 106));
+}
+
+#[test]
+fn journal_recovery_probes_if_any_pending_request_is_stalled() {
+    let state = TelegramState {
+        last_journal_recovery_at: 100,
+        pending_requests: vec![
+            PendingRequest {
+                sent_at: 103,
+                sent_at_ms: 103_000,
+                ..sample_pending("tg-1", "%1", "awaiting_submit")
+            },
+            PendingRequest {
+                accepted_at: Some(101),
+                accepted_at_ms: Some(101_000),
+                turn_id: Some("turn-2".into()),
+                ..sample_pending("tg-2", "%2", "awaiting_stop")
+            },
+        ],
+        ..TelegramState::default()
+    };
+
     assert!(should_probe_hook_journal_inner(&state, true, 106));
 }
 

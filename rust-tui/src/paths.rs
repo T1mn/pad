@@ -57,6 +57,14 @@ pub fn scripts_dir() -> PathBuf {
     pad_home_dir().join("scripts")
 }
 
+pub fn sounds_dir() -> PathBuf {
+    pad_home_dir().join("sounds")
+}
+
+pub fn sound_file_path(preset_id: &str) -> PathBuf {
+    sounds_dir().join(format!("{preset_id}.wav"))
+}
+
 pub fn sessions_dir() -> PathBuf {
     pad_home_dir().join("sessions")
 }
@@ -105,6 +113,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     let codex_bridge = codex_hook_bridge_template();
     install_bridge_script(&claude_hook_bridge_path(), claude_bridge.as_str(), false)?;
     install_bridge_script(&codex_hook_bridge_path(), codex_bridge.as_str(), true)?;
+    crate::sound::ensure_runtime_assets()?;
     ensure_codex_hook_support()?;
     crate::thread_meta::ensure_db()?;
     Ok(())

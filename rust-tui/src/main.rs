@@ -36,6 +36,7 @@ mod scanner;
 mod session;
 mod session_cache;
 mod sidebar;
+mod sound;
 mod system_check;
 mod telegram;
 #[cfg(test)]

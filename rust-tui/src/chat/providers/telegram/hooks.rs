@@ -90,12 +90,10 @@ pub(super) async fn process_direct_hook_event(
     };
 
     let mut state = load_state().unwrap_or_default();
-    let Some(pending_snapshot) = state.pending.as_ref().cloned() else {
+    let Some(pending_index) = pending_request_index_by_pane(&state, pane_id) else {
         return Ok(());
     };
-    if pending_snapshot.pane_id != pane_id {
-        return Ok(());
-    }
+    let pending_snapshot = state.pending_requests[pending_index].clone();
     if !remember_processed_hook_event(&mut state, event) {
         log_debug!(
             "telegram: skipped duplicate direct hook event={} pane={}",
@@ -108,7 +106,11 @@ pub(super) async fn process_direct_hook_event(
     match event.event.as_str() {
         "user_prompt_submit" => {
             if pending_matches_submit_prompt(&pending_snapshot, event) {
-                advance_pending_to_awaiting_stop(state.pending.as_mut(), event, false);
+                advance_pending_to_awaiting_stop(
+                    state.pending_requests.get_mut(pending_index),
+                    event,
+                    false,
+                );
                 refresh_pending_feedback(&config, &mut state, true);
                 save_state(&state)?;
                 log_debug!(
@@ -129,9 +131,15 @@ pub(super) async fn process_direct_hook_event(
                 );
                 return Ok(());
             }
-            let completion =
-                complete_pending_request(&config, &mut state, &pending_snapshot, event, locale)
-                    .await;
+            let completion = complete_pending_request(
+                &config,
+                &mut state,
+                &pending_snapshot.request_id,
+                &pending_snapshot,
+                event,
+                locale,
+            )
+            .await;
             save_state(&state)?;
             log_pending_completion("direct hook", &pending_snapshot, &completion);
         }
@@ -160,9 +168,9 @@ pub(super) fn should_probe_hook_journal_inner(
     direct_hook_active: bool,
     now: i64,
 ) -> bool {
-    let Some(pending) = state.pending.as_ref() else {
+    if state.pending_requests.is_empty() {
         return false;
-    };
+    }
     if state.last_journal_recovery_at == 0 {
         return true;
     }
@@ -172,14 +180,17 @@ pub(super) fn should_probe_hook_journal_inner(
     if now.saturating_sub(state.last_journal_recovery_at) < JOURNAL_RECOVERY_RETRY_SECS {
         return false;
     }
-    match pending.phase.as_str() {
-        "awaiting_submit" => now.saturating_sub(pending.sent_at) >= JOURNAL_RECOVERY_STALL_SECS,
-        "awaiting_stop" | "awaiting_confirm" => {
-            now.saturating_sub(pending.accepted_at.unwrap_or(pending.sent_at))
-                >= JOURNAL_RECOVERY_STALL_SECS
-        }
-        _ => false,
-    }
+    state
+        .pending_requests
+        .iter()
+        .any(|pending| match pending.phase.as_str() {
+            "awaiting_submit" => now.saturating_sub(pending.sent_at) >= JOURNAL_RECOVERY_STALL_SECS,
+            "awaiting_stop" | "awaiting_confirm" => {
+                now.saturating_sub(pending.accepted_at.unwrap_or(pending.sent_at))
+                    >= JOURNAL_RECOVERY_STALL_SECS
+            }
+            _ => false,
+        })
 }
 
 pub(super) fn remember_processed_hook_event(state: &mut TelegramState, event: &HookEvent) -> bool {
@@ -249,35 +260,35 @@ pub(super) async fn apply_hook_event_to_pending(
     event: &HookEvent,
 ) -> TelegramResult<bool> {
     let locale = telegram_locale(config);
-    let Some(pending_snapshot) = state.pending.as_ref().cloned() else {
-        return Ok(true);
+    let Some(pending_index) = matching_pending_request_index(state, event) else {
+        return Ok(false);
     };
+    let pending_snapshot = state.pending_requests[pending_index].clone();
     match event.event.as_str() {
         "user_prompt_submit" => {
-            if pending_matches_submit_prompt(&pending_snapshot, event) {
-                advance_pending_to_awaiting_stop(state.pending.as_mut(), event, true);
-                refresh_pending_feedback(config, state, true);
-                log_debug!(
-                    "telegram: pending request {} reached awaiting_stop dispatch_to_submit_ms={}",
-                    pending_snapshot.request_id,
-                    now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot))
-                );
-            }
+            advance_pending_to_awaiting_stop(
+                state.pending_requests.get_mut(pending_index),
+                event,
+                true,
+            );
+            refresh_pending_feedback(config, state, true);
+            log_debug!(
+                "telegram: pending request {} reached awaiting_stop dispatch_to_submit_ms={}",
+                pending_snapshot.request_id,
+                now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot))
+            );
             Ok(false)
         }
         "stop" => {
-            if !pending_can_complete_from_stop(&pending_snapshot, event) {
-                log_debug!(
-                    "telegram: ignored journal stop for pane={} pending_phase={} pending_turn={:?} event_turn={:?}",
-                    pending_snapshot.pane_id,
-                    pending_snapshot.phase,
-                    pending_snapshot.turn_id,
-                    event.turn_id
-                );
-                return Ok(false);
-            }
-            let completion =
-                complete_pending_request(config, state, &pending_snapshot, event, locale).await;
+            let completion = complete_pending_request(
+                config,
+                state,
+                &pending_snapshot.request_id,
+                &pending_snapshot,
+                event,
+                locale,
+            )
+            .await;
             log_pending_completion("journal", &pending_snapshot, &completion);
             Ok(true)
         }
@@ -287,6 +298,22 @@ pub(super) async fn apply_hook_event_to_pending(
 
 pub(super) fn sync_state_from_disk_public(state: &mut TelegramState) {
     sync_state_from_disk(state);
+}
+
+pub(super) fn matching_pending_request_index(
+    state: &TelegramState,
+    event: &HookEvent,
+) -> Option<usize> {
+    let pane_id = event.tmux.pane_id.as_deref()?;
+    let pending_index = pending_request_index_by_pane(state, pane_id)?;
+    let pending = state.pending_requests.get(pending_index)?;
+    match event.event.as_str() {
+        "user_prompt_submit" if pending_matches_submit_prompt(pending, event) => {
+            Some(pending_index)
+        }
+        "stop" if pending_can_complete_from_stop(pending, event) => Some(pending_index),
+        _ => None,
+    }
 }
 
 fn pending_can_complete_from_stop(pending: &PendingRequest, event: &HookEvent) -> bool {
@@ -326,6 +353,12 @@ fn advance_pending_to_awaiting_stop(
     if event.turn_id.is_some() {
         pending.turn_id = event.turn_id.clone();
     }
+    if event.session_id.is_some() {
+        pending.session_id = event.session_id.clone();
+    }
+    if event.cwd.is_some() {
+        pending.working_dir = event.cwd.clone().unwrap_or_default();
+    }
     if event.transcript_path.is_some() {
         pending.transcript_path = event.transcript_path.clone();
     }
@@ -339,13 +372,19 @@ fn advance_pending_to_awaiting_stop(
 async fn complete_pending_request(
     config: &Config,
     state: &mut TelegramState,
+    request_id: &str,
     pending_snapshot: &PendingRequest,
     event: &HookEvent,
     locale: crate::i18n::Locale,
 ) -> PendingCompletionOutcome {
     let resolved = await_pending_result_text(pending_snapshot, event).await;
-    cache_pending_completion(state.pending.as_mut(), locale, &resolved);
-    match deliver_pending_result(config, state, locale).await {
+    cache_pending_completion(
+        pending_request_index_by_id(state, request_id)
+            .and_then(|index| state.pending_requests.get_mut(index)),
+        locale,
+        &resolved,
+    );
+    match deliver_pending_result(config, state, locale, request_id).await {
         Ok(()) => PendingCompletionOutcome::delivered(&resolved),
         Err(err) => PendingCompletionOutcome::deferred(&resolved, err.to_string()),
     }
@@ -553,6 +592,8 @@ mod tests {
             pane_id: "%1".into(),
             agent_kind: "codex".into(),
             target_label: "CODEX • test".into(),
+            session_id: Some("s1".into()),
+            working_dir: "/tmp/test".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
             turn_id: Some("turn-new".into()),
@@ -606,6 +647,8 @@ mod tests {
             pane_id: "%1".into(),
             agent_kind: "codex".into(),
             target_label: "CODEX • test".into(),
+            session_id: Some("s1".into()),
+            working_dir: "/tmp/test".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
             turn_id: Some("turn-a".into()),
@@ -655,6 +698,8 @@ mod tests {
             pane_id: "%1".into(),
             agent_kind: "codex".into(),
             target_label: "CODEX • test".into(),
+            session_id: Some("s1".into()),
+            working_dir: "/tmp/test".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
             turn_id: Some("turn-a".into()),
@@ -704,6 +749,8 @@ mod tests {
             pane_id: "%1".into(),
             agent_kind: "codex".into(),
             target_label: "CODEX • test".into(),
+            session_id: Some("s1".into()),
+            working_dir: "/tmp/test".into(),
             prompt_text: "hi".into(),
             prompt_hash: "abc".into(),
             turn_id: None,

@@ -13,6 +13,14 @@ pub(super) fn parse_approval_callback_data(data: &str) -> Option<(&str, &str)> {
     Some((request_id, choice))
 }
 
+pub(super) fn approval_pending_index(state: &TelegramState, request_id: &str) -> Option<usize> {
+    state.pending_requests.iter().position(|pending| {
+        pending.request_id == request_id
+            && pending.agent_kind == "codex"
+            && pending.approval_call_id.is_some()
+    })
+}
+
 pub(super) async fn handle_callback_query(
     config: &Config,
     state: &mut TelegramState,
@@ -106,7 +114,7 @@ pub(super) async fn handle_callback_query(
             .await?;
             return Ok(());
         };
-        let Some(pending_snapshot) = state.pending.as_ref().cloned() else {
+        let Some(pending_index) = approval_pending_index(state, request_id) else {
             answer_callback_query(
                 &config.telegram.bot_token,
                 &query.id,
@@ -115,24 +123,7 @@ pub(super) async fn handle_callback_query(
             .await?;
             return Ok(());
         };
-        if pending_snapshot.agent_kind != "codex" || pending_snapshot.approval_call_id.is_none() {
-            answer_callback_query(
-                &config.telegram.bot_token,
-                &query.id,
-                Some(tg(locale, "approval.none")),
-            )
-            .await?;
-            return Ok(());
-        }
-        if pending_snapshot.request_id != request_id {
-            answer_callback_query(
-                &config.telegram.bot_token,
-                &query.id,
-                Some(tg(locale, "approval.none")),
-            )
-            .await?;
-            return Ok(());
-        }
+        let pending_snapshot = state.pending_requests[pending_index].clone();
         let key = match choice {
             "y" => "y",
             "a" => "a",
@@ -154,12 +145,11 @@ pub(super) async fn handle_callback_query(
         match approval_send_error {
             None => {
                 invalidate_live_panels();
-                if let Some(pending) = state.pending.as_mut() {
-                    pending.phase = "awaiting_stop".to_string();
-                    pending.approval_call_id = None;
-                    pending.approval_justification = None;
-                    pending.last_status_at = None;
-                }
+                let pending = &mut state.pending_requests[pending_index];
+                pending.phase = "awaiting_stop".to_string();
+                pending.approval_call_id = None;
+                pending.approval_justification = None;
+                pending.last_status_at = None;
                 refresh_pending_feedback(config, state, true);
                 answer_callback_query(
                     &config.telegram.bot_token,
@@ -175,6 +165,7 @@ pub(super) async fn handle_callback_query(
                     Some(&tg_fmt(locale, "approval.failed", err_text)),
                 )
                 .await?;
+                play_sound_event(config, crate::sound::SoundEvent::Failure);
             }
         }
     } else {
@@ -196,13 +187,24 @@ pub(super) async fn send_codex_approval_prompt(
     request: &CodexApprovalRequest,
 ) -> TelegramResult<()> {
     let locale = telegram_locale(config);
-    let body = format!(
-        "{}\n{}: {}\n\n{}",
-        tg(locale, "approval.prompt"),
-        tg(locale, "approval.target"),
-        pending.target_label,
-        request.justification
-    );
+    let mut lines = vec![
+        tg(locale, "approval.prompt").to_string(),
+        format!(
+            "{}: {}",
+            tg(locale, "approval.target"),
+            pending.target_label
+        ),
+        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    ];
+    if let Some(session_id) = pending
+        .session_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
+    }
+    let body = format!("{}\n\n{}", lines.join("\n"), request.justification);
     send_message(
         &config.telegram.bot_token,
         &json!({

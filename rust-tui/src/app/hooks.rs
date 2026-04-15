@@ -164,7 +164,7 @@ impl App {
         }
 
         if let Some(request) = pending_notification {
-            emit_completion_notification(request);
+            emit_completion_notification(&self.config, request);
         }
 
         if let Some(request) = pending_title_summary {
@@ -213,7 +213,7 @@ impl App {
         self.dirty = true;
 
         if let Some(request) = pending_notification {
-            emit_completion_notification(request);
+            emit_completion_notification(&self.config, request);
         }
     }
 
@@ -478,7 +478,7 @@ fn build_completion_notification(
     }
 }
 
-fn emit_completion_notification(request: NotificationRequest) {
+fn emit_completion_notification(config: &crate::theme::Config, request: NotificationRequest) {
     match crate::notify::notify_completion(&request) {
         Ok(true) => {}
         Ok(false) => {
@@ -486,6 +486,13 @@ fn emit_completion_notification(request: NotificationRequest) {
         }
         Err(err) => {
             log_debug!("notification: failed to dispatch: {}", err);
+        }
+    }
+    match crate::sound::play_event(&config.sound, crate::sound::SoundEvent::Completion) {
+        Ok(true) => {}
+        Ok(false) => {}
+        Err(err) => {
+            log_debug!("sound: failed to play completion sound: {}", err);
         }
     }
 }
@@ -964,6 +971,48 @@ mod tests {
             );
 
             assert_eq!(request.body, "Latest prompt should win over the old title");
+        });
+    }
+
+    #[test]
+    fn stop_hook_emits_completion_sound_event() {
+        with_temp_home("completion-sound", |_home| {
+            crate::sound::with_test_sound_capture(|| {
+                let _ = crate::sound::take_test_playbacks();
+                let mut app = App::new();
+                app.panels.push(AgentPanel {
+                    session: "0".into(),
+                    window: "main".into(),
+                    window_index: "1".into(),
+                    pane: "1".into(),
+                    pane_id: "%1".into(),
+                    agent_type: AgentType::Codex,
+                    working_dir: "/tmp/demo".into(),
+                    is_active: true,
+                    state: AgentState::Busy,
+                    state_source: AgentStateSource::Scanner,
+                    transcript_path: None,
+                    cached_preview_turns: Default::default(),
+                    session_cache_state: None,
+                    git_info: None,
+                    pid: None,
+                    start_time: None,
+                    agent_session_id: Some("session-1".into()),
+                    last_user_prompt: Some("ship it".into()),
+                    last_assistant_message: None,
+                    has_unread_stop: false,
+                });
+
+                app.apply_hook_event(stop_event("%1"));
+
+                assert_eq!(
+                    crate::sound::take_test_playbacks(),
+                    vec![crate::sound::TestPlayback {
+                        event: Some(crate::sound::SoundEvent::Completion),
+                        preset: "glass".into(),
+                    }]
+                );
+            });
         });
     }
 }

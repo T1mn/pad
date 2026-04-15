@@ -18,6 +18,10 @@ fn settings_search_matches_english_terms_under_chinese_locale() {
     app.settings_search = "relay".into();
     let relay_matches = app.filtered_settings_items();
     assert!(relay_matches.iter().any(|(id, _, _, _, _)| *id == "relay"));
+
+    app.settings_search = "completion sound".into();
+    let sound_matches = app.filtered_settings_items();
+    assert!(sound_matches.iter().any(|(id, _, _, _, _)| *id == "sound"));
 }
 
 #[test]

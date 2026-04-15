@@ -41,6 +41,7 @@ pub enum SettingsDetailKind {
     AutoRefresh,
     CodexSettings,
     ClaudeFullAccess,
+    Sound,
     Relay,
     Telegram,
     AgentStyle,

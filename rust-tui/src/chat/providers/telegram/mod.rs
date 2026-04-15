@@ -23,8 +23,9 @@ use self::help::{build_help_keyboard, help_page_html};
 use self::help::{help_message_payload, HelpPage};
 use self::locale::{locale_prefers_chinese, telegram_locale, tg, tg_fmt, tg_fmt2, tg_fmt3};
 use self::state::{
-    journal_len, load_state, mark_update_processed, now_ms_i64, now_ts, save_state,
-    AgentSnapshotEntry, PendingRequest, SelectedTarget, TelegramState,
+    journal_len, load_state, mark_update_processed, next_draft_id, next_request_id, now_ms_i64,
+    now_ts, pending_request_index_by_id, pending_request_index_by_pane, remove_pending_request,
+    save_state, AgentSnapshotEntry, PendingRequest, SelectedTarget, TelegramState,
 };
 use crate::chat::approval::{scan_codex_approval_updates, transcript_len, CodexApprovalRequest};
 use crate::chat::backend::{
@@ -35,6 +36,7 @@ use crate::hook::HookEvent;
 use crate::log_debug;
 use crate::model::{AgentPanel, AgentState, AgentType};
 use crate::runtime_status;
+use crate::sound::SoundEvent;
 use crate::theme::Config;
 use crate::tmux_dispatch;
 use serde_json::json;
@@ -59,6 +61,16 @@ fn telegram_error(err: impl std::fmt::Display) -> TelegramError {
     io::Error::other(err.to_string()).into()
 }
 
+fn play_sound_event(config: &Config, event: SoundEvent) {
+    if let Err(err) = crate::sound::play_event(&config.sound, event) {
+        log_debug!(
+            "telegram: sound playback failed event={:?} err={}",
+            event,
+            err
+        );
+    }
+}
+
 use self::callbacks::{handle_callback_query, send_codex_approval_prompt};
 use self::commands::{edit_help_message, handle_update, send_agent_list, send_pad_status_report};
 #[allow(unused_imports)]
@@ -75,7 +87,7 @@ use self::hooks::{
 #[cfg(test)]
 use self::pending::pending_status_text;
 use self::pending::{
-    deliver_pending_result, pending_accepted_ms, pending_sent_ms, phase_label,
+    deliver_pending_result, pending_accepted_ms, pending_sent_ms, pending_status_summary_line,
     process_codex_pending_approval, process_hook_journal, process_pending_result_delivery,
     process_pending_timeout, refresh_pending_feedback, DraftFeedbackGate,
 };

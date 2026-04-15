@@ -95,6 +95,7 @@ pub struct App {
     // Agent style settings
     pub agent_style_selected: usize,
     pub codex_settings_selected: usize,
+    pub sound_settings_selected: usize,
     // Telegram settings
     pub telegram_selected_field: usize,
     pub telegram_editing: bool,
@@ -178,6 +179,7 @@ impl App {
             title_summary_in_flight: HashSet::new(),
             agent_style_selected: 0,
             codex_settings_selected: 0,
+            sound_settings_selected: 0,
             telegram_selected_field: 0,
             telegram_editing: false,
             telegram_edit_buffer: String::new(),

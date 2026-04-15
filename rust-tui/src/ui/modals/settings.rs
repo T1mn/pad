@@ -120,6 +120,9 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
         }
         Some(SettingsDetailKind::AgentStyle) => (64, 12),
         Some(SettingsDetailKind::CodexSettings) => (76, 17),
+        Some(SettingsDetailKind::Sound) => {
+            (78, recommended_list_modal_height(9, 2, 1, 1).clamp(16, 22))
+        }
         Some(SettingsDetailKind::AutoRefresh)
         | Some(SettingsDetailKind::ClaudeFullAccess)
         | Some(SettingsDetailKind::PreviewMode)
@@ -204,6 +207,7 @@ fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
             vec![detail_body_line(app.locale, kind)],
             "Enter/Space toggle · Esc back",
         ),
+        SettingsDetailKind::Sound => draw_sound_detail(f, app, area),
         SettingsDetailKind::Relay => draw_relay_in_area(f, app, area),
         SettingsDetailKind::Telegram => draw_telegram_detail(f, app, area),
         SettingsDetailKind::AgentStyle => draw_agent_style_detail(f, app, area),
@@ -492,6 +496,113 @@ fn draw_telegram_detail(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::DIM),
         ))),
         footer_area,
+    );
+}
+
+fn draw_sound_detail(f: &mut Frame, app: &App, area: Rect) {
+    let theme = &app.theme;
+    let l = app.locale;
+    let sound = &app.config.sound;
+    let preset_name = |preset_id: &str| {
+        crate::sound::preset(preset_id)
+            .map(|preset| t(l, preset.name_key).to_string())
+            .unwrap_or_else(|| preset_id.to_string())
+    };
+    let preset_desc = |preset_id: &str| {
+        crate::sound::preset(preset_id)
+            .map(|preset| t(l, preset.desc_key).to_string())
+            .unwrap_or_else(|| t(l, "sound.preset_desc").to_string())
+    };
+    let items: Vec<SelectionItem> = [
+        (
+            t(l, "sound.enabled").to_string(),
+            if sound.enabled {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            },
+            t(l, "sound.enabled_desc").to_string(),
+        ),
+        (
+            t(l, "sound.event.completion").to_string(),
+            if sound.completion.enabled {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            },
+            t(l, "sound.event.completion_desc").to_string(),
+        ),
+        (
+            t(l, "sound.preset").to_string(),
+            preset_name(&sound.completion.preset),
+            preset_desc(&sound.completion.preset),
+        ),
+        (
+            t(l, "sound.event.approval").to_string(),
+            if sound.approval.enabled {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            },
+            t(l, "sound.event.approval_desc").to_string(),
+        ),
+        (
+            t(l, "sound.preset").to_string(),
+            preset_name(&sound.approval.preset),
+            preset_desc(&sound.approval.preset),
+        ),
+        (
+            t(l, "sound.event.timeout").to_string(),
+            if sound.timeout.enabled {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            },
+            t(l, "sound.event.timeout_desc").to_string(),
+        ),
+        (
+            t(l, "sound.preset").to_string(),
+            preset_name(&sound.timeout.preset),
+            preset_desc(&sound.timeout.preset),
+        ),
+        (
+            t(l, "sound.event.failure").to_string(),
+            if sound.failure.enabled {
+                t(l, "settings.on").to_string()
+            } else {
+                t(l, "settings.off").to_string()
+            },
+            t(l, "sound.event.failure_desc").to_string(),
+        ),
+        (
+            t(l, "sound.preset").to_string(),
+            preset_name(&sound.failure.preset),
+            preset_desc(&sound.failure.preset),
+        ),
+    ]
+    .iter()
+    .map(|(name, value, desc)| SelectionItem {
+        title: name.clone(),
+        subtitle: Some(format!("{value}  ·  {desc}")),
+        keyword: Some(format!("{name} {value} {desc}")),
+        detail: None,
+        disabled: false,
+    })
+    .collect();
+
+    let mut state = SelectionState {
+        selected: app.sound_settings_selected,
+        ..Default::default()
+    };
+    state.clamp_selected(items.len());
+    render_selection_surface(
+        f,
+        area,
+        theme,
+        t(l, "settings.sound"),
+        &items,
+        &state,
+        Some("j/k move · Enter toggle/cycle · Space preview/toggle · Esc back"),
     );
 }
 

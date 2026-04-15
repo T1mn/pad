@@ -174,6 +174,7 @@ pub(super) async fn handle_command(
                         &tg_fmt(locale, "stop.failed", err_text),
                     )
                     .await?;
+                    play_sound_event(config, crate::sound::SoundEvent::Failure);
                 }
             }
         }
@@ -197,33 +198,40 @@ pub(super) async fn send_pad_status_report(
 ) -> TelegramResult<()> {
     let locale = telegram_locale(config);
     let pad_status = runtime_status::describe_status(&crate::paths::pad_status_path());
+    let body = build_pad_status_body(locale, &pad_status, state);
+    send_text(&config.telegram.bot_token, chat_id, &body).await?;
+    Ok(())
+}
+
+pub(super) fn build_pad_status_body(
+    locale: crate::i18n::Locale,
+    pad_status: &str,
+    state: &TelegramState,
+) -> String {
     let target = state
         .selected_target
         .as_ref()
         .map(|target| target.label.clone())
         .unwrap_or_else(|| tg(locale, "status.none").to_string());
-    let pending = state
-        .pending
-        .as_ref()
-        .map(|pending| {
-            format!(
-                "{} ({})",
-                pending.request_id,
-                phase_label(locale, &pending.phase)
-            )
-        })
-        .unwrap_or_else(|| tg(locale, "status.pending_none").to_string());
-    let body = format!(
-        "{}: {}\n{}: {}\n{}: {}",
+    let pending = if state.pending_requests.is_empty() {
+        tg(locale, "status.pending_none").to_string()
+    } else {
+        state
+            .pending_requests
+            .iter()
+            .map(|pending| pending_status_summary_line(locale, pending))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    format!(
+        "{}: {}\n{}: {}\n{}:\n{}",
         tg(locale, "status.pad"),
         pad_status,
         tg(locale, "status.target"),
         target,
         tg(locale, "status.pending"),
         pending
-    );
-    send_text(&config.telegram.bot_token, chat_id, &body).await?;
-    Ok(())
+    )
 }
 
 pub(super) async fn dispatch_codex_slash_command(
@@ -346,15 +354,6 @@ pub(super) async fn handle_plain_text(
     if text.trim().is_empty() {
         return Ok(());
     }
-    if state.pending.is_some() {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "pending.exists"),
-        )
-        .await?;
-        return Ok(());
-    }
 
     if !pad_is_online() {
         send_text(
@@ -375,6 +374,15 @@ pub(super) async fn handle_plain_text(
         .await?;
         return Ok(());
     };
+    if pending_request_index_by_pane(state, &target.pane_id).is_some() {
+        send_text(
+            &config.telegram.bot_token,
+            chat_id,
+            tg(locale, "pending.exists"),
+        )
+        .await?;
+        return Ok(());
+    }
 
     let panels = live_panels().map_err(telegram_error)?;
     let Some(panel) = panels.iter().find(|panel| panel.pane_id == target.pane_id) else {
@@ -408,18 +416,20 @@ pub(super) async fn handle_plain_text(
 
     tmux_dispatch::dispatch_prompt(&panel.pane_id, text).map_err(telegram_error)?;
     invalidate_live_panels();
-    let request_id = format!("tg-{}", now_ts());
+    let request_id = next_request_id();
     let transcript_path = panel.transcript_path.clone();
     let result_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
     let approval_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
     let sent_at = now_ts();
     let sent_at_ms = now_ms_i64();
-    state.pending = Some(PendingRequest {
+    state.pending_requests.push(PendingRequest {
         request_id: request_id.clone(),
         chat_id: chat_id.to_string(),
         pane_id: panel.pane_id.clone(),
         agent_kind: panel.agent_type.to_string(),
         target_label: compact_target_label(panel),
+        session_id: panel.agent_session_id.clone(),
+        working_dir: panel.working_dir.clone(),
         prompt_text: text.to_string(),
         prompt_hash: format!("{:x}", md5::compute(text.as_bytes())),
         turn_id: None,
@@ -428,7 +438,7 @@ pub(super) async fn handle_plain_text(
         accepted_at: None,
         accepted_at_ms: None,
         last_status_at: None,
-        draft_id: now_ms_i64(),
+        draft_id: next_draft_id(),
         phase: "awaiting_submit".to_string(),
         transcript_path,
         result_scan_offset,
