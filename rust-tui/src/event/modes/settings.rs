@@ -115,6 +115,7 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::ClaudeFullAccess) => {
             handle_claude_full_access_detail_mode(app, key)
         }
+        Some(SettingsDetailKind::Sound) => handle_sound_detail_mode(app, key),
         Some(SettingsDetailKind::Relay) => handle_relay_detail_mode(app, key),
         Some(SettingsDetailKind::Telegram) => handle_telegram_detail_mode(app, key),
         Some(SettingsDetailKind::AutoRefresh) => handle_auto_refresh_detail_mode(app, key),
@@ -356,6 +357,99 @@ fn handle_claude_full_access_detail_mode(app: &mut App, key: KeyCode) -> bool {
         _ => {}
     }
     true
+}
+
+fn handle_sound_detail_mode(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
+        KeyCode::Char('j') | KeyCode::Down => {
+            if app.sound_settings_selected < 8 {
+                app.sound_settings_selected += 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if app.sound_settings_selected > 0 {
+                app.sound_settings_selected -= 1;
+            }
+            app.dirty = true;
+        }
+        KeyCode::Enter => {
+            apply_sound_settings_action(app, false);
+        }
+        KeyCode::Char(' ') => {
+            apply_sound_settings_action(app, true);
+        }
+        _ => {}
+    }
+    true
+}
+
+fn apply_sound_settings_action(app: &mut App, preview: bool) {
+    match (app.sound_settings_selected, preview) {
+        (0, _) => {
+            app.config.sound.enabled = !app.config.sound.enabled;
+            app.config.save();
+        }
+        (1, _) => {
+            app.config.sound.completion.enabled = !app.config.sound.completion.enabled;
+            app.config.save();
+        }
+        (2, true) => preview_sound_preset(&app.config.sound.completion.preset),
+        (2, false) => {
+            cycle_sound_preset(&mut app.config.sound.completion.preset);
+            app.config.save();
+        }
+        (3, _) => {
+            app.config.sound.approval.enabled = !app.config.sound.approval.enabled;
+            app.config.save();
+        }
+        (4, true) => preview_sound_preset(&app.config.sound.approval.preset),
+        (4, false) => {
+            cycle_sound_preset(&mut app.config.sound.approval.preset);
+            app.config.save();
+        }
+        (5, _) => {
+            app.config.sound.timeout.enabled = !app.config.sound.timeout.enabled;
+            app.config.save();
+        }
+        (6, true) => preview_sound_preset(&app.config.sound.timeout.preset),
+        (6, false) => {
+            cycle_sound_preset(&mut app.config.sound.timeout.preset);
+            app.config.save();
+        }
+        (7, _) => {
+            app.config.sound.failure.enabled = !app.config.sound.failure.enabled;
+            app.config.save();
+        }
+        (8, true) => preview_sound_preset(&app.config.sound.failure.preset),
+        (8, false) => {
+            cycle_sound_preset(&mut app.config.sound.failure.preset);
+            app.config.save();
+        }
+        _ => {}
+    }
+    app.dirty = true;
+}
+
+fn cycle_sound_preset(current: &mut String) {
+    let presets = crate::sound::preset_ids();
+    let current_index = presets
+        .iter()
+        .position(|preset| *preset == current)
+        .unwrap_or(0);
+    let next_index = (current_index + 1) % presets.len();
+    *current = presets[next_index].to_string();
+}
+
+fn preview_sound_preset(preset_id: &str) {
+    if let Err(err) = crate::sound::preview_preset(preset_id) {
+        log_debug!(
+            "sound: preset preview failed preset={} err={}",
+            preset_id,
+            err
+        );
+    }
 }
 
 fn handle_preview_mode_detail_mode(app: &mut App, key: KeyCode) -> bool {
@@ -680,6 +774,44 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));
             assert!(app.active_settings_detail.is_none());
+        });
+    }
+
+    #[test]
+    fn sound_settings_toggle_cycle_and_preview_work() {
+        with_temp_home("sound-settings", || {
+            let mut app = App::new();
+            app.mode = Mode::Settings;
+            app.settings_open = true;
+            app.settings_focus = SettingsFocus::Detail;
+            app.active_settings_detail = Some(SettingsDetailKind::Sound);
+            app.sound_settings_selected = 0;
+            crate::sound::with_test_sound_capture(|| {
+                let _ = crate::sound::take_test_playbacks();
+
+                handle_settings_mode(&mut app, KeyCode::Enter);
+                assert!(!app.config.sound.enabled);
+
+                handle_settings_mode(&mut app, KeyCode::Down);
+                handle_settings_mode(&mut app, KeyCode::Enter);
+                assert!(!app.config.sound.completion.enabled);
+
+                handle_settings_mode(&mut app, KeyCode::Down);
+                let original = app.config.sound.completion.preset.clone();
+                handle_settings_mode(&mut app, KeyCode::Enter);
+                assert_ne!(app.config.sound.completion.preset, original);
+
+                let cycled = app.config.sound.completion.preset.clone();
+                handle_settings_mode(&mut app, KeyCode::Char(' '));
+                assert_eq!(app.config.sound.completion.preset, cycled);
+                assert_eq!(
+                    crate::sound::take_test_playbacks(),
+                    vec![crate::sound::TestPlayback {
+                        event: None,
+                        preset: cycled,
+                    }]
+                );
+            });
         });
     }
 }

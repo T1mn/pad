@@ -10,23 +10,25 @@ pub(super) async fn process_pending_timeout(
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
     let locale = telegram_locale(config);
-    let Some(pending) = state.pending.as_ref() else {
-        return Ok(());
-    };
-    if now_ts() - pending.sent_at < PENDING_TIMEOUT_SECS {
-        return Ok(());
+    let timed_out = state
+        .pending_requests
+        .iter()
+        .filter(|pending| now_ts().saturating_sub(pending.sent_at) >= PENDING_TIMEOUT_SECS)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    for pending in timed_out {
+        remove_pending_request(state, &pending.request_id);
+        finalize_pending_feedback(config, &pending, tg(locale, "phase.completed"));
+        send_text(
+            &config.telegram.bot_token,
+            &pending.chat_id,
+            &tg_fmt(locale, "timeout", &pending.request_id),
+        )
+        .await?;
+        play_sound_event(config, crate::sound::SoundEvent::Timeout);
     }
-    let pending_snapshot = pending.clone();
-    let chat_id = pending.chat_id.clone();
-    let request_id = pending.request_id.clone();
-    finalize_pending_feedback(config, &pending_snapshot, tg(locale, "phase.completed"));
-    state.pending = None;
-    send_text(
-        &config.telegram.bot_token,
-        &chat_id,
-        &tg_fmt(locale, "timeout", request_id),
-    )
-    .await?;
+
     Ok(())
 }
 
@@ -34,18 +36,27 @@ pub(super) async fn process_pending_result_delivery(
     config: &Config,
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
-    let Some(pending) = state.pending.as_ref() else {
-        return Ok(());
-    };
-    if pending.phase != "delivering_result" {
-        return Ok(());
+    let request_ids = state
+        .pending_requests
+        .iter()
+        .filter(|pending| {
+            pending.phase == "delivering_result" && pending.delivery_retry_at <= now_ts()
+        })
+        .map(|pending| pending.request_id.clone())
+        .collect::<Vec<_>>();
+
+    for request_id in request_ids {
+        if let Err(err) =
+            deliver_pending_result(config, state, telegram_locale(config), &request_id).await
+        {
+            log_debug!(
+                "telegram: result delivery retry failed request_id={} err={}",
+                request_id,
+                err
+            );
+        }
     }
-    if pending.delivery_retry_at > now_ts() {
-        return Ok(());
-    }
-    if let Err(err) = deliver_pending_result(config, state, telegram_locale(config)).await {
-        log_debug!("telegram: result delivery retry failed: {}", err);
-    }
+
     Ok(())
 }
 
@@ -54,10 +65,10 @@ pub(super) async fn process_hook_journal(
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
     super::hooks::sync_state_from_disk_public(state);
-    let Some(_) = state.pending.clone() else {
+    if state.pending_requests.is_empty() {
         state.journal_position = journal_len();
         return Ok(());
-    };
+    }
 
     let path = crate::paths::hook_events_path();
     if !path.exists() {
@@ -76,10 +87,11 @@ pub(super) async fn process_hook_journal(
     while reader.read_line(&mut line)? > 0 {
         state.journal_position += line.len() as u64;
         super::hooks::sync_state_from_disk_public(state);
-        let Some(current_pending) = state.pending.clone() else {
+        if state.pending_requests.is_empty() {
             line.clear();
             break;
-        };
+        }
+
         let trimmed = line.trim();
         if trimmed.is_empty() {
             line.clear();
@@ -91,12 +103,7 @@ pub(super) async fn process_hook_journal(
                     line.clear();
                     continue;
                 }
-                if event.tmux.pane_id.as_deref() == Some(current_pending.pane_id.as_str())
-                    && apply_hook_event_to_pending(config, state, &event).await?
-                {
-                    line.clear();
-                    break;
-                }
+                let _ = apply_hook_event_to_pending(config, state, &event).await?;
             }
             Err(err) => {
                 log_debug!("telegram: invalid hook journal line: {}", err);
@@ -118,6 +125,50 @@ pub(super) fn phase_label(locale: crate::i18n::Locale, phase: &str) -> String {
     }
 }
 
+fn pending_metadata_lines(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+    include_turn: bool,
+) -> Vec<String> {
+    let mut lines = vec![
+        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    ];
+    if let Some(session_id) = pending
+        .session_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
+    }
+    if include_turn {
+        if let Some(turn_id) = pending.turn_id.as_deref().filter(|value| !value.is_empty()) {
+            lines.push(format!("{}: {}", tg(locale, "meta.turn"), turn_id));
+        }
+    }
+    if !pending.working_dir.trim().is_empty() {
+        lines.push(format!(
+            "{}: {}",
+            tg(locale, "meta.dir"),
+            pending.working_dir
+        ));
+    }
+    lines
+}
+
+pub(super) fn pending_status_summary_line(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+) -> String {
+    format!(
+        "{} • {} • {} • {}",
+        pending.request_id,
+        pending.pane_id,
+        pending.target_label,
+        phase_label(locale, &pending.phase)
+    )
+}
+
 pub(super) fn pending_status_text(
     locale: crate::i18n::Locale,
     pending: &PendingRequest,
@@ -128,6 +179,7 @@ pub(super) fn pending_status_text(
             tg(locale, "phase.awaiting_confirm").to_string(),
             pending.target_label.clone(),
         ];
+        lines.extend(pending_metadata_lines(locale, pending, false));
         if let Some(justification) = pending.approval_justification.as_deref() {
             lines.push(truncate_chars(justification, 220));
         }
@@ -145,39 +197,41 @@ pub(super) fn pending_status_text(
         "delivering_result" => tg(locale, "phase.delivering").to_string(),
         _ => tg(locale, "phase.completed").to_string(),
     };
-    format!("{}\n{}", headline, pending.target_label)
+
+    let mut lines = vec![headline, pending.target_label.clone()];
+    lines.extend(pending_metadata_lines(locale, pending, false));
+    lines.join("\n")
 }
 
 pub(super) fn refresh_pending_feedback(config: &Config, state: &mut TelegramState, force: bool) {
     let locale = telegram_locale(config);
     let now = now_ts();
-    let Some(pending) = state.pending.as_mut() else {
-        return;
-    };
 
-    if !force {
-        let Some(accepted_at) = pending.accepted_at else {
-            return;
-        };
-        if accepted_at <= 0 {
-            return;
-        }
-        if let Some(last_status_at) = pending.last_status_at {
-            if now.saturating_sub(last_status_at) < 4 {
-                return;
+    for pending in &mut state.pending_requests {
+        if !force {
+            let Some(accepted_at) = pending.accepted_at else {
+                continue;
+            };
+            if accepted_at <= 0 {
+                continue;
+            }
+            if let Some(last_status_at) = pending.last_status_at {
+                if now.saturating_sub(last_status_at) < 4 {
+                    continue;
+                }
             }
         }
-    }
 
-    spawn_pending_feedback_update(
-        config.telegram.bot_token.clone(),
-        pending.chat_id.clone(),
-        pending.draft_id,
-        pending_status_text(locale, pending, now),
-        true,
-        tg(locale, "typing.action").to_string(),
-    );
-    pending.last_status_at = Some(now);
+        spawn_pending_feedback_update(
+            config.telegram.bot_token.clone(),
+            pending.chat_id.clone(),
+            pending.draft_id,
+            pending_status_text(locale, pending, now),
+            true,
+            tg(locale, "typing.action").to_string(),
+        );
+        pending.last_status_at = Some(now);
+    }
 }
 
 pub(super) fn finalize_pending_feedback(config: &Config, pending: &PendingRequest, status: &str) {
@@ -196,35 +250,69 @@ pub(super) fn finalize_pending_feedback(config: &Config, pending: &PendingReques
     });
 }
 
+pub(super) fn completed_reply_text(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+    result_text: &str,
+) -> String {
+    let mut lines = vec![
+        tg(locale, "result.title").to_string(),
+        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+        format!("{}: {}", tg(locale, "meta.target"), pending.target_label),
+        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    ];
+    if let Some(session_id) = pending
+        .session_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
+    }
+    if let Some(turn_id) = pending.turn_id.as_deref().filter(|value| !value.is_empty()) {
+        lines.push(format!("{}: {}", tg(locale, "meta.turn"), turn_id));
+    }
+    if !pending.working_dir.trim().is_empty() {
+        lines.push(format!(
+            "{}: {}",
+            tg(locale, "meta.dir"),
+            pending.working_dir
+        ));
+    }
+    format!("{}\n\n{}", lines.join("\n"), result_text)
+}
+
 pub(super) async fn deliver_pending_result(
     config: &Config,
     state: &mut TelegramState,
     locale: crate::i18n::Locale,
+    request_id: &str,
 ) -> TelegramResult<()> {
-    let Some(snapshot) = state.pending.as_ref().cloned() else {
+    let Some(snapshot) = state
+        .pending_requests
+        .iter()
+        .find(|pending| pending.request_id == request_id)
+        .cloned()
+    else {
         return Ok(());
     };
     if snapshot.phase != "delivering_result" {
         return Ok(());
     }
+
     let result_text = snapshot
         .completed_text
         .clone()
         .unwrap_or_else(|| tg(locale, "result.missing").to_string());
-    let reply = tg_fmt2(
-        locale,
-        "result.completed",
-        &snapshot.request_id,
-        result_text,
-    );
+    let reply = completed_reply_text(locale, &snapshot, &result_text);
     match send_text(&config.telegram.bot_token, &snapshot.chat_id, &reply).await {
         Ok(()) => {
             finalize_pending_feedback(config, &snapshot, tg(locale, "phase.completed"));
-            state.pending = None;
+            remove_pending_request(state, request_id);
             Ok(())
         }
         Err(err) => {
-            if let Some(pending) = state.pending.as_mut() {
+            if let Some(index) = pending_request_index_by_id(state, request_id) {
+                let pending = &mut state.pending_requests[index];
                 pending.delivery_attempts = pending.delivery_attempts.saturating_add(1);
                 pending.delivery_retry_at = now_ts().saturating_add(RESULT_DELIVERY_RETRY_SECS);
                 pending.last_status_at = None;
@@ -238,7 +326,34 @@ pub(super) async fn process_codex_pending_approval(
     config: &Config,
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
-    let Some(snapshot) = state.pending.as_ref().cloned() else {
+    let request_ids = state
+        .pending_requests
+        .iter()
+        .filter(|pending| {
+            pending.agent_kind == "codex"
+                && (pending.accepted_at.is_some() || pending.phase == "awaiting_confirm")
+        })
+        .map(|pending| pending.request_id.clone())
+        .collect::<Vec<_>>();
+
+    for request_id in request_ids {
+        process_codex_pending_approval_for_request(config, state, &request_id).await?;
+    }
+
+    Ok(())
+}
+
+async fn process_codex_pending_approval_for_request(
+    config: &Config,
+    state: &mut TelegramState,
+    request_id: &str,
+) -> TelegramResult<()> {
+    let Some(snapshot) = state
+        .pending_requests
+        .iter()
+        .find(|pending| pending.request_id == request_id)
+        .cloned()
+    else {
         return Ok(());
     };
     if snapshot.agent_kind != "codex" {
@@ -259,7 +374,8 @@ pub(super) async fn process_codex_pending_approval(
             else {
                 return Ok(());
             };
-            if let Some(pending) = state.pending.as_mut() {
+            if let Some(index) = pending_request_index_by_id(state, request_id) {
+                let pending = &mut state.pending_requests[index];
                 pending.transcript_path = Some(path.clone());
                 if pending.approval_scan_offset == 0 {
                     pending.approval_scan_offset = transcript_len(&path).saturating_sub(32 * 1024);
@@ -290,7 +406,8 @@ pub(super) async fn process_codex_pending_approval(
             .as_ref()
             .map(|request| request.call_id.as_str());
 
-    if let Some(pending) = state.pending.as_mut() {
+    if let Some(index) = pending_request_index_by_id(state, request_id) {
+        let pending = &mut state.pending_requests[index];
         pending.approval_scan_offset = scan_result.next_offset;
         match next_request.as_ref() {
             Some(request) => {
@@ -316,8 +433,16 @@ pub(super) async fn process_codex_pending_approval(
 
     refresh_pending_feedback(config, state, true);
     if let Some(request) = next_request {
-        let pending = state.pending.as_ref().expect("pending must exist");
-        send_codex_approval_prompt(config, &pending.chat_id, pending, &request).await?;
+        let Some(pending) = state
+            .pending_requests
+            .iter()
+            .find(|pending| pending.request_id == request_id)
+            .cloned()
+        else {
+            return Ok(());
+        };
+        send_codex_approval_prompt(config, &pending.chat_id, &pending, &request).await?;
+        play_sound_event(config, crate::sound::SoundEvent::Approval);
         log_debug!(
             "telegram: codex approval detected request={} pane={} call_id={}",
             pending.request_id,

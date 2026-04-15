@@ -43,7 +43,7 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
     );
 
     let mut state = load_state().unwrap_or_default();
-    if state.journal_position == 0 && state.pending.is_none() {
+    if state.journal_position == 0 && state.pending_requests.is_empty() {
         state.journal_position = journal_len();
         save_state(&state)?;
     }

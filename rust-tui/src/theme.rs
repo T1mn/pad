@@ -782,6 +782,46 @@ pub struct TelegramConfig {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct SoundEventConfig {
+    pub enabled: bool,
+    pub preset: String,
+}
+
+impl SoundEventConfig {
+    fn new(enabled: bool, preset: &str) -> Self {
+        Self {
+            enabled,
+            preset: preset.to_string(),
+        }
+    }
+
+    fn normalize_preset_for(event: crate::sound::SoundEvent, value: &str) -> String {
+        crate::sound::normalize_preset_id_or_default(value, event.default_preset_id()).to_string()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SoundConfig {
+    pub enabled: bool,
+    pub completion: SoundEventConfig,
+    pub approval: SoundEventConfig,
+    pub timeout: SoundEventConfig,
+    pub failure: SoundEventConfig,
+}
+
+impl Default for SoundConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            completion: SoundEventConfig::new(true, "glass"),
+            approval: SoundEventConfig::new(false, "ping"),
+            timeout: SoundEventConfig::new(false, "warning"),
+            failure: SoundEventConfig::new(false, "alert"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct CodexConfig {
     pub fast_mode: bool,
     pub multi_agent: bool,
@@ -850,6 +890,7 @@ pub struct Config {
     pub desired_agent_style: DesiredAgentStyle,
     pub preview: PreviewConfig,
     pub display: DisplayConfig,
+    pub sound: SoundConfig,
     pub telegram: TelegramConfig,
     pub codex: CodexConfig,
     pub agent_permissions: AgentPermissionsConfig,
@@ -907,6 +948,7 @@ impl Default for Config {
             desired_agent_style: DesiredAgentStyle::default(),
             preview: PreviewConfig::default(),
             display: DisplayConfig::default(),
+            sound: SoundConfig::default(),
             telegram: TelegramConfig::default(),
             codex: CodexConfig::default(),
             agent_permissions: AgentPermissionsConfig::default(),
@@ -991,6 +1033,31 @@ impl Config {
                     _ => "live".to_string(),
                 };
             }
+        }
+        if let Some(toml::Value::Table(sound)) = table.get("sound") {
+            if let Some(toml::Value::Boolean(enabled)) = sound.get("enabled") {
+                config.sound.enabled = *enabled;
+            }
+            load_sound_event_config(
+                sound.get("completion"),
+                &mut config.sound.completion,
+                crate::sound::SoundEvent::Completion,
+            );
+            load_sound_event_config(
+                sound.get("approval"),
+                &mut config.sound.approval,
+                crate::sound::SoundEvent::Approval,
+            );
+            load_sound_event_config(
+                sound.get("timeout"),
+                &mut config.sound.timeout,
+                crate::sound::SoundEvent::Timeout,
+            );
+            load_sound_event_config(
+                sound.get("failure"),
+                &mut config.sound.failure,
+                crate::sound::SoundEvent::Failure,
+            );
         }
         if let Some(toml::Value::Table(telegram)) = table.get("telegram") {
             if let Some(toml::Value::Boolean(enabled)) = telegram.get("enabled") {
@@ -1280,6 +1347,12 @@ impl Config {
             "session_scope = \"{}\"\n",
             self.display.session_scope
         ));
+        content.push_str("\n[sound]\n");
+        content.push_str(&format!("enabled = {}\n", self.sound.enabled));
+        push_sound_event_config(&mut content, "completion", &self.sound.completion);
+        push_sound_event_config(&mut content, "approval", &self.sound.approval);
+        push_sound_event_config(&mut content, "timeout", &self.sound.timeout);
+        push_sound_event_config(&mut content, "failure", &self.sound.failure);
         content.push_str("\n[telegram]\n");
         content.push_str(&format!("enabled = {}\n", self.telegram.enabled));
         content.push_str(&format!(
@@ -1365,6 +1438,28 @@ impl Config {
 
         let _ = std::fs::write(&path, content);
     }
+}
+
+fn load_sound_event_config(
+    value: Option<&toml::Value>,
+    target: &mut SoundEventConfig,
+    event: crate::sound::SoundEvent,
+) {
+    let Some(toml::Value::Table(table)) = value else {
+        return;
+    };
+    if let Some(toml::Value::Boolean(enabled)) = table.get("enabled") {
+        target.enabled = *enabled;
+    }
+    if let Some(toml::Value::String(preset)) = table.get("preset") {
+        target.preset = SoundEventConfig::normalize_preset_for(event, preset);
+    }
+}
+
+fn push_sound_event_config(content: &mut String, name: &str, config: &SoundEventConfig) {
+    content.push_str(&format!("\n[sound.{name}]\n"));
+    content.push_str(&format!("enabled = {}\n", config.enabled));
+    content.push_str(&format!("preset = \"{}\"\n", config.preset));
 }
 
 #[cfg(test)]
@@ -1500,6 +1595,70 @@ mod tests {
             let loaded = Config::load();
             assert!(loaded.agent_permissions.codex_auto_full_access);
             assert!(loaded.agent_permissions.claude_auto_full_access);
+            assert!(loaded.sound.enabled);
+            assert!(loaded.sound.completion.enabled);
+            assert_eq!(loaded.sound.completion.preset, "glass");
+            assert!(!loaded.sound.approval.enabled);
+            assert_eq!(loaded.sound.approval.preset, "ping");
+        });
+    }
+
+    #[test]
+    fn config_round_trips_sound_section() {
+        with_temp_home("sound-roundtrip", || {
+            let mut config = Config::default();
+            config.sound.enabled = true;
+            config.sound.completion.enabled = false;
+            config.sound.completion.preset = "pop".into();
+            config.sound.approval.enabled = true;
+            config.sound.approval.preset = "glass".into();
+            config.sound.timeout.enabled = true;
+            config.sound.timeout.preset = "warning".into();
+            config.sound.failure.enabled = true;
+            config.sound.failure.preset = "alert".into();
+            config.save();
+
+            let loaded = Config::load();
+            assert!(loaded.sound.enabled);
+            assert!(!loaded.sound.completion.enabled);
+            assert_eq!(loaded.sound.completion.preset, "pop");
+            assert!(loaded.sound.approval.enabled);
+            assert_eq!(loaded.sound.approval.preset, "glass");
+            assert!(loaded.sound.timeout.enabled);
+            assert_eq!(loaded.sound.timeout.preset, "warning");
+            assert!(loaded.sound.failure.enabled);
+            assert_eq!(loaded.sound.failure.preset, "alert");
+        });
+    }
+
+    #[test]
+    fn config_normalizes_invalid_sound_presets() {
+        with_temp_home("sound-preset-normalize", || {
+            let path = Config::config_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create pad parent");
+            }
+            std::fs::write(
+                &path,
+                r#"[sound]
+enabled = true
+
+[sound.completion]
+enabled = true
+preset = "bogus"
+
+[sound.approval]
+enabled = true
+preset = "also-bogus"
+"#,
+            )
+            .expect("write config");
+
+            let loaded = Config::load();
+            assert_eq!(loaded.sound.completion.preset, "glass");
+            assert_eq!(loaded.sound.approval.preset, "ping");
+            assert_eq!(loaded.sound.timeout.preset, "warning");
+            assert_eq!(loaded.sound.failure.preset, "alert");
         });
     }
 

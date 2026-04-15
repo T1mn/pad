@@ -66,6 +66,7 @@ impl App {
             "auto_refresh" => SettingsDetailKind::AutoRefresh,
             "codex_settings" => SettingsDetailKind::CodexSettings,
             "claude_full_access" => SettingsDetailKind::ClaudeFullAccess,
+            "sound" => SettingsDetailKind::Sound,
             "relay" => SettingsDetailKind::Relay,
             "telegram" => SettingsDetailKind::Telegram,
             "agent_style" => SettingsDetailKind::AgentStyle,
@@ -125,6 +126,9 @@ impl App {
             }
             SettingsDetailKind::CodexSettings => {
                 self.codex_settings_selected = 0;
+            }
+            SettingsDetailKind::Sound => {
+                self.sound_settings_selected = 0;
             }
             SettingsDetailKind::Trash => {}
             _ => {}
@@ -216,6 +220,15 @@ impl App {
             "all" => crate::i18n::t(l, "settings.display_mode_all"),
             _ => crate::i18n::t(l, "settings.display_mode_live"),
         };
+        let enabled_sound_events = [
+            self.config.sound.completion.enabled,
+            self.config.sound.approval.enabled,
+            self.config.sound.timeout.enabled,
+            self.config.sound.failure.enabled,
+        ]
+        .into_iter()
+        .filter(|enabled| *enabled)
+        .count();
         let trash_count = crate::thread_meta::deleted_thread_count().unwrap_or_default();
         vec![
             (
@@ -283,6 +296,20 @@ impl App {
                 },
                 "settings.claude_full_access",
                 "settings.claude_full_access",
+                true,
+            ),
+            (
+                "sound",
+                if self.config.sound.enabled {
+                    format!(
+                        "{} · {enabled_sound_events}/4",
+                        crate::i18n::t(l, "settings.on")
+                    )
+                } else {
+                    crate::i18n::t(l, "settings.off").to_string()
+                },
+                "settings.sound",
+                "settings.sound_desc",
                 true,
             ),
             (
