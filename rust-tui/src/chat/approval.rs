@@ -15,6 +15,17 @@ pub(super) struct CodexApprovalScanResult {
     pub(super) next_offset: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CodexFailureEvent {
+    pub(super) message: String,
+    pub(super) error_info: Option<String>,
+}
+
+pub(super) struct CodexFailureScanResult {
+    pub(super) failure: Option<CodexFailureEvent>,
+    pub(super) next_offset: u64,
+}
+
 pub(super) fn scan_codex_answer_updates(
     path: &Path,
     offset: u64,
@@ -40,6 +51,41 @@ pub(super) fn scan_codex_answer_updates(
     }
 
     Ok(latest_answer)
+}
+
+pub(super) fn scan_codex_failure_updates(
+    path: &Path,
+    offset: u64,
+    expected_turn_id: Option<&str>,
+) -> io::Result<CodexFailureScanResult> {
+    if !path.exists() {
+        return Ok(CodexFailureScanResult {
+            failure: None,
+            next_offset: offset,
+        });
+    }
+
+    let file = File::open(path)?;
+    let len = file.metadata()?.len();
+    let start = offset.min(len);
+    let mut reader = BufReader::new(file);
+    reader.seek(SeekFrom::Start(start))?;
+
+    let mut failure = None;
+    let mut next_offset = start;
+    let mut line = String::new();
+    while reader.read_line(&mut line)? > 0 {
+        next_offset += line.len() as u64;
+        if let Some(event) = codex_failure_line(line.trim(), expected_turn_id) {
+            failure = Some(event);
+        }
+        line.clear();
+    }
+
+    Ok(CodexFailureScanResult {
+        failure,
+        next_offset,
+    })
 }
 
 pub(super) fn scan_codex_approval_updates(
@@ -155,6 +201,45 @@ fn codex_answer_line(line: &str, expected_turn_id: Option<&str>) -> Option<Strin
         return Some(answer);
     }
     codex_final_answer_line(&value)
+}
+
+fn codex_failure_line(line: &str, expected_turn_id: Option<&str>) -> Option<CodexFailureEvent> {
+    let value = serde_json::from_str::<Value>(line).ok()?;
+    if value.get("type").and_then(Value::as_str) != Some("event_msg") {
+        return None;
+    }
+    let payload = value.get("payload")?;
+    if payload.get("type").and_then(Value::as_str) != Some("error") {
+        return None;
+    }
+    if let Some(expected_turn_id) = expected_turn_id {
+        let actual_turn_id = payload
+            .get("turn_id")
+            .or_else(|| value.get("turn_id"))
+            .and_then(Value::as_str);
+        if let Some(actual_turn_id) = actual_turn_id {
+            if actual_turn_id != expected_turn_id {
+                return None;
+            }
+        }
+    }
+
+    let message = payload.get("message").and_then(Value::as_str)?.trim();
+    if message.is_empty() {
+        return None;
+    }
+
+    let error_info = payload
+        .get("codex_error_info")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
+    Some(CodexFailureEvent {
+        message: message.to_string(),
+        error_info,
+    })
 }
 
 fn codex_task_complete_line(value: &Value, expected_turn_id: Option<&str>) -> Option<String> {

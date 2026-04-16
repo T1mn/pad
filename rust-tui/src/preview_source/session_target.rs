@@ -170,18 +170,34 @@ fn resolved_session_id_for_request(
             });
     }
 
-    request.agent_session_id.clone().or_else(|| {
-        if request.transcript_path.is_some() {
-            None
-        } else if request.agent_type == AgentType::Codex && request.state == AgentState::Idle {
-            request
-                .live_pane_id
-                .as_deref()
-                .and_then(codex::resolve_live_session_id)
-        } else {
-            None
-        }
-    })
+    request
+        .agent_session_id
+        .clone()
+        .or_else(|| {
+            if request.agent_type == AgentType::Codex {
+                codex_thread_for_working_dir(&request.working_dir).map(|thread| thread.thread_id)
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            if request.transcript_path.is_some() {
+                None
+            } else if request.agent_type == AgentType::Codex && request.state == AgentState::Idle {
+                request
+                    .live_pane_id
+                    .as_deref()
+                    .and_then(codex::resolve_live_session_id)
+            } else {
+                None
+            }
+        })
+}
+
+fn codex_thread_for_working_dir(working_dir: &str) -> Option<crate::codex_state::CodexThreadRef> {
+    crate::codex_state::latest_thread_for_cwd(Path::new(working_dir))
+        .ok()
+        .flatten()
 }
 
 fn codex_transcript_path_for_session_id(session_id: &str) -> Option<PathBuf> {

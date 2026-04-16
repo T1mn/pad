@@ -122,6 +122,10 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
             }
             let _ = save_state(&state);
         }
+        if let Err(err) = process_pending_rollout_failures(&config, &mut state).await {
+            log_debug!("telegram: pending rollout failure handling failed: {}", err);
+        }
+        let _ = save_state(&state);
         if let Err(err) = process_codex_pending_approval(&config, &mut state).await {
             log_debug!("telegram: codex approval processing failed: {}", err);
         }

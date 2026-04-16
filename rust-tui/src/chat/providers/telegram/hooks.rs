@@ -367,6 +367,11 @@ fn advance_pending_to_awaiting_stop(
             pending.result_scan_offset = transcript_len(path);
         }
     }
+    if pending.failure_scan_offset == 0 {
+        if let Some(path) = pending.transcript_path.as_deref() {
+            pending.failure_scan_offset = transcript_len(path);
+        }
+    }
 }
 
 async fn complete_pending_request(
@@ -606,6 +611,8 @@ mod tests {
             phase: "awaiting_stop".into(),
             transcript_path: Some(path.to_string_lossy().into_owned()),
             result_scan_offset: old.len() as u64,
+            failure_scan_offset: old.len() as u64,
+            last_failure_check_at: None,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,
@@ -661,6 +668,8 @@ mod tests {
             phase: "awaiting_stop".into(),
             transcript_path: None,
             result_scan_offset: 0,
+            failure_scan_offset: 0,
+            last_failure_check_at: None,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,
@@ -712,6 +721,8 @@ mod tests {
             phase: "awaiting_stop".into(),
             transcript_path: None,
             result_scan_offset: 0,
+            failure_scan_offset: 0,
+            last_failure_check_at: None,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,
@@ -763,6 +774,8 @@ mod tests {
             phase: "awaiting_submit".into(),
             transcript_path: None,
             result_scan_offset: 0,
+            failure_scan_offset: 0,
+            last_failure_check_at: None,
             approval_scan_offset: 0,
             approval_call_id: None,
             approval_justification: None,

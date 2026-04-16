@@ -1,5 +1,21 @@
 use super::*;
 
+const PAD_DEFAULT_SESSION_NAME: &str = "pad";
+const PAD_CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum PadRestartTarget {
+    RespawnPane(String),
+    NewDetachedSession(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PadRestartPlan {
+    pub(super) target: PadRestartTarget,
+    pub(super) start_dir: String,
+    pub(super) shell_command: String,
+}
+
 pub(super) async fn handle_update(
     config: &mut Config,
     state: &mut TelegramState,
@@ -131,6 +147,43 @@ pub(super) async fn handle_command(
         "/padstatus" => {
             send_pad_status_report(config, state, chat_id).await?;
         }
+        "/history" => {
+            send_recent_history(config, state, chat_id).await?;
+        }
+        "/restart" => {
+            let plan = match current_pad_restart_plan() {
+                Ok(plan) => plan,
+                Err(err_text) => {
+                    send_text(
+                        &config.telegram.bot_token,
+                        chat_id,
+                        &tg_fmt(locale, "restart.failed", err_text),
+                    )
+                    .await?;
+                    play_sound_event(config, crate::sound::SoundEvent::Failure);
+                    return Ok(());
+                }
+            };
+            let preparing_key = match plan.target {
+                PadRestartTarget::RespawnPane(_) => "restart.preparing",
+                PadRestartTarget::NewDetachedSession(_) => "restart.starting",
+            };
+            send_text(
+                &config.telegram.bot_token,
+                chat_id,
+                tg(locale, preparing_key),
+            )
+            .await?;
+            if let Err(err_text) = execute_pad_restart_plan(&plan) {
+                send_text(
+                    &config.telegram.bot_token,
+                    chat_id,
+                    &tg_fmt(locale, "restart.failed", err_text),
+                )
+                .await?;
+                play_sound_event(config, crate::sound::SoundEvent::Failure);
+            }
+        }
         "/status" => {
             if matches!(arg, "pad" | "bot") {
                 send_pad_status_report(config, state, chat_id).await?;
@@ -178,6 +231,39 @@ pub(super) async fn handle_command(
                 }
             }
         }
+        "/reset" => {
+            let Some(target) = state.selected_target.as_ref() else {
+                send_text(
+                    &config.telegram.bot_token,
+                    chat_id,
+                    tg(locale, "target.none"),
+                )
+                .await?;
+                return Ok(());
+            };
+            let target_label = target.label.clone();
+            let Some(pending) = remove_selected_target_pending_request(state) else {
+                send_text(
+                    &config.telegram.bot_token,
+                    chat_id,
+                    &tg_fmt(locale, "reset.none", target_label),
+                )
+                .await?;
+                return Ok(());
+            };
+            finalize_pending_feedback(config, &pending, tg(locale, "reset.status"));
+            send_text(
+                &config.telegram.bot_token,
+                chat_id,
+                &tg_fmt2(
+                    locale,
+                    "reset.done",
+                    pending.request_id,
+                    pending.target_label,
+                ),
+            )
+            .await?;
+        }
         _ => {
             send_text(
                 &config.telegram.bot_token,
@@ -199,6 +285,59 @@ pub(super) async fn send_pad_status_report(
     let locale = telegram_locale(config);
     let pad_status = runtime_status::describe_status(&crate::paths::pad_status_path());
     let body = build_pad_status_body(locale, &pad_status, state);
+    send_text(&config.telegram.bot_token, chat_id, &body).await?;
+    Ok(())
+}
+
+pub(super) async fn send_recent_history(
+    config: &Config,
+    state: &TelegramState,
+    chat_id: &str,
+) -> TelegramResult<()> {
+    let locale = telegram_locale(config);
+    let Some(target) = state.selected_target.as_ref() else {
+        send_text(
+            &config.telegram.bot_token,
+            chat_id,
+            tg(locale, "target.none"),
+        )
+        .await?;
+        return Ok(());
+    };
+
+    let panels = live_panels().map_err(telegram_error)?;
+    let Some(panel) = panels.iter().find(|panel| panel.pane_id == target.pane_id) else {
+        send_text(
+            &config.telegram.bot_token,
+            chat_id,
+            tg(locale, "pane.stale"),
+        )
+        .await?;
+        return Ok(());
+    };
+
+    if !history_supported_agent(&panel.agent_type) {
+        send_text(
+            &config.telegram.bot_token,
+            chat_id,
+            tg(locale, "history.unsupported"),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let turns = recent_history_turns(panel, locale);
+    if turns.is_empty() {
+        send_text(
+            &config.telegram.bot_token,
+            chat_id,
+            tg(locale, "history.empty"),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let body = format_recent_history_message(locale, &compact_target_label(panel), &turns);
     send_text(&config.telegram.bot_token, chat_id, &body).await?;
     Ok(())
 }
@@ -232,6 +371,234 @@ pub(super) fn build_pad_status_body(
         tg(locale, "status.pending"),
         pending
     )
+}
+
+fn history_supported_agent(agent_type: &AgentType) -> bool {
+    matches!(
+        agent_type,
+        AgentType::Codex | AgentType::Claude | AgentType::Gemini
+    )
+}
+
+pub(super) fn recent_history_turns(
+    panel: &AgentPanel,
+    locale: crate::i18n::Locale,
+) -> Vec<crate::model::PreviewTurn> {
+    let request = crate::preview_source::PreviewRequest {
+        target_key: panel.pane_id.clone(),
+        live_pane_id: Some(panel.pane_id.clone()),
+        agent_type: panel.agent_type.clone(),
+        working_dir: panel.working_dir.clone(),
+        state: panel.state.clone(),
+        transcript_path: panel.transcript_path.clone(),
+        cached_preview_turns: panel.cached_preview_turns.clone(),
+        session_cache_state: panel.session_cache_state,
+        agent_session_id: panel.agent_session_id.clone(),
+        session_origin: Some(crate::model::PreviewSessionOrigin::Pane),
+        persist_resolved_session: false,
+        known_updated_at: None,
+    };
+
+    let update = crate::preview_source::load_preview(&request, "session", locale);
+    let turns = if !update.turns.is_empty() {
+        update.turns.to_vec()
+    } else {
+        panel.cached_preview_turns.to_vec()
+    };
+    turns.into_iter().take(3).collect()
+}
+
+pub(super) fn format_recent_history_message(
+    locale: crate::i18n::Locale,
+    target_label: &str,
+    turns: &[crate::model::PreviewTurn],
+) -> String {
+    let mut lines = vec![
+        tg(locale, "history.title").to_string(),
+        target_label.to_string(),
+    ];
+
+    for (idx, turn) in turns.iter().enumerate() {
+        lines.push(String::new());
+        lines.push(format!("{}. Q:", idx + 1));
+        lines.push(turn.question.trim().to_string());
+        lines.push(String::new());
+        lines.push("A:".to_string());
+        lines.push(
+            turn.answer
+                .as_deref()
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+                .unwrap_or(tg(locale, "history.answer_missing"))
+                .to_string(),
+        );
+    }
+
+    lines.join("\n")
+}
+
+fn current_pad_restart_plan() -> Result<PadRestartPlan, String> {
+    let build_dir = std::path::Path::new(PAD_CARGO_MANIFEST_DIR);
+    if !build_dir.join("Cargo.toml").exists() {
+        return Err(format!(
+            "cargo manifest not found in {}",
+            build_dir.display()
+        ));
+    }
+
+    let current_exe = std::env::current_exe().map_err(|err| err.to_string())?;
+    let current_args = std::env::args().collect::<Vec<_>>();
+    let shell_command = build_pad_restart_shell_command(
+        &current_exe,
+        &current_args,
+        std::env::var("CARGO_TARGET_DIR").ok().as_deref(),
+    );
+    let target = current_pad_restart_target(&current_exe)?;
+
+    Ok(PadRestartPlan {
+        target,
+        start_dir: build_dir.to_string_lossy().to_string(),
+        shell_command,
+    })
+}
+
+fn current_pad_restart_target(current_exe: &std::path::Path) -> Result<PadRestartTarget, String> {
+    let current_tmux_pane = std::env::var("TMUX_PANE")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let pad_status_pid = runtime_status::read_status(&crate::paths::pad_status_path())
+        .filter(|status| runtime_status::process_alive(status.pid))
+        .map(|status| status.pid);
+
+    let panes = if current_tmux_pane.is_some() {
+        Vec::new()
+    } else if tmux_dispatch::session_exists(PAD_DEFAULT_SESSION_NAME)
+        .map_err(|err| err.to_string())?
+    {
+        tmux_dispatch::list_session_panes(PAD_DEFAULT_SESSION_NAME)
+            .map_err(|err| err.to_string())?
+    } else {
+        Vec::new()
+    };
+
+    let expected_command = current_exe
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("pad");
+
+    Ok(select_pad_restart_target(
+        current_tmux_pane.as_deref(),
+        PAD_DEFAULT_SESSION_NAME,
+        &panes,
+        pad_status_pid,
+        expected_command,
+    ))
+}
+
+pub(super) fn select_pad_restart_target(
+    current_tmux_pane: Option<&str>,
+    session_name: &str,
+    session_panes: &[crate::tmux_dispatch::SessionPaneInfo],
+    pad_pid: Option<u32>,
+    expected_command: &str,
+) -> PadRestartTarget {
+    if let Some(pane_id) = current_tmux_pane.filter(|value| !value.trim().is_empty()) {
+        return PadRestartTarget::RespawnPane(pane_id.to_string());
+    }
+
+    if let Some(pid) = pad_pid {
+        if let Some(pane) = session_panes.iter().find(|pane| pane.pid == Some(pid)) {
+            return PadRestartTarget::RespawnPane(pane.pane_id.clone());
+        }
+    }
+
+    if let Some(pane) = session_panes
+        .iter()
+        .find(|pane| pane.command.trim() == expected_command)
+    {
+        return PadRestartTarget::RespawnPane(pane.pane_id.clone());
+    }
+
+    if let Some(first) = session_panes.first() {
+        return PadRestartTarget::RespawnPane(first.pane_id.clone());
+    }
+
+    PadRestartTarget::NewDetachedSession(session_name.to_string())
+}
+
+pub(super) fn build_pad_restart_shell_command(
+    current_exe: &std::path::Path,
+    current_args: &[String],
+    cargo_target_dir: Option<&str>,
+) -> String {
+    let mut steps = Vec::new();
+    if let Some(cargo_target_dir) = cargo_target_dir.filter(|value| !value.trim().is_empty()) {
+        steps.push(format!(
+            "export CARGO_TARGET_DIR={}",
+            shell_single_quote(cargo_target_dir)
+        ));
+    }
+
+    let build_cmd = if restart_uses_release_profile(current_exe) {
+        "cargo build --release".to_string()
+    } else {
+        "cargo build".to_string()
+    };
+    steps.push(build_cmd);
+
+    let mut exec_parts = vec![
+        "exec".to_string(),
+        shell_single_quote(&current_exe.to_string_lossy()),
+    ];
+    for arg in pad_restart_args(current_args) {
+        exec_parts.push(shell_single_quote(&arg));
+    }
+    steps.push(exec_parts.join(" "));
+
+    steps.join(" && ")
+}
+
+fn execute_pad_restart_plan(plan: &PadRestartPlan) -> Result<(), String> {
+    log_debug!(
+        "telegram: executing pad restart target={:?} start_dir={} command={}",
+        plan.target,
+        plan.start_dir,
+        plan.shell_command
+    );
+
+    match &plan.target {
+        PadRestartTarget::RespawnPane(pane_id) => {
+            tmux_dispatch::respawn_pane_shell(pane_id, &plan.start_dir, &plan.shell_command)
+                .map_err(|err| err.to_string())
+        }
+        PadRestartTarget::NewDetachedSession(session_name) => {
+            tmux_dispatch::new_detached_session_shell(
+                session_name,
+                &plan.start_dir,
+                &plan.shell_command,
+            )
+            .map_err(|err| err.to_string())
+        }
+    }
+}
+
+fn restart_uses_release_profile(current_exe: &std::path::Path) -> bool {
+    current_exe
+        .components()
+        .any(|component| component.as_os_str() == "release")
+}
+
+fn pad_restart_args(current_args: &[String]) -> Vec<String> {
+    current_args
+        .iter()
+        .skip(1)
+        .filter(|arg| arg.as_str() != "telegram-bot")
+        .cloned()
+        .collect()
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r#"'\''"#))
 }
 
 pub(super) async fn dispatch_codex_slash_command(
@@ -419,6 +786,7 @@ pub(super) async fn handle_plain_text(
     let request_id = next_request_id();
     let transcript_path = panel.transcript_path.clone();
     let result_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
+    let failure_scan_offset = result_scan_offset;
     let approval_scan_offset = transcript_path.as_deref().map(transcript_len).unwrap_or(0);
     let sent_at = now_ts();
     let sent_at_ms = now_ms_i64();
@@ -442,6 +810,8 @@ pub(super) async fn handle_plain_text(
         phase: "awaiting_submit".to_string(),
         transcript_path,
         result_scan_offset,
+        failure_scan_offset,
+        last_failure_check_at: None,
         approval_scan_offset,
         approval_call_id: None,
         approval_justification: None,

@@ -106,6 +106,10 @@ pub(super) struct PendingRequest {
     #[serde(default)]
     pub(super) result_scan_offset: u64,
     #[serde(default)]
+    pub(super) failure_scan_offset: u64,
+    #[serde(default)]
+    pub(super) last_failure_check_at: Option<i64>,
+    #[serde(default)]
     pub(super) approval_scan_offset: u64,
     #[serde(default)]
     pub(super) approval_call_id: Option<String>,
@@ -165,6 +169,14 @@ pub(super) fn remove_pending_request(
     request_id: &str,
 ) -> Option<PendingRequest> {
     let index = pending_request_index_by_id(state, request_id)?;
+    Some(state.pending_requests.remove(index))
+}
+
+pub(super) fn remove_selected_target_pending_request(
+    state: &mut TelegramState,
+) -> Option<PendingRequest> {
+    let pane_id = state.selected_target.as_ref()?.pane_id.clone();
+    let index = pending_request_index_by_pane(state, &pane_id)?;
     Some(state.pending_requests.remove(index))
 }
 
