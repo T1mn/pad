@@ -296,7 +296,7 @@ fn same_path(left: &Path, right: &Path) -> bool {
     }
 }
 
-fn transcript_updated_at(path: &Path) -> Option<i64> {
+pub(super) fn transcript_updated_at(path: &Path) -> Option<i64> {
     std::fs::metadata(path)
         .ok()?
         .modified()

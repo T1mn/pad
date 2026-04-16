@@ -7,6 +7,7 @@ use super::storage::{load_index, prune_index, save_index};
 use super::util::{clean_text, now_ts, prefer_non_empty};
 use crate::hook::HookEvent;
 use crate::model::{AgentPanel, AgentType, PreviewTurn, SessionCacheState};
+use crate::session_continuity::ContinuityWriteSource;
 use std::borrow::Borrow;
 use std::io;
 use std::path::Path;
@@ -78,6 +79,17 @@ pub fn persist_hook_event(
     );
     save_index(&index)?;
 
+    crate::session_continuity::record_cache_write(
+        &panel.agent_type,
+        &agent_session_id,
+        index.sessions[record_idx]
+            .transcript_path
+            .as_deref()
+            .map(Path::new),
+        ContinuityWriteSource::Hook,
+        index.sessions[record_idx].recent_turns.len(),
+    );
+
     Ok(Some(snapshot_from_record(
         &index.sessions[record_idx],
         SessionCacheState::Confirmed,
@@ -127,7 +139,15 @@ pub fn persist_resolved_session(
         HookBindingContext::default(),
         now,
     );
-    save_index(&index)
+    save_index(&index)?;
+    crate::session_continuity::record_cache_write(
+        &panel.agent_type,
+        agent_session_id,
+        Some(transcript_path),
+        ContinuityWriteSource::Resolver,
+        index.sessions[record_idx].recent_turns.len(),
+    );
+    Ok(())
 }
 
 pub(super) fn merge_recent_turns(

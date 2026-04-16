@@ -214,6 +214,10 @@ pub(super) async fn set_my_commands(
             description: tg(locale, "command.history").to_string(),
         },
         TelegramCommandSpec {
+            command: "diag",
+            description: tg(locale, "command.diag").to_string(),
+        },
+        TelegramCommandSpec {
             command: "restart",
             description: tg(locale, "command.restart").to_string(),
         },

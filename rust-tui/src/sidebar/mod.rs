@@ -1,6 +1,7 @@
 mod build;
 mod display;
 mod model;
+mod provider;
 mod search;
 mod sort;
 

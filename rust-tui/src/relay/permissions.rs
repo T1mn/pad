@@ -20,9 +20,10 @@ pub(super) fn apply_runtime_overlays(
             codex.fast_mode,
             codex.multi_agent,
             &codex.web_search,
+            codex.prompt_file,
         );
     } else {
-        remove_codex_runtime_overlay(false, false, false, "default");
+        remove_codex_runtime_overlay(false, false, false, "default", false);
     }
 
     if has_claude && permissions.claude_auto_full_access {
@@ -37,6 +38,7 @@ fn apply_codex_runtime_overlay(
     fast_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
+    prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
     let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -63,7 +65,8 @@ fn apply_codex_runtime_overlay(
                 "service_tier": null,
                 "features_fast_mode": null,
                 "features_multi_agent": null,
-                "web_search": null
+                "web_search": null,
+                "model_instructions_file": null
             }),
         );
         restore_toml_string_field(root, "approval_policy", state.get("approval_policy"));
@@ -85,7 +88,8 @@ fn apply_codex_runtime_overlay(
                 "service_tier": null,
                 "features_fast_mode": null,
                 "features_multi_agent": null,
-                "web_search": null
+                "web_search": null,
+                "model_instructions_file": null
             }),
         );
         restore_toml_string_field(root, "service_tier", state.get("service_tier"));
@@ -107,7 +111,8 @@ fn apply_codex_runtime_overlay(
                 "service_tier": null,
                 "features_fast_mode": null,
                 "features_multi_agent": null,
-                "web_search": null
+                "web_search": null,
+                "model_instructions_file": null
             }),
         );
         restore_toml_bool_path(
@@ -131,17 +136,55 @@ fn apply_codex_runtime_overlay(
                 "service_tier": null,
                 "features_fast_mode": null,
                 "features_multi_agent": null,
-                "web_search": null
+                "web_search": null,
+                "model_instructions_file": null
             }),
         );
         restore_toml_string_field(root, "web_search", state.get("web_search"));
+    }
+
+    if prompt_file_enabled {
+        let prompt_path = crate::paths::codex_prompt_file_path();
+        if let Some(parent) = prompt_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if !prompt_path.exists() {
+            let _ = std::fs::write(&prompt_path, "");
+        }
+        root.insert(
+            "model_instructions_file".to_string(),
+            toml::Value::String(prompt_path.to_string_lossy().to_string()),
+        );
+    } else {
+        let state = read_json_value(
+            &codex_permission_state_path(),
+            json!({
+                "approval_policy": null,
+                "sandbox_mode": null,
+                "service_tier": null,
+                "features_fast_mode": null,
+                "features_multi_agent": null,
+                "web_search": null,
+                "model_instructions_file": null
+            }),
+        );
+        restore_toml_string_field(
+            root,
+            "model_instructions_file",
+            state.get("model_instructions_file"),
+        );
     }
 
     cleanup_empty_toml_table_path(root, &["features"]);
 
     write_text_file(&path, &serialize_toml_document(&doc));
 
-    if !yolo_enabled && !fast_enabled && !multi_agent_enabled && web_search_mode == "default" {
+    if !yolo_enabled
+        && !fast_enabled
+        && !multi_agent_enabled
+        && web_search_mode == "default"
+        && !prompt_file_enabled
+    {
         let _ = std::fs::remove_file(codex_permission_state_path());
     }
 }
@@ -151,6 +194,7 @@ fn remove_codex_runtime_overlay(
     fast_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
+    prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
     let state_path = codex_permission_state_path();
@@ -168,7 +212,8 @@ fn remove_codex_runtime_overlay(
             "service_tier": null,
             "features_fast_mode": null,
             "features_multi_agent": null,
-            "web_search": null
+            "web_search": null,
+            "model_instructions_file": null
         }),
     );
 
@@ -194,10 +239,22 @@ fn remove_codex_runtime_overlay(
     if web_search_mode == "default" {
         restore_toml_string_field(root, "web_search", state.get("web_search"));
     }
+    if !prompt_file_enabled {
+        restore_toml_string_field(
+            root,
+            "model_instructions_file",
+            state.get("model_instructions_file"),
+        );
+    }
     cleanup_empty_toml_table_path(root, &["features"]);
 
     write_text_file(&path, &serialize_toml_document(&doc));
-    if !yolo_enabled && !fast_enabled && !multi_agent_enabled && web_search_mode == "default" {
+    if !yolo_enabled
+        && !fast_enabled
+        && !multi_agent_enabled
+        && web_search_mode == "default"
+        && !prompt_file_enabled
+    {
         let _ = std::fs::remove_file(state_path);
     }
 }
@@ -215,6 +272,9 @@ fn capture_codex_permission_state_once(root: &toml::map::Map<String, toml::Value
         "features_fast_mode": toml_bool_at_path(root, &["features", "fast_mode"]),
         "features_multi_agent": toml_bool_at_path(root, &["features", "multi_agent"]),
         "web_search": root.get("web_search").and_then(|value| value.as_str()),
+        "model_instructions_file": root
+            .get("model_instructions_file")
+            .and_then(|value| value.as_str()),
     });
     write_json_value(&path, &value);
 }

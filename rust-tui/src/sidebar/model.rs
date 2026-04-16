@@ -33,6 +33,7 @@ pub struct SidebarThread {
     pub runtime_source: Option<ThreadRuntimeSource>,
     pub session_id: Option<String>,
     pub transcript_path: Option<String>,
+    pub session_provider_name: Option<String>,
     pub title: String,
     pub upstream_title: Option<String>,
     pub generated_title: Option<String>,

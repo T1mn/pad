@@ -34,6 +34,7 @@ pub(super) fn merge_claude_threads(
             runtime_source: None,
             session_id: Some(thread.session_id.clone()),
             transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
+            session_provider_name: None,
             title: best_thread_title(thread.title.as_deref(), Some(thread.session_id.as_str())),
             upstream_title: thread.title.as_deref().and_then(clean_title),
             generated_title: None,

@@ -53,8 +53,20 @@ pub fn hook_events_path() -> PathBuf {
     logs_dir().join("hook-events.jsonl")
 }
 
+pub fn session_continuity_log_path() -> PathBuf {
+    logs_dir().join("session-continuity.jsonl")
+}
+
 pub fn scripts_dir() -> PathBuf {
     pad_home_dir().join("scripts")
+}
+
+pub fn prompts_dir() -> PathBuf {
+    pad_home_dir().join("prompt")
+}
+
+pub fn codex_prompt_file_path() -> PathBuf {
+    prompts_dir().join("codex.md")
 }
 
 pub fn sounds_dir() -> PathBuf {
@@ -71,6 +83,10 @@ pub fn sessions_dir() -> PathBuf {
 
 pub fn sessions_index_path() -> PathBuf {
     sessions_dir().join("index.json")
+}
+
+pub fn session_continuity_state_path() -> PathBuf {
+    sessions_dir().join("continuity.json")
 }
 
 pub fn claude_hook_bridge_path() -> PathBuf {
@@ -105,7 +121,11 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(pad_home_dir())?;
     fs::create_dir_all(logs_dir())?;
     fs::create_dir_all(scripts_dir())?;
+    fs::create_dir_all(prompts_dir())?;
     fs::create_dir_all(sessions_dir())?;
+    if !codex_prompt_file_path().exists() {
+        fs::write(codex_prompt_file_path(), "")?;
+    }
     if !hook_events_path().exists() {
         fs::write(hook_events_path(), "")?;
     }
@@ -562,6 +582,39 @@ if __name__ == "__main__":
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_home(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("pad-paths-{name}-{stamp}"))
+    }
+
+    fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock paths tests");
+        let home = temp_home(name);
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).expect("create temp home");
+
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let result = f(&home);
+
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        let _ = std::fs::remove_dir_all(&home);
+
+        result
+    }
 
     #[test]
     fn claude_bridge_template_stays_minimal_and_forwards_turn_id() {
@@ -582,5 +635,18 @@ mod tests {
         assert!(template.contains("def load_payload():"));
         assert!(template.contains("stderr=subprocess.DEVNULL"));
         assert!(template.contains("payload.get(\"hook_event_name\") or hook_type"));
+    }
+
+    #[test]
+    fn ensure_runtime_layout_creates_codex_prompt_file() {
+        with_temp_home("runtime-layout", |_home| {
+            ensure_runtime_layout().expect("ensure runtime layout");
+            assert!(prompts_dir().is_dir());
+            assert!(codex_prompt_file_path().is_file());
+            assert_eq!(
+                std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
+                ""
+            );
+        });
     }
 }

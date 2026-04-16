@@ -35,6 +35,7 @@ mod runtime_status;
 mod scanner;
 mod session;
 mod session_cache;
+mod session_continuity;
 mod sidebar;
 mod sound;
 mod system_check;

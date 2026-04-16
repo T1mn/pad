@@ -25,16 +25,16 @@ pub(super) fn tg(locale: crate::i18n::Locale, key: &str) -> &str {
         "bind.other_chat" if zh => "这个 bot 已绑定到另一个 Telegram 聊天。",
         "bind.other_chat" => "This bot is already linked to another Telegram chat.",
         "start.ready" if zh => {
-            "Pad Telegram 已就绪。用 /list 查看并点击目标，或用 /use <编号> 选择；/history 查看最近 3 条问答，/status 查看 Codex 状态，/fast 切换 Fast mode，/compact 压缩上下文，/padstatus 查看 bot 当前状态，异常占位时可用 /reset 清掉当前目标的 pending，/restart 可远程重编译并重启整个 pad。"
+            "Pad Telegram 已就绪。用 /list 查看并点击目标，或用 /use <编号> 选择；/history 查看最近 3 条问答，/diag 查看当前连续性诊断，/status 查看 Codex 状态，/fast 切换 Fast mode，/compact 压缩上下文，/padstatus 查看 bot 当前状态，异常占位时可用 /reset 清掉当前目标的 pending，/restart 可远程重编译并重启整个 pad。"
         }
         "start.ready" => {
-            "Pad Telegram is ready. Use /list to pick a target, or /use <number>; /history shows the latest three turns, /status shows Codex status, /fast toggles Fast mode, /compact compacts context, /padstatus shows bot state, /reset clears the current target's stuck pending state, and /restart rebuilds and restarts the whole pad."
+            "Pad Telegram is ready. Use /list to pick a target, or /use <number>; /history shows the latest three turns, /diag shows session continuity diagnostics, /status shows Codex status, /fast toggles Fast mode, /compact compacts context, /padstatus shows bot state, /reset clears the current target's stuck pending state, and /restart rebuilds and restarts the whole pad."
         }
         "help.body" if zh => {
-            "/start\n/help\n/list\n/agents\n/use <编号>\n/history\n/status\n/fast [on|off|status]\n/compact\n/padstatus\n/restart\n/reset\n/stop\n\n选择目标后，直接发送普通文本即可。"
+            "/start\n/help\n/list\n/agents\n/use <编号>\n/history\n/diag [request_id|session_id|pane_id]\n/status\n/fast [on|off|status]\n/compact\n/padstatus\n/restart\n/reset\n/stop\n\n选择目标后，直接发送普通文本即可。"
         }
         "help.body" => {
-            "/start\n/help\n/list\n/agents\n/use <number>\n/history\n/status\n/fast [on|off|status]\n/compact\n/padstatus\n/restart\n/reset\n/stop\n\nAfter selecting a target, just send plain text."
+            "/start\n/help\n/list\n/agents\n/use <number>\n/history\n/diag [request_id|session_id|pane_id]\n/status\n/fast [on|off|status]\n/compact\n/padstatus\n/restart\n/reset\n/stop\n\nAfter selecting a target, just send plain text."
         }
         "use.usage" if zh => "用法：/use <编号>。先执行 /agents 获取编号。",
         "use.usage" => "Usage: /use <number>. Run /agents first to get a fresh list.",
@@ -108,6 +108,26 @@ pub(super) fn tg(locale: crate::i18n::Locale, key: &str) -> &str {
         "history.unsupported" => "The current target does not support /history yet.",
         "history.answer_missing" if zh => "…",
         "history.answer_missing" => "...",
+        "diag.title" if zh => "当前会话诊断",
+        "diag.title" => "Session Diagnostic",
+        "diag.empty" if zh => "当前还没有 continuity 诊断数据。",
+        "diag.empty" => "No continuity diagnostic data is available yet.",
+        "diag.summary" if zh => "连续性",
+        "diag.summary" => "Continuity",
+        "diag.health" if zh => "健康度",
+        "diag.health" => "Health",
+        "diag.classification" if zh => "分类",
+        "diag.classification" => "Classification",
+        "diag.lag" if zh => "滞后",
+        "diag.lag" => "Lag",
+        "diag.lag_short" if zh => "{}s",
+        "diag.lag_short" => "{}s",
+        "diag.last_hook" if zh => "最近 Hook",
+        "diag.last_hook" => "Last hook",
+        "diag.stale_events" if zh => "滞后计数",
+        "diag.stale_events" => "Stale events",
+        "diag.transcript" if zh => "Transcript",
+        "diag.transcript" => "Transcript",
         "restart.preparing" if zh => "开始重启当前 pad。接下来会重编译并在原 pane 内重新拉起，Telegram 可能会短暂不可用。",
         "restart.preparing" => "Starting a full pad restart. It will rebuild and relaunch in the current pane, and Telegram may be briefly unavailable.",
         "restart.starting" if zh => "开始启动 pad。接下来会重编译并在 tmux session 里拉起一个新的 pad。",
@@ -191,6 +211,8 @@ pub(super) fn tg(locale: crate::i18n::Locale, key: &str) -> &str {
         "command.use" => "Select the target agent by number",
         "command.history" if zh => "查看当前目标最近 3 条问答",
         "command.history" => "Show the current target's latest 3 turns",
+        "command.diag" if zh => "查看当前会话连续性诊断",
+        "command.diag" => "Show the current session continuity diagnostic",
         "command.restart" if zh => "重编译并重启整个 pad",
         "command.restart" => "Rebuild and restart the whole pad",
         "command.status" if zh => "查看当前 Codex 会话状态",
