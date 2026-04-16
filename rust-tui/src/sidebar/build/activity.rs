@@ -27,6 +27,9 @@ pub(super) fn merge_or_insert_thread(
             .transcript_path
             .clone()
             .or(history_entry.transcript_path.clone());
+        if existing.session_provider_name.is_none() {
+            existing.session_provider_name = history_entry.session_provider_name.clone();
+        }
         existing.archived = existing.archived || history_entry.archived;
         if existing.title.trim().is_empty() || existing.title.starts_with('%') {
             existing.title = history_entry.title;

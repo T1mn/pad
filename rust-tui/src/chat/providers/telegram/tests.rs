@@ -318,6 +318,7 @@ fn help_page_html_includes_target_and_commands() {
 
     let overview_html = help_page_html(crate::i18n::Locale::En, &state, HelpPage::Overview);
     assert!(overview_html.contains("/history"));
+    assert!(overview_html.contains("/diag"));
     assert!(overview_html.contains("/restart"));
     assert!(overview_html.contains("/reset"));
 }

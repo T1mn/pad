@@ -6,6 +6,7 @@ use super::common::{
 use super::{
     apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
 };
+use crate::paths::codex_prompt_file_path;
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -783,6 +784,76 @@ fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
         assert!(value.contains("web_search = \"cached\""));
+    });
+}
+
+#[test]
+fn runtime_configs_apply_codex_prompt_file_without_relay_provider() {
+    with_temp_home("codex-prompt-file", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.prompt_file = true;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        let expected = codex_prompt_file_path().to_string_lossy().to_string();
+        assert!(value.contains(&format!("model_instructions_file = \"{expected}\"")));
+        assert!(codex_prompt_file_path().is_file());
+        assert_eq!(
+            std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
+            ""
+        );
+        assert!(codex_permission_state_path().exists());
+    });
+}
+
+#[test]
+fn runtime_configs_restore_previous_codex_prompt_file_when_disabled() {
+    with_temp_home("codex-prompt-file-restore", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            "model = \"gpt-5\"\nmodel_instructions_file = \"/tmp/original.md\"\n",
+        )
+        .expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.prompt_file = true;
+        apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
+
+        codex.prompt_file = false;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        assert!(value.contains("model_instructions_file = \"/tmp/original.md\""));
     });
 }
 

@@ -442,10 +442,41 @@ fn agent_provider_value(app: &App, agent_name: &str, thread: &SidebarThread) -> 
     else {
         return "—".to_string();
     };
+    if let Some(session_provider_name) = thread
+        .session_provider_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if let Some(provider) = agent.providers.iter().find(|provider| {
+            provider_identity_for_thread(thread, provider) == session_provider_name
+        }) {
+            return format_provider_value(thread, provider);
+        }
+        return session_provider_name.to_string();
+    }
+
     let Some(provider) = agent.active() else {
         return "—".to_string();
     };
+    format_provider_value(thread, provider)
+}
 
+fn provider_identity_for_thread(
+    thread: &SidebarThread,
+    provider: &crate::theme::ProviderConfig,
+) -> String {
+    match thread.agent_type {
+        AgentType::Codex => provider.codex_provider_name(),
+        AgentType::OpenCode => provider.opencode_provider_key().to_string(),
+        _ => provider.label.trim().to_string(),
+    }
+}
+
+fn format_provider_value(
+    thread: &SidebarThread,
+    provider: &crate::theme::ProviderConfig,
+) -> String {
     let label = provider.label.trim();
     let url = match thread.agent_type {
         AgentType::Codex => provider.codex_base_url(),
@@ -486,7 +517,90 @@ mod tests {
     }
 
     #[test]
-    fn preview_provider_value_uses_active_provider_url() {
+    fn preview_provider_value_prefers_session_bound_provider() {
+        let mut app = App::new();
+        if let Some(agent) = app
+            .config
+            .agents
+            .iter_mut()
+            .find(|agent| agent.name == "codex")
+        {
+            agent.providers = vec![
+                ProviderConfig {
+                    label: "relay-a".into(),
+                    base_url: "http://127.0.0.1:8317".into(),
+                    api_key: String::new(),
+                    env_key: String::new(),
+                    wire_api: "responses".into(),
+                    provider_key: String::new(),
+                    npm_package: String::new(),
+                    models: Vec::new(),
+                    test_status: None,
+                    test_http_status: None,
+                    test_latency_ms: None,
+                    test_result: None,
+                },
+                ProviderConfig {
+                    label: "relay-b".into(),
+                    base_url: "http://127.0.0.1:8418".into(),
+                    api_key: String::new(),
+                    env_key: String::new(),
+                    wire_api: "responses".into(),
+                    provider_key: String::new(),
+                    npm_package: String::new(),
+                    models: Vec::new(),
+                    test_status: None,
+                    test_http_status: None,
+                    test_latency_ms: None,
+                    test_result: None,
+                },
+            ];
+            agent.active_provider = Some(1);
+        }
+
+        let thread = SidebarThread {
+            key: "codex:sid-1".into(),
+            folder_key: "/repo".into(),
+            working_dir: "/repo".into(),
+            folder_label: "repo".into(),
+            agent_type: AgentType::Codex,
+            runtime_source: None,
+            session_id: Some("sid-1".into()),
+            transcript_path: None,
+            session_provider_name: Some("relay_a".into()),
+            title: "title".into(),
+            upstream_title: None,
+            generated_title: None,
+            subtitle: None,
+            title_override: None,
+            note: None,
+            tags: Vec::new(),
+            pinned: false,
+            updated_at: 0,
+            sort_updated_at: 0,
+            live_pane_id: None,
+            live_location: None,
+            pid: None,
+            git_info: None,
+            state: AgentState::Idle,
+            is_active: false,
+            cached_preview_turns: Default::default(),
+            session_cache_state: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+            archived: false,
+            deleted: false,
+        };
+
+        assert_eq!(
+            preview_provider_value(&app, &thread),
+            "relay-a · http://127.0.0.1:8317/v1"
+        );
+    }
+
+    #[test]
+    fn preview_provider_value_falls_back_to_active_provider_without_session_binding() {
         let mut app = App::new();
         if let Some(agent) = app
             .config
@@ -520,6 +634,7 @@ mod tests {
             runtime_source: None,
             session_id: Some("sid-1".into()),
             transcript_path: None,
+            session_provider_name: None,
             title: "title".into(),
             upstream_title: None,
             generated_title: None,

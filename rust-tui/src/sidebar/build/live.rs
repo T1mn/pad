@@ -86,6 +86,7 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
         runtime_source: None,
         session_id: panel.agent_session_id.clone(),
         transcript_path: panel.transcript_path.clone(),
+        session_provider_name: resolve_live_panel_session_provider_name(panel),
         title: upstream_title
             .clone()
             .or_else(|| fallback_title.map(|value| value.to_string()))
@@ -155,6 +156,28 @@ fn resolve_live_panel_subtitle(panel: &AgentPanel) -> Option<String> {
             .first()
             .map(|turn| turn.question.clone())
     })
+}
+
+fn resolve_live_panel_session_provider_name(panel: &AgentPanel) -> Option<String> {
+    if let Some(path) = panel.transcript_path.as_deref() {
+        return crate::sidebar::provider::resolve_session_provider_name(
+            &panel.agent_type,
+            Some(Path::new(path)),
+        );
+    }
+
+    if panel.agent_type == AgentType::Codex {
+        let session_id = panel.agent_session_id.as_deref()?;
+        let thread = crate::codex_state::thread_for_id(session_id)
+            .ok()
+            .flatten()?;
+        return crate::sidebar::provider::resolve_session_provider_name(
+            &panel.agent_type,
+            Some(thread.rollout_path.as_path()),
+        );
+    }
+
+    None
 }
 
 fn file_mtime(path: &Path) -> Option<i64> {

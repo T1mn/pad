@@ -105,6 +105,13 @@ impl App {
                 _ => {}
             }
 
+            crate::session_continuity::record_hook_event(
+                Some(&panel.agent_type),
+                &event,
+                panel.agent_session_id.as_deref(),
+                panel.transcript_path.as_deref(),
+            );
+
             match crate::session_cache::persist_hook_event(panel, &event) {
                 Ok(snapshot) => persisted_snapshot = snapshot,
                 Err(err) => log_debug!("session_cache: persist hook failed: {}", err),
@@ -176,6 +183,12 @@ impl App {
         let Some(activity) = app_thread_activity_from_hook(&event) else {
             return;
         };
+        crate::session_continuity::record_hook_event(
+            Some(&activity.agent_type),
+            &event,
+            activity.session_id.as_deref(),
+            activity.transcript_path.as_deref(),
+        );
         let pending_notification = completion_notification_for_activity(&activity, &event);
 
         let selected_matches = self

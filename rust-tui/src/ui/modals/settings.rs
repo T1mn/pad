@@ -437,6 +437,15 @@ fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             "settings.codex_web_search_desc",
         ),
         (
+            "settings.codex_prompt_file",
+            if app.config.codex.prompt_file {
+                t(l, "settings.on")
+            } else {
+                t(l, "settings.off")
+            },
+            "settings.codex_prompt_file_desc",
+        ),
+        (
             "settings.codex_title_summary",
             if app.config.codex.title_summary {
                 t(l, "settings.on")

@@ -291,7 +291,7 @@ fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 4 {
+            if app.codex_settings_selected < 5 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -323,6 +323,9 @@ fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
                     };
                 }
                 4 => {
+                    app.config.codex.prompt_file = !app.config.codex.prompt_file;
+                }
+                5 => {
                     app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
                 _ => {}
@@ -717,6 +720,7 @@ mod tests {
             app.config.codex.fast_mode = false;
             app.config.codex.multi_agent = false;
             app.config.codex.web_search = "default".into();
+            app.config.codex.prompt_file = false;
             app.config.codex.title_summary = false;
 
             app.codex_settings_selected = 0;
@@ -747,6 +751,13 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Down);
             assert_eq!(app.codex_settings_selected, 4);
             handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.prompt_file);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(!app.config.codex.prompt_file);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 5);
+            handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.title_summary);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.title_summary);
@@ -769,7 +780,7 @@ mod tests {
             for _ in 0..10 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 4);
+            assert_eq!(app.codex_settings_selected, 5);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

@@ -69,6 +69,7 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         runtime_source: None,
         session_id: Some("sid-1".into()),
         transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
+        session_provider_name: None,
         title: "live".into(),
         upstream_title: None,
         generated_title: None,

@@ -66,6 +66,10 @@ pub(super) fn build_codex_history_entry(
         runtime_source: None,
         session_id: Some(thread.thread_id.clone()),
         transcript_path: Some(thread.rollout_path.to_string_lossy().to_string()),
+        session_provider_name: crate::sidebar::provider::resolve_session_provider_name(
+            &AgentType::Codex,
+            Some(thread.rollout_path.as_path()),
+        ),
         title,
         upstream_title: thread.title.as_deref().and_then(clean_title),
         generated_title: None,

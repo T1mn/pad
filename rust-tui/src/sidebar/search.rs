@@ -98,6 +98,7 @@ mod tests {
             runtime_source: Some(ThreadRuntimeSource::Cli),
             session_id: Some(key.into()),
             transcript_path: None,
+            session_provider_name: None,
             title: title.into(),
             upstream_title: Some(title.into()),
             generated_title: None,

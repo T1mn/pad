@@ -231,6 +231,7 @@ fn load_session_preview(
 
     if let Some(target) = target {
         let transcript_path = target.transcript_path.clone();
+        let transcript_updated_at = session_target::transcript_updated_at(&transcript_path);
         let parse_started_at = Instant::now();
         let turns = match request.agent_type {
             AgentType::Codex => {
@@ -248,6 +249,58 @@ fn load_session_preview(
 
         match turns {
             Ok(turns) if !turns.is_empty() => {
+                let continuity_decision = if !request.cached_preview_turns.is_empty()
+                    && request.session_cache_state == Some(SessionCacheState::Confirmed)
+                {
+                    crate::session_continuity::assess_preview_fallback(
+                        &request.agent_type,
+                        target
+                            .session_id
+                            .as_deref()
+                            .or(request.agent_session_id.as_deref()),
+                        Some(&transcript_path),
+                        transcript_updated_at,
+                        target.updated_at,
+                        request.known_updated_at,
+                        request.cached_preview_turns.len(),
+                        turns.len(),
+                    )
+                } else {
+                    None
+                };
+
+                if let Some(decision) = continuity_decision.as_ref() {
+                    crate::session_continuity::record_preview_assessment(
+                        &request.agent_type,
+                        target
+                            .session_id
+                            .as_deref()
+                            .or(request.agent_session_id.as_deref()),
+                        Some(&transcript_path),
+                        target.updated_at,
+                        request.cached_preview_turns.len(),
+                        turns.len(),
+                        decision,
+                    );
+
+                    if decision.prefer_cache {
+                        log_debug!(
+                            "preview.session: target={} agent={} continuity={} lag_s={} prefer_cache=1",
+                            request.target_key,
+                            request.agent_type,
+                            decision.reason,
+                            decision.lag_seconds.unwrap_or_default()
+                        );
+                        return Ok(cached_session_preview_with_metadata(
+                            request,
+                            Some(target.origin),
+                            target.session_id.clone(),
+                            Some(transcript_path.to_string_lossy().to_string()),
+                            max_i64(target.updated_at, request.known_updated_at),
+                        ));
+                    }
+                }
+
                 let transcript_string = transcript_path.to_string_lossy().to_string();
                 if target.origin == PreviewSessionOrigin::Pane && request.persist_resolved_session {
                     if let Some(panel) =
@@ -349,15 +402,40 @@ fn load_session_preview(
 }
 
 fn cached_session_preview(request: &PreviewRequest) -> SessionPreviewData {
+    cached_session_preview_with_metadata(
+        request,
+        request.session_origin,
+        request.agent_session_id.clone(),
+        request.transcript_path.clone(),
+        request.known_updated_at,
+    )
+}
+
+fn cached_session_preview_with_metadata(
+    request: &PreviewRequest,
+    session_origin: Option<PreviewSessionOrigin>,
+    session_id: Option<String>,
+    transcript_path: Option<String>,
+    updated_at: Option<i64>,
+) -> SessionPreviewData {
     SessionPreviewData {
         turns: request.cached_preview_turns.clone(),
-        session_origin: request.session_origin.unwrap_or(PreviewSessionOrigin::Pane),
-        session_id: request.agent_session_id.clone(),
-        transcript_path: request.transcript_path.clone(),
+        session_origin: session_origin.unwrap_or(PreviewSessionOrigin::Pane),
+        session_id,
+        transcript_path,
         cache_state: request
             .session_cache_state
             .unwrap_or(SessionCacheState::Cached),
-        updated_at: request.known_updated_at,
+        updated_at,
+    }
+}
+
+fn max_i64(left: Option<i64>, right: Option<i64>) -> Option<i64> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
     }
 }
 

@@ -269,6 +269,7 @@ mod tests {
             runtime_source: None,
             session_id: Some("session-1".into()),
             transcript_path: None,
+            session_provider_name: None,
             title: "Test".into(),
             upstream_title: None,
             generated_title: None,

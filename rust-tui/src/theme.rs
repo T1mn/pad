@@ -826,6 +826,7 @@ pub struct CodexConfig {
     pub fast_mode: bool,
     pub multi_agent: bool,
     pub web_search: String,
+    pub prompt_file: bool,
     pub title_summary: bool,
 }
 
@@ -846,6 +847,7 @@ impl Default for CodexConfig {
             fast_mode: false,
             multi_agent: false,
             web_search: "default".to_string(),
+            prompt_file: false,
             title_summary: false,
         }
     }
@@ -1082,6 +1084,9 @@ impl Config {
             }
             if let Some(toml::Value::String(mode)) = codex.get("web_search") {
                 config.codex.web_search = CodexConfig::normalized_web_search(mode);
+            }
+            if let Some(toml::Value::Boolean(enabled)) = codex.get("prompt_file") {
+                config.codex.prompt_file = *enabled;
             }
             if let Some(toml::Value::Boolean(enabled)) = codex.get("title_summary") {
                 config.codex.title_summary = *enabled;
@@ -1371,6 +1376,7 @@ impl Config {
         content.push_str(&format!("fast_mode = {}\n", self.codex.fast_mode));
         content.push_str(&format!("multi_agent = {}\n", self.codex.multi_agent));
         content.push_str(&format!("web_search = \"{}\"\n", self.codex.web_search));
+        content.push_str(&format!("prompt_file = {}\n", self.codex.prompt_file));
         content.push_str(&format!("title_summary = {}\n", self.codex.title_summary));
         content.push_str("\n[agent_permissions]\n");
         content.push_str(&format!(
@@ -1501,6 +1507,7 @@ mod tests {
             config.codex.fast_mode = true;
             config.codex.multi_agent = true;
             config.codex.web_search = "live".into();
+            config.codex.prompt_file = true;
             config.codex.title_summary = true;
             let opencode = config
                 .agents
@@ -1535,6 +1542,7 @@ mod tests {
             assert!(loaded.codex.fast_mode);
             assert!(loaded.codex.multi_agent);
             assert_eq!(loaded.codex.web_search, "live");
+            assert!(loaded.codex.prompt_file);
             assert!(loaded.codex.title_summary);
             let opencode = loaded
                 .agents

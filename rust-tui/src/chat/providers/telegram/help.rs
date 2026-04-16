@@ -111,7 +111,7 @@ pub(super) fn help_page_html(
 
 fn help_overview_body(locale: crate::i18n::Locale) -> String {
     format!(
-        "{}\n\n<b>{}</b>\n1. <code>/list</code> {}\n2. {}\n3. {}\n\n<b>{}</b>\n• <code>/use &lt;n&gt;</code> {}\n• <code>/history</code> {}\n• <code>/padstatus</code> {}\n• <code>/restart</code> {}\n• <code>/reset</code> {}\n• <code>/stop</code> {}",
+        "{}\n\n<b>{}</b>\n1. <code>/list</code> {}\n2. {}\n3. {}\n\n<b>{}</b>\n• <code>/use &lt;n&gt;</code> {}\n• <code>/history</code> {}\n• <code>/diag</code> {}\n• <code>/padstatus</code> {}\n• <code>/restart</code> {}\n• <code>/reset</code> {}\n• <code>/stop</code> {}",
         help_intro(locale, "overview"),
         help_text(locale, "section.quick"),
         help_text(locale, "overview.step1"),
@@ -120,6 +120,7 @@ fn help_overview_body(locale: crate::i18n::Locale) -> String {
         help_text(locale, "section.utility"),
         help_text(locale, "overview.use"),
         help_text(locale, "overview.history"),
+        help_text(locale, "overview.diag"),
         help_text(locale, "overview.padstatus"),
         help_text(locale, "overview.restart"),
         help_text(locale, "overview.reset"),
@@ -318,6 +319,18 @@ fn help_text(locale: crate::i18n::Locale, key: &str) -> &'static str {
             "Affiche les trois derniers échanges question-réponse de la cible actuelle."
         }
         (_, "overview.history") => "show the current target's latest three turns.",
+        (crate::i18n::Locale::ZhCN, "overview.diag") => "查看当前会话的 continuity 诊断，可用于排查 frozen 或 lagging。",
+        (crate::i18n::Locale::ZhTW, "overview.diag") => "查看目前會話的 continuity 診斷，可用於排查 frozen 或 lagging。",
+        (crate::i18n::Locale::Ja, "overview.diag") => "現在のセッションの continuity 診断を表示し、frozen や lagging を確認します。",
+        (crate::i18n::Locale::De, "overview.diag") => {
+            "Zeigt die Continuity-Diagnose der aktuellen Sitzung, etwa bei frozen oder lagging."
+        }
+        (crate::i18n::Locale::Fr, "overview.diag") => {
+            "Affiche le diagnostic de continuité de la session courante, utile pour frozen ou lagging."
+        }
+        (_, "overview.diag") => {
+            "show the current session continuity diagnostic for frozen or lagging cases."
+        }
         (crate::i18n::Locale::ZhCN, "overview.padstatus") => "查看 pad 和 bot 当前运行状态。",
         (crate::i18n::Locale::ZhTW, "overview.padstatus") => "查看 pad 和 bot 目前執行狀態。",
         (crate::i18n::Locale::Ja, "overview.padstatus") => "pad と bot の現在の稼働状態を確認します。",
