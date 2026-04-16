@@ -253,7 +253,7 @@ fn play_internal(_event: Option<SoundEvent>, preset_id: &str) -> io::Result<bool
             return Ok(false);
         };
         spawn_audio(&spec.program, &spec.args)?;
-        return Ok(true);
+        Ok(true)
     }
 
     #[cfg(target_os = "linux")]
@@ -262,7 +262,7 @@ fn play_internal(_event: Option<SoundEvent>, preset_id: &str) -> io::Result<bool
             return Ok(false);
         };
         spawn_audio(&spec.program, &spec.args)?;
-        return Ok(true);
+        Ok(true)
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
@@ -343,7 +343,7 @@ fn ms_to_samples(ms: u16) -> usize {
 }
 
 fn write_wav(samples: &[i16]) -> Vec<u8> {
-    let data_len = (samples.len() * std::mem::size_of::<i16>()) as u32;
+    let data_len = std::mem::size_of_val(samples) as u32;
     let riff_len = 36 + data_len;
     let byte_rate = SAMPLE_RATE * WAV_CHANNELS as u32 * WAV_BITS_PER_SAMPLE as u32 / 8;
     let block_align = WAV_CHANNELS * WAV_BITS_PER_SAMPLE / 8;
@@ -602,8 +602,10 @@ mod tests {
             .expect("lock sound toggle tests");
         with_test_sound_capture(|| {
             let _ = take_test_playbacks();
-            let mut config = SoundConfig::default();
-            config.enabled = false;
+            let mut config = SoundConfig {
+                enabled: false,
+                ..SoundConfig::default()
+            };
             assert!(!play_event(&config, SoundEvent::Completion).expect("play sound"));
             assert!(take_test_playbacks().is_empty());
 
