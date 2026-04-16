@@ -5,6 +5,12 @@ pub(super) struct DraftFeedbackGate {
     pub(super) send_lock: AsyncMutex<()>,
 }
 
+#[derive(Clone, Debug)]
+struct PendingRolloutFailureResolution {
+    pending: PendingRequest,
+    failure: crate::chat::approval::CodexFailureEvent,
+}
+
 pub(super) async fn process_pending_timeout(
     config: &Config,
     state: &mut TelegramState,
@@ -27,6 +33,67 @@ pub(super) async fn process_pending_timeout(
         )
         .await?;
         play_sound_event(config, crate::sound::SoundEvent::Timeout);
+    }
+
+    Ok(())
+}
+
+pub(super) async fn process_pending_rollout_failures(
+    config: &Config,
+    state: &mut TelegramState,
+) -> TelegramResult<()> {
+    let now = now_ts();
+    let request_ids = state
+        .pending_requests
+        .iter()
+        .filter(|pending| pending_rollout_failure_check_due(pending, now))
+        .map(|pending| pending.request_id.clone())
+        .collect::<Vec<_>>();
+
+    for request_id in request_ids {
+        let resolution = match detect_pending_rollout_failure_for_request(state, &request_id, now) {
+            Ok(resolution) => resolution,
+            Err(err) => {
+                log_debug!(
+                    "telegram: rollout failure detection failed request_id={} err={}",
+                    request_id,
+                    err
+                );
+                continue;
+            }
+        };
+        let Some(resolution) = resolution else {
+            continue;
+        };
+
+        let locale = telegram_locale(config);
+        finalize_pending_feedback(config, &resolution.pending, tg(locale, "phase.failed"));
+        let reply = pending_failure_reply_text(locale, &resolution.pending, &resolution.failure);
+        if let Err(err) = send_text(
+            &config.telegram.bot_token,
+            &resolution.pending.chat_id,
+            &reply,
+        )
+        .await
+        {
+            log_debug!(
+                "telegram: rollout failure notification failed request_id={} err={}",
+                resolution.pending.request_id,
+                err
+            );
+        }
+        play_sound_event(config, crate::sound::SoundEvent::Failure);
+        log_debug!(
+            "telegram: rollout failure released pending request={} pane={} error_info={} message={}",
+            resolution.pending.request_id,
+            resolution.pending.pane_id,
+            resolution
+                .failure
+                .error_info
+                .as_deref()
+                .unwrap_or("unknown"),
+            truncate_for_log(&resolution.failure.message, 240)
+        );
     }
 
     Ok(())
@@ -248,6 +315,145 @@ pub(super) fn finalize_pending_feedback(config: &Config, pending: &PendingReques
         sleep(Duration::from_secs(5)).await;
         clear_draft_feedback_gate(draft_id);
     });
+}
+
+fn pending_rollout_failure_check_due(pending: &PendingRequest, now: i64) -> bool {
+    if pending.agent_kind != "codex" {
+        return false;
+    }
+    if !matches!(pending.phase.as_str(), "awaiting_stop" | "awaiting_confirm") {
+        return false;
+    }
+    let Some(accepted_at) = pending.accepted_at else {
+        return false;
+    };
+    if now.saturating_sub(accepted_at) < PENDING_FAILURE_SCAN_DELAY_SECS {
+        return false;
+    }
+    pending
+        .last_failure_check_at
+        .map(|last_checked| now.saturating_sub(last_checked) >= PENDING_FAILURE_SCAN_INTERVAL_SECS)
+        .unwrap_or(true)
+}
+
+fn pending_failure_reply_text(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+    failure: &crate::chat::approval::CodexFailureEvent,
+) -> String {
+    let mut lines = vec![
+        tg(locale, "failure.title").to_string(),
+        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+        format!("{}: {}", tg(locale, "meta.target"), pending.target_label),
+        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    ];
+    if let Some(session_id) = pending
+        .session_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
+    }
+    if let Some(turn_id) = pending.turn_id.as_deref().filter(|value| !value.is_empty()) {
+        lines.push(format!("{}: {}", tg(locale, "meta.turn"), turn_id));
+    }
+    if !pending.working_dir.trim().is_empty() {
+        lines.push(format!(
+            "{}: {}",
+            tg(locale, "meta.dir"),
+            pending.working_dir
+        ));
+    }
+    if let Some(error_info) = failure
+        .error_info
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!("{}: {}", tg(locale, "failure.kind"), error_info));
+    }
+
+    format!(
+        "{}\n\n{}:\n{}",
+        lines.join("\n"),
+        tg(locale, "failure.detail"),
+        failure.message
+    )
+}
+
+fn detect_pending_rollout_failure_for_request(
+    state: &mut TelegramState,
+    request_id: &str,
+    checked_at: i64,
+) -> TelegramResult<Option<PendingRolloutFailureResolution>> {
+    let Some(snapshot) = state
+        .pending_requests
+        .iter()
+        .find(|pending| pending.request_id == request_id)
+        .cloned()
+    else {
+        return Ok(None);
+    };
+    if !pending_rollout_failure_check_due(&snapshot, checked_at) {
+        return Ok(None);
+    }
+
+    if let Some(index) = pending_request_index_by_id(state, request_id) {
+        state.pending_requests[index].last_failure_check_at = Some(checked_at);
+    }
+
+    let Some(transcript_path) = ensure_pending_transcript_path(state, request_id, &snapshot)?
+    else {
+        return Ok(None);
+    };
+    let scan_result = crate::chat::approval::scan_codex_failure_updates(
+        Path::new(&transcript_path),
+        snapshot.failure_scan_offset,
+        snapshot.turn_id.as_deref(),
+    )?;
+
+    if let Some(index) = pending_request_index_by_id(state, request_id) {
+        let pending = &mut state.pending_requests[index];
+        pending.failure_scan_offset = scan_result.next_offset;
+    }
+
+    let Some(failure) = scan_result.failure else {
+        return Ok(None);
+    };
+    let pending = remove_pending_request(state, request_id).unwrap_or(snapshot);
+    Ok(Some(PendingRolloutFailureResolution { pending, failure }))
+}
+
+fn ensure_pending_transcript_path(
+    state: &mut TelegramState,
+    request_id: &str,
+    snapshot: &PendingRequest,
+) -> TelegramResult<Option<String>> {
+    if let Some(path) = snapshot.transcript_path.clone() {
+        return Ok(Some(path));
+    }
+
+    let path = live_panels()
+        .map_err(telegram_error)?
+        .into_iter()
+        .find(|panel| panel.pane_id == snapshot.pane_id)
+        .and_then(|panel| panel.transcript_path);
+    let Some(path) = path else {
+        return Ok(None);
+    };
+
+    if let Some(index) = pending_request_index_by_id(state, request_id) {
+        let pending = &mut state.pending_requests[index];
+        pending.transcript_path = Some(path.clone());
+        if pending.failure_scan_offset == 0 {
+            pending.failure_scan_offset = if pending.result_scan_offset > 0 {
+                pending.result_scan_offset
+            } else {
+                transcript_len(&path)
+            };
+        }
+    }
+
+    Ok(Some(path))
 }
 
 pub(super) fn completed_reply_text(
@@ -517,5 +723,119 @@ pub(super) fn draft_feedback_gate(draft_id: i64) -> Arc<DraftFeedbackGate> {
 pub(super) fn clear_draft_feedback_gate(draft_id: i64) {
     if let Ok(mut gates) = DRAFT_FEEDBACK_GATES.lock() {
         gates.remove(&draft_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn sample_pending() -> PendingRequest {
+        PendingRequest {
+            request_id: "tg-1".into(),
+            chat_id: "1".into(),
+            pane_id: "%1".into(),
+            agent_kind: "codex".into(),
+            target_label: "CODEX • 1".into(),
+            session_id: Some("session-1".into()),
+            working_dir: "/tmp/test".into(),
+            prompt_text: "hi".into(),
+            prompt_hash: "abc".into(),
+            turn_id: Some("turn-1".into()),
+            sent_at: 100,
+            sent_at_ms: 100_000,
+            accepted_at: Some(105),
+            accepted_at_ms: Some(105_000),
+            last_status_at: None,
+            draft_id: 7,
+            phase: "awaiting_stop".into(),
+            transcript_path: None,
+            result_scan_offset: 0,
+            failure_scan_offset: 0,
+            last_failure_check_at: None,
+            approval_scan_offset: 0,
+            approval_call_id: None,
+            approval_justification: None,
+            completed_text: None,
+            completed_source: None,
+            delivery_attempts: 0,
+            delivery_retry_at: 0,
+        }
+    }
+
+    #[test]
+    fn rollout_failure_check_waits_30_seconds_and_then_5_second_backoff() {
+        let pending = sample_pending();
+        assert!(!pending_rollout_failure_check_due(&pending, 134));
+        assert!(pending_rollout_failure_check_due(&pending, 135));
+
+        let mut checked = sample_pending();
+        checked.last_failure_check_at = Some(135);
+        assert!(!pending_rollout_failure_check_due(&checked, 139));
+        assert!(pending_rollout_failure_check_due(&checked, 140));
+    }
+
+    #[test]
+    fn detect_pending_rollout_failure_removes_pending_and_updates_scan_offset() {
+        let path = std::env::temp_dir().join(format!(
+            "pad-telegram-rollout-failure-{}.jsonl",
+            std::process::id()
+        ));
+        let body = concat!(
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"still working\"}]}}\n",
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"error\",\"message\":\"unexpected status 502 Bad Gateway\",\"codex_error_info\":\"other\"}}\n"
+        );
+        fs::write(&path, body).unwrap();
+
+        let mut pending = sample_pending();
+        pending.transcript_path = Some(path.to_string_lossy().into_owned());
+        pending.failure_scan_offset = body.lines().next().unwrap().len() as u64 + 1;
+        let mut state = TelegramState {
+            pending_requests: vec![pending],
+            ..TelegramState::default()
+        };
+
+        let resolution =
+            detect_pending_rollout_failure_for_request(&mut state, "tg-1", 140).unwrap();
+        let resolution = resolution.expect("failure resolution");
+        assert_eq!(resolution.pending.request_id, "tg-1");
+        assert_eq!(
+            resolution.failure.message,
+            "unexpected status 502 Bad Gateway"
+        );
+        assert_eq!(resolution.failure.error_info.as_deref(), Some("other"));
+        assert!(state.pending_requests.is_empty());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn detect_pending_rollout_failure_updates_last_check_when_no_error_is_found() {
+        let path = std::env::temp_dir().join(format!(
+            "pad-telegram-rollout-no-failure-{}.jsonl",
+            std::process::id()
+        ));
+        let body = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"still working\"}]}}\n";
+        fs::write(&path, body).unwrap();
+
+        let mut pending = sample_pending();
+        pending.transcript_path = Some(path.to_string_lossy().into_owned());
+        let mut state = TelegramState {
+            pending_requests: vec![pending],
+            ..TelegramState::default()
+        };
+
+        let resolution =
+            detect_pending_rollout_failure_for_request(&mut state, "tg-1", 140).unwrap();
+        assert!(resolution.is_none());
+        assert_eq!(state.pending_requests.len(), 1);
+        assert_eq!(state.pending_requests[0].last_failure_check_at, Some(140));
+        assert_eq!(
+            state.pending_requests[0].failure_scan_offset,
+            fs::metadata(&path).unwrap().len()
+        );
+
+        let _ = fs::remove_file(path);
     }
 }

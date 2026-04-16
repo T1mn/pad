@@ -3,6 +3,13 @@ use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionPaneInfo {
+    pub pane_id: String,
+    pub pid: Option<u32>,
+    pub command: String,
+}
+
 pub fn dispatch_prompt(pane_id: &str, prompt: &str) -> Result<(), Box<dyn Error>> {
     if is_multiline(prompt) {
         return dispatch_pasted_prompt(pane_id, prompt);
@@ -127,6 +134,97 @@ pub fn capture_pane_tail(pane_id: &str, lines: usize) -> Result<String, Box<dyn 
     .into())
 }
 
+pub fn session_exists(session_name: &str) -> Result<bool, Box<dyn Error>> {
+    let output = Command::new("tmux")
+        .args(["has-session", "-t", session_name])
+        .output()?;
+    Ok(output.status.success())
+}
+
+pub fn list_session_panes(session_name: &str) -> Result<Vec<SessionPaneInfo>, Box<dyn Error>> {
+    let output = Command::new("tmux")
+        .args([
+            "list-panes",
+            "-t",
+            session_name,
+            "-F",
+            "#{pane_id}|#{pane_pid}|#{pane_current_command}",
+        ])
+        .output()?;
+
+    if output.status.success() {
+        return Ok(parse_session_panes_output(&String::from_utf8_lossy(
+            &output.stdout,
+        )));
+    }
+
+    Err(format!(
+        "tmux list-panes failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    )
+    .into())
+}
+
+pub fn respawn_pane_shell(
+    pane_id: &str,
+    start_dir: &str,
+    shell_command: &str,
+) -> Result<(), Box<dyn Error>> {
+    let mut command = Command::new("tmux");
+    command.args(["respawn-pane", "-k", "-t", pane_id]);
+    if !start_dir.trim().is_empty() {
+        command.args(["-c", start_dir]);
+    }
+    command.arg(shell_command);
+
+    let output = command.output()?;
+    if output.status.success() {
+        log_debug!(
+            "tmux_dispatch: respawned pane={} start_dir={} command={}",
+            pane_id,
+            start_dir,
+            shell_command
+        );
+        return Ok(());
+    }
+
+    Err(format!(
+        "tmux respawn-pane failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    )
+    .into())
+}
+
+pub fn new_detached_session_shell(
+    session_name: &str,
+    start_dir: &str,
+    shell_command: &str,
+) -> Result<(), Box<dyn Error>> {
+    let mut command = Command::new("tmux");
+    command.args(["new-session", "-d", "-s", session_name]);
+    if !start_dir.trim().is_empty() {
+        command.args(["-c", start_dir]);
+    }
+    command.arg(shell_command);
+
+    let output = command.output()?;
+    if output.status.success() {
+        log_debug!(
+            "tmux_dispatch: created detached session={} start_dir={} command={}",
+            session_name,
+            start_dir,
+            shell_command
+        );
+        return Ok(());
+    }
+
+    Err(format!(
+        "tmux new-session failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    )
+    .into())
+}
+
 fn run_tmux_send_literal(pane_id: &str, chunk: &str) -> Result<(), Box<dyn Error>> {
     let output = Command::new("tmux")
         .args(["send-keys", "-l", "-t", pane_id, chunk])
@@ -154,6 +252,30 @@ fn run_tmux_with_output<const N: usize>(args: [&str; N]) -> Result<(), Box<dyn E
         String::from_utf8_lossy(&output.stderr).trim()
     )
     .into())
+}
+
+fn parse_session_panes_output(output: &str) -> Vec<SessionPaneInfo> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, '|');
+            let pane_id = parts.next()?.trim();
+            if pane_id.is_empty() {
+                return None;
+            }
+            let pid = parts
+                .next()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .and_then(|value| value.parse::<u32>().ok());
+            let command = parts.next().unwrap_or_default().trim().to_string();
+            Some(SessionPaneInfo {
+                pane_id: pane_id.to_string(),
+                pid,
+                command,
+            })
+        })
+        .collect()
 }
 
 fn is_multiline(prompt: &str) -> bool {
@@ -204,7 +326,7 @@ fn now_ms() -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{split_literal_chunks, submit_delay_for};
+    use super::{parse_session_panes_output, split_literal_chunks, submit_delay_for};
 
     #[test]
     fn split_literal_chunks_preserves_text() {
@@ -219,5 +341,17 @@ mod tests {
         let short = submit_delay_for("short prompt", false);
         let long = submit_delay_for(&"x".repeat(320), false);
         assert!(long > short);
+    }
+
+    #[test]
+    fn parse_session_panes_output_extracts_pane_pid_and_command() {
+        let panes = parse_session_panes_output("%1|1234|pad\n%2||zsh\n");
+        assert_eq!(panes.len(), 2);
+        assert_eq!(panes[0].pane_id, "%1");
+        assert_eq!(panes[0].pid, Some(1234));
+        assert_eq!(panes[0].command, "pad");
+        assert_eq!(panes[1].pane_id, "%2");
+        assert_eq!(panes[1].pid, None);
+        assert_eq!(panes[1].command, "zsh");
     }
 }

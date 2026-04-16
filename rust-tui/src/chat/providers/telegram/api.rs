@@ -210,6 +210,14 @@ pub(super) async fn set_my_commands(
             description: tg(locale, "command.use").to_string(),
         },
         TelegramCommandSpec {
+            command: "history",
+            description: tg(locale, "command.history").to_string(),
+        },
+        TelegramCommandSpec {
+            command: "restart",
+            description: tg(locale, "command.restart").to_string(),
+        },
+        TelegramCommandSpec {
             command: "status",
             description: tg(locale, "command.status").to_string(),
         },
@@ -220,6 +228,10 @@ pub(super) async fn set_my_commands(
         TelegramCommandSpec {
             command: "compact",
             description: tg(locale, "command.compact").to_string(),
+        },
+        TelegramCommandSpec {
+            command: "reset",
+            description: tg(locale, "command.reset").to_string(),
         },
         TelegramCommandSpec {
             command: "stop",

@@ -111,7 +111,7 @@ pub(super) fn help_page_html(
 
 fn help_overview_body(locale: crate::i18n::Locale) -> String {
     format!(
-        "{}\n\n<b>{}</b>\n1. <code>/list</code> {}\n2. {}\n3. {}\n\n<b>{}</b>\n• <code>/use &lt;n&gt;</code> {}\n• <code>/padstatus</code> {}\n• <code>/stop</code> {}",
+        "{}\n\n<b>{}</b>\n1. <code>/list</code> {}\n2. {}\n3. {}\n\n<b>{}</b>\n• <code>/use &lt;n&gt;</code> {}\n• <code>/history</code> {}\n• <code>/padstatus</code> {}\n• <code>/restart</code> {}\n• <code>/reset</code> {}\n• <code>/stop</code> {}",
         help_intro(locale, "overview"),
         help_text(locale, "section.quick"),
         help_text(locale, "overview.step1"),
@@ -119,7 +119,10 @@ fn help_overview_body(locale: crate::i18n::Locale) -> String {
         help_text(locale, "overview.step3"),
         help_text(locale, "section.utility"),
         help_text(locale, "overview.use"),
+        help_text(locale, "overview.history"),
         help_text(locale, "overview.padstatus"),
+        help_text(locale, "overview.restart"),
+        help_text(locale, "overview.reset"),
         help_text(locale, "overview.stop"),
     )
 }
@@ -305,12 +308,58 @@ fn help_text(locale: crate::i18n::Locale, key: &str) -> &'static str {
         (crate::i18n::Locale::De, "overview.use") => "Ziel per Nummer umschalten.",
         (crate::i18n::Locale::Fr, "overview.use") => "Changer de cible par numéro.",
         (_, "overview.use") => "switch target by number.",
+        (crate::i18n::Locale::ZhCN, "overview.history") => "查看当前目标最近 3 条问答。",
+        (crate::i18n::Locale::ZhTW, "overview.history") => "查看目前目標最近 3 條問答。",
+        (crate::i18n::Locale::Ja, "overview.history") => "現在の対象の直近 3 件のやり取りを表示します。",
+        (crate::i18n::Locale::De, "overview.history") => {
+            "Zeigt die letzten drei Frage-Antwort-Runden des aktuellen Ziels."
+        }
+        (crate::i18n::Locale::Fr, "overview.history") => {
+            "Affiche les trois derniers échanges question-réponse de la cible actuelle."
+        }
+        (_, "overview.history") => "show the current target's latest three turns.",
         (crate::i18n::Locale::ZhCN, "overview.padstatus") => "查看 pad 和 bot 当前运行状态。",
         (crate::i18n::Locale::ZhTW, "overview.padstatus") => "查看 pad 和 bot 目前執行狀態。",
         (crate::i18n::Locale::Ja, "overview.padstatus") => "pad と bot の現在の稼働状態を確認します。",
         (crate::i18n::Locale::De, "overview.padstatus") => "Aktuellen Zustand von pad und Bot anzeigen.",
         (crate::i18n::Locale::Fr, "overview.padstatus") => "Voir l'état actuel de pad et du bot.",
         (_, "overview.padstatus") => "show the current pad and bot state.",
+        (crate::i18n::Locale::ZhCN, "overview.restart") => {
+            "重编译并重启整个 pad；适合远程恢复当前界面。"
+        }
+        (crate::i18n::Locale::ZhTW, "overview.restart") => {
+            "重編譯並重啟整個 pad；適合遠端恢復目前介面。"
+        }
+        (crate::i18n::Locale::Ja, "overview.restart") => {
+            "pad 全体を再ビルドして再起動します。離席中の復旧向けです。"
+        }
+        (crate::i18n::Locale::De, "overview.restart") => {
+            "Baut das gesamte pad neu und startet es neu. Nützlich für Remote-Wiederherstellung."
+        }
+        (crate::i18n::Locale::Fr, "overview.restart") => {
+            "Recompile et redémarre tout pad. Pratique pour une reprise à distance."
+        }
+        (_, "overview.restart") => {
+            "rebuild and restart the whole pad, useful when recovering remotely."
+        }
+        (crate::i18n::Locale::ZhCN, "overview.reset") => {
+            "清掉当前目标卡住的 Telegram pending，不会中断 pane 内的 agent。"
+        }
+        (crate::i18n::Locale::ZhTW, "overview.reset") => {
+            "清掉目前目標卡住的 Telegram pending，不會中斷 pane 內的 agent。"
+        }
+        (crate::i18n::Locale::Ja, "overview.reset") => {
+            "現在の対象で詰まった Telegram pending を消します。pane 内の agent は停止しません。"
+        }
+        (crate::i18n::Locale::De, "overview.reset") => {
+            "Entfernt einen festhängenden Telegram-Pending-Eintrag für das aktuelle Ziel, ohne den Agent im Pane zu stoppen."
+        }
+        (crate::i18n::Locale::Fr, "overview.reset") => {
+            "Supprime un pending Telegram bloqué pour la cible actuelle sans arrêter l'agent dans le pane."
+        }
+        (_, "overview.reset") => {
+            "clear a stuck Telegram pending state for the current target without stopping the agent in the pane."
+        }
         (crate::i18n::Locale::ZhCN, "overview.stop") => "向当前目标发送一次 Escape。",
         (crate::i18n::Locale::ZhTW, "overview.stop") => "向目前目標傳送一次 Escape。",
         (crate::i18n::Locale::Ja, "overview.stop") => "現在の対象へ Escape を 1 回送ります。",

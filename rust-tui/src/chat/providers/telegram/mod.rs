@@ -25,7 +25,8 @@ use self::locale::{locale_prefers_chinese, telegram_locale, tg, tg_fmt, tg_fmt2,
 use self::state::{
     journal_len, load_state, mark_update_processed, next_draft_id, next_request_id, now_ms_i64,
     now_ts, pending_request_index_by_id, pending_request_index_by_pane, remove_pending_request,
-    save_state, AgentSnapshotEntry, PendingRequest, SelectedTarget, TelegramState,
+    remove_selected_target_pending_request, save_state, AgentSnapshotEntry, PendingRequest,
+    SelectedTarget, TelegramState,
 };
 use crate::chat::approval::{scan_codex_approval_updates, transcript_len, CodexApprovalRequest};
 use crate::chat::backend::{
@@ -87,9 +88,10 @@ use self::hooks::{
 #[cfg(test)]
 use self::pending::pending_status_text;
 use self::pending::{
-    deliver_pending_result, pending_accepted_ms, pending_sent_ms, pending_status_summary_line,
-    process_codex_pending_approval, process_hook_journal, process_pending_result_delivery,
-    process_pending_timeout, refresh_pending_feedback, DraftFeedbackGate,
+    deliver_pending_result, finalize_pending_feedback, pending_accepted_ms, pending_sent_ms,
+    pending_status_summary_line, process_codex_pending_approval, process_hook_journal,
+    process_pending_result_delivery, process_pending_rollout_failures, process_pending_timeout,
+    refresh_pending_feedback, DraftFeedbackGate,
 };
 use self::render::{
     build_agent_keyboard, format_agent_line, format_agent_line_for_button, truncate_chars,
@@ -97,6 +99,8 @@ use self::render::{
 };
 
 const PENDING_TIMEOUT_SECS: i64 = 2 * 60 * 60;
+const PENDING_FAILURE_SCAN_DELAY_SECS: i64 = 30;
+const PENDING_FAILURE_SCAN_INTERVAL_SECS: i64 = 5;
 const JOURNAL_RECOVERY_RETRY_SECS: i64 = 3;
 const JOURNAL_RECOVERY_STALL_SECS: i64 = 5;
 const RESULT_DELIVERY_RETRY_SECS: i64 = 5;
