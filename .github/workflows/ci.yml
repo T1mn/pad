@@ -135,6 +135,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-tui -> target
+          cache-targets: false
 
       - name: Build glibc dist binary
         run: cargo build --profile dist
@@ -303,6 +304,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust-tui -> target
+          cache-targets: false
 
       - name: Install cross
         run: cargo install cross --locked

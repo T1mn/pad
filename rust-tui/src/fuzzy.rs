@@ -61,7 +61,7 @@ impl FuzzyPicker {
                 .collect();
 
             // Sort by score (descending)
-            results.sort_by(|a, b| b.1.cmp(&a.1));
+            results.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             self.filtered = results;
         }
 

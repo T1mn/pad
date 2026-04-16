@@ -363,10 +363,7 @@ fn count_image_open_tags(text: &str) -> usize {
 fn count_image_refs(text: &str) -> usize {
     let mut count = 0usize;
     let mut rest = text;
-    loop {
-        let Some(start) = rest.find("[Image #") else {
-            break;
-        };
+    while let Some(start) = rest.find("[Image #") {
         let candidate = &rest[start..];
         let Some(end) = candidate.find(']') else {
             break;

@@ -126,19 +126,15 @@ fn handle_provider_list_key(app: &mut App, key: KeyCode, host: RelayHost) -> boo
             delete_provider(app);
             app.dirty = true;
         }
-        KeyCode::Char('m') => {
-            if selected_agent_name(app) == Some("opencode") {
-                app.relay_popup_mode = RelayPopupMode::OpenCodeDefaultModel;
-                app.relay_popup_selected = selected_model_picker_index(app, false);
-                app.dirty = true;
-            }
+        KeyCode::Char('m') if selected_agent_name(app) == Some("opencode") => {
+            app.relay_popup_mode = RelayPopupMode::OpenCodeDefaultModel;
+            app.relay_popup_selected = selected_model_picker_index(app, false);
+            app.dirty = true;
         }
-        KeyCode::Char('M') => {
-            if selected_agent_name(app) == Some("opencode") {
-                app.relay_popup_mode = RelayPopupMode::OpenCodeSmallModel;
-                app.relay_popup_selected = selected_model_picker_index(app, true);
-                app.dirty = true;
-            }
+        KeyCode::Char('M') if selected_agent_name(app) == Some("opencode") => {
+            app.relay_popup_mode = RelayPopupMode::OpenCodeSmallModel;
+            app.relay_popup_selected = selected_model_picker_index(app, true);
+            app.dirty = true;
         }
         _ => {}
     }
@@ -203,17 +199,13 @@ fn handle_detail_pane_key(app: &mut App, key: KeyCode, host: RelayHost) -> bool 
             app.trigger_provider_test(app.relay_selected_agent, app.relay_selected_provider);
             app.dirty = true;
         }
-        KeyCode::Char('y') | KeyCode::Char('Y') => {
-            if selected_agent_name(app) == Some("codex") {
-                export_selected_codex_provider(app);
-                app.dirty = true;
-            }
+        KeyCode::Char('y') | KeyCode::Char('Y') if selected_agent_name(app) == Some("codex") => {
+            export_selected_codex_provider(app);
+            app.dirty = true;
         }
-        KeyCode::Char('i') | KeyCode::Char('I') => {
-            if selected_agent_name(app) == Some("codex") {
-                import_selected_codex_provider(app);
-                app.dirty = true;
-            }
+        KeyCode::Char('i') | KeyCode::Char('I') if selected_agent_name(app) == Some("codex") => {
+            import_selected_codex_provider(app);
+            app.dirty = true;
         }
         _ => {}
     }
@@ -355,10 +347,8 @@ fn handle_opencode_models_popup(app: &mut App, key: KeyCode) -> bool {
                 }
             }
         }
-        KeyCode::Char('k') | KeyCode::Up => {
-            if app.relay_popup_selected > 0 {
-                app.relay_popup_selected -= 1;
-            }
+        KeyCode::Char('k') | KeyCode::Up if app.relay_popup_selected > 0 => {
+            app.relay_popup_selected -= 1;
         }
         KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
             app.relay_popup_field = (app.relay_popup_field + 1) % 2;
@@ -389,10 +379,8 @@ fn handle_opencode_model_picker_popup(app: &mut App, key: KeyCode) -> bool {
                 app.relay_popup_selected += 1;
             }
         }
-        KeyCode::Char('k') | KeyCode::Up => {
-            if app.relay_popup_selected > 0 {
-                app.relay_popup_selected -= 1;
-            }
+        KeyCode::Char('k') | KeyCode::Up if app.relay_popup_selected > 0 => {
+            app.relay_popup_selected -= 1;
         }
         KeyCode::Enter | KeyCode::Char(' ') => {
             let selected = model_picker_options(app)
@@ -403,10 +391,8 @@ fn handle_opencode_model_picker_popup(app: &mut App, key: KeyCode) -> bool {
                 app.relay_popup_mode == RelayPopupMode::OpenCodeSmallModel && selected.is_empty();
             if let Some(agent) = app.config.agents.get_mut(app.relay_selected_agent) {
                 match app.relay_popup_mode {
-                    RelayPopupMode::OpenCodeDefaultModel => {
-                        if !selected.is_empty() {
-                            agent.default_model = selected;
-                        }
+                    RelayPopupMode::OpenCodeDefaultModel if !selected.is_empty() => {
+                        agent.default_model = selected;
                     }
                     RelayPopupMode::OpenCodeSmallModel => {
                         if clear_small {

@@ -272,19 +272,17 @@ pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: Mou
             let _ = app.clear_preview_mouse_selection();
             handle_normal_left_click(app, terminal_area, mouse.column, mouse.row);
         }
-        MouseEventKind::Drag(MouseButton::Left) => {
-            if app.preview.mouse_selection().is_some() {
-                let regions = normal_mouse_regions(app, terminal_area);
-                let column = mouse.column.clamp(
-                    regions.preview_content_area.x,
-                    regions.preview_content_area.right().saturating_sub(1),
-                );
-                let row = mouse.row.clamp(
-                    regions.preview_content_area.y,
-                    regions.preview_content_area.bottom().saturating_sub(1),
-                );
-                let _ = app.update_preview_mouse_selection(column, row);
-            }
+        MouseEventKind::Drag(MouseButton::Left) if app.preview.mouse_selection().is_some() => {
+            let regions = normal_mouse_regions(app, terminal_area);
+            let column = mouse.column.clamp(
+                regions.preview_content_area.x,
+                regions.preview_content_area.right().saturating_sub(1),
+            );
+            let row = mouse.row.clamp(
+                regions.preview_content_area.y,
+                regions.preview_content_area.bottom().saturating_sub(1),
+            );
+            let _ = app.update_preview_mouse_selection(column, row);
         }
         MouseEventKind::Up(MouseButton::Left) => {
             if let Some(selection) = app.finish_preview_mouse_selection() {

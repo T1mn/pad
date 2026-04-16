@@ -104,21 +104,19 @@ pub(super) async fn process_direct_hook_event(
     }
 
     match event.event.as_str() {
-        "user_prompt_submit" => {
-            if pending_matches_submit_prompt(&pending_snapshot, event) {
-                advance_pending_to_awaiting_stop(
-                    state.pending_requests.get_mut(pending_index),
-                    event,
-                    false,
-                );
-                refresh_pending_feedback(&config, &mut state, true);
-                save_state(&state)?;
-                log_debug!(
-                    "telegram: direct hook advanced request {} to awaiting_stop dispatch_to_submit_ms={}",
-                    pending_snapshot.request_id,
-                    now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot))
-                );
-            }
+        "user_prompt_submit" if pending_matches_submit_prompt(&pending_snapshot, event) => {
+            advance_pending_to_awaiting_stop(
+                state.pending_requests.get_mut(pending_index),
+                event,
+                false,
+            );
+            refresh_pending_feedback(&config, &mut state, true);
+            save_state(&state)?;
+            log_debug!(
+                "telegram: direct hook advanced request {} to awaiting_stop dispatch_to_submit_ms={}",
+                pending_snapshot.request_id,
+                now_ms_i64().saturating_sub(pending_sent_ms(&pending_snapshot))
+            );
         }
         "stop" => {
             if !pending_can_complete_from_stop(&pending_snapshot, event) {
