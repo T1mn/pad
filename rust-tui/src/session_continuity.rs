@@ -113,6 +113,17 @@ pub struct PreviewFallbackDecision {
     pub reason: &'static str,
 }
 
+pub struct PreviewFallbackInput<'a> {
+    pub agent_type: &'a AgentType,
+    pub session_id: Option<&'a str>,
+    pub transcript_path: Option<&'a Path>,
+    pub transcript_updated_at: Option<i64>,
+    pub thread_updated_at: Option<i64>,
+    pub known_updated_at: Option<i64>,
+    pub cached_turn_count: usize,
+    pub transcript_turn_count: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContinuitySnapshot {
     pub session_id: String,
@@ -313,37 +324,28 @@ pub fn record_cache_write(
     }
 }
 
-pub fn assess_preview_fallback(
-    agent_type: &AgentType,
-    session_id: Option<&str>,
-    transcript_path: Option<&Path>,
-    transcript_updated_at: Option<i64>,
-    thread_updated_at: Option<i64>,
-    known_updated_at: Option<i64>,
-    cached_turn_count: usize,
-    transcript_turn_count: usize,
-) -> Option<PreviewFallbackDecision> {
-    if cached_turn_count == 0 {
+pub fn assess_preview_fallback(input: PreviewFallbackInput<'_>) -> Option<PreviewFallbackDecision> {
+    if input.cached_turn_count == 0 {
         return None;
     }
-    let session_id = clean_text(session_id)?;
+    let session_id = clean_text(input.session_id)?;
     let snapshot = load_record_snapshot(session_id)?;
     let runtime_activity_at = max_ts(
         snapshot.last_hook_event_at,
         max_ts(
             snapshot.last_hook_cache_persist_at,
-            max_ts(thread_updated_at, known_updated_at),
+            max_ts(input.thread_updated_at, input.known_updated_at),
         ),
     );
-    let rollout_mtime = transcript_updated_at.or(snapshot.last_rollout_mtime);
+    let rollout_mtime = input.transcript_updated_at.or(snapshot.last_rollout_mtime);
     let lag_seconds = lag_seconds(runtime_activity_at, rollout_mtime);
     let health = classify_preview_health(
         lag_seconds,
         snapshot.stale_event_count,
-        thread_updated_at,
-        known_updated_at,
+        input.thread_updated_at,
+        input.known_updated_at,
     );
-    let prefer_cache = health == ContinuityHealth::Frozen && transcript_turn_count > 0;
+    let prefer_cache = health == ContinuityHealth::Frozen && input.transcript_turn_count > 0;
     let reason = if prefer_cache {
         "rollout_frozen"
     } else if health == ContinuityHealth::Lagging {
@@ -363,13 +365,13 @@ pub fn assess_preview_fallback(
     }
 
     if !matches!(
-        agent_type,
+        input.agent_type,
         AgentType::Codex | AgentType::Claude | AgentType::Gemini
     ) {
         return None;
     }
 
-    let _ = transcript_path;
+    let _ = input.transcript_path;
 
     Some(PreviewFallbackDecision {
         prefer_cache,
