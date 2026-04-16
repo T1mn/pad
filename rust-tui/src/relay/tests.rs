@@ -6,7 +6,7 @@ use super::common::{
 use super::{
     apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
 };
-use crate::paths::codex_prompt_file_path;
+use crate::paths::{codex_prompt_file_path, DEFAULT_CODEX_PROMPT_TEMPLATE};
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -816,7 +816,7 @@ fn runtime_configs_apply_codex_prompt_file_without_relay_provider() {
         assert!(codex_prompt_file_path().is_file());
         assert_eq!(
             std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-            ""
+            DEFAULT_CODEX_PROMPT_TEMPLATE
         );
         assert!(codex_permission_state_path().exists());
     });

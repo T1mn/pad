@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 const CLAUDE_BRIDGE_VERSION: &str = "claude-2026-04-08.1";
 const CODEX_BRIDGE_VERSION: &str = "codex-2026-04-08.2";
 const BRIDGE_VERSION_PREFIX: &str = "# pad-bridge-version: ";
+pub const DEFAULT_CODEX_PROMPT_TEMPLATE: &str = include_str!("../assets/prompts/codex.md");
 
 pub fn pad_home_dir() -> PathBuf {
     std::env::var_os("HOME")
@@ -69,6 +70,21 @@ pub fn codex_prompt_file_path() -> PathBuf {
     prompts_dir().join("codex.md")
 }
 
+pub fn ensure_codex_prompt_file_seeded() -> io::Result<()> {
+    let prompt_path = codex_prompt_file_path();
+    let needs_seed = match fs::read_to_string(&prompt_path) {
+        Ok(existing) => existing.trim().is_empty(),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => true,
+        Err(err) => return Err(err),
+    };
+
+    if needs_seed {
+        fs::write(prompt_path, DEFAULT_CODEX_PROMPT_TEMPLATE)?;
+    }
+
+    Ok(())
+}
+
 pub fn sounds_dir() -> PathBuf {
     pad_home_dir().join("sounds")
 }
@@ -123,9 +139,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(scripts_dir())?;
     fs::create_dir_all(prompts_dir())?;
     fs::create_dir_all(sessions_dir())?;
-    if !codex_prompt_file_path().exists() {
-        fs::write(codex_prompt_file_path(), "")?;
-    }
+    ensure_codex_prompt_file_seeded()?;
     if !hook_events_path().exists() {
         fs::write(hook_events_path(), "")?;
     }
@@ -645,7 +659,22 @@ mod tests {
             assert!(codex_prompt_file_path().is_file());
             assert_eq!(
                 std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-                ""
+                DEFAULT_CODEX_PROMPT_TEMPLATE
+            );
+        });
+    }
+
+    #[test]
+    fn ensure_runtime_layout_reseeds_empty_codex_prompt_file() {
+        with_temp_home("runtime-layout-empty-prompt", |_home| {
+            fs::create_dir_all(prompts_dir()).expect("create prompt dir");
+            fs::write(codex_prompt_file_path(), "\n\n").expect("seed empty prompt file");
+
+            ensure_runtime_layout().expect("ensure runtime layout");
+
+            assert_eq!(
+                std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
+                DEFAULT_CODEX_PROMPT_TEMPLATE
             );
         });
     }

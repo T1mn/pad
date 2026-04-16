@@ -148,9 +148,7 @@ fn apply_codex_runtime_overlay(
         if let Some(parent) = prompt_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        if !prompt_path.exists() {
-            let _ = std::fs::write(&prompt_path, "");
-        }
+        let _ = crate::paths::ensure_codex_prompt_file_seeded();
         root.insert(
             "model_instructions_file".to_string(),
             toml::Value::String(prompt_path.to_string_lossy().to_string()),
