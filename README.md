@@ -37,6 +37,12 @@ cd pad
 
 The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. It also installs `tmux` automatically when missing, and will bootstrap Rust plus common build tools when a source build is required.
 
+Installer source is split under `install/`. After editing those modules, regenerate the checked-in single-file `install.sh` with:
+
+```bash
+bash scripts/build_installer.sh
+```
+
 Manual source build:
 
 ```bash

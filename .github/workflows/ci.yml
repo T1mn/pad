@@ -19,6 +19,17 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  installer-sync:
+    name: Installer sync
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify generated install.sh is up to date
+        run: |
+          bash ./scripts/build_installer.sh
+          git diff --exit-code -- install.sh
+
   rust-checks:
     name: Rust checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

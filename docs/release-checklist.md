@@ -5,7 +5,8 @@
 1. Ensure the worktree is in the expected state.
 2. Update `rust-tui/Cargo.toml` version.
 3. Review release notes and user-visible changes.
-4. Confirm `install.sh` still matches the published artifacts.
+4. Run `bash scripts/build_installer.sh` and confirm `install.sh` is up to date.
+5. Confirm `install.sh` still matches the published artifacts.
 
 ## Local verification
 
@@ -13,8 +14,9 @@
 2. Run `cargo clippy --all-targets --all-features -- -D warnings` in `rust-tui/`.
 3. Run `cargo test` in `rust-tui/`.
 4. Run `cargo build --profile dist` in `rust-tui/`.
-5. Launch `pad` locally at least once.
-6. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh`.
+5. Run `bash scripts/build_installer.sh`.
+6. Launch `pad` locally at least once.
+7. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh`.
 
 ## Automated checks
 
