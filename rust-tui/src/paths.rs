@@ -99,7 +99,9 @@ pub fn ensure_codex_prompt_file_seeded() -> io::Result<()> {
     let needs_seed = match existing_prompt.as_deref() {
         None => true,
         Some(existing) if existing.trim().is_empty() => true,
-        Some(existing) => should_refresh_managed_prompt(existing, existing_state.as_ref(), &current_state),
+        Some(existing) => {
+            should_refresh_managed_prompt(existing, existing_state.as_ref(), &current_state)
+        }
     };
 
     if needs_seed {
