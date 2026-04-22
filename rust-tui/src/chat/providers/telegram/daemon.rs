@@ -8,6 +8,24 @@ pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error + Send + Sync>
     run_daemon_loop(false).await
 }
 
+fn serialized_state(state: &TelegramState) -> io::Result<String> {
+    serde_json::to_string_pretty(state)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+}
+
+fn save_state_if_changed(
+    state: &TelegramState,
+    last_saved_state: &mut Option<String>,
+) -> io::Result<bool> {
+    let body = serialized_state(state)?;
+    if last_saved_state.as_deref() == Some(body.as_str()) {
+        return Ok(false);
+    }
+    std::fs::write(crate::paths::telegram_state_path(), &body)?;
+    *last_saved_state = Some(body);
+    Ok(true)
+}
+
 pub fn ensure_embedded_daemon_running() -> io::Result<bool> {
     stop_external_daemon_if_running()?;
 
@@ -43,9 +61,10 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
     );
 
     let mut state = load_state().unwrap_or_default();
+    let mut last_saved_state = serialized_state(&state).ok();
     if state.journal_position == 0 && state.pending_requests.is_empty() {
         state.journal_position = journal_len();
-        save_state(&state)?;
+        save_state_if_changed(&state, &mut last_saved_state)?;
     }
     start_direct_hook_listener()?;
 
@@ -55,6 +74,7 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
     loop {
         let mut config = Config::load();
         if let Ok(latest_state) = load_state() {
+            last_saved_state = serialized_state(&latest_state).ok();
             state = latest_state;
         }
         if !config.telegram.enabled {
@@ -110,28 +130,28 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
         if let Err(err) = process_pending_timeout(&config, &mut state).await {
             log_debug!("telegram: pending timeout handling failed: {}", err);
         }
-        let _ = save_state(&state);
+        let _ = save_state_if_changed(&state, &mut last_saved_state);
         if let Err(err) = process_pending_result_delivery(&config, &mut state).await {
             log_debug!("telegram: pending result delivery failed: {}", err);
         }
-        let _ = save_state(&state);
+        let _ = save_state_if_changed(&state, &mut last_saved_state);
         if should_probe_hook_journal(&state) {
             state.last_journal_recovery_at = now_ts();
             if let Err(err) = process_hook_journal(&config, &mut state).await {
                 log_debug!("telegram: hook journal processing failed: {}", err);
             }
-            let _ = save_state(&state);
+            let _ = save_state_if_changed(&state, &mut last_saved_state);
         }
         if let Err(err) = process_pending_rollout_failures(&config, &mut state).await {
             log_debug!("telegram: pending rollout failure handling failed: {}", err);
         }
-        let _ = save_state(&state);
+        let _ = save_state_if_changed(&state, &mut last_saved_state);
         if let Err(err) = process_codex_pending_approval(&config, &mut state).await {
             log_debug!("telegram: codex approval processing failed: {}", err);
         }
-        let _ = save_state(&state);
+        let _ = save_state_if_changed(&state, &mut last_saved_state);
         refresh_pending_feedback(&config, &mut state, false);
-        let _ = save_state(&state);
+        let _ = save_state_if_changed(&state, &mut last_saved_state);
 
         let updates_result = get_updates(&config.telegram.bot_token, state.update_offset).await;
         let updates = match updates_result {
@@ -148,6 +168,7 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
         };
         for update in updates {
             if let Ok(latest_state) = load_state() {
+                last_saved_state = serialized_state(&latest_state).ok();
                 state = latest_state;
             }
             if !mark_update_processed(&mut state, update.update_id) {
@@ -156,14 +177,14 @@ async fn run_daemon_loop(embedded: bool) -> Result<(), Box<dyn std::error::Error
                     update.update_id,
                     state.update_offset
                 );
-                let _ = save_state(&state);
+                let _ = save_state_if_changed(&state, &mut last_saved_state);
                 continue;
             }
-            let _ = save_state(&state);
+            let _ = save_state_if_changed(&state, &mut last_saved_state);
             if let Err(err) = handle_update(&mut config, &mut state, update).await {
                 log_debug!("telegram: update handling failed: {}", err);
             }
-            let _ = save_state(&state);
+            let _ = save_state_if_changed(&state, &mut last_saved_state);
         }
     }
 }
@@ -282,5 +303,30 @@ fn stop_external_daemon_if_running() -> io::Result<bool> {
     match runtime_status::read_status(&status_path) {
         Some(status) if status.pid != std::process::id() => stop_daemon(),
         _ => Ok(false),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{save_state_if_changed, serialized_state};
+    use crate::chat::providers::telegram::TelegramState;
+
+    #[test]
+    fn serialized_state_matches_disk_format() {
+        let state = TelegramState::default();
+        let body = serialized_state(&state).expect("serialize telegram state");
+        assert_eq!(
+            body,
+            serde_json::to_string_pretty(&state).expect("serialize reference")
+        );
+    }
+
+    #[test]
+    fn save_state_if_changed_skips_identical_body() {
+        let state = TelegramState::default();
+        let mut last_saved = Some(serialized_state(&state).expect("serialize initial state"));
+
+        let changed = save_state_if_changed(&state, &mut last_saved).expect("save if changed");
+        assert!(!changed);
     }
 }

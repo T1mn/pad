@@ -1,4 +1,5 @@
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, GitInfo};
+use std::collections::HashMap;
 use std::process::Command;
 
 pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
@@ -20,6 +21,7 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     log_debug!("scanner: list-panes 返回 {} 行", total_panes);
 
     let mut panels = Vec::new();
+    let mut caches = ScanCaches::default();
 
     for line in stdout.lines() {
         let parts: Vec<&str> = line.split('|').collect();
@@ -32,20 +34,12 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         let window_index = parts[2].to_string();
         let pane = parts[3].to_string();
         let pane_id = parts[4].to_string();
-        let pane_pid = parts[5];
-        let _current_cmd = parts[6];
+        let pane_pid = parts[5].to_string();
+        let current_cmd = parts[6];
         let working_dir = parts[7].to_string();
 
-        let main_process = get_process_cmd(pane_pid).unwrap_or_default();
-        let mut agent_type = AgentType::from_processes(&main_process);
-        let child_processes = if matches!(agent_type, AgentType::Unknown) {
-            get_child_processes(pane_pid)
-        } else {
-            String::new()
-        };
-        if matches!(agent_type, AgentType::Unknown) {
-            agent_type = AgentType::from_processes(&child_processes);
-        }
+        let (agent_type, main_process, child_processes) =
+            detect_agent_type(current_cmd, &pane_pid, &mut caches);
 
         log_debug!(
             "scanner: pane={} session={} main=[{}] children=[{}] -> agent={:?}",
@@ -67,7 +61,7 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             AgentState::Idle
         };
         let is_active = state == AgentState::Busy;
-        let git_info = get_git_info(&working_dir);
+        let git_info = caches.cached_git_info(&working_dir);
 
         log_debug!(
             "scanner: 检测到智能体面板 pane={} agent={:?} state={:?} dir={}",
@@ -92,7 +86,7 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             cached_preview_turns: Default::default(),
             session_cache_state: None,
             git_info,
-            pid: Some(pane_pid.to_string()),
+            pid: Some(pane_pid),
             start_time: Some(std::time::Instant::now()),
             agent_session_id: None,
             last_user_prompt: None,
@@ -118,7 +112,72 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     Ok(panels)
 }
 
-fn get_child_processes(pid: &str) -> String {
+#[derive(Default)]
+struct ScanCaches {
+    git_info: HashMap<String, Option<GitInfo>>,
+    process_cmds: HashMap<String, String>,
+    child_processes: HashMap<String, String>,
+}
+
+impl ScanCaches {
+    fn cached_process_cmd(&mut self, pid: &str) -> Option<String> {
+        if let Some(cmd) = self.process_cmds.get(pid) {
+            return Some(cmd.clone());
+        }
+
+        let cmd = get_process_cmd(pid).ok()?;
+        self.process_cmds.insert(pid.to_string(), cmd.clone());
+        Some(cmd)
+    }
+
+    fn cached_child_processes(&mut self, pid: &str) -> String {
+        if let Some(processes) = self.child_processes.get(pid) {
+            return processes.clone();
+        }
+
+        let processes = get_child_processes(pid, |child_pid| self.cached_process_cmd(child_pid));
+        self.child_processes
+            .insert(pid.to_string(), processes.clone());
+        processes
+    }
+
+    fn cached_git_info(&mut self, working_dir: &str) -> Option<GitInfo> {
+        if let Some(info) = self.git_info.get(working_dir) {
+            return info.clone();
+        }
+
+        let info = get_git_info(working_dir);
+        self.git_info.insert(working_dir.to_string(), info.clone());
+        info
+    }
+}
+
+fn detect_agent_type(
+    current_cmd: &str,
+    pane_pid: &str,
+    caches: &mut ScanCaches,
+) -> (AgentType, String, String) {
+    let current_process = current_cmd.trim().to_string();
+    let mut agent_type = AgentType::from_processes(&current_process);
+    if !matches!(agent_type, AgentType::Unknown) {
+        return (agent_type, current_process, String::new());
+    }
+
+    let main_process = caches.cached_process_cmd(pane_pid).unwrap_or_default();
+    agent_type = AgentType::from_processes(&main_process);
+    if !matches!(agent_type, AgentType::Unknown) {
+        return (agent_type, main_process, String::new());
+    }
+
+    let child_processes = caches.cached_child_processes(pane_pid);
+    agent_type = AgentType::from_processes(&child_processes);
+    (agent_type, main_process, child_processes)
+}
+
+fn get_child_processes<F>(pid: &str, mut process_cmd_lookup: F) -> String
+where
+    F: FnMut(&str) -> Option<String>,
+{
     let output = Command::new("pgrep").args(["-P", pid]).output().ok();
 
     if let Some(output) = output {
@@ -131,7 +190,7 @@ fn get_child_processes(pid: &str) -> String {
                 if child_pid.is_empty() {
                     continue;
                 }
-                if let Ok(cmd) = get_process_cmd(child_pid) {
+                if let Some(cmd) = process_cmd_lookup(child_pid) {
                     log_debug!("scanner: child pid={} cmd={}", child_pid, cmd);
                     processes.push(cmd);
                 }
@@ -273,4 +332,42 @@ fn get_git_info(working_dir: &str) -> Option<GitInfo> {
         commit,
         changed_files,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{detect_agent_type, ScanCaches};
+    use crate::model::{AgentType, GitInfo};
+
+    #[test]
+    fn detect_agent_type_prefers_tmux_current_command() {
+        let mut caches = ScanCaches::default();
+        let (agent_type, main_process, child_processes) =
+            detect_agent_type("codex", "123", &mut caches);
+
+        assert_eq!(agent_type, AgentType::Codex);
+        assert_eq!(main_process, "codex");
+        assert!(child_processes.is_empty());
+        assert!(caches.process_cmds.is_empty());
+        assert!(caches.child_processes.is_empty());
+    }
+
+    #[test]
+    fn cached_git_info_reuses_existing_result() {
+        let mut caches = ScanCaches::default();
+        caches.git_info.insert(
+            "/tmp/project".to_string(),
+            Some(GitInfo {
+                branch: Some("main".to_string()),
+                commit: Some("abc".to_string()),
+                changed_files: 3,
+            }),
+        );
+
+        let first = caches.cached_git_info("/tmp/project");
+        let second = caches.cached_git_info("/tmp/project");
+
+        assert_eq!(first, second);
+        assert_eq!(caches.git_info.len(), 1);
+    }
 }
