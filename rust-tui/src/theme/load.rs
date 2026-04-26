@@ -151,6 +151,28 @@ fn apply_codex(value: Option<&toml::Value>, config: &mut Config) {
     if let Some(toml::Value::String(mode)) = codex.get("web_search") {
         config.codex.web_search = CodexConfig::normalized_web_search(mode);
     }
+    let legacy_status_line = codex
+        .get("status_line")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let mut explicit_status_line_item = false;
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("status_line_model_with_reasoning") {
+        config.codex.status_line_model_with_reasoning = *enabled;
+        explicit_status_line_item = true;
+    }
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("status_line_context_remaining") {
+        config.codex.status_line_context_remaining = *enabled;
+        explicit_status_line_item = true;
+    }
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("status_line_current_dir") {
+        config.codex.status_line_current_dir = *enabled;
+        explicit_status_line_item = true;
+    }
+    if legacy_status_line && !explicit_status_line_item {
+        config.codex.status_line_model_with_reasoning = true;
+        config.codex.status_line_context_remaining = true;
+        config.codex.status_line_current_dir = true;
+    }
     if let Some(toml::Value::Boolean(enabled)) = codex.get("prompt_file") {
         config.codex.prompt_file = *enabled;
     }

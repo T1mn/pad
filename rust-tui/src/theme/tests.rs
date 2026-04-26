@@ -35,6 +35,9 @@ fn config_round_trips_opencode_provider_models() {
         config.codex.fast_mode = true;
         config.codex.multi_agent = true;
         config.codex.web_search = "live".into();
+        config.codex.status_line_model_with_reasoning = true;
+        config.codex.status_line_context_remaining = true;
+        config.codex.status_line_current_dir = false;
         config.codex.prompt_file = true;
         config.codex.title_summary = true;
         let opencode = config
@@ -70,6 +73,9 @@ fn config_round_trips_opencode_provider_models() {
         assert!(loaded.codex.fast_mode);
         assert!(loaded.codex.multi_agent);
         assert_eq!(loaded.codex.web_search, "live");
+        assert!(loaded.codex.status_line_model_with_reasoning);
+        assert!(loaded.codex.status_line_context_remaining);
+        assert!(!loaded.codex.status_line_current_dir);
         assert!(loaded.codex.prompt_file);
         assert!(loaded.codex.title_summary);
         let opencode = loaded

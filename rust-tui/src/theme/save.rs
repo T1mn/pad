@@ -40,6 +40,18 @@ impl Config {
         content.push_str(&format!("fast_mode = {}\n", self.codex.fast_mode));
         content.push_str(&format!("multi_agent = {}\n", self.codex.multi_agent));
         content.push_str(&format!("web_search = \"{}\"\n", self.codex.web_search));
+        content.push_str(&format!(
+            "status_line_model_with_reasoning = {}\n",
+            self.codex.status_line_model_with_reasoning
+        ));
+        content.push_str(&format!(
+            "status_line_context_remaining = {}\n",
+            self.codex.status_line_context_remaining
+        ));
+        content.push_str(&format!(
+            "status_line_current_dir = {}\n",
+            self.codex.status_line_current_dir
+        ));
         content.push_str(&format!("prompt_file = {}\n", self.codex.prompt_file));
         content.push_str(&format!("title_summary = {}\n", self.codex.title_summary));
         content.push_str("\n[agent_permissions]\n");

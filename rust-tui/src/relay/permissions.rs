@@ -20,10 +20,11 @@ pub(super) fn apply_runtime_overlays(
             codex.fast_mode,
             codex.multi_agent,
             &codex.web_search,
+            &codex.status_line_items(),
             codex.prompt_file,
         );
     } else {
-        remove_codex_runtime_overlay(false, false, false, "default", false);
+        remove_codex_runtime_overlay(false, false, false, "default", &[], false);
     }
 
     if has_claude && permissions.claude_auto_full_access {
@@ -38,6 +39,7 @@ fn apply_codex_runtime_overlay(
     fast_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
+    status_line_items: &[&str],
     prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
@@ -66,6 +68,7 @@ fn apply_codex_runtime_overlay(
                 "features_fast_mode": null,
                 "features_multi_agent": null,
                 "web_search": null,
+                "tui_status_line": null,
                 "model_instructions_file": null
             }),
         );
@@ -89,6 +92,7 @@ fn apply_codex_runtime_overlay(
                 "features_fast_mode": null,
                 "features_multi_agent": null,
                 "web_search": null,
+                "tui_status_line": null,
                 "model_instructions_file": null
             }),
         );
@@ -112,6 +116,7 @@ fn apply_codex_runtime_overlay(
                 "features_fast_mode": null,
                 "features_multi_agent": null,
                 "web_search": null,
+                "tui_status_line": null,
                 "model_instructions_file": null
             }),
         );
@@ -137,10 +142,30 @@ fn apply_codex_runtime_overlay(
                 "features_fast_mode": null,
                 "features_multi_agent": null,
                 "web_search": null,
+                "tui_status_line": null,
                 "model_instructions_file": null
             }),
         );
         restore_toml_string_field(root, "web_search", state.get("web_search"));
+    }
+
+    if !status_line_items.is_empty() {
+        set_toml_string_array_path(root, &["tui", "status_line"], status_line_items);
+    } else {
+        let state = read_json_value(
+            &codex_permission_state_path(),
+            json!({
+                "approval_policy": null,
+                "sandbox_mode": null,
+                "service_tier": null,
+                "features_fast_mode": null,
+                "features_multi_agent": null,
+                "web_search": null,
+                "tui_status_line": null,
+                "model_instructions_file": null
+            }),
+        );
+        restore_toml_string_array_path(root, &["tui", "status_line"], state.get("tui_status_line"));
     }
 
     if prompt_file_enabled {
@@ -163,6 +188,7 @@ fn apply_codex_runtime_overlay(
                 "features_fast_mode": null,
                 "features_multi_agent": null,
                 "web_search": null,
+                "tui_status_line": null,
                 "model_instructions_file": null
             }),
         );
@@ -174,6 +200,7 @@ fn apply_codex_runtime_overlay(
     }
 
     cleanup_empty_toml_table_path(root, &["features"]);
+    cleanup_empty_toml_table_path(root, &["tui"]);
 
     write_text_file(&path, &serialize_toml_document(&doc));
 
@@ -181,6 +208,7 @@ fn apply_codex_runtime_overlay(
         && !fast_enabled
         && !multi_agent_enabled
         && web_search_mode == "default"
+        && status_line_items.is_empty()
         && !prompt_file_enabled
     {
         let _ = std::fs::remove_file(codex_permission_state_path());
@@ -192,6 +220,7 @@ fn remove_codex_runtime_overlay(
     fast_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
+    status_line_items: &[&str],
     prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
@@ -211,6 +240,7 @@ fn remove_codex_runtime_overlay(
             "features_fast_mode": null,
             "features_multi_agent": null,
             "web_search": null,
+            "tui_status_line": null,
             "model_instructions_file": null
         }),
     );
@@ -237,6 +267,9 @@ fn remove_codex_runtime_overlay(
     if web_search_mode == "default" {
         restore_toml_string_field(root, "web_search", state.get("web_search"));
     }
+    if status_line_items.is_empty() {
+        restore_toml_string_array_path(root, &["tui", "status_line"], state.get("tui_status_line"));
+    }
     if !prompt_file_enabled {
         restore_toml_string_field(
             root,
@@ -245,12 +278,14 @@ fn remove_codex_runtime_overlay(
         );
     }
     cleanup_empty_toml_table_path(root, &["features"]);
+    cleanup_empty_toml_table_path(root, &["tui"]);
 
     write_text_file(&path, &serialize_toml_document(&doc));
     if !yolo_enabled
         && !fast_enabled
         && !multi_agent_enabled
         && web_search_mode == "default"
+        && status_line_items.is_empty()
         && !prompt_file_enabled
     {
         let _ = std::fs::remove_file(state_path);
@@ -270,6 +305,7 @@ fn capture_codex_permission_state_once(root: &toml::map::Map<String, toml::Value
         "features_fast_mode": toml_bool_at_path(root, &["features", "fast_mode"]),
         "features_multi_agent": toml_bool_at_path(root, &["features", "multi_agent"]),
         "web_search": root.get("web_search").and_then(|value| value.as_str()),
+        "tui_status_line": toml_string_array_at_path(root, &["tui", "status_line"]),
         "model_instructions_file": root
             .get("model_instructions_file")
             .and_then(|value| value.as_str()),
@@ -308,6 +344,37 @@ fn set_toml_bool_path(root: &mut toml::map::Map<String, toml::Value>, path: &[&s
     current.insert((*last).to_string(), toml::Value::Boolean(flag));
 }
 
+fn set_toml_string_array_path(
+    root: &mut toml::map::Map<String, toml::Value>,
+    path: &[&str],
+    values: &[&str],
+) {
+    let Some((last, parents)) = path.split_last() else {
+        return;
+    };
+
+    let mut current = root;
+    for key in parents {
+        let entry = current
+            .entry((*key).to_string())
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        if !entry.is_table() {
+            *entry = toml::Value::Table(toml::map::Map::new());
+        }
+        current = entry.as_table_mut().expect("nested toml table");
+    }
+
+    current.insert(
+        (*last).to_string(),
+        toml::Value::Array(
+            values
+                .iter()
+                .map(|value| toml::Value::String((*value).to_string()))
+                .collect(),
+        ),
+    );
+}
+
 fn restore_toml_bool_path(
     root: &mut toml::map::Map<String, toml::Value>,
     path: &[&str],
@@ -320,12 +387,41 @@ fn restore_toml_bool_path(
     }
 }
 
+fn restore_toml_string_array_path(
+    root: &mut toml::map::Map<String, toml::Value>,
+    path: &[&str],
+    previous: Option<&serde_json::Value>,
+) {
+    if let Some(previous) = previous.and_then(|value| value.as_array()) {
+        let values: Vec<&str> = previous.iter().filter_map(|value| value.as_str()).collect();
+        set_toml_string_array_path(root, path, &values);
+    } else {
+        remove_toml_path(root, path);
+    }
+}
+
 fn toml_bool_at_path(root: &toml::map::Map<String, toml::Value>, path: &[&str]) -> Option<bool> {
     let mut current = root.get(*path.first()?)?;
     for key in &path[1..] {
         current = current.as_table()?.get(*key)?;
     }
     current.as_bool()
+}
+
+fn toml_string_array_at_path(
+    root: &toml::map::Map<String, toml::Value>,
+    path: &[&str],
+) -> Option<Vec<String>> {
+    let mut current = root.get(*path.first()?)?;
+    for key in &path[1..] {
+        current = current.as_table()?.get(*key)?;
+    }
+    current.as_array().map(|items| {
+        items
+            .iter()
+            .filter_map(|value| value.as_str().map(ToString::to_string))
+            .collect()
+    })
 }
 
 fn remove_toml_path(root: &mut toml::map::Map<String, toml::Value>, path: &[&str]) {

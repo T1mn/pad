@@ -190,6 +190,33 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             "settings.codex_web_search_desc",
         ),
         (
+            "settings.codex_status_model",
+            if app.config.codex.status_line_model_with_reasoning {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_status_model_desc",
+        ),
+        (
+            "settings.codex_status_context",
+            if app.config.codex.status_line_context_remaining {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_status_context_desc",
+        ),
+        (
+            "settings.codex_status_current_dir",
+            if app.config.codex.status_line_current_dir {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_status_current_dir_desc",
+        ),
+        (
             "settings.codex_prompt_file",
             if app.config.codex.prompt_file {
                 t(locale, "settings.on")

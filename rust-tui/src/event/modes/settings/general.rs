@@ -29,7 +29,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 5 {
+            if app.codex_settings_selected < 8 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -61,9 +61,21 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
                     };
                 }
                 4 => {
-                    app.config.codex.prompt_file = !app.config.codex.prompt_file;
+                    app.config.codex.status_line_model_with_reasoning =
+                        !app.config.codex.status_line_model_with_reasoning;
                 }
                 5 => {
+                    app.config.codex.status_line_context_remaining =
+                        !app.config.codex.status_line_context_remaining;
+                }
+                6 => {
+                    app.config.codex.status_line_current_dir =
+                        !app.config.codex.status_line_current_dir;
+                }
+                7 => {
+                    app.config.codex.prompt_file = !app.config.codex.prompt_file;
+                }
+                8 => {
                     app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
                 _ => {}

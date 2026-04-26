@@ -252,7 +252,7 @@ impl App {
             (
                 "codex_settings",
                 format!(
-                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}  ·  Sum {}",
+                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}  ·  SL {}/3  ·  Sum {}",
                     if self.config.agent_permissions.codex_auto_full_access {
                         crate::i18n::t(l, "settings.on")
                     } else {
@@ -277,6 +277,7 @@ impl App {
                             _ => "settings.codex_web_search_default",
                         }
                     ),
+                    self.config.codex.status_line_items().len(),
                     if self.config.codex.title_summary {
                         crate::i18n::t(l, "settings.on")
                     } else {

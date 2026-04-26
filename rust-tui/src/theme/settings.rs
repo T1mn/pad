@@ -79,6 +79,9 @@ pub struct CodexConfig {
     pub fast_mode: bool,
     pub multi_agent: bool,
     pub web_search: String,
+    pub status_line_model_with_reasoning: bool,
+    pub status_line_context_remaining: bool,
+    pub status_line_current_dir: bool,
     pub prompt_file: bool,
     pub title_summary: bool,
 }
@@ -92,6 +95,21 @@ impl CodexConfig {
             _ => "default".to_string(),
         }
     }
+
+    pub fn status_line_items(&self) -> Vec<&'static str> {
+        let mut items = Vec::new();
+        if self.status_line_model_with_reasoning {
+            items.push("model-with-reasoning");
+        }
+        if self.status_line_context_remaining {
+            items.push("context-remaining");
+        }
+        if self.status_line_current_dir {
+            items.push("current-dir");
+        }
+        items
+    }
+
 }
 
 impl Default for CodexConfig {
@@ -100,6 +118,9 @@ impl Default for CodexConfig {
             fast_mode: false,
             multi_agent: false,
             web_search: "default".to_string(),
+            status_line_model_with_reasoning: false,
+            status_line_context_remaining: false,
+            status_line_current_dir: false,
             prompt_file: false,
             title_summary: false,
         }
