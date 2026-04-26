@@ -87,7 +87,8 @@ main() {
     err "✗ PAD was installed, but tmux is still unavailable"
     exit 1
   fi
-  ensure_default_codex_prompt
+  ensure_default_codex_jailbreak_prompt
+  ensure_default_codex_index_prompt
   show_path_hint
   show_success
 }

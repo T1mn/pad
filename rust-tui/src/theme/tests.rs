@@ -38,7 +38,8 @@ fn config_round_trips_opencode_provider_models() {
         config.codex.status_line_model_with_reasoning = true;
         config.codex.status_line_context_remaining = true;
         config.codex.status_line_current_dir = false;
-        config.codex.prompt_file = true;
+        config.codex.jailbreak_prompt_file = true;
+        config.codex.index_prompt_file = true;
         config.codex.title_summary = true;
         let opencode = config
             .agents
@@ -76,7 +77,8 @@ fn config_round_trips_opencode_provider_models() {
         assert!(loaded.codex.status_line_model_with_reasoning);
         assert!(loaded.codex.status_line_context_remaining);
         assert!(!loaded.codex.status_line_current_dir);
-        assert!(loaded.codex.prompt_file);
+        assert!(loaded.codex.jailbreak_prompt_file);
+        assert!(loaded.codex.index_prompt_file);
         assert!(loaded.codex.title_summary);
         let opencode = loaded
             .agents
@@ -125,6 +127,20 @@ fn config_save_omits_wire_api_entries() {
 
         let saved = std::fs::read_to_string(Config::config_path()).expect("read saved config");
         assert!(!saved.contains("wire_api"));
+    });
+}
+
+#[test]
+fn config_loads_legacy_codex_prompt_file_as_jailbreak_prompt_file() {
+    with_temp_home("legacy-codex-prompt-file", || {
+        let config_path = crate::paths::config_path();
+        std::fs::create_dir_all(config_path.parent().expect("config parent"))
+            .expect("create config dir");
+        std::fs::write(&config_path, "[codex]\nprompt_file = true\n").expect("write legacy config");
+
+        let loaded = Config::load();
+
+        assert!(loaded.codex.jailbreak_prompt_file);
     });
 }
 

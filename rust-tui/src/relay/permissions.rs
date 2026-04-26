@@ -21,10 +21,11 @@ pub(super) fn apply_runtime_overlays(
             codex.multi_agent,
             &codex.web_search,
             &codex.status_line_items(),
-            codex.prompt_file,
+            codex.jailbreak_prompt_file,
+            codex.index_prompt_file,
         );
     } else {
-        remove_codex_runtime_overlay(false, false, false, "default", &[], false);
+        remove_codex_runtime_overlay(false, false, false, "default", &[], false, false);
     }
 
     if has_claude && permissions.claude_auto_full_access {
@@ -40,7 +41,8 @@ fn apply_codex_runtime_overlay(
     multi_agent_enabled: bool,
     web_search_mode: &str,
     status_line_items: &[&str],
-    prompt_file_enabled: bool,
+    jailbreak_prompt_file_enabled: bool,
+    index_prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
     let content = std::fs::read_to_string(&path).unwrap_or_default();
@@ -168,12 +170,10 @@ fn apply_codex_runtime_overlay(
         restore_toml_string_array_path(root, &["tui", "status_line"], state.get("tui_status_line"));
     }
 
-    if prompt_file_enabled {
-        let prompt_path = crate::paths::codex_prompt_file_path();
-        if let Some(parent) = prompt_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = crate::paths::ensure_codex_prompt_file_seeded();
+    if let Ok(Some(prompt_path)) = crate::paths::write_codex_selected_prompt_file(
+        jailbreak_prompt_file_enabled,
+        index_prompt_file_enabled,
+    ) {
         root.insert(
             "model_instructions_file".to_string(),
             toml::Value::String(prompt_path.to_string_lossy().to_string()),
@@ -209,7 +209,8 @@ fn apply_codex_runtime_overlay(
         && !multi_agent_enabled
         && web_search_mode == "default"
         && status_line_items.is_empty()
-        && !prompt_file_enabled
+        && !jailbreak_prompt_file_enabled
+        && !index_prompt_file_enabled
     {
         let _ = std::fs::remove_file(codex_permission_state_path());
     }
@@ -221,7 +222,8 @@ fn remove_codex_runtime_overlay(
     multi_agent_enabled: bool,
     web_search_mode: &str,
     status_line_items: &[&str],
-    prompt_file_enabled: bool,
+    jailbreak_prompt_file_enabled: bool,
+    index_prompt_file_enabled: bool,
 ) {
     let path = codex_config_path();
     let state_path = codex_permission_state_path();
@@ -270,7 +272,7 @@ fn remove_codex_runtime_overlay(
     if status_line_items.is_empty() {
         restore_toml_string_array_path(root, &["tui", "status_line"], state.get("tui_status_line"));
     }
-    if !prompt_file_enabled {
+    if !jailbreak_prompt_file_enabled && !index_prompt_file_enabled {
         restore_toml_string_field(
             root,
             "model_instructions_file",
@@ -286,7 +288,8 @@ fn remove_codex_runtime_overlay(
         && !multi_agent_enabled
         && web_search_mode == "default"
         && status_line_items.is_empty()
-        && !prompt_file_enabled
+        && !jailbreak_prompt_file_enabled
+        && !index_prompt_file_enabled
     {
         let _ = std::fs::remove_file(state_path);
     }

@@ -217,13 +217,22 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             "settings.codex_status_current_dir_desc",
         ),
         (
-            "settings.codex_prompt_file",
-            if app.config.codex.prompt_file {
+            "settings.codex_jailbreak_prompt_file",
+            if app.config.codex.jailbreak_prompt_file {
                 t(locale, "settings.on")
             } else {
                 t(locale, "settings.off")
             },
-            "settings.codex_prompt_file_desc",
+            "settings.codex_jailbreak_prompt_file_desc",
+        ),
+        (
+            "settings.codex_index_prompt_file",
+            if app.config.codex.index_prompt_file {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_index_prompt_file_desc",
         ),
         (
             "settings.codex_title_summary",

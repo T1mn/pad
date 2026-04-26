@@ -82,7 +82,8 @@ pub struct CodexConfig {
     pub status_line_model_with_reasoning: bool,
     pub status_line_context_remaining: bool,
     pub status_line_current_dir: bool,
-    pub prompt_file: bool,
+    pub jailbreak_prompt_file: bool,
+    pub index_prompt_file: bool,
     pub title_summary: bool,
 }
 
@@ -109,7 +110,6 @@ impl CodexConfig {
         }
         items
     }
-
 }
 
 impl Default for CodexConfig {
@@ -121,7 +121,8 @@ impl Default for CodexConfig {
             status_line_model_with_reasoning: false,
             status_line_context_remaining: false,
             status_line_current_dir: false,
-            prompt_file: false,
+            jailbreak_prompt_file: false,
+            index_prompt_file: false,
             title_summary: false,
         }
     }

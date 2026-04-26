@@ -298,7 +298,8 @@ mod tests {
             app.config.codex.status_line_model_with_reasoning = false;
             app.config.codex.status_line_context_remaining = false;
             app.config.codex.status_line_current_dir = false;
-            app.config.codex.prompt_file = false;
+            app.config.codex.jailbreak_prompt_file = false;
+            app.config.codex.index_prompt_file = false;
             app.config.codex.title_summary = false;
 
             app.codex_settings_selected = 0;
@@ -350,12 +351,19 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Down);
             assert_eq!(app.codex_settings_selected, 7);
             handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.prompt_file);
+            assert!(app.config.codex.jailbreak_prompt_file);
             handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.prompt_file);
+            assert!(!app.config.codex.jailbreak_prompt_file);
 
             handle_settings_mode(&mut app, KeyCode::Down);
             assert_eq!(app.codex_settings_selected, 8);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.index_prompt_file);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(!app.config.codex.index_prompt_file);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 9);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.title_summary);
             handle_settings_mode(&mut app, KeyCode::Enter);
@@ -379,7 +387,7 @@ mod tests {
             for _ in 0..10 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 8);
+            assert_eq!(app.codex_settings_selected, 9);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

@@ -52,7 +52,14 @@ impl Config {
             "status_line_current_dir = {}\n",
             self.codex.status_line_current_dir
         ));
-        content.push_str(&format!("prompt_file = {}\n", self.codex.prompt_file));
+        content.push_str(&format!(
+            "jailbreak_prompt_file = {}\n",
+            self.codex.jailbreak_prompt_file
+        ));
+        content.push_str(&format!(
+            "index_prompt_file = {}\n",
+            self.codex.index_prompt_file
+        ));
         content.push_str(&format!("title_summary = {}\n", self.codex.title_summary));
         content.push_str("\n[agent_permissions]\n");
         content.push_str(&format!(

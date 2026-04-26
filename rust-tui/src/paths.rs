@@ -5,9 +5,13 @@ use std::path::{Path, PathBuf};
 const CLAUDE_BRIDGE_VERSION: &str = "claude-2026-04-08.1";
 const CODEX_BRIDGE_VERSION: &str = "codex-2026-04-08.2";
 const BRIDGE_VERSION_PREFIX: &str = "# pad-bridge-version: ";
-const CODEX_PROMPT_VERSION: &str = "codex-prompt-2026-04-21.1";
-const LEGACY_CODEX_PROMPT_HASHES: &[&str] = &["c8bf76a53a9b840d52c987ebff0310b2"];
-pub const DEFAULT_CODEX_PROMPT_TEMPLATE: &str = include_str!("../assets/prompts/codex.md");
+const CODEX_JAILBREAK_PROMPT_VERSION: &str = "codex-jailbreak-prompt-2026-04-26.1";
+const CODEX_INDEX_PROMPT_VERSION: &str = "codex-index-prompt-2026-04-26.1";
+const LEGACY_CODEX_JAILBREAK_PROMPT_HASHES: &[&str] = &["c8bf76a53a9b840d52c987ebff0310b2"];
+pub const DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE: &str =
+    include_str!("../assets/prompts/codex_jailbreak.md");
+pub const DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE: &str =
+    include_str!("../assets/prompts/codex_index.md");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ManagedPromptState {
@@ -74,25 +78,48 @@ pub fn prompts_dir() -> PathBuf {
     pad_home_dir().join("prompt")
 }
 
-pub fn codex_prompt_file_path() -> PathBuf {
+pub fn codex_jailbreak_prompt_file_path() -> PathBuf {
+    prompts_dir().join("codex_jailbreak.md")
+}
+
+pub fn codex_index_prompt_file_path() -> PathBuf {
+    prompts_dir().join("codex_index.md")
+}
+
+pub fn codex_selected_prompt_file_path() -> PathBuf {
+    prompts_dir().join("codex_selected.md")
+}
+
+fn legacy_codex_prompt_file_path() -> PathBuf {
     prompts_dir().join("codex.md")
 }
 
-fn codex_prompt_state_path() -> PathBuf {
-    prompts_dir().join("codex.version")
+fn codex_jailbreak_prompt_state_path() -> PathBuf {
+    prompts_dir().join("codex_jailbreak.version")
 }
 
-pub fn ensure_codex_prompt_file_seeded() -> io::Result<()> {
-    let prompt_path = codex_prompt_file_path();
-    let state_path = codex_prompt_state_path();
+fn codex_index_prompt_state_path() -> PathBuf {
+    prompts_dir().join("codex_index.version")
+}
+
+pub fn ensure_codex_jailbreak_prompt_file_seeded() -> io::Result<()> {
+    fs::create_dir_all(prompts_dir())?;
+    let prompt_path = codex_jailbreak_prompt_file_path();
+    let state_path = codex_jailbreak_prompt_state_path();
     let existing_prompt = match fs::read_to_string(&prompt_path) {
         Ok(existing) => Some(existing),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            match fs::read_to_string(legacy_codex_prompt_file_path()) {
+                Ok(existing) => Some(existing),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+                Err(err) => return Err(err),
+            }
+        }
         Err(err) => return Err(err),
     };
     let current_state = ManagedPromptState {
-        version: CODEX_PROMPT_VERSION.to_string(),
-        content_md5: prompt_md5(DEFAULT_CODEX_PROMPT_TEMPLATE),
+        version: CODEX_JAILBREAK_PROMPT_VERSION.to_string(),
+        content_md5: prompt_md5(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE),
     };
     let existing_state = read_managed_prompt_state(&state_path)?;
 
@@ -105,11 +132,82 @@ pub fn ensure_codex_prompt_file_seeded() -> io::Result<()> {
     };
 
     if needs_seed {
-        fs::write(prompt_path, DEFAULT_CODEX_PROMPT_TEMPLATE)?;
+        fs::write(prompt_path, DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE)?;
+        write_managed_prompt_state(&state_path, &current_state)?;
+    } else if !prompt_path.exists() {
+        if let Some(existing) = existing_prompt {
+            fs::write(prompt_path, existing)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn ensure_codex_index_prompt_file_seeded() -> io::Result<()> {
+    fs::create_dir_all(prompts_dir())?;
+    let prompt_path = codex_index_prompt_file_path();
+    let state_path = codex_index_prompt_state_path();
+    let existing_prompt = match fs::read_to_string(&prompt_path) {
+        Ok(existing) => Some(existing),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) => return Err(err),
+    };
+    let current_state = ManagedPromptState {
+        version: CODEX_INDEX_PROMPT_VERSION.to_string(),
+        content_md5: prompt_md5(DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE),
+    };
+    let existing_state = read_managed_prompt_state(&state_path)?;
+
+    let needs_seed = match existing_prompt.as_deref() {
+        None => true,
+        Some(existing) if existing.trim().is_empty() => true,
+        Some(existing) => {
+            should_refresh_managed_prompt(existing, existing_state.as_ref(), &current_state)
+        }
+    };
+
+    if needs_seed {
+        fs::write(prompt_path, DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE)?;
         write_managed_prompt_state(&state_path, &current_state)?;
     }
 
     Ok(())
+}
+
+pub fn write_codex_selected_prompt_file(
+    include_jailbreak: bool,
+    include_index: bool,
+) -> io::Result<Option<PathBuf>> {
+    let mut prompt_paths = Vec::new();
+    if include_jailbreak {
+        ensure_codex_jailbreak_prompt_file_seeded()?;
+        prompt_paths.push(codex_jailbreak_prompt_file_path());
+    }
+    if include_index {
+        ensure_codex_index_prompt_file_seeded()?;
+        prompt_paths.push(codex_index_prompt_file_path());
+    }
+
+    match prompt_paths.as_slice() {
+        [] => Ok(None),
+        [single] => Ok(Some(single.clone())),
+        paths => {
+            let mut content = String::from(
+                "# Generated by pad from selected Codex prompt candidates. Do not edit directly.\n\n",
+            );
+            for path in paths {
+                content.push_str(&format!("<!-- source: {} -->\n\n", path.display()));
+                content.push_str(&fs::read_to_string(path)?);
+                if !content.ends_with('\n') {
+                    content.push('\n');
+                }
+                content.push('\n');
+            }
+            let combined_path = codex_selected_prompt_file_path();
+            fs::write(&combined_path, content)?;
+            Ok(Some(combined_path))
+        }
+    }
 }
 
 pub fn sounds_dir() -> PathBuf {
@@ -166,7 +264,8 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(scripts_dir())?;
     fs::create_dir_all(prompts_dir())?;
     fs::create_dir_all(sessions_dir())?;
-    ensure_codex_prompt_file_seeded()?;
+    ensure_codex_jailbreak_prompt_file_seeded()?;
+    ensure_codex_index_prompt_file_seeded()?;
     if !hook_events_path().exists() {
         fs::write(hook_events_path(), "")?;
     }
@@ -293,7 +392,7 @@ fn should_refresh_managed_prompt(
         }
         None => {
             existing_md5 == current_state.content_md5
-                || LEGACY_CODEX_PROMPT_HASHES.contains(&existing_md5.as_str())
+                || LEGACY_CODEX_JAILBREAK_PROMPT_HASHES.contains(&existing_md5.as_str())
         }
     }
 }
@@ -740,60 +839,104 @@ mod tests {
     }
 
     #[test]
-    fn ensure_runtime_layout_creates_codex_prompt_file() {
+    fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
         with_temp_home("runtime-layout", |_home| {
             ensure_runtime_layout().expect("ensure runtime layout");
             assert!(prompts_dir().is_dir());
-            assert!(codex_prompt_file_path().is_file());
+            assert!(codex_jailbreak_prompt_file_path().is_file());
             assert_eq!(
-                std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-                DEFAULT_CODEX_PROMPT_TEMPLATE
+                std::fs::read_to_string(codex_jailbreak_prompt_file_path())
+                    .expect("read prompt file"),
+                DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE
+            );
+            assert!(codex_index_prompt_file_path().is_file());
+            assert_eq!(
+                std::fs::read_to_string(codex_index_prompt_file_path()).expect("read prompt file"),
+                DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE
             );
         });
     }
 
     #[test]
-    fn ensure_runtime_layout_reseeds_empty_codex_prompt_file() {
+    fn write_codex_selected_prompt_file_combines_selected_candidates() {
+        with_temp_home("selected-prompt-combine", |_home| {
+            fs::create_dir_all(prompts_dir()).expect("create prompt dir");
+
+            let selected =
+                write_codex_selected_prompt_file(true, true).expect("write selected prompt");
+
+            let selected_path = codex_selected_prompt_file_path();
+            assert_eq!(selected.as_deref(), Some(selected_path.as_path()));
+            let content =
+                fs::read_to_string(codex_selected_prompt_file_path()).expect("read combined");
+            assert!(content.contains(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE));
+            assert!(content.contains(DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE));
+        });
+    }
+
+    #[test]
+    fn write_codex_selected_prompt_file_returns_single_candidate_directly() {
+        with_temp_home("selected-prompt-single", |_home| {
+            fs::create_dir_all(prompts_dir()).expect("create prompt dir");
+
+            let selected =
+                write_codex_selected_prompt_file(false, true).expect("write selected prompt");
+
+            let index_path = codex_index_prompt_file_path();
+            assert_eq!(selected.as_deref(), Some(index_path.as_path()));
+            assert!(!codex_selected_prompt_file_path().exists());
+        });
+    }
+
+    #[test]
+    fn ensure_runtime_layout_reseeds_empty_codex_jailbreak_prompt_file() {
         with_temp_home("runtime-layout-empty-prompt", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
-            fs::write(codex_prompt_file_path(), "\n\n").expect("seed empty prompt file");
+            fs::write(codex_jailbreak_prompt_file_path(), "\n\n").expect("seed empty prompt file");
 
             ensure_runtime_layout().expect("ensure runtime layout");
 
             assert_eq!(
-                std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-                DEFAULT_CODEX_PROMPT_TEMPLATE
+                std::fs::read_to_string(codex_jailbreak_prompt_file_path())
+                    .expect("read prompt file"),
+                DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE
             );
         });
     }
 
     #[test]
-    fn ensure_runtime_layout_tracks_current_codex_prompt_version() {
+    fn ensure_runtime_layout_tracks_current_codex_jailbreak_prompt_version() {
         with_temp_home("runtime-layout-codex-prompt-version", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
-            fs::write(codex_prompt_file_path(), DEFAULT_CODEX_PROMPT_TEMPLATE)
-                .expect("seed prompt file");
+            fs::write(
+                codex_jailbreak_prompt_file_path(),
+                DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
+            )
+            .expect("seed prompt file");
 
             ensure_runtime_layout().expect("ensure runtime layout");
 
-            let state = read_managed_prompt_state(&codex_prompt_state_path())
+            let state = read_managed_prompt_state(&codex_jailbreak_prompt_state_path())
                 .expect("read prompt state")
                 .expect("managed prompt state");
-            assert_eq!(state.version, CODEX_PROMPT_VERSION);
-            assert_eq!(state.content_md5, prompt_md5(DEFAULT_CODEX_PROMPT_TEMPLATE));
+            assert_eq!(state.version, CODEX_JAILBREAK_PROMPT_VERSION);
+            assert_eq!(
+                state.content_md5,
+                prompt_md5(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE)
+            );
         });
     }
 
     #[test]
-    fn ensure_runtime_layout_refreshes_outdated_managed_codex_prompt() {
+    fn ensure_runtime_layout_refreshes_outdated_managed_codex_jailbreak_prompt() {
         with_temp_home("runtime-layout-refresh-managed-prompt", |_home| {
             let old_prompt = "legacy managed prompt";
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
-            fs::write(codex_prompt_file_path(), old_prompt).expect("seed old prompt");
+            fs::write(codex_jailbreak_prompt_file_path(), old_prompt).expect("seed old prompt");
             write_managed_prompt_state(
-                &codex_prompt_state_path(),
+                &codex_jailbreak_prompt_state_path(),
                 &ManagedPromptState {
-                    version: "codex-prompt-2026-04-20.1".into(),
+                    version: "codex-jailbreak-prompt-2026-04-20.1".into(),
                     content_md5: prompt_md5(old_prompt),
                 },
             )
@@ -802,27 +945,31 @@ mod tests {
             ensure_runtime_layout().expect("ensure runtime layout");
 
             assert_eq!(
-                fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-                DEFAULT_CODEX_PROMPT_TEMPLATE
+                fs::read_to_string(codex_jailbreak_prompt_file_path()).expect("read prompt file"),
+                DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE
             );
-            let state = read_managed_prompt_state(&codex_prompt_state_path())
+            let state = read_managed_prompt_state(&codex_jailbreak_prompt_state_path())
                 .expect("read prompt state")
                 .expect("managed prompt state");
-            assert_eq!(state.version, CODEX_PROMPT_VERSION);
-            assert_eq!(state.content_md5, prompt_md5(DEFAULT_CODEX_PROMPT_TEMPLATE));
+            assert_eq!(state.version, CODEX_JAILBREAK_PROMPT_VERSION);
+            assert_eq!(
+                state.content_md5,
+                prompt_md5(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE)
+            );
         });
     }
 
     #[test]
-    fn ensure_runtime_layout_preserves_custom_codex_prompt_edits() {
+    fn ensure_runtime_layout_preserves_custom_codex_jailbreak_prompt_edits() {
         with_temp_home("runtime-layout-preserve-custom-prompt", |_home| {
             let custom_prompt = "custom operator prompt";
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
-            fs::write(codex_prompt_file_path(), custom_prompt).expect("seed custom prompt");
+            fs::write(codex_jailbreak_prompt_file_path(), custom_prompt)
+                .expect("seed custom prompt");
             write_managed_prompt_state(
-                &codex_prompt_state_path(),
+                &codex_jailbreak_prompt_state_path(),
                 &ManagedPromptState {
-                    version: "codex-prompt-2026-04-20.1".into(),
+                    version: "codex-jailbreak-prompt-2026-04-20.1".into(),
                     content_md5: prompt_md5("legacy managed prompt"),
                 },
             )
@@ -831,7 +978,23 @@ mod tests {
             ensure_runtime_layout().expect("ensure runtime layout");
 
             assert_eq!(
-                fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
+                fs::read_to_string(codex_jailbreak_prompt_file_path()).expect("read prompt file"),
+                custom_prompt
+            );
+        });
+    }
+
+    #[test]
+    fn ensure_runtime_layout_migrates_custom_legacy_codex_prompt_to_jailbreak_name() {
+        with_temp_home("runtime-layout-migrate-legacy-prompt", |_home| {
+            let custom_prompt = "legacy custom jailbreak prompt";
+            fs::create_dir_all(prompts_dir()).expect("create prompt dir");
+            fs::write(legacy_codex_prompt_file_path(), custom_prompt).expect("seed legacy prompt");
+
+            ensure_runtime_layout().expect("ensure runtime layout");
+
+            assert_eq!(
+                fs::read_to_string(codex_jailbreak_prompt_file_path()).expect("read prompt file"),
                 custom_prompt
             );
         });

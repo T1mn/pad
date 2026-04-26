@@ -29,7 +29,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 8 {
+            if app.codex_settings_selected < 9 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -73,9 +73,13 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
                         !app.config.codex.status_line_current_dir;
                 }
                 7 => {
-                    app.config.codex.prompt_file = !app.config.codex.prompt_file;
+                    app.config.codex.jailbreak_prompt_file =
+                        !app.config.codex.jailbreak_prompt_file;
                 }
                 8 => {
+                    app.config.codex.index_prompt_file = !app.config.codex.index_prompt_file;
+                }
+                9 => {
                     app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
                 _ => {}

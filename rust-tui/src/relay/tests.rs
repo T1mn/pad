@@ -6,7 +6,11 @@ use super::common::{
 use super::{
     apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
 };
-use crate::paths::{codex_prompt_file_path, DEFAULT_CODEX_PROMPT_TEMPLATE};
+use crate::paths::{
+    codex_index_prompt_file_path, codex_jailbreak_prompt_file_path,
+    codex_selected_prompt_file_path, DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE,
+    DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
+};
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -814,7 +818,9 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
         assert!(value.contains("[tui]"));
-        assert!(value.contains("status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"));
+        assert!(value.contains(
+            "status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"
+        ));
         assert!(codex_permission_state_path().exists());
     });
 }
@@ -888,7 +894,7 @@ fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
 }
 
 #[test]
-fn runtime_configs_apply_codex_prompt_file_without_relay_provider() {
+fn runtime_configs_apply_codex_jailbreak_prompt_file_without_relay_provider() {
     with_temp_home("codex-prompt-file", |home| {
         let codex_dir = home.join(".codex");
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
@@ -907,23 +913,95 @@ fn runtime_configs_apply_codex_prompt_file_without_relay_provider() {
         };
 
         let mut codex = sample_codex_config();
-        codex.prompt_file = true;
+        codex.jailbreak_prompt_file = true;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
-        let expected = codex_prompt_file_path().to_string_lossy().to_string();
+        let expected = codex_jailbreak_prompt_file_path()
+            .to_string_lossy()
+            .to_string();
         assert!(value.contains(&format!("model_instructions_file = \"{expected}\"")));
-        assert!(codex_prompt_file_path().is_file());
+        assert!(codex_jailbreak_prompt_file_path().is_file());
         assert_eq!(
-            std::fs::read_to_string(codex_prompt_file_path()).expect("read prompt file"),
-            DEFAULT_CODEX_PROMPT_TEMPLATE
+            std::fs::read_to_string(codex_jailbreak_prompt_file_path()).expect("read prompt file"),
+            DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE
         );
         assert!(codex_permission_state_path().exists());
     });
 }
 
 #[test]
-fn runtime_configs_restore_previous_codex_prompt_file_when_disabled() {
+fn runtime_configs_apply_codex_index_prompt_file_without_relay_provider() {
+    with_temp_home("codex-index-prompt-file", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.index_prompt_file = true;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        let expected = codex_index_prompt_file_path().to_string_lossy().to_string();
+        assert!(value.contains(&format!("model_instructions_file = \"{expected}\"")));
+        assert!(codex_index_prompt_file_path().is_file());
+        assert_eq!(
+            std::fs::read_to_string(codex_index_prompt_file_path()).expect("read prompt file"),
+            DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE
+        );
+    });
+}
+
+#[test]
+fn runtime_configs_apply_combined_codex_prompt_candidates_without_relay_provider() {
+    with_temp_home("codex-combined-prompt-file", |home| {
+        let codex_dir = home.join(".codex");
+        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
+        let config_path = codex_dir.join("config.toml");
+        std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
+
+        let agent = AgentConfig {
+            name: "codex".into(),
+            cmd: "codex".into(),
+            providers: Vec::new(),
+            active_provider: None,
+            default_model: String::new(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        let mut codex = sample_codex_config();
+        codex.jailbreak_prompt_file = true;
+        codex.index_prompt_file = true;
+        apply_runtime_configs(&[agent], &sample_permissions(), &codex);
+
+        let value = std::fs::read_to_string(&config_path).expect("read codex config");
+        let expected = codex_selected_prompt_file_path()
+            .to_string_lossy()
+            .to_string();
+        assert!(value.contains(&format!("model_instructions_file = \"{expected}\"")));
+        let combined =
+            std::fs::read_to_string(codex_selected_prompt_file_path()).expect("read combined");
+        assert!(combined.contains(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE));
+        assert!(combined.contains(DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE));
+    });
+}
+
+#[test]
+fn runtime_configs_restore_previous_codex_jailbreak_prompt_file_when_disabled() {
     with_temp_home("codex-prompt-file-restore", |home| {
         let codex_dir = home.join(".codex");
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
@@ -946,10 +1024,10 @@ fn runtime_configs_restore_previous_codex_prompt_file_when_disabled() {
         };
 
         let mut codex = sample_codex_config();
-        codex.prompt_file = true;
+        codex.jailbreak_prompt_file = true;
         apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
 
-        codex.prompt_file = false;
+        codex.jailbreak_prompt_file = false;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
@@ -996,7 +1074,9 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
         assert!(value.contains("web_search = \"live\""));
         assert!(value.contains("fast_mode = true"));
         assert!(value.contains("multi_agent = true"));
-        assert!(value.contains("status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"));
+        assert!(value.contains(
+            "status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"
+        ));
         assert!(codex_permission_state_path().exists());
     });
 }
@@ -1052,7 +1132,9 @@ fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
         assert!(value.contains("web_search = \"cached\""));
         assert!(value.contains("fast_mode = false"));
         assert!(value.contains("multi_agent = false"));
-        assert!(!value.contains("status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"));
+        assert!(!value.contains(
+            "status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"
+        ));
         assert!(!codex_permission_state_path().exists());
     });
 }
