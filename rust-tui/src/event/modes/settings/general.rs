@@ -96,11 +96,9 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
             );
             app.dirty = true;
         }
-        KeyCode::Char('u') => {
-            if app.codex_settings_selected == 10 {
-                app.trigger_codex_cli_update();
-                app.dirty = true;
-            }
+        KeyCode::Char('u') if app.codex_settings_selected == 10 => {
+            app.trigger_codex_cli_update();
+            app.dirty = true;
         }
         _ => {}
     }
