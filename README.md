@@ -62,6 +62,7 @@ What this looks like in practice:
 - Manage multiple agents in one workspace instead of hunting across tmux panes
 - Read the latest preview and recent turns on the right before you attach
 - Hit `Tab` to open the latest detail view and `Shift+J` / `Shift+K` to move across Q&A turns
+- Press `F2` to rename a thread, or `T` to edit tags without leaving PAD
 - Create a fresh session with `c`, send work, then jump back to PAD with `F12`
 - Use the activity indicator to see which session is still running in the background
 
@@ -129,7 +130,7 @@ Settings stays in flow. Open it with `/`, change what you need, leave with `Esc`
 1. `/` prompt: settings comes from the same slash-driven flow as other terminal-first tools.
 2. Settings list: move through config areas without leaving the keyboard.
 3. Inline current values: scan current state directly from the list.
-4. Footer hints: the active keys are always visible at the bottom.
+4. Footer hints: the active keys are always visible at the bottom, including Codex CLI check and update actions where available.
 
 ### Archive
 
@@ -171,6 +172,15 @@ Help keeps the keyboard model discoverable inside the UI, so you do not have to 
 - File tree browsing with file preview
 - Theme switching
 - Agent launcher from the tree view
+- Per-session thread title overrides and editable tags
+
+## Thread Metadata
+
+- Press `F2` to edit the current thread title.
+- Press `T` to edit tags for the current thread.
+- While editing a title, `Shift+Delete` clears the full input quickly.
+- Custom titles are stored per session in PAD. Clearing a custom title falls back to the generated or upstream title.
+- These edits only change PAD's local metadata layer and do not modify upstream session history.
 
 ## Usage
 
@@ -206,7 +216,10 @@ Linux release assets are published in separate families:
 | `Tab` twice | Open the latest preview detail, or return detail back to the turns list |
 | `?` | Help |
 | `t` | Toggle file tree |
-| `T` | Open tree at ~/ |
+| `Ctrl+T` | Open tree at ~/ |
+| `F2` | Edit thread title |
+| `T` | Edit thread tags |
+| `Shift+Delete` | Clear title input while editing |
 | `Space` | Expand/collapse directory |
 | `Space` twice | Expand/collapse all session folders |
 | `c` | Create new session |
