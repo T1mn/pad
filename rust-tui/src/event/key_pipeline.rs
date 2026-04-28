@@ -27,7 +27,7 @@ pub(super) fn handle_key_event(
         Mode::TreeSearch => super::handle_tree_search_mode(app, key.code),
         Mode::AgentLauncher => super::handle_agent_launcher_mode(app, key.code),
         Mode::DeleteConfirm => super::handle_delete_confirm_mode(app, key.code),
-        Mode::ThreadActionConfirm => super::handle_thread_action_confirm_mode(app, key.code),
+        Mode::ThreadActionConfirm => super::handle_thread_action_confirm_mode(app, key),
         Mode::Help => super::handle_help_mode(app, key.code),
         Mode::FuzzyPicker => super::handle_fuzzy_picker_mode(app, key),
         Mode::RelaySettings => super::handle_relay_settings_mode(app, key.code),

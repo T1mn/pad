@@ -60,6 +60,7 @@ pub(super) fn draw_relay_popup(f: &mut Frame, app: &App, area: Rect) {
                         .iter()
                         .map(|model| SelectionItem {
                             title: model.id.clone(),
+                            value: None,
                             subtitle: Some(if model.name.trim().is_empty() {
                                 "-".to_string()
                             } else {
@@ -145,6 +146,7 @@ pub(super) fn draw_relay_popup(f: &mut Frame, app: &App, area: Rect) {
                         .into_iter()
                         .map(|(value, label)| SelectionItem {
                             title: label,
+                            value: None,
                             subtitle: Some(value),
                             keyword: None,
                             detail: None,

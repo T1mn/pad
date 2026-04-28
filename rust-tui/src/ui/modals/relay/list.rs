@@ -52,6 +52,7 @@ pub(super) fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) 
                     };
                     SelectionItem {
                         title: agent.name.clone(),
+                        value: None,
                         subtitle: Some(subtitle),
                         keyword: Some(format!("{} {}", agent.name, active_label)),
                         detail: None,
@@ -71,6 +72,7 @@ pub(super) fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) 
                 if agent.providers.is_empty() {
                     vec![SelectionItem {
                         title: crate::i18n::t(locale, "relay.empty").to_string(),
+                        value: None,
                         subtitle: None,
                         keyword: None,
                         detail: None,
@@ -89,6 +91,7 @@ pub(super) fn draw_relay_settings_content(f: &mut Frame, app: &App, area: Rect) 
                                     provider,
                                     is_active,
                                 ),
+                                value: None,
                                 subtitle: Some(provider_list_subtitle(
                                     agent.name.as_str(),
                                     provider,

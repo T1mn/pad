@@ -445,9 +445,9 @@ fn thread_meta_editor_prompt_text(locale: Locale, kind: ThreadMetaEditKind) -> &
 
 fn thread_meta_editor_help_text(locale: Locale) -> &'static str {
     if is_cjk_locale(locale) {
-        "Enter 保存 | Esc 取消 | 支持粘贴"
+        "Enter 保存 | Shift+Delete 清空 | Esc 取消 | 支持粘贴"
     } else {
-        "Enter to save | Esc to cancel | Paste supported"
+        "Enter save | Shift+Delete clear | Esc cancel | Paste supported"
     }
 }
 

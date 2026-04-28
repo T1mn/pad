@@ -69,7 +69,7 @@ pub(crate) fn markdown_options(theme: &Theme) -> MarkdownOptions<PreviewMarkdown
 pub(crate) fn detail_surface(theme: &Theme) -> Color {
     let base = fallback_color(theme.bg, theme.highlight_bg);
     let highlight = fallback_color(theme.highlight_bg, theme.border);
-    blend_color(highlight, base, 0.52)
+    blend_color(highlight, base, 0.24)
 }
 
 pub(crate) fn normalize_session_detail_markdown(text: &str) -> String {

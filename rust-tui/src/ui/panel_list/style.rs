@@ -22,7 +22,7 @@ pub(crate) fn sidebar_folder_fg(is_selected: bool, theme: &Theme) -> Color {
     if is_selected {
         theme.highlight_fg
     } else {
-        blend_color(theme.fg, theme.comment, 0.74)
+        theme.fg
     }
 }
 

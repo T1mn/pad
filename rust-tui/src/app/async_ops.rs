@@ -8,6 +8,7 @@ use std::error::Error;
 use std::time::Instant;
 use tokio::sync::mpsc;
 
+mod codex_cli;
 mod provider_test;
 mod title_summary;
 

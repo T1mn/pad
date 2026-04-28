@@ -17,7 +17,6 @@ pub(crate) fn build_folder_row(
 ) -> Row<'static> {
     let is_minimal = content_width < 10;
     let card_bg = sidebar_folder_bg(is_selected, theme);
-    let card_fg = sidebar_folder_fg(is_selected, theme);
     let unread = folder.has_unread_stop;
     let icon = if is_expanded { "▾" } else { "▸" };
     let card_width = content_width.saturating_sub(2);
@@ -32,7 +31,7 @@ pub(crate) fn build_folder_row(
         } else if is_hovered {
             theme.border_focused
         } else {
-            theme.comment
+            theme.accent
         })
         .bg(card_bg);
     spans.push(Span::styled(format!("{} ", icon), icon_style));
@@ -46,13 +45,7 @@ pub(crate) fn build_folder_row(
 
         spans.push(Span::styled(
             label,
-            maybe_bold(
-                Style::default()
-                    .fg(card_fg)
-                    .bg(card_bg)
-                    .add_modifier(Modifier::DIM),
-                unread,
-            ),
+            folder_label_style(is_selected, unread, theme, card_bg),
         ));
 
         let fill_width = card_width.saturating_sub(used_width + 1);
@@ -65,14 +58,7 @@ pub(crate) fn build_folder_row(
 
         spans.push(Span::styled(
             count,
-            Style::default()
-                .fg(if is_selected {
-                    theme.highlight_fg
-                } else {
-                    theme.comment
-                })
-                .bg(card_bg)
-                .add_modifier(Modifier::DIM),
+            count_style(is_selected, unread, theme, card_bg),
         ));
     }
 
@@ -82,4 +68,62 @@ pub(crate) fn build_folder_row(
     Row::new(vec![Cell::from(Text::from(vec![Line::from(spans)]))])
         .height(1)
         .style(Style::default().bg(theme.bg))
+}
+
+fn folder_label_style(
+    is_selected: bool,
+    unread: bool,
+    theme: &crate::theme::Theme,
+    card_bg: ratatui::style::Color,
+) -> Style {
+    maybe_bold(
+        Style::default()
+            .fg(sidebar_folder_fg(is_selected, theme))
+            .bg(card_bg),
+        unread,
+    )
+}
+
+fn count_style(
+    is_selected: bool,
+    unread: bool,
+    theme: &crate::theme::Theme,
+    card_bg: ratatui::style::Color,
+) -> Style {
+    let mut style = Style::default()
+        .fg(if is_selected {
+            theme.highlight_fg
+        } else {
+            theme.accent
+        })
+        .bg(card_bg);
+    if unread {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    style
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{count_style, folder_label_style};
+    use crate::theme::Theme;
+    use ratatui::style::Modifier;
+
+    #[test]
+    fn folder_label_uses_readable_text_without_dim() {
+        let theme = Theme::default();
+        let style = folder_label_style(false, false, &theme, theme.bg);
+
+        assert_eq!(style.fg, Some(theme.fg));
+        assert!(!style.add_modifier.contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn folder_count_uses_accent_without_dim() {
+        let theme = Theme::default();
+        let style = count_style(false, false, &theme, theme.bg);
+
+        assert_eq!(style.fg, Some(theme.accent));
+        assert!(!style.add_modifier.contains(Modifier::DIM));
+    }
 }

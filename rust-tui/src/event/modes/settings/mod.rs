@@ -384,10 +384,10 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Up);
             assert_eq!(app.codex_settings_selected, 0);
 
-            for _ in 0..10 {
+            for _ in 0..11 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 9);
+            assert_eq!(app.codex_settings_selected, 10);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

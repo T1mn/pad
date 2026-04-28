@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::theme::Theme;
+use crate::ui::selection::row::render_selection_title_line;
 use crate::ui::selection::{SelectionItem, SelectionState};
 use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
@@ -246,7 +247,14 @@ fn render_selection_list_rows(
                     .bg(row_bg)
                     .add_modifier(Modifier::BOLD)
             };
-            let mut lines = vec![Line::from(Span::styled(item.title.clone(), title_style))];
+            let mut lines = vec![render_selection_title_line(
+                item,
+                inner.width,
+                theme,
+                row_bg,
+                is_selected,
+                title_style,
+            )];
             if let Some(subtitle) = item.subtitle.as_ref() {
                 let subtitle_style = if item.disabled {
                     Style::default()
@@ -256,12 +264,12 @@ fn render_selection_list_rows(
                 } else if is_selected {
                     Style::default().fg(theme.highlight_fg).bg(row_bg)
                 } else {
-                    Style::default()
-                        .fg(theme.comment)
-                        .bg(row_bg)
-                        .add_modifier(Modifier::DIM)
+                    Style::default().fg(theme.comment).bg(row_bg)
                 };
-                lines.push(Line::from(Span::styled(subtitle.clone(), subtitle_style)));
+                lines.push(Line::from(vec![
+                    Span::styled("  ", Style::default().bg(row_bg)),
+                    Span::styled(subtitle.clone(), subtitle_style),
+                ]));
             }
             let row = Row::new(vec![Cell::from(lines)])
                 .height(if item.subtitle.is_some() { 2 } else { 1 })

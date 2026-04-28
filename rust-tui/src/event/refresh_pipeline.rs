@@ -29,6 +29,8 @@ pub(super) fn run_pre_event_cycle(
     app.check_preview_detail_result();
     app.check_delayed_scan();
     app.check_provider_test_result();
+    app.check_codex_cli_version_result();
+    app.check_codex_cli_update_result();
     app.check_title_summary_result();
     app.check_preview_update();
     let terminal_area: Rect = terminal.size()?.into();

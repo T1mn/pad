@@ -411,7 +411,7 @@ fn handle_delete_confirm_mode(app: &mut App, key: KeyCode) {
     modes::handle_delete_confirm_mode(app, key);
 }
 
-fn handle_thread_action_confirm_mode(app: &mut App, key: KeyCode) {
+fn handle_thread_action_confirm_mode(app: &mut App, key: KeyEvent) {
     modes::handle_thread_action_confirm_mode(app, key);
 }
 

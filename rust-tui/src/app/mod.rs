@@ -30,6 +30,15 @@ const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_TTL_SECS: i64 = 12 * 60 * 60;
 type ProviderTestResult = (usize, usize, bool, Option<u16>, Option<u64>, String);
+type CodexCliVersionCheckResult = CodexCliVersionInfo;
+type CodexCliUpdateResult = Result<CodexCliVersionInfo, String>;
+
+#[derive(Clone, Debug, Default)]
+pub struct CodexCliVersionInfo {
+    pub binary_path: Option<String>,
+    pub local_version: Option<String>,
+    pub latest_version: Option<String>,
+}
 
 pub struct App {
     pub panels: Vec<AgentPanel>,
@@ -89,6 +98,11 @@ pub struct App {
     // Provider connectivity test
     pub provider_test_in_progress: bool,
     pub provider_test_rx: Option<mpsc::Receiver<ProviderTestResult>>,
+    pub codex_cli_check_in_progress: bool,
+    pub codex_cli_check_rx: Option<mpsc::Receiver<CodexCliVersionCheckResult>>,
+    pub codex_cli_update_in_progress: bool,
+    pub codex_cli_update_rx: Option<mpsc::Receiver<CodexCliUpdateResult>>,
+    pub codex_cli_version_info: Option<CodexCliVersionInfo>,
     pub title_summary_tx: Option<mpsc::Sender<crate::title_summary::TitleSummaryResult>>,
     pub title_summary_rx: Option<mpsc::Receiver<crate::title_summary::TitleSummaryResult>>,
     pub title_summary_in_flight: HashSet<String>,
@@ -174,6 +188,11 @@ impl App {
             needs_clear: false,
             provider_test_in_progress: false,
             provider_test_rx: None,
+            codex_cli_check_in_progress: false,
+            codex_cli_check_rx: None,
+            codex_cli_update_in_progress: false,
+            codex_cli_update_rx: None,
+            codex_cli_version_info: None,
             title_summary_tx: None,
             title_summary_rx: None,
             title_summary_in_flight: HashSet::new(),
