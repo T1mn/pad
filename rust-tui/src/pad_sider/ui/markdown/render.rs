@@ -142,10 +142,12 @@ impl Renderer {
     }
 
     pub(super) fn inline_code_style(&self) -> Style {
-        Style::default().fg(Color::Black).bg(Color::Gray)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
     }
 
     fn code_block_style(&self) -> Style {
-        Style::default().fg(Color::White).bg(Color::DarkGray)
+        Style::default().fg(Color::Gray)
     }
 }

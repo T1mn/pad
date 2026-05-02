@@ -7,6 +7,7 @@ pub use render::render_markdown;
 #[cfg(test)]
 mod tests {
     use super::render_markdown;
+    use ratatui::style::{Color, Modifier};
 
     fn line_texts(text: ratatui::text::Text<'_>) -> Vec<String> {
         text.lines
@@ -33,5 +34,42 @@ mod tests {
         let lines = line_texts(render_markdown("- one\n- two"));
         assert!(lines.iter().any(|line| line.contains("• one")));
         assert!(lines.iter().any(|line| line.contains("• two")));
+    }
+
+    #[test]
+    fn inline_code_uses_color_without_background() {
+        let text = render_markdown("run `cargo test` now");
+        let span = text
+            .lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .find(|span| span.content == "cargo test")
+            .expect("inline code span");
+
+        assert_eq!(span.style.fg, Some(Color::Yellow));
+        assert_eq!(span.style.bg, None);
+        assert!(span.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn code_block_uses_color_without_background() {
+        let text = render_markdown("```rs\nfn main() {}\n```");
+        let spans = text
+            .lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .collect::<Vec<_>>();
+
+        let label = spans
+            .iter()
+            .find(|span| span.content.contains("code:rs"))
+            .expect("code block label");
+        let code = spans
+            .iter()
+            .find(|span| span.content.contains("fn main"))
+            .expect("code block line");
+
+        assert_eq!(label.style.bg, None);
+        assert_eq!(code.style.bg, None);
     }
 }

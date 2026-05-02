@@ -103,8 +103,7 @@ impl Renderer {
         self.lines.push(Line::from(Span::styled(
             label,
             Style::default()
-                .fg(Color::Black)
-                .bg(Color::DarkGray)
+                .fg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )));
     }
