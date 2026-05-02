@@ -2,6 +2,7 @@
 name = "pad"
 version = "0.6.13"
 edition = "2021"
+default-run = "pad"
 authors = ["T1mn <tinggofun@gmail.com>"]
 description = "PAD (Panel for Agent Development) - tmux-first workspace for AI agents"
 license = "MIT"
@@ -14,6 +15,7 @@ md5 = "0.7"
 nix = { version = "0.27", features = ["term"] }
 libc = "0.2"
 nucleo-matcher = "0.3"
+pulldown-cmark = "0.13"
 rand = "0.8"
 ratatui = "0.30"
 tui-markdown = { version = "0.3", default-features = false }

@@ -45,7 +45,7 @@ fn run_tmux_logged(context: &str, args: Vec<String>) -> Option<std::process::Out
     Some(output)
 }
 
-/// Install F12/C-q return bindings for same-session attach.
+/// Install F12/C-q/F10 bindings for same-session attach.
 /// Snapshots zoom and status bar state, modifies them for the attach,
 /// and encodes restoration into the return command.
 fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: &str) -> bool {
@@ -148,11 +148,15 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
 
     let saved_f12 = current_root_binding("F12");
     let saved_cq = current_root_binding("C-q");
+    let saved_f10 = current_root_binding("F10");
     app.saved_tmux_bindings.clear();
     if let Some(line) = &saved_f12 {
         app.saved_tmux_bindings.push(line.clone());
     }
     if let Some(line) = &saved_cq {
+        app.saved_tmux_bindings.push(line.clone());
+    }
+    if let Some(line) = &saved_f10 {
         app.saved_tmux_bindings.push(line.clone());
     }
 
@@ -203,6 +207,7 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     )));
     restore_parts.push(restore_binding_cmd(saved_f12.as_deref(), "F12"));
     restore_parts.push(restore_binding_cmd(saved_cq.as_deref(), "C-q"));
+    restore_parts.push(restore_binding_cmd(saved_f10.as_deref(), "F10"));
     if !restore_zoom_cmd.is_empty() {
         restore_parts.push(shell_log_cmd(&format!(
             "before_unzoom target_pane={}",
@@ -269,6 +274,17 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
             run_shell_cmd.clone(),
         ],
     );
+    let _ = run_tmux_logged(
+        "install_return_bindings.bind_f10",
+        vec![
+            "bind-key".to_string(),
+            "-T".to_string(),
+            "root".to_string(),
+            "F10".to_string(),
+            "run-shell".to_string(),
+            wrap_tmux_run_shell(&pad_sider_toggle_command()),
+        ],
+    );
 
     log_debug!(
         "handoff trace={} stage=attach.return_cmd cmd={}",
@@ -278,7 +294,7 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     should_zoom
 }
 
-/// Clean up F12/C-q root bindings and restore status bar — safety net for pad quit/crash.
+/// Clean up F12/C-q/F10 root bindings and restore status bar — safety net for pad quit/crash.
 pub(super) fn restore_tmux_bindings(app: &mut App) {
     let trace_id = app
         .same_session_trace_id
@@ -294,12 +310,20 @@ pub(super) fn restore_tmux_bindings(app: &mut App) {
         .iter()
         .find(|line| line.contains(" C-q "))
         .cloned();
+    let saved_f10 = app
+        .saved_tmux_bindings
+        .iter()
+        .find(|line| line.contains(" F10 "))
+        .cloned();
 
     let _ = std::process::Command::new("sh")
         .args(["-lc", &restore_binding_cmd(saved_f12.as_deref(), "F12")])
         .output();
     let _ = std::process::Command::new("sh")
         .args(["-lc", &restore_binding_cmd(saved_cq.as_deref(), "C-q")])
+        .output();
+    let _ = std::process::Command::new("sh")
+        .args(["-lc", &restore_binding_cmd(saved_f10.as_deref(), "F10")])
         .output();
 
     if let (Some(status), Some(target)) = (
@@ -352,6 +376,14 @@ fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> String {
     saved_binding
         .map(|line| format!("tmux {}", line))
         .unwrap_or_else(|| format!("tmux unbind-key -T root {}", key))
+}
+
+fn pad_sider_toggle_command() -> String {
+    let path = std::env::current_exe().unwrap_or_else(|_| "pad".into());
+    format!(
+        "{} __internal pad-sider toggle --target-pane '#{{pane_id}}'",
+        shell_single_quote(&path.to_string_lossy())
+    )
 }
 
 fn shell_single_quote(value: &str) -> String {

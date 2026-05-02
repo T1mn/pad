@@ -26,6 +26,7 @@ mod i18n;
 mod logger;
 mod model;
 mod notify;
+mod pad_sider;
 mod paths;
 mod pipe;
 mod preview_source;
@@ -98,6 +99,18 @@ fn is_telegram_daemon_command(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "telegram-bot")
 }
 
+fn is_internal_command(args: &[String]) -> bool {
+    matches!(args.get(1).map(String::as_str), Some("__internal"))
+}
+
+fn run_internal_command(args: &[String]) -> Result<(), Box<dyn Error>> {
+    match args.get(2).map(String::as_str) {
+        Some("pad-sider") => pad_sider::run_args(args.iter().skip(3).cloned()).map_err(Into::into),
+        Some(other) => Err(format!("unknown internal command: {other}").into()),
+        None => Err("missing internal command".into()),
+    }
+}
+
 fn should_bootstrap_into_tmux(
     args: &[String],
     tmux_env_present: bool,
@@ -107,6 +120,9 @@ fn should_bootstrap_into_tmux(
     stdout_is_tty: bool,
 ) -> bool {
     if is_info_only_command(args) || is_telegram_daemon_command(args) {
+        return false;
+    }
+    if is_internal_command(args) {
         return false;
     }
     if already_bootstrapped {
@@ -164,6 +180,10 @@ fn bootstrap_into_tmux(args: &[String]) -> Result<(), Box<dyn Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
+
+    if is_internal_command(&args) {
+        return run_internal_command(&args);
+    }
 
     if is_info_only_command(&args) && args.iter().any(|a| a == "--help" || a == "-h") {
         println!("PAD - Panel for Agent Development");
@@ -425,6 +445,14 @@ mod tests {
             true,
             true,
         ));
+        assert!(!should_bootstrap_into_tmux(
+            &args(&["pad", "__internal", "pad-sider", "toggle"]),
+            false,
+            false,
+            false,
+            true,
+            true,
+        ));
     }
 
     #[test]
@@ -469,5 +497,15 @@ mod tests {
             command,
             "env PAD_TMUX_BOOTSTRAPPED=1 '/tmp/pad bin' '--debug' 'work tree'"
         );
+    }
+
+    #[test]
+    fn detects_internal_command_prefix() {
+        assert!(is_internal_command(&args(&[
+            "pad",
+            "__internal",
+            "pad-sider"
+        ])));
+        assert!(!is_internal_command(&args(&["pad", "telegram-bot"])));
     }
 }

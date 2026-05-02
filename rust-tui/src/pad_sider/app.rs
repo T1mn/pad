@@ -1,0 +1,140 @@
+use super::fs::{
+    is_markdown_file, read_changed_files, read_file_stats, read_markdown_file, relative_path_label,
+    FileStats,
+};
+use super::search::FileSearch;
+use super::tree::{build_tree, TreeRow};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    Tree,
+    Changes,
+}
+
+pub struct MarkdownPreview {
+    pub path: PathBuf,
+    pub content: String,
+    pub scroll: u16,
+}
+
+pub struct App {
+    pub cwd: PathBuf,
+    pub target_pane: Option<String>,
+    pub tree: Vec<TreeRow>,
+    pub expanded: HashSet<PathBuf>,
+    pub selected: usize,
+    pub focus: Focus,
+    pub changes: Vec<String>,
+    pub changes_scroll: u16,
+    pub selected_stats: FileStats,
+    pub selected_label: String,
+    pub preview: Option<MarkdownPreview>,
+    pub search: Option<FileSearch>,
+    pub last_refresh: Instant,
+    pub should_quit: bool,
+}
+
+impl App {
+    pub fn new(cwd: PathBuf, target_pane: Option<String>) -> Self {
+        let mut expanded = HashSet::new();
+        expanded.insert(cwd.clone());
+        let mut app = Self {
+            cwd,
+            target_pane,
+            tree: Vec::new(),
+            expanded,
+            selected: 0,
+            focus: Focus::Tree,
+            changes: Vec::new(),
+            changes_scroll: 0,
+            selected_stats: FileStats::default(),
+            selected_label: String::new(),
+            preview: None,
+            search: None,
+            last_refresh: Instant::now() - Duration::from_secs(5),
+            should_quit: false,
+        };
+        app.refresh();
+        app
+    }
+
+    pub fn refresh(&mut self) {
+        let selected_path = self.selected_path().cloned();
+        self.tree = build_tree(&self.cwd, &self.expanded);
+        self.restore_selection(selected_path.as_deref());
+        self.changes = read_changed_files(&self.cwd);
+        self.refresh_selected();
+        self.refresh_preview();
+        self.last_refresh = Instant::now();
+    }
+
+    pub fn tick(&mut self) {
+        if self.last_refresh.elapsed() >= Duration::from_secs(2) {
+            self.refresh();
+        }
+    }
+
+    pub fn selected_path(&self) -> Option<&PathBuf> {
+        self.tree.get(self.selected).map(|row| &row.path)
+    }
+
+    pub fn selected_is_dir(&self) -> bool {
+        self.tree
+            .get(self.selected)
+            .map(|row| row.is_dir)
+            .unwrap_or(false)
+    }
+
+    pub fn selected_is_markdown(&self) -> bool {
+        self.selected_path()
+            .map(|path| is_markdown_file(path))
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn restore_selection(&mut self, selected_path: Option<&Path>) {
+        if let Some(path) = selected_path {
+            if self.set_selected_path(path) {
+                return;
+            }
+        }
+        if self.selected >= self.tree.len() {
+            self.selected = self.tree.len().saturating_sub(1);
+        }
+    }
+
+    pub(crate) fn set_selected_path(&mut self, path: &Path) -> bool {
+        if let Some(index) = self.tree.iter().position(|row| row.path == path) {
+            self.selected = index;
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn refresh_selected(&mut self) {
+        let Some(path) = self.selected_path().cloned() else {
+            self.selected_label = ".".into();
+            self.selected_stats = FileStats::default();
+            return;
+        };
+        self.selected_label = relative_path_label(&self.cwd, &path);
+        self.selected_stats = if path.is_file() {
+            read_file_stats(&path)
+        } else {
+            FileStats::default()
+        };
+    }
+
+    pub(crate) fn refresh_preview(&mut self) {
+        let Some(preview) = self.preview.as_mut() else {
+            return;
+        };
+        if preview.path.is_file() {
+            preview.content = read_markdown_file(&preview.path);
+        } else {
+            self.preview = None;
+        }
+    }
+}

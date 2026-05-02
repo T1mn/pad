@@ -6,7 +6,8 @@ const PAD_RETURN_BINDING_MARKER: &str = "PAD_RETURN_BINDING=1;";
 
 /// Create a new tmux session in the given path with an agent command.
 /// After creation, switches the tmux client to the new session and installs
-/// F12/Ctrl+Q bindings so the user can return to the pad session.
+/// F12/Ctrl+Q/F10 bindings so the user can return to the pad session and
+/// toggle the left helper pane inside Codex.
 pub fn create_session_with_agent(
     app: &mut App,
     path: &str,
@@ -158,6 +159,9 @@ pub fn create_session_with_agent(
     if let Some(line) = current_root_binding("C-q") {
         app.saved_tmux_bindings.push(line);
     }
+    if let Some(line) = current_root_binding("F10") {
+        app.saved_tmux_bindings.push(line);
+    }
 
     let current_status = tmux_status_value(&session_name);
     let desired_status = app.config.desired_agent_style.status.as_str();
@@ -175,7 +179,7 @@ pub fn create_session_with_agent(
     app.saved_tmux_status = status_restore_value.clone();
     app.saved_tmux_status_target = status_restore_value.as_ref().map(|_| session_name.clone());
 
-    // Install F12/Ctrl+Q bindings in the new session so user can return to pad
+    // Install F12/Ctrl+Q/F10 bindings in the new session so user can return to pad
     if let (Some(pane_id), Some(win_target), Some(pad_session)) = (pad_pane, pad_win, pad_session) {
         let mut restore_parts = Vec::new();
         restore_parts.push(shell_trace_log_cmd(
@@ -199,6 +203,13 @@ pub fn create_session_with_agent(
                 .find(|line| line.contains(" C-q "))
                 .map(String::as_str),
             "C-q",
+        ));
+        restore_parts.push(restore_binding_cmd(
+            app.saved_tmux_bindings
+                .iter()
+                .find(|line| line.contains(" F10 "))
+                .map(String::as_str),
+            "F10",
         ));
         if let Some(status) = status_restore_value.as_deref() {
             restore_parts.push(format!(
@@ -239,6 +250,10 @@ pub fn create_session_with_agent(
 
         let _ = Command::new("tmux")
             .args(["bind-key", "-T", "root", "C-q", "run-shell", &run_shell_cmd])
+            .output();
+        let sider_cmd = wrap_tmux_run_shell(&pad_sider_toggle_command());
+        let _ = Command::new("tmux")
+            .args(["bind-key", "-T", "root", "F10", "run-shell", &sider_cmd])
             .output();
 
         app.same_session_attached = true;
@@ -382,6 +397,14 @@ fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> String {
     saved_binding
         .map(|line| format!("tmux {}", line))
         .unwrap_or_else(|| format!("tmux unbind-key -T root {}", key))
+}
+
+fn pad_sider_toggle_command() -> String {
+    let path = std::env::current_exe().unwrap_or_else(|_| "pad".into());
+    format!(
+        "{} __internal pad-sider toggle --target-pane '#{{pane_id}}'",
+        shell_single_quote(&path.to_string_lossy())
+    )
 }
 
 fn tmux_status_value(target_session: &str) -> String {

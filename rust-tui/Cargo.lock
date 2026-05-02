@@ -1239,6 +1239,7 @@ dependencies = [
  "nix 0.27.1",
  "nucleo-matcher",
  "pty",
+ "pulldown-cmark",
  "rand 0.8.5",
  "ratatui",
  "reqwest",
