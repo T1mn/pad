@@ -252,13 +252,18 @@ impl App {
             (
                 "codex_settings",
                 format!(
-                    "YOLO {}  ·  Fast {}  ·  MA {}  ·  Web {}  ·  SL {}/3  ·  Sum {}",
+                    "YOLO {}  ·  Fast {}  ·  Goal {}  ·  MA {}  ·  Web {}  ·  SL {}/3  ·  Sum {}",
                     if self.config.agent_permissions.codex_auto_full_access {
                         crate::i18n::t(l, "settings.on")
                     } else {
                         crate::i18n::t(l, "settings.off")
                     },
                     if self.config.codex.fast_mode {
+                        crate::i18n::t(l, "settings.on")
+                    } else {
+                        crate::i18n::t(l, "settings.off")
+                    },
+                    if self.config.codex.goals {
                         crate::i18n::t(l, "settings.on")
                     } else {
                         crate::i18n::t(l, "settings.off")

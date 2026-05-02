@@ -145,6 +145,9 @@ fn apply_codex(value: Option<&toml::Value>, config: &mut Config) {
     if let Some(toml::Value::Boolean(enabled)) = codex.get("fast_mode") {
         config.codex.fast_mode = *enabled;
     }
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("goals") {
+        config.codex.goals = *enabled;
+    }
     if let Some(toml::Value::Boolean(enabled)) = codex.get("multi_agent") {
         config.codex.multi_agent = *enabled;
     }

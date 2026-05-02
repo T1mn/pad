@@ -29,7 +29,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 10 {
+            if app.codex_settings_selected < 11 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -50,9 +50,12 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
                     app.config.codex.fast_mode = !app.config.codex.fast_mode;
                 }
                 2 => {
-                    app.config.codex.multi_agent = !app.config.codex.multi_agent;
+                    app.config.codex.goals = !app.config.codex.goals;
                 }
                 3 => {
+                    app.config.codex.multi_agent = !app.config.codex.multi_agent;
+                }
+                4 => {
                     app.config.codex.web_search = match app.config.codex.web_search.as_str() {
                         "cached" => "live".to_string(),
                         "live" => "disabled".to_string(),
@@ -60,29 +63,29 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
                         _ => "cached".to_string(),
                     };
                 }
-                4 => {
+                5 => {
                     app.config.codex.status_line_model_with_reasoning =
                         !app.config.codex.status_line_model_with_reasoning;
                 }
-                5 => {
+                6 => {
                     app.config.codex.status_line_context_remaining =
                         !app.config.codex.status_line_context_remaining;
                 }
-                6 => {
+                7 => {
                     app.config.codex.status_line_current_dir =
                         !app.config.codex.status_line_current_dir;
                 }
-                7 => {
+                8 => {
                     app.config.codex.jailbreak_prompt_file =
                         !app.config.codex.jailbreak_prompt_file;
                 }
-                8 => {
+                9 => {
                     app.config.codex.index_prompt_file = !app.config.codex.index_prompt_file;
                 }
-                9 => {
+                10 => {
                     app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
-                10 => {
+                11 => {
                     app.trigger_codex_cli_version_check();
                     return true;
                 }
@@ -96,7 +99,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
             );
             app.dirty = true;
         }
-        KeyCode::Char('u') if app.codex_settings_selected == 10 => {
+        KeyCode::Char('u') if app.codex_settings_selected == 11 => {
             app.trigger_codex_cli_update();
             app.dirty = true;
         }

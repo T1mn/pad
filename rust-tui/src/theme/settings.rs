@@ -77,6 +77,7 @@ impl Default for SoundConfig {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CodexConfig {
     pub fast_mode: bool,
+    pub goals: bool,
     pub multi_agent: bool,
     pub web_search: String,
     pub status_line_model_with_reasoning: bool,
@@ -116,6 +117,7 @@ impl Default for CodexConfig {
     fn default() -> Self {
         Self {
             fast_mode: false,
+            goals: true,
             multi_agent: false,
             web_search: "default".to_string(),
             status_line_model_with_reasoning: false,

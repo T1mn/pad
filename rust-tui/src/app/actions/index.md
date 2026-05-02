@@ -1,0 +1,8 @@
+# actions
+
+- `tree.rs`：tree 开关、搜索与侧栏显示动作。
+- `thread_actions.rs`：线程/会话级动作封装。
+- `settings.rs`：设置项读写与状态同步。
+- `relay_reload.rs`：relay 配置刷新。
+- `helpers.rs`：动作层公共辅助函数。
+- `tests.rs`：动作层回归测试。

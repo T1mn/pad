@@ -40,7 +40,10 @@ fn sample_permissions() -> AgentPermissionsConfig {
 }
 
 fn sample_codex_config() -> CodexConfig {
-    CodexConfig::default()
+    CodexConfig {
+        goals: false,
+        ..CodexConfig::default()
+    }
 }
 
 fn temp_home(name: &str) -> PathBuf {

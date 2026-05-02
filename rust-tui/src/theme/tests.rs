@@ -33,6 +33,7 @@ fn config_round_trips_opencode_provider_models() {
         let mut config = Config::default();
         config.agent_permissions.codex_auto_full_access = false;
         config.codex.fast_mode = true;
+        config.codex.goals = true;
         config.codex.multi_agent = true;
         config.codex.web_search = "live".into();
         config.codex.status_line_model_with_reasoning = true;
@@ -72,6 +73,7 @@ fn config_round_trips_opencode_provider_models() {
         assert!(!loaded.agent_permissions.codex_auto_full_access);
         assert!(loaded.agent_permissions.claude_auto_full_access);
         assert!(loaded.codex.fast_mode);
+        assert!(loaded.codex.goals);
         assert!(loaded.codex.multi_agent);
         assert_eq!(loaded.codex.web_search, "live");
         assert!(loaded.codex.status_line_model_with_reasoning);

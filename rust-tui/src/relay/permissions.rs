@@ -18,6 +18,7 @@ pub(super) fn apply_runtime_overlays(
         apply_codex_runtime_overlay(
             permissions.codex_auto_full_access,
             codex.fast_mode,
+            codex.goals,
             codex.multi_agent,
             &codex.web_search,
             &codex.status_line_items(),
@@ -25,7 +26,7 @@ pub(super) fn apply_runtime_overlays(
             codex.index_prompt_file,
         );
     } else {
-        remove_codex_runtime_overlay(false, false, false, "default", &[], false, false);
+        remove_codex_runtime_overlay(false, false, false, false, "default", &[], false, false);
     }
 
     if has_claude && permissions.claude_auto_full_access {
@@ -38,6 +39,7 @@ pub(super) fn apply_runtime_overlays(
 fn apply_codex_runtime_overlay(
     yolo_enabled: bool,
     fast_enabled: bool,
+    goals_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
     status_line_items: &[&str],
@@ -68,6 +70,7 @@ fn apply_codex_runtime_overlay(
                 "sandbox_mode": null,
                 "service_tier": null,
                 "features_fast_mode": null,
+                "features_goals": null,
                 "features_multi_agent": null,
                 "web_search": null,
                 "tui_status_line": null,
@@ -92,6 +95,7 @@ fn apply_codex_runtime_overlay(
                 "sandbox_mode": null,
                 "service_tier": null,
                 "features_fast_mode": null,
+                "features_goals": null,
                 "features_multi_agent": null,
                 "web_search": null,
                 "tui_status_line": null,
@@ -106,6 +110,26 @@ fn apply_codex_runtime_overlay(
         );
     }
 
+    if goals_enabled {
+        set_toml_bool_path(root, &["features", "goals"], true);
+    } else {
+        let state = read_json_value(
+            &codex_permission_state_path(),
+            json!({
+                "approval_policy": null,
+                "sandbox_mode": null,
+                "service_tier": null,
+                "features_fast_mode": null,
+                "features_goals": null,
+                "features_multi_agent": null,
+                "web_search": null,
+                "tui_status_line": null,
+                "model_instructions_file": null
+            }),
+        );
+        restore_toml_bool_path(root, &["features", "goals"], state.get("features_goals"));
+    }
+
     if multi_agent_enabled {
         set_toml_bool_path(root, &["features", "multi_agent"], true);
     } else {
@@ -116,6 +140,7 @@ fn apply_codex_runtime_overlay(
                 "sandbox_mode": null,
                 "service_tier": null,
                 "features_fast_mode": null,
+                "features_goals": null,
                 "features_multi_agent": null,
                 "web_search": null,
                 "tui_status_line": null,
@@ -142,6 +167,7 @@ fn apply_codex_runtime_overlay(
                 "sandbox_mode": null,
                 "service_tier": null,
                 "features_fast_mode": null,
+                "features_goals": null,
                 "features_multi_agent": null,
                 "web_search": null,
                 "tui_status_line": null,
@@ -161,6 +187,7 @@ fn apply_codex_runtime_overlay(
                 "sandbox_mode": null,
                 "service_tier": null,
                 "features_fast_mode": null,
+                "features_goals": null,
                 "features_multi_agent": null,
                 "web_search": null,
                 "tui_status_line": null,
@@ -206,6 +233,7 @@ fn apply_codex_runtime_overlay(
 
     if !yolo_enabled
         && !fast_enabled
+        && !goals_enabled
         && !multi_agent_enabled
         && web_search_mode == "default"
         && status_line_items.is_empty()
@@ -219,6 +247,7 @@ fn apply_codex_runtime_overlay(
 fn remove_codex_runtime_overlay(
     yolo_enabled: bool,
     fast_enabled: bool,
+    goals_enabled: bool,
     multi_agent_enabled: bool,
     web_search_mode: &str,
     status_line_items: &[&str],
@@ -240,6 +269,7 @@ fn remove_codex_runtime_overlay(
             "sandbox_mode": null,
             "service_tier": null,
             "features_fast_mode": null,
+            "features_goals": null,
             "features_multi_agent": null,
             "web_search": null,
             "tui_status_line": null,
@@ -258,6 +288,9 @@ fn remove_codex_runtime_overlay(
             &["features", "fast_mode"],
             state.get("features_fast_mode"),
         );
+    }
+    if !goals_enabled {
+        restore_toml_bool_path(root, &["features", "goals"], state.get("features_goals"));
     }
     if !multi_agent_enabled {
         restore_toml_bool_path(
@@ -285,6 +318,7 @@ fn remove_codex_runtime_overlay(
     write_text_file(&path, &serialize_toml_document(&doc));
     if !yolo_enabled
         && !fast_enabled
+        && !goals_enabled
         && !multi_agent_enabled
         && web_search_mode == "default"
         && status_line_items.is_empty()
@@ -306,6 +340,7 @@ fn capture_codex_permission_state_once(root: &toml::map::Map<String, toml::Value
         "sandbox_mode": root.get("sandbox_mode").and_then(|value| value.as_str()),
         "service_tier": root.get("service_tier").and_then(|value| value.as_str()),
         "features_fast_mode": toml_bool_at_path(root, &["features", "fast_mode"]),
+        "features_goals": toml_bool_at_path(root, &["features", "goals"]),
         "features_multi_agent": toml_bool_at_path(root, &["features", "multi_agent"]),
         "web_search": root.get("web_search").and_then(|value| value.as_str()),
         "tui_status_line": toml_string_array_at_path(root, &["tui", "status_line"]),

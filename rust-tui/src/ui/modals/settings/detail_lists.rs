@@ -171,6 +171,15 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             "settings.codex_fast_desc",
         ),
         (
+            "settings.codex_goals",
+            if app.config.codex.goals {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_goals_desc",
+        ),
+        (
             "settings.codex_multi_agent",
             if app.config.codex.multi_agent {
                 t(locale, "settings.on")
@@ -279,7 +288,7 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
         ..Default::default()
     };
     state.clamp_selected(items.len());
-    let footer = if app.codex_settings_selected == 10 {
+    let footer = if app.codex_settings_selected == 11 {
         "j/k move · Enter check · u update · Esc back"
     } else {
         "j/k move · Enter/Space toggle or cycle · Esc back"

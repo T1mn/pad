@@ -293,6 +293,7 @@ mod tests {
             app.active_settings_detail = Some(SettingsDetailKind::CodexSettings);
             app.config.agent_permissions.codex_auto_full_access = false;
             app.config.codex.fast_mode = false;
+            app.config.codex.goals = false;
             app.config.codex.multi_agent = false;
             app.config.codex.web_search = "default".into();
             app.config.codex.status_line_model_with_reasoning = false;
@@ -314,10 +315,15 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Down);
             assert_eq!(app.codex_settings_selected, 2);
             handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.multi_agent);
+            assert!(app.config.codex.goals);
 
             handle_settings_mode(&mut app, KeyCode::Down);
             assert_eq!(app.codex_settings_selected, 3);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.multi_agent);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 4);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert_eq!(app.config.codex.web_search, "cached");
             handle_settings_mode(&mut app, KeyCode::Enter);
@@ -328,42 +334,42 @@ mod tests {
             assert_eq!(app.config.codex.web_search, "default");
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 4);
+            assert_eq!(app.codex_settings_selected, 5);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.status_line_model_with_reasoning);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.status_line_model_with_reasoning);
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 5);
+            assert_eq!(app.codex_settings_selected, 6);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.status_line_context_remaining);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.status_line_context_remaining);
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 6);
+            assert_eq!(app.codex_settings_selected, 7);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.status_line_current_dir);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.status_line_current_dir);
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 7);
+            assert_eq!(app.codex_settings_selected, 8);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.jailbreak_prompt_file);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.jailbreak_prompt_file);
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 8);
+            assert_eq!(app.codex_settings_selected, 9);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.index_prompt_file);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.index_prompt_file);
 
             handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 9);
+            assert_eq!(app.codex_settings_selected, 10);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(app.config.codex.title_summary);
             handle_settings_mode(&mut app, KeyCode::Enter);
@@ -384,10 +390,10 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Up);
             assert_eq!(app.codex_settings_selected, 0);
 
-            for _ in 0..11 {
+            for _ in 0..12 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 10);
+            assert_eq!(app.codex_settings_selected, 11);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

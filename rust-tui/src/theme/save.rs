@@ -38,6 +38,7 @@ impl Config {
         push_escaped_line(&mut content, "bot_username", &self.telegram.bot_username);
         content.push_str("\n[codex]\n");
         content.push_str(&format!("fast_mode = {}\n", self.codex.fast_mode));
+        content.push_str(&format!("goals = {}\n", self.codex.goals));
         content.push_str(&format!("multi_agent = {}\n", self.codex.multi_agent));
         content.push_str(&format!("web_search = \"{}\"\n", self.codex.web_search));
         content.push_str(&format!(
