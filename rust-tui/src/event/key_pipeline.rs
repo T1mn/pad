@@ -17,23 +17,29 @@ pub(super) fn handle_key_event(
 
     match app.mode {
         Mode::Normal => {
-            super::handle_normal_mode(terminal, app, key)?;
+            super::normal::handle_normal_mode(terminal, app, key)?;
         }
-        Mode::Search => super::handle_search_mode(app, key.code),
-        Mode::Settings => super::handle_settings_mode(app, key.code),
-        Mode::ThemeSelector => super::handle_theme_selector_mode(app, key.code),
-        Mode::LanguageSelector => super::handle_language_selector_mode(app, key.code),
-        Mode::Tree => super::handle_tree_mode(app, key.code),
-        Mode::TreeSearch => super::handle_tree_search_mode(app, key.code),
-        Mode::AgentLauncher => super::handle_agent_launcher_mode(app, key.code),
-        Mode::DeleteConfirm => super::handle_delete_confirm_mode(app, key.code),
-        Mode::ThreadActionConfirm => super::handle_thread_action_confirm_mode(app, key),
-        Mode::Help => super::handle_help_mode(app, key.code),
-        Mode::FuzzyPicker => super::handle_fuzzy_picker_mode(app, key),
-        Mode::RelaySettings => super::handle_relay_settings_mode(app, key.code),
-        Mode::FilePreview => super::handle_file_preview_mode(app, key.code),
-        Mode::AgentStyleSettings => super::handle_agent_style_mode(app, key.code),
-        Mode::TelegramSettings => super::handle_telegram_settings_mode(app, key.code),
+        Mode::Search => super::mode_dispatch::handle_search_mode(app, key.code),
+        Mode::Settings => super::mode_dispatch::handle_settings_mode(app, key.code),
+        Mode::ThemeSelector => super::mode_dispatch::handle_theme_selector_mode(app, key.code),
+        Mode::LanguageSelector => {
+            super::mode_dispatch::handle_language_selector_mode(app, key.code)
+        }
+        Mode::Tree => super::mode_dispatch::handle_tree_mode(app, key.code),
+        Mode::TreeSearch => super::mode_dispatch::handle_tree_search_mode(app, key.code),
+        Mode::AgentLauncher => super::mode_dispatch::handle_agent_launcher_mode(app, key.code),
+        Mode::DeleteConfirm => super::mode_dispatch::handle_delete_confirm_mode(app, key.code),
+        Mode::ThreadActionConfirm => {
+            super::mode_dispatch::handle_thread_action_confirm_mode(app, key)
+        }
+        Mode::Help => super::mode_dispatch::handle_help_mode(app, key.code),
+        Mode::FuzzyPicker => super::mode_dispatch::handle_fuzzy_picker_mode(app, key),
+        Mode::RelaySettings => super::mode_dispatch::handle_relay_settings_mode(app, key.code),
+        Mode::FilePreview => super::mode_dispatch::handle_file_preview_mode(app, key.code),
+        Mode::AgentStyleSettings => super::mode_dispatch::handle_agent_style_mode(app, key.code),
+        Mode::TelegramSettings => {
+            super::mode_dispatch::handle_telegram_settings_mode(app, key.code)
+        }
     }
 
     if matches!(
