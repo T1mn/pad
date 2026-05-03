@@ -1,7 +1,4 @@
-use super::super::{
-    app::{App, MarkdownPreview},
-    search::FileSearch,
-};
+use super::super::{app::App, preview::MarkdownPreview, search::FileSearch};
 use super::markdown::render_markdown;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
@@ -99,12 +96,15 @@ pub fn draw_help(frame: &mut Frame) {
         )]),
         Line::default(),
         Line::from("Global"),
-        Line::from("  Ctrl+Tab/F10  toggle sider from Codex pane or sider pane"),
+        Line::from("  F10           toggle sider"),
         Line::from("  ?             show / hide this help"),
         Line::from("  q             quit sider UI"),
         Line::from("  r             refresh project state"),
-        Line::from("  Tab           switch Tree / Index Map / Changes"),
-        Line::from("  t / I / d     focus Tree / Index Map / Changes"),
+        Line::from("  Tab           switch nav / Changes"),
+        Line::from("  [ / ]         sider width: 35% / 50% / 65%"),
+        Line::from("  + / - / 0     grow / shrink / reset left section"),
+        Line::from("  t / d         focus Tree / Changes"),
+        Line::from("  II            switch Tree / Index Map"),
         Line::from("  g / G         top / bottom"),
         Line::default(),
         Line::from("Tree"),
@@ -115,7 +115,7 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("  /             fuzzy search files"),
         Line::default(),
         Line::from("Index Map"),
-        Line::from("  I             focus all project index.md files"),
+        Line::from("  II            focus all project index.md files"),
         Line::from("  Enter/Space   preview selected index.md"),
         Line::from("  o             reveal selected index.md in tree"),
         Line::default(),
@@ -123,6 +123,7 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("  q/Esc         close preview"),
         Line::from("  j/k ↑/↓       scroll"),
         Line::from("  g/G           top / bottom"),
+        Line::from("  PgUp/PgDn     scroll right preview"),
         Line::default(),
         Line::from("Search"),
         Line::from("  type          filter files"),

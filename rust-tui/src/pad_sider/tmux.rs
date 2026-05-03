@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const HELPER_WIDTH: &str = "50%";
 const TARGET_OPTION: &str = "@pad_sider_pane";
 const HELPER_TARGET_OPTION: &str = "@pad_sider_target";
 const HIDDEN_WINDOW_PREFIX: &str = "__pad_sider_";
@@ -85,6 +84,7 @@ fn pane_info(target_pane: &str) -> Result<PaneInfo, String> {
 
 fn create_helper(target: &PaneInfo) -> Result<String, String> {
     let binary = std::env::current_exe().map_err(|err| err.to_string())?;
+    let width = super::sizing::stored_or_default_width(&target.pane_id);
     let command = format!(
         "{} __internal pad-sider ui --cwd {} --target-pane {}",
         shell_single_quote(&binary.to_string_lossy()),
@@ -100,7 +100,7 @@ fn create_helper(target: &PaneInfo) -> Result<String, String> {
         "-b",
         "-d",
         "-l",
-        HELPER_WIDTH,
+        &width,
         "-t",
         &target.pane_id,
         &command,
@@ -114,13 +114,14 @@ fn hide_helper(helper_pane: &str) -> Result<(), String> {
 }
 
 fn show_helper(helper_pane: &str, target_pane: &str) -> Result<(), String> {
+    let width = super::sizing::stored_or_default_width(target_pane);
     run_tmux(&[
         "join-pane",
         "-d",
         "-h",
         "-b",
         "-l",
-        HELPER_WIDTH,
+        &width,
         "-s",
         helper_pane,
         "-t",
@@ -185,10 +186,10 @@ fn shell_single_quote(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::HELPER_WIDTH;
+    use super::super::sizing::default_width;
 
     #[test]
     fn helper_uses_half_width() {
-        assert_eq!(HELPER_WIDTH, "50%");
+        assert_eq!(default_width(), "50%");
     }
 }

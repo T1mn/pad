@@ -4,6 +4,7 @@ mod render;
 
 use super::app::{App, Focus};
 use super::search::SearchAction;
+use super::sizing;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     execute,
@@ -72,10 +73,17 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.previous(),
         KeyCode::Char('r') => app.refresh(),
+        KeyCode::Char('[') => resize_sider(app, false),
+        KeyCode::Char(']') => resize_sider(app, true),
+        KeyCode::Char('+') | KeyCode::Char('=') => app.grow_focused_section(),
+        KeyCode::Char('-') => app.shrink_focused_section(),
+        KeyCode::Char('0') => app.reset_layout(),
         KeyCode::Tab => app.cycle_focus(),
         KeyCode::Char('t') => app.focus_tree(),
-        KeyCode::Char('I') => app.focus_index_map(),
+        KeyCode::Char('I') => app.press_index_toggle_key(),
         KeyCode::Char('d') => app.focus_changes(),
+        KeyCode::PageDown => app.file_preview_down(),
+        KeyCode::PageUp => app.file_preview_up(),
         KeyCode::Enter if app.focus == Focus::Tree => app.toggle_selected(),
         KeyCode::Enter | KeyCode::Char(' ') if app.focus == Focus::IndexMap => {
             app.open_selected_index_preview()
@@ -88,6 +96,10 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('G') => app.jump_bottom(),
         _ => {}
     }
+}
+
+fn resize_sider(app: &App, wider: bool) {
+    let _ = sizing::resize_from_helper(app.target_pane.as_deref(), wider);
 }
 
 fn handle_tree_space(app: &mut App) {

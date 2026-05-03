@@ -1,5 +1,4 @@
-use super::app::{App, Focus, MarkdownPreview};
-use super::fs::{is_markdown_file, read_markdown_file};
+use super::app::{App, Focus, NavMode};
 use super::search::FileSearch;
 use std::path::Path;
 
@@ -10,11 +9,13 @@ impl App {
                 if self.selected + 1 < self.tree.len() {
                     self.selected += 1;
                     self.refresh_selected();
+                    self.refresh_file_preview();
                 }
             }
             Focus::IndexMap => {
                 if self.index_selected + 1 < self.index_rows.len() {
                     self.index_selected += 1;
+                    self.refresh_file_preview();
                 }
             }
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_add(1),
@@ -27,10 +28,12 @@ impl App {
                 if self.selected > 0 {
                     self.selected -= 1;
                     self.refresh_selected();
+                    self.refresh_file_preview();
                 }
             }
             Focus::IndexMap => {
                 self.index_selected = self.index_selected.saturating_sub(1);
+                self.refresh_file_preview();
             }
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_sub(1),
         }
@@ -49,36 +52,7 @@ impl App {
         self.refresh();
         self.set_selected_path(&row.path);
         self.refresh_selected();
-    }
-
-    pub fn open_preview(&mut self) {
-        let Some(path) = self.selected_path().cloned() else {
-            return;
-        };
-        if !is_markdown_file(&path) {
-            return;
-        }
-        self.preview = Some(MarkdownPreview {
-            content: read_markdown_file(&path),
-            path,
-            scroll: 0,
-        });
-    }
-
-    pub fn close_preview(&mut self) {
-        self.preview = None;
-    }
-
-    pub fn preview_down(&mut self) {
-        if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = preview.scroll.saturating_add(1);
-        }
-    }
-
-    pub fn preview_up(&mut self) {
-        if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = preview.scroll.saturating_sub(1);
-        }
+        self.refresh_file_preview();
     }
 
     pub fn reset_position(&mut self) {
@@ -86,38 +60,32 @@ impl App {
             Focus::Tree => {
                 self.selected = 0;
                 self.refresh_selected();
+                self.refresh_file_preview();
             }
-            Focus::IndexMap => self.index_selected = 0,
+            Focus::IndexMap => {
+                self.index_selected = 0;
+                self.refresh_file_preview();
+            }
             Focus::Changes => self.changes_scroll = 0,
         }
     }
 
-    pub fn reset_preview(&mut self) {
-        if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = 0;
-        }
-    }
-
-    pub fn preview_bottom(&mut self) {
-        if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = u16::MAX;
-        }
-    }
-
     pub fn cycle_focus(&mut self) {
-        self.focus = match self.focus {
-            Focus::Tree => Focus::IndexMap,
-            Focus::IndexMap => Focus::Changes,
-            Focus::Changes => Focus::Tree,
+        self.focus = match (self.focus, self.nav_mode) {
+            (Focus::Changes, NavMode::Tree) => Focus::Tree,
+            (Focus::Changes, NavMode::IndexMap) => Focus::IndexMap,
+            _ => Focus::Changes,
         };
     }
 
     pub fn focus_tree(&mut self) {
-        self.focus = Focus::Tree;
+        self.set_tree_mode();
     }
 
     pub fn focus_index_map(&mut self) {
+        self.nav_mode = NavMode::IndexMap;
         self.focus = Focus::IndexMap;
+        self.refresh_file_preview();
     }
 
     pub fn focus_changes(&mut self) {
@@ -161,6 +129,7 @@ impl App {
         self.refresh();
         self.set_selected_path(path);
         self.refresh_selected();
+        self.refresh_file_preview();
     }
 
     pub fn jump_bottom(&mut self) {
@@ -168,14 +137,21 @@ impl App {
             Focus::Tree => {
                 self.selected = self.tree.len().saturating_sub(1);
                 self.refresh_selected();
+                self.refresh_file_preview();
             }
-            Focus::IndexMap => self.index_selected = self.index_rows.len().saturating_sub(1),
+            Focus::IndexMap => {
+                self.index_selected = self.index_rows.len().saturating_sub(1);
+                self.refresh_file_preview();
+            }
             Focus::Changes => self.changes_scroll = u16::MAX,
         }
     }
 }
 
 mod index_map;
+mod layout;
+mod nav_mode;
+mod preview;
 
 #[cfg(test)]
 mod tests;

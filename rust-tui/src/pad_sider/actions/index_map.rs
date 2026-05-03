@@ -1,5 +1,6 @@
-use super::super::app::{App, Focus, MarkdownPreview};
+use super::super::app::App;
 use super::super::fs::read_markdown_file;
+use super::super::preview::MarkdownPreview;
 use std::path::PathBuf;
 
 impl App {
@@ -31,7 +32,7 @@ impl App {
             return;
         };
         self.reveal_path(&path);
-        self.focus = Focus::Tree;
+        self.set_tree_mode();
     }
 
     fn nearest_index_path(&self) -> Option<PathBuf> {

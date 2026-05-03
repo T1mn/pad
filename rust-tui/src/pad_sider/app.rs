@@ -3,23 +3,25 @@ use super::fs::{
     FileStats,
 };
 use super::index_map::{build_index_map, IndexRow};
+use super::layout::LayoutWeights;
+use super::preview::{FilePreview, MarkdownPreview};
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Focus {
     Tree,
     IndexMap,
     Changes,
 }
 
-pub struct MarkdownPreview {
-    pub path: PathBuf,
-    pub content: String,
-    pub scroll: u16,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NavMode {
+    Tree,
+    IndexMap,
 }
 
 pub struct App {
@@ -31,13 +33,17 @@ pub struct App {
     pub index_rows: Vec<IndexRow>,
     pub index_selected: usize,
     pub focus: Focus,
+    pub nav_mode: NavMode,
+    pub layout_weights: LayoutWeights,
     pub changes: Vec<String>,
     pub changes_scroll: u16,
     pub selected_stats: FileStats,
     pub selected_label: String,
+    pub file_preview: FilePreview,
     pub preview: Option<MarkdownPreview>,
     pub search: Option<FileSearch>,
     pub show_help: bool,
+    pub last_index_toggle_key: Option<Instant>,
     pub last_refresh: Instant,
     pub should_quit: bool,
 }
@@ -55,13 +61,17 @@ impl App {
             index_rows: Vec::new(),
             index_selected: 0,
             focus: Focus::Tree,
+            nav_mode: NavMode::Tree,
+            layout_weights: LayoutWeights::default(),
             changes: Vec::new(),
             changes_scroll: 0,
             selected_stats: FileStats::default(),
             selected_label: String::new(),
+            file_preview: FilePreview::empty(),
             preview: None,
             search: None,
             show_help: false,
+            last_index_toggle_key: None,
             last_refresh: Instant::now() - Duration::from_secs(5),
             should_quit: false,
         };
@@ -79,6 +89,7 @@ impl App {
         self.restore_selection(selected_path.as_deref());
         self.changes = read_changed_files(&self.cwd);
         self.refresh_selected();
+        self.refresh_file_preview();
         self.refresh_preview();
         self.last_refresh = Instant::now();
     }
@@ -143,6 +154,23 @@ impl App {
         } else {
             FileStats::default()
         };
+    }
+
+    pub(crate) fn refresh_file_preview(&mut self) {
+        let path = match self.nav_mode {
+            NavMode::Tree => self.selected_path().cloned(),
+            NavMode::IndexMap => self.selected_index_path().cloned(),
+        };
+        let previous_title = self.file_preview.title.clone();
+        let previous_scroll = self.file_preview.scroll;
+        let mut preview = path
+            .as_deref()
+            .map(|path| FilePreview::from_path(&self.cwd, path))
+            .unwrap_or_else(FilePreview::empty);
+        if preview.title == previous_title {
+            preview.scroll = previous_scroll;
+        }
+        self.file_preview = preview;
     }
 
     pub(crate) fn refresh_preview(&mut self) {

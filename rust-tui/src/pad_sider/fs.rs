@@ -26,8 +26,19 @@ pub fn is_markdown_file(path: &Path) -> bool {
 }
 
 pub fn read_markdown_file(path: &Path) -> String {
-    fs::read_to_string(path)
-        .unwrap_or_else(|err| format!("failed to read {}: {err}", path.display()))
+    read_text_file(path)
+}
+
+pub fn read_text_file(path: &Path) -> String {
+    const MAX_BYTES: usize = 200 * 1024;
+    let bytes = fs::read(path)
+        .unwrap_or_else(|err| format!("failed to read {}: {err}", path.display()).into_bytes());
+    let truncated = bytes.len() > MAX_BYTES;
+    let mut text = String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_BYTES)]).to_string();
+    if truncated {
+        text.push_str("\n\n… truncated preview …");
+    }
+    text
 }
 
 pub fn read_changed_files(root: &Path) -> Vec<String> {
