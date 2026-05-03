@@ -2,6 +2,7 @@ use super::fs::{
     is_markdown_file, read_changed_files, read_file_stats, read_markdown_file, relative_path_label,
     FileStats,
 };
+use super::index_map::{build_index_map, IndexRow};
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
 use std::collections::HashSet;
@@ -11,6 +12,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
     Tree,
+    IndexMap,
     Changes,
 }
 
@@ -26,6 +28,8 @@ pub struct App {
     pub tree: Vec<TreeRow>,
     pub expanded: HashSet<PathBuf>,
     pub selected: usize,
+    pub index_rows: Vec<IndexRow>,
+    pub index_selected: usize,
     pub focus: Focus,
     pub changes: Vec<String>,
     pub changes_scroll: u16,
@@ -48,6 +52,8 @@ impl App {
             tree: Vec::new(),
             expanded,
             selected: 0,
+            index_rows: Vec::new(),
+            index_selected: 0,
             focus: Focus::Tree,
             changes: Vec::new(),
             changes_scroll: 0,
@@ -66,6 +72,10 @@ impl App {
     pub fn refresh(&mut self) {
         let selected_path = self.selected_path().cloned();
         self.tree = build_tree(&self.cwd, &self.expanded);
+        self.index_rows = build_index_map(&self.cwd);
+        if self.index_selected >= self.index_rows.len() {
+            self.index_selected = self.index_rows.len().saturating_sub(1);
+        }
         self.restore_selection(selected_path.as_deref());
         self.changes = read_changed_files(&self.cwd);
         self.refresh_selected();
@@ -81,6 +91,12 @@ impl App {
 
     pub fn selected_path(&self) -> Option<&PathBuf> {
         self.tree.get(self.selected).map(|row| &row.path)
+    }
+
+    pub fn selected_index_path(&self) -> Option<&PathBuf> {
+        self.index_rows
+            .get(self.index_selected)
+            .map(|row| &row.path)
     }
 
     pub fn selected_is_dir(&self) -> bool {

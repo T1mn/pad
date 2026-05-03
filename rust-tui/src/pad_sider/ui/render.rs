@@ -19,13 +19,15 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(6),
             Constraint::Min(8),
+            Constraint::Length(10),
             Constraint::Length(8),
         ])
         .split(frame.area());
 
     draw_header(frame, app, areas[0]);
     draw_tree(frame, app, areas[1]);
-    draw_changes(frame, app, areas[2]);
+    draw_index_map(frame, app, areas[2]);
+    draw_changes(frame, app, areas[3]);
 
     if let Some(search) = app.search.as_ref() {
         overlay::draw_search(frame, search);
@@ -49,12 +51,32 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             app.selected_stats.bytes,
             app.selected_stats.modified
         )),
-        Line::from("keys: ? help · / search · i index.md · Space preview/toggle · Ctrl+Tab toggle"),
+        Line::from(
+            "keys: ? help · I index map · i nearest index.md · / search · Space preview/toggle",
+        ),
     ];
     let paragraph = Paragraph::new(lines)
         .block(Block::default().title(" info ").borders(Borders::ALL))
         .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
+}
+
+fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
+    let items = app
+        .index_rows
+        .iter()
+        .map(|row| {
+            let indent = "  ".repeat(row.depth);
+            ListItem::new(Line::from(format!("{indent}◈ {}/index.md", row.dir_label)))
+        })
+        .collect::<Vec<_>>();
+    let mut state = ListState::default();
+    state.select(Some(app.index_selected));
+    let title = format!(" index map ({}) ", app.index_rows.len());
+    let list = List::new(items)
+        .block(focus_block(&title, app.focus == Focus::IndexMap))
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {

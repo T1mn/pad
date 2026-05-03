@@ -74,11 +74,16 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('r') => app.refresh(),
         KeyCode::Tab => app.cycle_focus(),
         KeyCode::Char('t') => app.focus_tree(),
+        KeyCode::Char('I') => app.focus_index_map(),
         KeyCode::Char('d') => app.focus_changes(),
         KeyCode::Enter if app.focus == Focus::Tree => app.toggle_selected(),
+        KeyCode::Enter | KeyCode::Char(' ') if app.focus == Focus::IndexMap => {
+            app.open_selected_index_preview()
+        }
         KeyCode::Char(' ') if app.focus == Focus::Tree => handle_tree_space(app),
         KeyCode::Char('/') if app.focus == Focus::Tree => app.open_search(),
         KeyCode::Char('i') if app.focus == Focus::Tree => app.open_nearest_index_preview(),
+        KeyCode::Char('o') if app.focus == Focus::IndexMap => app.reveal_selected_index_in_tree(),
         KeyCode::Char('g') => app.reset_position(),
         KeyCode::Char('G') => app.jump_bottom(),
         _ => {}

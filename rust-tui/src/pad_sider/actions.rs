@@ -1,7 +1,7 @@
 use super::app::{App, Focus, MarkdownPreview};
 use super::fs::{is_markdown_file, read_markdown_file};
 use super::search::FileSearch;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 impl App {
     pub fn next(&mut self) {
@@ -10,6 +10,11 @@ impl App {
                 if self.selected + 1 < self.tree.len() {
                     self.selected += 1;
                     self.refresh_selected();
+                }
+            }
+            Focus::IndexMap => {
+                if self.index_selected + 1 < self.index_rows.len() {
+                    self.index_selected += 1;
                 }
             }
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_add(1),
@@ -23,6 +28,9 @@ impl App {
                     self.selected -= 1;
                     self.refresh_selected();
                 }
+            }
+            Focus::IndexMap => {
+                self.index_selected = self.index_selected.saturating_sub(1);
             }
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_sub(1),
         }
@@ -79,6 +87,7 @@ impl App {
                 self.selected = 0;
                 self.refresh_selected();
             }
+            Focus::IndexMap => self.index_selected = 0,
             Focus::Changes => self.changes_scroll = 0,
         }
     }
@@ -97,13 +106,18 @@ impl App {
 
     pub fn cycle_focus(&mut self) {
         self.focus = match self.focus {
-            Focus::Tree => Focus::Changes,
+            Focus::Tree => Focus::IndexMap,
+            Focus::IndexMap => Focus::Changes,
             Focus::Changes => Focus::Tree,
         };
     }
 
     pub fn focus_tree(&mut self) {
         self.focus = Focus::Tree;
+    }
+
+    pub fn focus_index_map(&mut self) {
+        self.focus = Focus::IndexMap;
     }
 
     pub fn focus_changes(&mut self) {
@@ -155,45 +169,13 @@ impl App {
                 self.selected = self.tree.len().saturating_sub(1);
                 self.refresh_selected();
             }
+            Focus::IndexMap => self.index_selected = self.index_rows.len().saturating_sub(1),
             Focus::Changes => self.changes_scroll = u16::MAX,
         }
     }
-
-    pub fn open_nearest_index_preview(&mut self) {
-        let Some(path) = self.nearest_index_path() else {
-            return;
-        };
-        self.reveal_path(&path);
-        self.preview = Some(MarkdownPreview {
-            content: read_markdown_file(&path),
-            path,
-            scroll: 0,
-        });
-    }
-
-    fn nearest_index_path(&self) -> Option<PathBuf> {
-        let selected = self.selected_path()?;
-        let mut cursor = if selected.is_dir() {
-            selected.as_path()
-        } else {
-            selected.parent()?
-        };
-
-        loop {
-            if !cursor.starts_with(&self.cwd) {
-                return None;
-            }
-            let candidate = cursor.join("index.md");
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-            if cursor == self.cwd {
-                return None;
-            }
-            cursor = cursor.parent()?;
-        }
-    }
 }
+
+mod index_map;
 
 #[cfg(test)]
 mod tests;

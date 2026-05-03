@@ -4,6 +4,7 @@
 - `cli.rs`：解析 `toggle` / `ui` 命令。
 - `tmux.rs`：F10 / Ctrl+Tab 辅助栏的 split、隐藏、恢复与自动聚焦。
 - `app.rs` / `actions.rs` / `actions/`：辅助栏状态、tree/changes 焦点、Markdown 预览、`index.md` 跳转与快捷键动作。
+- `index_map.rs`：递归扫描项目内所有 `index.md` 并生成结构化索引地图。
 - `tree.rs`：tree 构建、递归文件扫描与忽略目录规则。
 - `search.rs`：`/` 文件 fuzzy 搜索状态与匹配。
 - `fs.rs`：git changed files、文件统计、相对路径与 Markdown 读取。

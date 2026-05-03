@@ -2,6 +2,7 @@ mod actions;
 mod app;
 mod cli;
 mod fs;
+mod index_map;
 mod search;
 mod tmux;
 mod tree;
