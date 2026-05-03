@@ -88,6 +88,57 @@ pub fn draw_search(frame: &mut Frame, search: &FileSearch) {
     frame.render_widget(Paragraph::new(Text::from(lines)), chunks[1]);
 }
 
+pub fn draw_help(frame: &mut Frame) {
+    let area = centered_rect(82, 72, frame.area());
+    let lines = vec![
+        Line::from(vec![Span::styled(
+            "pad-sider keys",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::default(),
+        Line::from("Global"),
+        Line::from("  Ctrl+Tab/F10  toggle sider from Codex pane or sider pane"),
+        Line::from("  ?             show / hide this help"),
+        Line::from("  q             quit sider UI"),
+        Line::from("  r             refresh project state"),
+        Line::from("  Tab           switch Tree / Changes"),
+        Line::from("  t / d         focus Tree / Changes"),
+        Line::from("  g / G         top / bottom"),
+        Line::default(),
+        Line::from("Tree"),
+        Line::from("  j/k ↑/↓       move"),
+        Line::from("  Enter/Space   expand or collapse directory"),
+        Line::from("  Space         preview selected .md file"),
+        Line::from("  i             open nearest index.md guide"),
+        Line::from("  /             fuzzy search files"),
+        Line::default(),
+        Line::from("Preview"),
+        Line::from("  q/Esc         close preview"),
+        Line::from("  j/k ↑/↓       scroll"),
+        Line::from("  g/G           top / bottom"),
+        Line::default(),
+        Line::from("Search"),
+        Line::from("  type          filter files"),
+        Line::from("  ↑/↓           move"),
+        Line::from("  Enter         reveal file in tree"),
+        Line::from("  Esc           cancel"),
+    ];
+
+    frame.render_widget(Clear, area);
+    let paragraph = Paragraph::new(Text::from(lines))
+        .block(
+            Block::default()
+                .title(" help ")
+                .title_alignment(Alignment::Center)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, area);
+}
+
 fn focus_block(title: &str, focused: bool) -> Block<'static> {
     let mut block = Block::default()
         .title(title.to_string())

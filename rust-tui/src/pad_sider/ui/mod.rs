@@ -48,6 +48,14 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         return;
     }
 
+    if app.show_help {
+        match key.code {
+            KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => app.close_help(),
+            _ => {}
+        }
+        return;
+    }
+
     if app.preview.is_some() {
         handle_preview_key(app, key);
         return;
@@ -60,14 +68,19 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     match key.code {
         KeyCode::Char('q') => app.should_quit = true,
+        KeyCode::Char('?') => app.toggle_help(),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.previous(),
         KeyCode::Char('r') => app.refresh(),
         KeyCode::Tab => app.cycle_focus(),
+        KeyCode::Char('t') => app.focus_tree(),
+        KeyCode::Char('d') => app.focus_changes(),
         KeyCode::Enter if app.focus == Focus::Tree => app.toggle_selected(),
         KeyCode::Char(' ') if app.focus == Focus::Tree => handle_tree_space(app),
         KeyCode::Char('/') if app.focus == Focus::Tree => app.open_search(),
+        KeyCode::Char('i') if app.focus == Focus::Tree => app.open_nearest_index_preview(),
         KeyCode::Char('g') => app.reset_position(),
+        KeyCode::Char('G') => app.jump_bottom(),
         _ => {}
     }
 }
@@ -86,6 +99,8 @@ fn handle_preview_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('j') | KeyCode::Down => app.preview_down(),
         KeyCode::Char('k') | KeyCode::Up => app.preview_up(),
         KeyCode::Char('g') => app.reset_preview(),
+        KeyCode::Char('G') => app.preview_bottom(),
+        KeyCode::Char('?') => app.toggle_help(),
         _ => {}
     }
 }

@@ -1,7 +1,7 @@
 use super::app::{App, Focus, MarkdownPreview};
 use super::fs::{is_markdown_file, read_markdown_file};
 use super::search::FileSearch;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 impl App {
     pub fn next(&mut self) {
@@ -89,11 +89,25 @@ impl App {
         }
     }
 
+    pub fn preview_bottom(&mut self) {
+        if let Some(preview) = self.preview.as_mut() {
+            preview.scroll = u16::MAX;
+        }
+    }
+
     pub fn cycle_focus(&mut self) {
         self.focus = match self.focus {
             Focus::Tree => Focus::Changes,
             Focus::Changes => Focus::Tree,
         };
+    }
+
+    pub fn focus_tree(&mut self) {
+        self.focus = Focus::Tree;
+    }
+
+    pub fn focus_changes(&mut self) {
+        self.focus = Focus::Changes;
     }
 
     pub fn open_search(&mut self) {
@@ -102,6 +116,14 @@ impl App {
 
     pub fn close_search(&mut self) {
         self.search = None;
+    }
+
+    pub fn toggle_help(&mut self) {
+        self.show_help = !self.show_help;
+    }
+
+    pub fn close_help(&mut self) {
+        self.show_help = false;
     }
 
     pub fn reveal_path(&mut self, path: &Path) {
@@ -126,37 +148,52 @@ impl App {
         self.set_selected_path(path);
         self.refresh_selected();
     }
+
+    pub fn jump_bottom(&mut self) {
+        match self.focus {
+            Focus::Tree => {
+                self.selected = self.tree.len().saturating_sub(1);
+                self.refresh_selected();
+            }
+            Focus::Changes => self.changes_scroll = u16::MAX,
+        }
+    }
+
+    pub fn open_nearest_index_preview(&mut self) {
+        let Some(path) = self.nearest_index_path() else {
+            return;
+        };
+        self.reveal_path(&path);
+        self.preview = Some(MarkdownPreview {
+            content: read_markdown_file(&path),
+            path,
+            scroll: 0,
+        });
+    }
+
+    fn nearest_index_path(&self) -> Option<PathBuf> {
+        let selected = self.selected_path()?;
+        let mut cursor = if selected.is_dir() {
+            selected.as_path()
+        } else {
+            selected.parent()?
+        };
+
+        loop {
+            if !cursor.starts_with(&self.cwd) {
+                return None;
+            }
+            let candidate = cursor.join("index.md");
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            if cursor == self.cwd {
+                return None;
+            }
+            cursor = cursor.parent()?;
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::App;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    #[test]
-    fn reveal_path_expands_parents_and_selects_file() {
-        let root = temp_dir("reveal_path_expands_parents_and_selects_file");
-        let target = root.join("docs/guide/readme.md");
-        fs::create_dir_all(target.parent().unwrap()).unwrap();
-        fs::write(&target, "# guide").unwrap();
-
-        let mut app = App::new(root.clone(), None);
-        app.reveal_path(&target);
-
-        assert_eq!(app.selected_path(), Some(&target));
-        assert!(app.expanded.contains(&root.join("docs")));
-        assert!(app.expanded.contains(&root.join("docs/guide")));
-
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad_sider_{name}_{unique}"))
-    }
-}
+mod tests;

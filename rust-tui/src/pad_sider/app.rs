@@ -33,6 +33,7 @@ pub struct App {
     pub selected_label: String,
     pub preview: Option<MarkdownPreview>,
     pub search: Option<FileSearch>,
+    pub show_help: bool,
     pub last_refresh: Instant,
     pub should_quit: bool,
 }
@@ -54,6 +55,7 @@ impl App {
             selected_label: String::new(),
             preview: None,
             search: None,
+            show_help: false,
             last_refresh: Instant::now() - Duration::from_secs(5),
             should_quit: false,
         };

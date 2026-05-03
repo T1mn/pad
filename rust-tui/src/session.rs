@@ -3,10 +3,11 @@ use std::error::Error;
 use std::process::Command;
 
 const PAD_RETURN_BINDING_MARKER: &str = "PAD_RETURN_BINDING=1;";
+const PAD_SIDER_TOGGLE_KEYS: &[&str] = &["F10", "C-Tab"];
 
 /// Create a new tmux session in the given path with an agent command.
 /// After creation, switches the tmux client to the new session and installs
-/// F12/Ctrl+Q/F10 bindings so the user can return to the pad session and
+/// F12/Ctrl+Q/F10/Ctrl+Tab bindings so the user can return to the pad session and
 /// toggle the left helper pane inside Codex.
 pub fn create_session_with_agent(
     app: &mut App,
@@ -159,8 +160,10 @@ pub fn create_session_with_agent(
     if let Some(line) = current_root_binding("C-q") {
         app.saved_tmux_bindings.push(line);
     }
-    if let Some(line) = current_root_binding("F10") {
-        app.saved_tmux_bindings.push(line);
+    for key in PAD_SIDER_TOGGLE_KEYS {
+        if let Some(line) = current_root_binding(key) {
+            app.saved_tmux_bindings.push(line);
+        }
     }
 
     let current_status = tmux_status_value(&session_name);
@@ -179,7 +182,7 @@ pub fn create_session_with_agent(
     app.saved_tmux_status = status_restore_value.clone();
     app.saved_tmux_status_target = status_restore_value.as_ref().map(|_| session_name.clone());
 
-    // Install F12/Ctrl+Q/F10 bindings in the new session so user can return to pad
+    // Install F12/Ctrl+Q/F10/Ctrl+Tab bindings in the new session so user can return to pad
     if let (Some(pane_id), Some(win_target), Some(pad_session)) = (pad_pane, pad_win, pad_session) {
         let mut restore_parts = Vec::new();
         restore_parts.push(shell_trace_log_cmd(
@@ -204,13 +207,15 @@ pub fn create_session_with_agent(
                 .map(String::as_str),
             "C-q",
         ));
-        restore_parts.push(restore_binding_cmd(
-            app.saved_tmux_bindings
-                .iter()
-                .find(|line| line.contains(" F10 "))
-                .map(String::as_str),
-            "F10",
-        ));
+        for key in PAD_SIDER_TOGGLE_KEYS {
+            restore_parts.push(restore_binding_cmd(
+                app.saved_tmux_bindings
+                    .iter()
+                    .find(|line| line.contains(&format!(" {} ", key)))
+                    .map(String::as_str),
+                key,
+            ));
+        }
         if let Some(status) = status_restore_value.as_deref() {
             restore_parts.push(format!(
                 "tmux set -t '{}' status '{}'",
@@ -252,9 +257,11 @@ pub fn create_session_with_agent(
             .args(["bind-key", "-T", "root", "C-q", "run-shell", &run_shell_cmd])
             .output();
         let sider_cmd = wrap_tmux_run_shell(&pad_sider_toggle_command());
-        let _ = Command::new("tmux")
-            .args(["bind-key", "-T", "root", "F10", "run-shell", &sider_cmd])
-            .output();
+        for key in PAD_SIDER_TOGGLE_KEYS {
+            let _ = Command::new("tmux")
+                .args(["bind-key", "-T", "root", key, "run-shell", &sider_cmd])
+                .output();
+        }
 
         app.same_session_attached = true;
         log_debug!(
@@ -452,7 +459,7 @@ fn desired_status_override(
 
 #[cfg(test)]
 mod tests {
-    use super::desired_status_override;
+    use super::{desired_status_override, restore_binding_cmd, PAD_SIDER_TOGGLE_KEYS};
 
     #[test]
     fn keep_status_inherits_visible_status_from_pad_session() {
@@ -471,5 +478,19 @@ mod tests {
     fn keep_status_noops_without_pad_status() {
         assert_eq!(desired_status_override("keep", "off", None), None);
         assert_eq!(desired_status_override("keep", "off", Some("")), None);
+    }
+
+    #[test]
+    fn sider_toggle_keys_include_ctrl_tab() {
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"F10"));
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"C-Tab"));
+    }
+
+    #[test]
+    fn restore_binding_cmd_can_unbind_ctrl_tab() {
+        assert_eq!(
+            restore_binding_cmd(None, "C-Tab"),
+            "tmux unbind-key -T root C-Tab"
+        );
     }
 }

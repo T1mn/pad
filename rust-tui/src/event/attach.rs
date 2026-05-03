@@ -12,6 +12,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 const PAD_RETURN_BINDING_MARKER: &str = "PAD_RETURN_BINDING=1;";
+const PAD_SIDER_TOGGLE_KEYS: &[&str] = &["F10", "C-Tab"];
 
 fn summarize_log_text(text: &str) -> String {
     let single_line = text.trim().replace('\n', "\\n").replace('\r', "\\r");
@@ -45,7 +46,7 @@ fn run_tmux_logged(context: &str, args: Vec<String>) -> Option<std::process::Out
     Some(output)
 }
 
-/// Install F12/C-q/F10 bindings for same-session attach.
+/// Install F12/C-q/F10/C-Tab bindings for same-session attach.
 /// Snapshots zoom and status bar state, modifies them for the attach,
 /// and encodes restoration into the return command.
 fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: &str) -> bool {
@@ -148,7 +149,10 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
 
     let saved_f12 = current_root_binding("F12");
     let saved_cq = current_root_binding("C-q");
-    let saved_f10 = current_root_binding("F10");
+    let saved_sider_bindings = PAD_SIDER_TOGGLE_KEYS
+        .iter()
+        .map(|key| (*key, current_root_binding(key)))
+        .collect::<Vec<_>>();
     app.saved_tmux_bindings.clear();
     if let Some(line) = &saved_f12 {
         app.saved_tmux_bindings.push(line.clone());
@@ -156,8 +160,10 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     if let Some(line) = &saved_cq {
         app.saved_tmux_bindings.push(line.clone());
     }
-    if let Some(line) = &saved_f10 {
-        app.saved_tmux_bindings.push(line.clone());
+    for (_, saved_binding) in &saved_sider_bindings {
+        if let Some(line) = saved_binding {
+            app.saved_tmux_bindings.push(line.clone());
+        }
     }
 
     log_debug!(
@@ -207,7 +213,9 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     )));
     restore_parts.push(restore_binding_cmd(saved_f12.as_deref(), "F12"));
     restore_parts.push(restore_binding_cmd(saved_cq.as_deref(), "C-q"));
-    restore_parts.push(restore_binding_cmd(saved_f10.as_deref(), "F10"));
+    for (key, saved_binding) in &saved_sider_bindings {
+        restore_parts.push(restore_binding_cmd(saved_binding.as_deref(), key));
+    }
     if !restore_zoom_cmd.is_empty() {
         restore_parts.push(shell_log_cmd(&format!(
             "before_unzoom target_pane={}",
@@ -274,17 +282,20 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
             run_shell_cmd.clone(),
         ],
     );
-    let _ = run_tmux_logged(
-        "install_return_bindings.bind_f10",
-        vec![
-            "bind-key".to_string(),
-            "-T".to_string(),
-            "root".to_string(),
-            "F10".to_string(),
-            "run-shell".to_string(),
-            wrap_tmux_run_shell(&pad_sider_toggle_command()),
-        ],
-    );
+    let sider_cmd = wrap_tmux_run_shell(&pad_sider_toggle_command());
+    for key in PAD_SIDER_TOGGLE_KEYS {
+        let _ = run_tmux_logged(
+            &format!("install_return_bindings.bind_sider_{}", key),
+            vec![
+                "bind-key".to_string(),
+                "-T".to_string(),
+                "root".to_string(),
+                (*key).to_string(),
+                "run-shell".to_string(),
+                sider_cmd.clone(),
+            ],
+        );
+    }
 
     log_debug!(
         "handoff trace={} stage=attach.return_cmd cmd={}",
@@ -294,7 +305,7 @@ fn install_return_bindings(app: &mut App, target_pane_id: &str, target_session: 
     should_zoom
 }
 
-/// Clean up F12/C-q/F10 root bindings and restore status bar — safety net for pad quit/crash.
+/// Clean up F12/C-q/F10/C-Tab root bindings and restore status bar — safety net for pad quit/crash.
 pub(super) fn restore_tmux_bindings(app: &mut App) {
     let trace_id = app
         .same_session_trace_id
@@ -310,11 +321,6 @@ pub(super) fn restore_tmux_bindings(app: &mut App) {
         .iter()
         .find(|line| line.contains(" C-q "))
         .cloned();
-    let saved_f10 = app
-        .saved_tmux_bindings
-        .iter()
-        .find(|line| line.contains(" F10 "))
-        .cloned();
 
     let _ = std::process::Command::new("sh")
         .args(["-lc", &restore_binding_cmd(saved_f12.as_deref(), "F12")])
@@ -322,9 +328,16 @@ pub(super) fn restore_tmux_bindings(app: &mut App) {
     let _ = std::process::Command::new("sh")
         .args(["-lc", &restore_binding_cmd(saved_cq.as_deref(), "C-q")])
         .output();
-    let _ = std::process::Command::new("sh")
-        .args(["-lc", &restore_binding_cmd(saved_f10.as_deref(), "F10")])
-        .output();
+    for key in PAD_SIDER_TOGGLE_KEYS {
+        let saved_binding = app
+            .saved_tmux_bindings
+            .iter()
+            .find(|line| line.contains(&format!(" {} ", key)))
+            .cloned();
+        let _ = std::process::Command::new("sh")
+            .args(["-lc", &restore_binding_cmd(saved_binding.as_deref(), key)])
+            .output();
+    }
 
     if let (Some(status), Some(target)) = (
         app.saved_tmux_status.as_deref(),
@@ -422,6 +435,25 @@ fn wait_for_zoom_flag_cmd(target_pane_id: &str, expected_zoomed: &str, label: &s
         target_pane_id,
         shell_single_quote(&log_path)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{restore_binding_cmd, PAD_SIDER_TOGGLE_KEYS};
+
+    #[test]
+    fn sider_toggle_keys_include_ctrl_tab() {
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"F10"));
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"C-Tab"));
+    }
+
+    #[test]
+    fn restore_binding_cmd_can_unbind_ctrl_tab() {
+        assert_eq!(
+            restore_binding_cmd(None, "C-Tab"),
+            "tmux unbind-key -T root C-Tab"
+        );
+    }
 }
 
 fn tmux_status_value(target_session: Option<&str>) -> String {

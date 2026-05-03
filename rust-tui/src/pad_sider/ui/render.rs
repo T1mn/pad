@@ -17,7 +17,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let areas = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),
+            Constraint::Length(6),
             Constraint::Min(8),
             Constraint::Length(8),
         ])
@@ -29,6 +29,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     if let Some(search) = app.search.as_ref() {
         overlay::draw_search(frame, search);
+    }
+    if app.show_help {
+        overlay::draw_help(frame);
     }
 }
 
@@ -46,6 +49,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             app.selected_stats.bytes,
             app.selected_stats.modified
         )),
+        Line::from("keys: ? help · / search · i index.md · Space preview/toggle · Ctrl+Tab toggle"),
     ];
     let paragraph = Paragraph::new(lines)
         .block(Block::default().title(" info ").borders(Borders::ALL))

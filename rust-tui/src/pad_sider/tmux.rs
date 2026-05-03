@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const HELPER_WIDTH: &str = "42";
+const HELPER_WIDTH: &str = "50%";
 const TARGET_OPTION: &str = "@pad_sider_pane";
 const HELPER_TARGET_OPTION: &str = "@pad_sider_target";
 const HIDDEN_WINDOW_PREFIX: &str = "__pad_sider_";
@@ -181,4 +181,14 @@ fn hidden_window_name(helper_pane: &str) -> String {
 
 fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r#"'\''"#))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HELPER_WIDTH;
+
+    #[test]
+    fn helper_uses_half_width() {
+        assert_eq!(HELPER_WIDTH, "50%");
+    }
 }
