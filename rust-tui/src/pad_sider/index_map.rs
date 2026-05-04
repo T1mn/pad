@@ -41,10 +41,11 @@ fn collect_index_rows(root: &Path, dir: &Path, depth: usize, rows: &mut Vec<Inde
 }
 
 fn dir_label(root: &Path, dir: &Path) -> String {
-    dir.strip_prefix(root)
-        .ok()
-        .and_then(|path| path.to_str())
-        .filter(|value| !value.is_empty())
+    if dir == root {
+        return ".".into();
+    }
+    dir.file_name()
+        .and_then(|name| name.to_str())
         .unwrap_or(".")
         .to_string()
 }
@@ -79,7 +80,7 @@ mod tests {
             .map(|row| (row.depth, row.dir_label.as_str()))
             .collect::<Vec<_>>();
 
-        assert_eq!(labels, vec![(0, "."), (1, "docs"), (2, "docs/guide")]);
+        assert_eq!(labels, vec![(0, "."), (1, "docs"), (2, "guide")]);
         assert!(!rows
             .iter()
             .any(|row| row.path.ends_with("target/hidden/index.md")));
