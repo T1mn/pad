@@ -1,4 +1,5 @@
 use super::super::{app::App, preview::MarkdownPreview, search::FileSearch};
+use super::line_numbers::add_line_numbers;
 use super::markdown::render_markdown;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
@@ -17,7 +18,7 @@ pub fn draw_preview(frame: &mut Frame, app: &App, preview: &MarkdownPreview) {
             .unwrap_or(&preview.path)
             .display()
     );
-    let paragraph = Paragraph::new(render_markdown(&preview.content))
+    let paragraph = Paragraph::new(add_line_numbers(render_markdown(&preview.content)))
         .block(focus_block(&title, true))
         .wrap(Wrap { trim: false })
         .scroll((preview.scroll, 0));

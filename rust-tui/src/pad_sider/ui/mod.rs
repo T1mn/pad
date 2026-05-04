@@ -1,3 +1,4 @@
+mod line_numbers;
 mod markdown;
 mod overlay;
 mod render;

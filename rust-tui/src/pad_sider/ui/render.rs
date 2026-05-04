@@ -1,5 +1,6 @@
 use super::super::app::{App, Focus, NavMode};
 use super::super::preview::PreviewKind;
+use super::line_numbers::{add_line_numbers, text_lines_with_numbers};
 use super::markdown::render_markdown;
 use super::overlay;
 use ratatui::{
@@ -142,14 +143,10 @@ fn draw_file_preview(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
     let paragraph = match app.file_preview.kind {
-        PreviewKind::Markdown => Paragraph::new(render_markdown(&app.file_preview.content)),
-        _ => Paragraph::new(Text::from(
-            app.file_preview
-                .content
-                .lines()
-                .map(|line| Line::from(line.to_string()))
-                .collect::<Vec<_>>(),
-        )),
+        PreviewKind::Markdown => {
+            Paragraph::new(add_line_numbers(render_markdown(&app.file_preview.content)))
+        }
+        _ => Paragraph::new(text_lines_with_numbers(&app.file_preview.content)),
     }
     .block(block)
     .wrap(Wrap { trim: false })
