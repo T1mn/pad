@@ -1,3 +1,4 @@
+use super::super::app::{Focus, NavMode};
 use super::App;
 use std::fs;
 use std::path::PathBuf;
@@ -48,7 +49,8 @@ fn selected_index_preview_opens_from_index_map() {
     fs::write(root.join("docs/index.md"), "# docs").unwrap();
 
     let mut app = App::new(root.clone(), None);
-    app.focus_index_map();
+    app.nav_mode = NavMode::IndexMap;
+    app.focus = Focus::IndexMap;
     app.index_selected = 1;
     app.open_selected_index_preview();
 
@@ -68,7 +70,8 @@ fn reveal_selected_index_returns_to_tree() {
     fs::write(root.join("docs/index.md"), "# docs").unwrap();
 
     let mut app = App::new(root.clone(), None);
-    app.focus_index_map();
+    app.nav_mode = NavMode::IndexMap;
+    app.focus = Focus::IndexMap;
     app.index_selected = 1;
     app.reveal_selected_index_in_tree();
 

@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn reset_layout_restores_defaults() {
         let mut app = App::new(std::env::temp_dir(), None);
-        app.focus_index_map();
+        app.focus = Focus::IndexMap;
         app.grow_focused_section();
         app.reset_layout();
         assert_eq!(

@@ -82,12 +82,6 @@ impl App {
         self.set_tree_mode();
     }
 
-    pub fn focus_index_map(&mut self) {
-        self.nav_mode = NavMode::IndexMap;
-        self.focus = Focus::IndexMap;
-        self.refresh_file_preview();
-    }
-
     pub fn focus_changes(&mut self) {
         self.focus = Focus::Changes;
     }
