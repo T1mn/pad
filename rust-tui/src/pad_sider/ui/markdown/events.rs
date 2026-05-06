@@ -85,11 +85,8 @@ impl Renderer {
         }
     }
 
-    fn start_block(&mut self, separated: bool) {
+    fn start_block(&mut self, _separated: bool) {
         self.flush_line();
-        if separated && !self.lines.is_empty() && !super::style::is_blank_line(self.lines.last()) {
-            self.lines.push(Line::default());
-        }
     }
 
     fn start_code_block(&mut self, kind: CodeBlockKind<'_>) {

@@ -37,6 +37,20 @@ mod tests {
     }
 
     #[test]
+    fn renders_without_extra_block_spacing() {
+        let lines = line_texts(render_markdown("# Title\n\nbody\n\n- one\n- two"));
+        assert_eq!(lines, vec!["Title", "body", "• one", "• two"]);
+    }
+
+    #[test]
+    fn preserves_blank_lines_inside_code_blocks() {
+        let lines = line_texts(render_markdown("```rs\nlet a = 1;\n\nlet b = 2;\n```"));
+        assert!(lines.iter().any(|line| line.contains("let a = 1;")));
+        assert!(lines.iter().any(|line| line.trim().is_empty()));
+        assert!(lines.iter().any(|line| line.contains("let b = 2;")));
+    }
+
+    #[test]
     fn inline_code_uses_color_without_background() {
         let text = render_markdown("run `cargo test` now");
         let span = text

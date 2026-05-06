@@ -68,7 +68,7 @@ impl Renderer {
         if self.code_block {
             for (index, line) in text.split('\n').enumerate() {
                 if index > 0 {
-                    self.flush_line();
+                    self.flush_line_or_blank();
                 }
                 if !line.is_empty() {
                     self.push_span(line.to_string(), self.code_block_style());
@@ -111,13 +111,24 @@ impl Renderer {
 
     pub(super) fn flush_line(&mut self) {
         if self.current.is_empty() {
-            if self.lines.is_empty() || !super::style::is_blank_line(self.lines.last()) {
-                self.lines.push(Line::default());
-            }
             return;
         }
         self.lines
             .push(Line::from(std::mem::take(&mut self.current)));
+    }
+
+    fn flush_line_or_blank(&mut self) {
+        if self.current.is_empty() {
+            self.push_blank_line();
+        } else {
+            self.flush_line();
+        }
+    }
+
+    fn push_blank_line(&mut self) {
+        if self.lines.is_empty() || !super::style::is_blank_line(self.lines.last()) {
+            self.lines.push(Line::default());
+        }
     }
 
     fn current_style(&self) -> Style {
