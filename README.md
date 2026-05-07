@@ -84,8 +84,9 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 1. Run `pad`.
 2. Scan the left sidebar for the session that moved.
-3. Read the latest turns in preview before you attach.
-4. Hit `Enter` to jump in, then `F12` or `Ctrl+Q` to come back.
+3. Press `F10` in your agent pane when you want the project-side code view.
+4. Read the latest turns in preview before you attach.
+5. Hit `Enter` to jump in, then `F12` or `Ctrl+Q` to come back.
 
 ## Core Features
 
@@ -95,6 +96,7 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
 - Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
+- `F10` pad-sider for tree, index map, changes, and file preview beside your agent pane
 - Archive threads without touching upstream session data
 - Relay / proxy settings for supported agents
 - Completion notifications when an agent finishes, on supported desktop backends
@@ -153,6 +155,15 @@ Use tree mode when you want to browse code, preview a file, or create a session 
 2. File tree: expand, collapse, and move through directories quickly.
 3. File preview: inspect code immediately on the right.
 4. Tree footer: tree-mode keys stay visible, including nav, expand, attach, create, and help.
+
+### Pad Sider
+
+`F10` opens a helper pane next to the current agent pane. It is for reading code without leaving the conversation flow.
+
+1. Left side: tree or index map for fast project navigation.
+2. Right side: file preview with compact Markdown rendering and line numbers.
+3. `II`: switch tree and index map.
+4. `[` / `]`: resize the sider width in three steps.
 
 ### Help
 
@@ -222,6 +233,11 @@ Linux release assets are published in separate families:
 | `Shift+Delete` | Clear title input while editing |
 | `Space` | Expand/collapse directory |
 | `Space` twice | Expand/collapse all session folders |
+| `F10` | Toggle pad-sider beside the current pane |
+| `[` / `]` | Resize pad-sider width |
+| `II` | Switch tree and index map inside pad-sider |
+| `/` in pad-sider | Fuzzy-search files |
+| `Space` on `.md` in pad-sider | Open full Markdown preview |
 | `c` | Create new session |
 | `d` | Delete pane and hide thread in PAD |
 | `r` | Refresh |
