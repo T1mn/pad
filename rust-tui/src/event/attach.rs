@@ -437,25 +437,6 @@ fn wait_for_zoom_flag_cmd(target_pane_id: &str, expected_zoomed: &str, label: &s
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{restore_binding_cmd, PAD_SIDER_TOGGLE_KEYS};
-
-    #[test]
-    fn sider_toggle_keys_include_ctrl_tab() {
-        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"F10"));
-        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"C-Tab"));
-    }
-
-    #[test]
-    fn restore_binding_cmd_can_unbind_ctrl_tab() {
-        assert_eq!(
-            restore_binding_cmd(None, "C-Tab"),
-            "tmux unbind-key -T root C-Tab"
-        );
-    }
-}
-
 fn tmux_status_value(target_session: Option<&str>) -> String {
     let mut cmd = std::process::Command::new("tmux");
     cmd.arg("show").arg("-v");
@@ -834,4 +815,23 @@ fn run_tmux_success(context: &str, args: Vec<String>) -> bool {
     run_tmux_logged(context, args)
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{restore_binding_cmd, PAD_SIDER_TOGGLE_KEYS};
+
+    #[test]
+    fn sider_toggle_keys_include_ctrl_tab() {
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"F10"));
+        assert!(PAD_SIDER_TOGGLE_KEYS.contains(&"C-Tab"));
+    }
+
+    #[test]
+    fn restore_binding_cmd_can_unbind_ctrl_tab() {
+        assert_eq!(
+            restore_binding_cmd(None, "C-Tab"),
+            "tmux unbind-key -T root C-Tab"
+        );
+    }
 }

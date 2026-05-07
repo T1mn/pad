@@ -105,7 +105,7 @@ fn is_internal_command(args: &[String]) -> bool {
 
 fn run_internal_command(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.get(2).map(String::as_str) {
-        Some("pad-sider") => pad_sider::run_args(args.iter().skip(3).cloned()).map_err(Into::into),
+        Some("pad-sider") => pad_sider::run_args(args.iter().skip(3).cloned()),
         Some(other) => Err(format!("unknown internal command: {other}").into()),
         None => Err("missing internal command".into()),
     }

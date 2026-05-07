@@ -6,6 +6,17 @@ use super::common::{
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig};
 use serde_json::json;
 
+struct CodexRuntimeOverlay<'a> {
+    yolo_enabled: bool,
+    fast_enabled: bool,
+    goals_enabled: bool,
+    multi_agent_enabled: bool,
+    web_search_mode: &'a str,
+    status_line_items: &'a [&'a str],
+    jailbreak_prompt_file_enabled: bool,
+    index_prompt_file_enabled: bool,
+}
+
 pub(super) fn apply_runtime_overlays(
     agents: &[AgentConfig],
     permissions: &AgentPermissionsConfig,
@@ -15,18 +26,28 @@ pub(super) fn apply_runtime_overlays(
     let has_claude = agents.iter().any(|agent| agent.name == "claude");
 
     if has_codex {
-        apply_codex_runtime_overlay(
-            permissions.codex_auto_full_access,
-            codex.fast_mode,
-            codex.goals,
-            codex.multi_agent,
-            &codex.web_search,
-            &codex.status_line_items(),
-            codex.jailbreak_prompt_file,
-            codex.index_prompt_file,
-        );
+        let status_line_items = codex.status_line_items();
+        apply_codex_runtime_overlay(CodexRuntimeOverlay {
+            yolo_enabled: permissions.codex_auto_full_access,
+            fast_enabled: codex.fast_mode,
+            goals_enabled: codex.goals,
+            multi_agent_enabled: codex.multi_agent,
+            web_search_mode: &codex.web_search,
+            status_line_items: &status_line_items,
+            jailbreak_prompt_file_enabled: codex.jailbreak_prompt_file,
+            index_prompt_file_enabled: codex.index_prompt_file,
+        });
     } else {
-        remove_codex_runtime_overlay(false, false, false, false, "default", &[], false, false);
+        remove_codex_runtime_overlay(CodexRuntimeOverlay {
+            yolo_enabled: false,
+            fast_enabled: false,
+            goals_enabled: false,
+            multi_agent_enabled: false,
+            web_search_mode: "default",
+            status_line_items: &[],
+            jailbreak_prompt_file_enabled: false,
+            index_prompt_file_enabled: false,
+        });
     }
 
     if has_claude && permissions.claude_auto_full_access {
@@ -36,16 +57,7 @@ pub(super) fn apply_runtime_overlays(
     }
 }
 
-fn apply_codex_runtime_overlay(
-    yolo_enabled: bool,
-    fast_enabled: bool,
-    goals_enabled: bool,
-    multi_agent_enabled: bool,
-    web_search_mode: &str,
-    status_line_items: &[&str],
-    jailbreak_prompt_file_enabled: bool,
-    index_prompt_file_enabled: bool,
-) {
+fn apply_codex_runtime_overlay(overlay: CodexRuntimeOverlay<'_>) {
     let path = codex_config_path();
     let content = std::fs::read_to_string(&path).unwrap_or_default();
     let mut doc = parse_toml_document(&content);
@@ -53,7 +65,7 @@ fn apply_codex_runtime_overlay(
 
     capture_codex_permission_state_once(root);
 
-    if yolo_enabled {
+    if overlay.yolo_enabled {
         root.insert(
             "approval_policy".to_string(),
             toml::Value::String("never".to_string()),
@@ -81,7 +93,7 @@ fn apply_codex_runtime_overlay(
         restore_toml_string_field(root, "sandbox_mode", state.get("sandbox_mode"));
     }
 
-    if fast_enabled {
+    if overlay.fast_enabled {
         root.insert(
             "service_tier".to_string(),
             toml::Value::String("fast".to_string()),
@@ -110,7 +122,7 @@ fn apply_codex_runtime_overlay(
         );
     }
 
-    if goals_enabled {
+    if overlay.goals_enabled {
         set_toml_bool_path(root, &["features", "goals"], true);
     } else {
         let state = read_json_value(
@@ -130,7 +142,7 @@ fn apply_codex_runtime_overlay(
         restore_toml_bool_path(root, &["features", "goals"], state.get("features_goals"));
     }
 
-    if multi_agent_enabled {
+    if overlay.multi_agent_enabled {
         set_toml_bool_path(root, &["features", "multi_agent"], true);
     } else {
         let state = read_json_value(
@@ -154,10 +166,10 @@ fn apply_codex_runtime_overlay(
         );
     }
 
-    if web_search_mode != "default" {
+    if overlay.web_search_mode != "default" {
         root.insert(
             "web_search".to_string(),
-            toml::Value::String(web_search_mode.to_string()),
+            toml::Value::String(overlay.web_search_mode.to_string()),
         );
     } else {
         let state = read_json_value(
@@ -177,8 +189,8 @@ fn apply_codex_runtime_overlay(
         restore_toml_string_field(root, "web_search", state.get("web_search"));
     }
 
-    if !status_line_items.is_empty() {
-        set_toml_string_array_path(root, &["tui", "status_line"], status_line_items);
+    if !overlay.status_line_items.is_empty() {
+        set_toml_string_array_path(root, &["tui", "status_line"], overlay.status_line_items);
     } else {
         let state = read_json_value(
             &codex_permission_state_path(),
@@ -198,8 +210,8 @@ fn apply_codex_runtime_overlay(
     }
 
     if let Ok(Some(prompt_path)) = crate::paths::write_codex_selected_prompt_file(
-        jailbreak_prompt_file_enabled,
-        index_prompt_file_enabled,
+        overlay.jailbreak_prompt_file_enabled,
+        overlay.index_prompt_file_enabled,
     ) {
         root.insert(
             "model_instructions_file".to_string(),
@@ -231,29 +243,20 @@ fn apply_codex_runtime_overlay(
 
     write_text_file(&path, &serialize_toml_document(&doc));
 
-    if !yolo_enabled
-        && !fast_enabled
-        && !goals_enabled
-        && !multi_agent_enabled
-        && web_search_mode == "default"
-        && status_line_items.is_empty()
-        && !jailbreak_prompt_file_enabled
-        && !index_prompt_file_enabled
+    if !overlay.yolo_enabled
+        && !overlay.fast_enabled
+        && !overlay.goals_enabled
+        && !overlay.multi_agent_enabled
+        && overlay.web_search_mode == "default"
+        && overlay.status_line_items.is_empty()
+        && !overlay.jailbreak_prompt_file_enabled
+        && !overlay.index_prompt_file_enabled
     {
         let _ = std::fs::remove_file(codex_permission_state_path());
     }
 }
 
-fn remove_codex_runtime_overlay(
-    yolo_enabled: bool,
-    fast_enabled: bool,
-    goals_enabled: bool,
-    multi_agent_enabled: bool,
-    web_search_mode: &str,
-    status_line_items: &[&str],
-    jailbreak_prompt_file_enabled: bool,
-    index_prompt_file_enabled: bool,
-) {
+fn remove_codex_runtime_overlay(overlay: CodexRuntimeOverlay<'_>) {
     let path = codex_config_path();
     let state_path = codex_permission_state_path();
     if !path.exists() && !state_path.exists() {
@@ -277,11 +280,11 @@ fn remove_codex_runtime_overlay(
         }),
     );
 
-    if !yolo_enabled {
+    if !overlay.yolo_enabled {
         restore_toml_string_field(root, "approval_policy", state.get("approval_policy"));
         restore_toml_string_field(root, "sandbox_mode", state.get("sandbox_mode"));
     }
-    if !fast_enabled {
+    if !overlay.fast_enabled {
         restore_toml_string_field(root, "service_tier", state.get("service_tier"));
         restore_toml_bool_path(
             root,
@@ -289,23 +292,23 @@ fn remove_codex_runtime_overlay(
             state.get("features_fast_mode"),
         );
     }
-    if !goals_enabled {
+    if !overlay.goals_enabled {
         restore_toml_bool_path(root, &["features", "goals"], state.get("features_goals"));
     }
-    if !multi_agent_enabled {
+    if !overlay.multi_agent_enabled {
         restore_toml_bool_path(
             root,
             &["features", "multi_agent"],
             state.get("features_multi_agent"),
         );
     }
-    if web_search_mode == "default" {
+    if overlay.web_search_mode == "default" {
         restore_toml_string_field(root, "web_search", state.get("web_search"));
     }
-    if status_line_items.is_empty() {
+    if overlay.status_line_items.is_empty() {
         restore_toml_string_array_path(root, &["tui", "status_line"], state.get("tui_status_line"));
     }
-    if !jailbreak_prompt_file_enabled && !index_prompt_file_enabled {
+    if !overlay.jailbreak_prompt_file_enabled && !overlay.index_prompt_file_enabled {
         restore_toml_string_field(
             root,
             "model_instructions_file",
@@ -316,14 +319,14 @@ fn remove_codex_runtime_overlay(
     cleanup_empty_toml_table_path(root, &["tui"]);
 
     write_text_file(&path, &serialize_toml_document(&doc));
-    if !yolo_enabled
-        && !fast_enabled
-        && !goals_enabled
-        && !multi_agent_enabled
-        && web_search_mode == "default"
-        && status_line_items.is_empty()
-        && !jailbreak_prompt_file_enabled
-        && !index_prompt_file_enabled
+    if !overlay.yolo_enabled
+        && !overlay.fast_enabled
+        && !overlay.goals_enabled
+        && !overlay.multi_agent_enabled
+        && overlay.web_search_mode == "default"
+        && overlay.status_line_items.is_empty()
+        && !overlay.jailbreak_prompt_file_enabled
+        && !overlay.index_prompt_file_enabled
     {
         let _ = std::fs::remove_file(state_path);
     }
