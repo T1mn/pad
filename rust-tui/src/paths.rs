@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod codex_hooks;
 mod hook_bridge;
 
 const CODEX_JAILBREAK_PROMPT_VERSION: &str = "codex-jailbreak-prompt-2026-04-26.1";
@@ -270,7 +271,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     }
     hook_bridge::install_bridge_scripts()?;
     crate::sound::ensure_runtime_assets()?;
-    hook_bridge::ensure_codex_hook_support()?;
+    codex_hooks::ensure_codex_hook_support()?;
     crate::thread_meta::ensure_db()?;
     Ok(())
 }
@@ -340,6 +341,12 @@ fn write_managed_prompt_state(path: &Path, state: &ManagedPromptState) -> io::Re
     )
 }
 
+#[cfg(test)]
+use codex_hooks::{
+    test_codex_hooks_feature_key_for_version as codex_hooks_feature_key_for_version,
+    test_parse_codex_cli_version as parse_codex_cli_version,
+    test_set_toml_bool_in_section as set_toml_bool_in_section,
+};
 #[cfg(test)]
 use hook_bridge::{
     claude_hook_bridge_template, codex_hook_bridge_template, CLAUDE_BRIDGE_VERSION,
