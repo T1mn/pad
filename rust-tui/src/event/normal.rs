@@ -94,9 +94,13 @@ where
             app.should_quit = true;
             return Ok(());
         }
-        KeyCode::Char('r') | KeyCode::Char('R') => {
+        KeyCode::Char('r') => {
             app.refresh_panels();
             app.dirty = true;
+            return Ok(());
+        }
+        KeyCode::Char('R') => {
+            app.restart_selected_codex_panel();
             return Ok(());
         }
         KeyCode::Char('/') => {
