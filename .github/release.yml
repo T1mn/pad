@@ -1,0 +1,37 @@
+# GitHub automatically generated release notes config.
+# Used by `.github/workflows/release.yml` with `generate_release_notes: true`.
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - breaking
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: UI / UX
+      labels:
+        - ui
+        - ux
+        - pad-sider
+    - title: CI / Release
+      labels:
+        - ci
+        - release
+        - automation
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: Other Changes
+      labels:
+        - "*"
