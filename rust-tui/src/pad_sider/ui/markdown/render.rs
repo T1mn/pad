@@ -1,4 +1,4 @@
-use super::style::heading_style;
+use super::style::{code_block_prefix_style, code_block_style, heading_style, inline_code_style};
 use pulldown_cmark::{Options, Parser};
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -21,6 +21,7 @@ pub(super) struct Renderer {
     pub(super) strong_depth: usize,
     pub(super) strike_depth: usize,
     pub(super) code_block: bool,
+    pub(super) code_language: Option<String>,
 }
 
 pub(super) struct ListState {
@@ -48,6 +49,7 @@ impl Renderer {
             strong_depth: 0,
             strike_depth: 0,
             code_block: false,
+            code_language: None,
         }
     }
 
@@ -104,8 +106,12 @@ impl Renderer {
         }
 
         if !prefix.is_empty() {
-            self.current
-                .push(Span::styled(prefix, Style::default().fg(Color::DarkGray)));
+            let style = if self.code_block {
+                code_block_prefix_style(self.code_language.as_deref())
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            self.current.push(Span::styled(prefix, style));
         }
     }
 
@@ -153,12 +159,10 @@ impl Renderer {
     }
 
     pub(super) fn inline_code_style(&self) -> Style {
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD)
+        inline_code_style()
     }
 
     fn code_block_style(&self) -> Style {
-        Style::default().fg(Color::Gray)
+        code_block_style(self.code_language.as_deref())
     }
 }

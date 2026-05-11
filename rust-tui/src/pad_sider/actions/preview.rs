@@ -46,10 +46,18 @@ impl App {
     }
 
     pub fn file_preview_down(&mut self) {
-        self.file_preview.scroll = self.file_preview.scroll.saturating_add(8);
+        self.file_preview_scroll_down(8);
     }
 
     pub fn file_preview_up(&mut self) {
-        self.file_preview.scroll = self.file_preview.scroll.saturating_sub(8);
+        self.file_preview_scroll_up(8);
+    }
+
+    pub fn file_preview_scroll_down(&mut self, amount: u16) {
+        self.file_preview.scroll = self.file_preview.scroll.saturating_add(amount);
+    }
+
+    pub fn file_preview_scroll_up(&mut self, amount: u16) {
+        self.file_preview.scroll = self.file_preview.scroll.saturating_sub(amount);
     }
 }

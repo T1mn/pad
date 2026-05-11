@@ -8,8 +8,8 @@
 - `tree.rs`：tree 构建、递归文件扫描与忽略目录规则。
 - `search.rs`：`/` 文件 fuzzy 搜索状态与匹配。
 - `preview.rs`：右侧文件预览模型，区分 Markdown、文本、目录与缺失文件。
-- `sizing.rs`：sider 35% / 50% / 65% 宽度档位与 tmux resize。
+- `sizing.rs`：sider 45%-65% 小步宽度档位与 tmux resize。
 - `fs.rs`：git changed files、文件统计、相对路径与 Markdown 读取。
-- `ui/mod.rs`：ratatui 主循环与按键分发。
+- `ui/mod.rs`：ratatui 主循环，启用键盘与鼠标事件。
 - `ui/markdown.rs`：pad sider 的 Markdown 样式表与渲染入口。
 - `ui/render.rs` / `ui/overlay.rs`：左右分栏、右侧文件预览、全屏预览与搜索弹层渲染。

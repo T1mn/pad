@@ -18,6 +18,7 @@ impl App {
                     self.refresh_file_preview();
                 }
             }
+            Focus::Preview => self.file_preview_scroll_down(1),
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_add(1),
         }
     }
@@ -35,6 +36,7 @@ impl App {
                 self.index_selected = self.index_selected.saturating_sub(1);
                 self.refresh_file_preview();
             }
+            Focus::Preview => self.file_preview_scroll_up(1),
             Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_sub(1),
         }
     }
@@ -66,15 +68,16 @@ impl App {
                 self.index_selected = 0;
                 self.refresh_file_preview();
             }
+            Focus::Preview => self.file_preview.scroll = 0,
             Focus::Changes => self.changes_scroll = 0,
         }
     }
 
     pub fn cycle_focus(&mut self) {
-        self.focus = match (self.focus, self.nav_mode) {
-            (Focus::Changes, NavMode::Tree) => Focus::Tree,
-            (Focus::Changes, NavMode::IndexMap) => Focus::IndexMap,
-            _ => Focus::Changes,
+        self.focus = match self.focus {
+            Focus::Tree | Focus::IndexMap => Focus::Preview,
+            Focus::Preview => Focus::Changes,
+            Focus::Changes => self.active_nav_focus(),
         };
     }
 
@@ -82,8 +85,30 @@ impl App {
         self.set_tree_mode();
     }
 
+    pub fn focus_preview(&mut self) {
+        self.focus = Focus::Preview;
+    }
+
     pub fn focus_changes(&mut self) {
         self.focus = Focus::Changes;
+    }
+
+    pub fn focus_active_nav(&mut self) {
+        self.focus = self.active_nav_focus();
+    }
+
+    pub fn active_nav_weight(&self) -> u16 {
+        match self.nav_mode {
+            NavMode::Tree => self.layout_weights.tree,
+            NavMode::IndexMap => self.layout_weights.index_map,
+        }
+    }
+
+    pub fn active_nav_focus(&self) -> Focus {
+        match self.nav_mode {
+            NavMode::Tree => Focus::Tree,
+            NavMode::IndexMap => Focus::IndexMap,
+        }
     }
 
     pub fn open_search(&mut self) {
@@ -100,6 +125,18 @@ impl App {
 
     pub fn close_help(&mut self) {
         self.show_help = false;
+    }
+
+    pub fn toggle_line_numbers(&mut self) {
+        self.show_line_numbers = !self.show_line_numbers;
+    }
+
+    pub fn zoom_text_in(&mut self) {
+        self.text_zoom = (self.text_zoom + 1).min(2);
+    }
+
+    pub fn zoom_text_out(&mut self) {
+        self.text_zoom = (self.text_zoom - 1).max(-1);
     }
 
     pub fn reveal_path(&mut self, path: &Path) {
@@ -137,6 +174,7 @@ impl App {
                 self.index_selected = self.index_rows.len().saturating_sub(1);
                 self.refresh_file_preview();
             }
+            Focus::Preview => self.file_preview.scroll = u16::MAX,
             Focus::Changes => self.changes_scroll = u16::MAX,
         }
     }

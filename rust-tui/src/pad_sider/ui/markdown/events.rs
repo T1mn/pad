@@ -2,7 +2,7 @@ use super::render::{ItemPrefix, ListState, Renderer};
 use super::style::heading_level;
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use ratatui::{
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Line, Span},
 };
 
@@ -68,6 +68,7 @@ impl Renderer {
             TagEnd::CodeBlock => {
                 self.flush_line();
                 self.code_block = false;
+                self.code_language = None;
             }
             TagEnd::List(_) => {
                 self.flush_line();
@@ -92,17 +93,10 @@ impl Renderer {
     fn start_code_block(&mut self, kind: CodeBlockKind<'_>) {
         self.start_block(true);
         self.code_block = true;
-        let label = match kind {
-            CodeBlockKind::Indented => " code ".to_string(),
-            CodeBlockKind::Fenced(lang) if !lang.is_empty() => format!(" code:{lang} "),
-            CodeBlockKind::Fenced(_) => " code ".to_string(),
+        self.code_language = match kind {
+            CodeBlockKind::Fenced(lang) => first_code_language(&lang),
+            CodeBlockKind::Indented => None,
         };
-        self.lines.push(Line::from(Span::styled(
-            label,
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-        )));
     }
 
     fn start_item(&mut self) {
@@ -134,4 +128,11 @@ impl Renderer {
             Style::default().fg(Color::DarkGray),
         )));
     }
+}
+
+fn first_code_language(info: &str) -> Option<String> {
+    info.split_whitespace()
+        .next()
+        .map(|lang| lang.trim_start_matches('.').to_ascii_lowercase())
+        .filter(|lang| !lang.is_empty())
 }

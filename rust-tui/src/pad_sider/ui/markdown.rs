@@ -22,10 +22,10 @@ mod tests {
     }
 
     #[test]
-    fn renders_blockquote_and_code_block_markers() {
+    fn renders_blockquote_and_hides_code_block_language() {
         let lines = line_texts(render_markdown("> note\n\n```rs\nfn main() {}\n```"));
         assert!(lines.iter().any(|line| line.contains("│ note")));
-        assert!(lines.iter().any(|line| line.contains(" code:rs ")));
+        assert!(!lines.iter().any(|line| line.contains("code:rs")));
         assert!(lines.iter().any(|line| line.contains("fn main() {}")));
     }
 
@@ -51,7 +51,7 @@ mod tests {
     }
 
     #[test]
-    fn inline_code_uses_color_without_background() {
+    fn inline_code_uses_distinct_background() {
         let text = render_markdown("run `cargo test` now");
         let span = text
             .lines
@@ -60,13 +60,13 @@ mod tests {
             .find(|span| span.content == "cargo test")
             .expect("inline code span");
 
-        assert_eq!(span.style.fg, Some(Color::Yellow));
-        assert_eq!(span.style.bg, None);
+        assert_eq!(span.style.fg, Some(Color::Rgb(224, 175, 104)));
+        assert_eq!(span.style.bg, Some(Color::Rgb(42, 43, 61)));
         assert!(span.style.add_modifier.contains(Modifier::BOLD));
     }
 
     #[test]
-    fn code_block_uses_color_without_background() {
+    fn code_block_uses_distinct_background() {
         let text = render_markdown("```rs\nfn main() {}\n```");
         let spans = text
             .lines
@@ -74,16 +74,38 @@ mod tests {
             .flat_map(|line| line.spans.iter())
             .collect::<Vec<_>>();
 
-        let label = spans
-            .iter()
-            .find(|span| span.content.contains("code:rs"))
-            .expect("code block label");
         let code = spans
             .iter()
             .find(|span| span.content.contains("fn main"))
             .expect("code block line");
 
-        assert_eq!(label.style.bg, None);
-        assert_eq!(code.style.bg, None);
+        assert_eq!(code.style.fg, Some(Color::Rgb(255, 158, 100)));
+        assert_eq!(code.style.bg, Some(Color::Rgb(26, 27, 38)));
+    }
+    #[test]
+    fn code_block_language_changes_color() {
+        let bash = render_markdown(
+            "```bash
+echo ok
+```",
+        );
+        let python = render_markdown(
+            "```python
+print('ok')
+```",
+        );
+        let bash_span = bash.lines[0]
+            .spans
+            .iter()
+            .find(|span| span.content.contains("echo"))
+            .unwrap();
+        let python_span = python.lines[0]
+            .spans
+            .iter()
+            .find(|span| span.content.contains("print"))
+            .unwrap();
+
+        assert_eq!(bash_span.style.fg, Some(Color::Rgb(158, 206, 106)));
+        assert_eq!(python_span.style.fg, Some(Color::Rgb(122, 162, 247)));
     }
 }

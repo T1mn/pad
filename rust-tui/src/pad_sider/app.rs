@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 pub enum Focus {
     Tree,
     IndexMap,
+    Preview,
     Changes,
 }
 
@@ -43,6 +44,8 @@ pub struct App {
     pub preview: Option<MarkdownPreview>,
     pub search: Option<FileSearch>,
     pub show_help: bool,
+    pub show_line_numbers: bool,
+    pub text_zoom: i8,
     pub last_index_toggle_key: Option<Instant>,
     pub last_refresh: Instant,
     pub should_quit: bool,
@@ -71,6 +74,8 @@ impl App {
             preview: None,
             search: None,
             show_help: false,
+            show_line_numbers: false,
+            text_zoom: 0,
             last_index_toggle_key: None,
             last_refresh: Instant::now() - Duration::from_secs(5),
             should_quit: false,

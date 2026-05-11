@@ -1,6 +1,6 @@
 use super::super::{app::App, preview::MarkdownPreview, search::FileSearch};
-use super::line_numbers::add_line_numbers;
 use super::markdown::render_markdown;
+use super::render::with_preview_display_options;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
@@ -18,7 +18,12 @@ pub fn draw_preview(frame: &mut Frame, app: &App, preview: &MarkdownPreview) {
             .unwrap_or(&preview.path)
             .display()
     );
-    let paragraph = Paragraph::new(add_line_numbers(render_markdown(&preview.content)))
+    let text = with_preview_display_options(
+        render_markdown(&preview.content),
+        app.show_line_numbers,
+        app.text_zoom,
+    );
+    let paragraph = Paragraph::new(text)
         .block(focus_block(&title, true))
         .wrap(Wrap { trim: false })
         .scroll((preview.scroll, 0));
@@ -101,15 +106,17 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("  ?             show / hide this help"),
         Line::from("  q             quit sider UI"),
         Line::from("  r             refresh project state"),
-        Line::from("  Tab           switch nav / Changes"),
-        Line::from("  [ / ]         sider width: 35% / 50% / 65%"),
-        Line::from("  + / - / 0     grow / shrink / reset left section"),
-        Line::from("  t / d         focus Tree / Changes"),
+        Line::from("  Tab           switch Nav / Preview / Changes"),
+        Line::from("  [ / ]         sider width: 45%-65%; extra space goes to preview"),
+        Line::from("  n             toggle line numbers"),
+        Line::from("  = / -         preview zoom"),
+        Line::from("  { / } / 0     shrink / grow / reset left section"),
+        Line::from("  t / p / d     focus Tree / Preview / Changes"),
         Line::from("  II            switch Tree / Index Map"),
         Line::from("  g / G         top / bottom"),
         Line::default(),
         Line::from("Tree"),
-        Line::from("  j/k ↑/↓       move"),
+        Line::from("  j/k ↑/↓       move / scroll focused area"),
         Line::from("  Enter/Space   expand or collapse directory"),
         Line::from("  Space         preview selected .md file"),
         Line::from("  i             open nearest index.md guide"),
@@ -121,10 +128,11 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("  o             reveal selected index.md in tree"),
         Line::default(),
         Line::from("Preview"),
-        Line::from("  q/Esc         close preview"),
-        Line::from("  j/k ↑/↓       scroll"),
-        Line::from("  g/G           top / bottom"),
+        Line::from("  q/Esc         close full preview"),
+        Line::from("  j/k ↑/↓       scroll full or focused right preview"),
         Line::from("  PgUp/PgDn     scroll right preview"),
+        Line::from("  g/G           top / bottom"),
+        Line::from("  n · =/-       numbers · preview zoom"),
         Line::default(),
         Line::from("Search"),
         Line::from("  type          filter files"),

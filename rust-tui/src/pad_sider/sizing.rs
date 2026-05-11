@@ -1,6 +1,6 @@
 use std::process::Command;
 
-const WIDTH_LEVELS: &[u16] = &[35, 50, 65];
+const WIDTH_LEVELS: &[u16] = &[45, 50, 55, 60, 65];
 const WIDTH_OPTION: &str = "@pad_sider_width_percent";
 
 pub fn default_width() -> &'static str {
@@ -128,10 +128,10 @@ mod tests {
 
     #[test]
     fn width_levels_step_without_wrapping() {
-        assert_eq!(next_width_level(50, true), 65);
+        assert_eq!(next_width_level(50, true), 55);
         assert_eq!(next_width_level(65, true), 65);
-        assert_eq!(next_width_level(50, false), 35);
-        assert_eq!(next_width_level(35, false), 35);
+        assert_eq!(next_width_level(50, false), 45);
+        assert_eq!(next_width_level(45, false), 45);
     }
 
     #[test]

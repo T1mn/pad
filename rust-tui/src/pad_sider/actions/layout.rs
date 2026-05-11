@@ -18,6 +18,9 @@ impl App {
 }
 
 fn adjust_layout(weights: &mut LayoutWeights, focus: Focus, grow: bool) {
+    if focus == Focus::Preview {
+        return;
+    }
     if grow {
         add_to_focus(weights, focus, 1);
         shrink_largest_other(weights, focus);
@@ -31,6 +34,7 @@ fn focused_weight(weights: &LayoutWeights, focus: Focus) -> u16 {
     match focus {
         Focus::Tree => weights.tree,
         Focus::IndexMap => weights.index_map,
+        Focus::Preview => 0,
         Focus::Changes => weights.changes,
     }
 }
@@ -39,6 +43,7 @@ fn add_to_focus(weights: &mut LayoutWeights, focus: Focus, delta: i16) {
     let value = match focus {
         Focus::Tree => &mut weights.tree,
         Focus::IndexMap => &mut weights.index_map,
+        Focus::Preview => return,
         Focus::Changes => &mut weights.changes,
     };
     *value = (*value as i16 + delta).max(MIN_WEIGHT as i16) as u16;
@@ -49,7 +54,7 @@ fn shrink_largest_other(weights: &mut LayoutWeights, focus: Focus) {
         Some(Focus::Tree) => weights.tree -= 1,
         Some(Focus::IndexMap) => weights.index_map -= 1,
         Some(Focus::Changes) => weights.changes -= 1,
-        None => {}
+        Some(Focus::Preview) | None => {}
     }
 }
 
@@ -58,7 +63,7 @@ fn grow_largest_other(weights: &mut LayoutWeights, focus: Focus) {
         Some(Focus::Tree) => weights.tree += 1,
         Some(Focus::IndexMap) => weights.index_map += 1,
         Some(Focus::Changes) => weights.changes += 1,
-        None => {}
+        Some(Focus::Preview) | None => {}
     }
 }
 

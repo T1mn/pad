@@ -21,12 +21,12 @@ pub fn add_line_numbers(mut text: Text<'static>) -> Text<'static> {
     text
 }
 
-pub fn text_lines_with_numbers(content: &str) -> Text<'static> {
+pub fn text_lines(content: &str) -> Text<'static> {
     let lines = content
         .lines()
         .map(|line| Line::from(line.to_string()))
         .collect::<Vec<_>>();
-    add_line_numbers(Text::from(lines))
+    Text::from(lines)
 }
 
 #[cfg(test)]
@@ -43,12 +43,15 @@ mod tests {
 
     #[test]
     fn prefixes_text_with_line_numbers() {
-        assert_eq!(first_line(text_lines_with_numbers("one\ntwo")), "1 │ one");
+        assert_eq!(
+            first_line(add_line_numbers(text_lines("one\ntwo"))),
+            "1 │ one"
+        );
     }
 
     #[test]
     fn aligns_multi_digit_line_numbers() {
         let input = (0..10).map(|_| "x").collect::<Vec<_>>().join("\n");
-        assert_eq!(first_line(text_lines_with_numbers(&input)), " 1 │ x");
+        assert_eq!(first_line(add_line_numbers(text_lines(&input))), " 1 │ x");
     }
 }

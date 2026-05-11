@@ -80,6 +80,43 @@ fn reveal_selected_index_returns_to_tree() {
     fs::remove_dir_all(root).unwrap();
 }
 
+#[test]
+fn preview_focus_jk_scrolls_right_preview() {
+    let root = temp_dir("preview_focus_jk_scrolls_right_preview");
+    fs::create_dir_all(&root).unwrap();
+
+    let mut app = App::new(root.clone(), None);
+    app.focus_preview();
+    app.next();
+    assert_eq!(app.file_preview.scroll, 1);
+    app.previous();
+    assert_eq!(app.file_preview.scroll, 0);
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn display_options_toggle_numbers_and_zoom() {
+    let root = temp_dir("display_options_toggle_numbers_and_zoom");
+    fs::create_dir_all(&root).unwrap();
+
+    let mut app = App::new(root.clone(), None);
+    assert!(!app.show_line_numbers);
+    app.toggle_line_numbers();
+    assert!(app.show_line_numbers);
+    app.zoom_text_in();
+    app.zoom_text_in();
+    app.zoom_text_in();
+    assert_eq!(app.text_zoom, 2);
+    app.zoom_text_out();
+    app.zoom_text_out();
+    app.zoom_text_out();
+    app.zoom_text_out();
+    assert_eq!(app.text_zoom, -1);
+
+    fs::remove_dir_all(root).unwrap();
+}
+
 fn temp_dir(name: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)

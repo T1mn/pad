@@ -1,11 +1,13 @@
 use super::super::app::{App, Focus, NavMode};
 use super::super::preview::PreviewKind;
-use super::line_numbers::{add_line_numbers, text_lines_with_numbers};
+use super::line_numbers::{add_line_numbers, text_lines};
 use super::markdown::render_markdown;
 use super::overlay;
+use super::split;
+use super::text_zoom::apply_text_zoom;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Text},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
@@ -17,10 +19,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         return;
     }
 
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
-        .split(frame.area());
+    let (left_area, preview_area) = split::split_columns(frame.area());
     let nav_weight = match app.nav_mode {
         NavMode::Tree => app.layout_weights.tree,
         NavMode::IndexMap => app.layout_weights.index_map,
@@ -33,12 +32,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
             Constraint::Ratio(nav_weight as u32, left_total),
             Constraint::Ratio(app.layout_weights.changes as u32, left_total),
         ])
-        .split(columns[0]);
+        .split(left_area);
 
     draw_header(frame, app, left[0]);
     draw_nav(frame, app, left[1]);
     draw_changes(frame, app, left[2]);
-    draw_file_preview(frame, app, columns[1]);
+    draw_file_preview(frame, app, preview_area);
 
     if let Some(search) = app.search.as_ref() {
         overlay::draw_search(frame, search);
@@ -62,8 +61,14 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             app.selected_stats.bytes,
             app.selected_stats.modified
         )),
-        Line::from(format!("mode: {mode} · II switch tree/index map")),
-        Line::from("keys: ? help · [/] width · +/- height · / search · Space full preview"),
+        Line::from(format!(
+            "mode: {mode} · zoom={} · numbers={}",
+            app.text_zoom,
+            if app.show_line_numbers { "on" } else { "off" }
+        )),
+        Line::from(
+            "keys: ? help · n numbers · =/- zoom · [/] preview width · / search · Space full preview",
+        ),
     ];
     let paragraph = Paragraph::new(lines)
         .block(Block::default().title(" info ").borders(Borders::ALL))
@@ -143,20 +148,29 @@ fn draw_changes(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_file_preview(frame: &mut Frame, app: &App, area: Rect) {
     let title = format!(" preview {} ", app.file_preview.title);
-    let block = Block::default()
-        .title(title)
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
-    let paragraph = match app.file_preview.kind {
-        PreviewKind::Markdown => {
-            Paragraph::new(add_line_numbers(render_markdown(&app.file_preview.content)))
-        }
-        _ => Paragraph::new(text_lines_with_numbers(&app.file_preview.content)),
-    }
-    .block(block)
-    .wrap(Wrap { trim: false })
-    .scroll((app.file_preview.scroll, 0));
+    let text = match app.file_preview.kind {
+        PreviewKind::Markdown => render_markdown(&app.file_preview.content),
+        _ => text_lines(&app.file_preview.content),
+    };
+    let text = with_preview_display_options(text, app.show_line_numbers, app.text_zoom);
+    let paragraph = Paragraph::new(text)
+        .block(focus_block(&title, app.focus == Focus::Preview))
+        .wrap(Wrap { trim: false })
+        .scroll((app.file_preview.scroll, 0));
     frame.render_widget(paragraph, area);
+}
+
+pub(super) fn with_preview_display_options(
+    text: Text<'static>,
+    show_line_numbers: bool,
+    text_zoom: i8,
+) -> Text<'static> {
+    let text = if show_line_numbers {
+        add_line_numbers(text)
+    } else {
+        text
+    };
+    apply_text_zoom(text, text_zoom)
 }
 
 fn focus_block(title: &str, focused: bool) -> Block<'static> {
