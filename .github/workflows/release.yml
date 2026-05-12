@@ -15,6 +15,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CROSS_VERSION: "0.2.5"
 
 jobs:
   tag-check:
@@ -144,8 +145,18 @@ jobs:
         with:
           workspaces: rust-tui -> target
 
+      - name: Cache cross binary
+        id: cross-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: cross-${{ runner.os }}-${{ runner.arch }}-${{ env.CROSS_VERSION }}
+
       - name: Install cross
-        run: cargo install cross --locked
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        run: cargo install cross --version "${CROSS_VERSION}" --locked
 
       - name: Build
         run: cross build --profile dist --target x86_64-unknown-linux-musl
@@ -185,8 +196,18 @@ jobs:
         with:
           workspaces: rust-tui -> target
 
+      - name: Cache cross binary
+        id: cross-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: cross-${{ runner.os }}-${{ runner.arch }}-${{ env.CROSS_VERSION }}
+
       - name: Install cross
-        run: cargo install cross --locked
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        run: cargo install cross --version "${CROSS_VERSION}" --locked
 
       - name: Build
         run: cross build --profile dist --target aarch64-unknown-linux-musl

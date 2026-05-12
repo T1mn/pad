@@ -6,4 +6,3 @@
 - `scripts/`：构建、hook bridge 与 CI 辅助脚本。
 - `docs/`：平台支持、发布检查等补充文档。
 - `.github/workflows/`：仓库级 CI / release workflow。
-- `rust/`：预留目录，当前未承载主逻辑。

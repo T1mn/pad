@@ -5,7 +5,21 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - README.md
+      - README_ZH.md
+      - docs/**
+      - .github/index.md
+      - .github/release.yml
+      - .github/workflows/index.md
   pull_request:
+    paths-ignore:
+      - README.md
+      - README_ZH.md
+      - docs/**
+      - .github/index.md
+      - .github/release.yml
+      - .github/workflows/index.md
   workflow_dispatch:
 
 permissions:
@@ -17,6 +31,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CROSS_VERSION: "0.2.5"
 
 jobs:
   installer-sync:
@@ -151,8 +166,18 @@ jobs:
       - name: Build glibc dist binary
         run: cargo build --profile dist
 
+      - name: Cache cross binary
+        id: cross-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: cross-${{ runner.os }}-${{ runner.arch }}-${{ env.CROSS_VERSION }}
+
       - name: Install cross
-        run: cargo install cross --locked
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        run: cargo install cross --version "${CROSS_VERSION}" --locked
 
       - name: Build musl dist binary
         run: cross build --profile dist --target x86_64-unknown-linux-musl
@@ -317,8 +342,18 @@ jobs:
           workspaces: rust-tui -> target
           cache-targets: false
 
+      - name: Cache cross binary
+        id: cross-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cross
+            ~/.cargo/bin/cross-util
+          key: cross-${{ runner.os }}-${{ runner.arch }}-${{ env.CROSS_VERSION }}
+
       - name: Install cross
-        run: cargo install cross --locked
+        if: steps.cross-cache.outputs.cache-hit != 'true'
+        run: cargo install cross --version "${CROSS_VERSION}" --locked
 
       - name: Build musl target
         run: cross build --profile dist --target ${{ matrix.target }}

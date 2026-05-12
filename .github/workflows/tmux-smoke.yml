@@ -5,7 +5,21 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - README.md
+      - README_ZH.md
+      - docs/**
+      - .github/index.md
+      - .github/release.yml
+      - .github/workflows/index.md
   pull_request:
+    paths-ignore:
+      - README.md
+      - README_ZH.md
+      - docs/**
+      - .github/index.md
+      - .github/release.yml
+      - .github/workflows/index.md
   workflow_dispatch:
 
 permissions:
