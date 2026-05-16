@@ -70,6 +70,18 @@ jobs:
       - name: Build dist
         run: cargo build --profile dist
 
+      - name: Run PAD power smoke
+        working-directory: ${{ github.workspace }}
+        env:
+          PAD_POWER_DURATION: "10"
+          PAD_POWER_SIDER_CPU_BUDGET_PCT: "6"
+          PAD_POWER_PAD_CPU_BUDGET_PCT: "12"
+        run: |
+          scripts/ci/power_smoke.py \
+            --target all \
+            --pad-bin rust-tui/target/dist/pad \
+            --markdown-out rust-tui/dist/pad-power-smoke.md
+
       - name: Smoke packaged binary
         run: |
           ./target/dist/pad --help
@@ -85,6 +97,12 @@ jobs:
         with:
           name: linux-x86_64-glibc-2.35
           path: rust-tui/dist/*.tar.gz
+
+      - name: Upload power smoke summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: power-smoke
+          path: rust-tui/dist/pad-power-smoke.md
 
   build-linux-arm64:
     needs: tag-check
@@ -387,31 +405,44 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Prepare release body
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-body.md <<'MD'
+          ## Install
+
+          ### Linux/macOS/WSL2
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+          ```
+
+          `pad` requires `tmux` at runtime. On WSL2, install and run both `tmux` and `pad` inside WSL.
+
+          ### Manual download
+          - Linux x86_64 (glibc 2.35): `pad-*-linux-x86_64-glibc-2.35.tar.gz`
+          - Linux ARM64 (glibc 2.35): `pad-*-linux-aarch64-glibc-2.35.tar.gz`
+          - Linux x86_64 (musl): `pad-*-linux-x86_64-musl.tar.gz`
+          - Linux ARM64 (musl): `pad-*-linux-aarch64-musl.tar.gz`
+          - macOS universal: `pad-*-macos-universal.tar.gz`
+
+          ```bash
+          tar -xzf pad-*.tar.gz
+          mv pad ~/.local/bin/
+          ```
+          MD
+          if [ -f artifacts/pad-power-smoke.md ]; then
+            {
+              echo
+              cat artifacts/pad-power-smoke.md
+            } >> release-body.md
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*
+          files: artifacts/*.tar.gz
           generate_release_notes: true
-          body: |
-            ## Install
-
-            ### Linux/macOS/WSL2
-            ```bash
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
-            ```
-
-            `pad` requires `tmux` at runtime. On WSL2, install and run both `tmux` and `pad` inside WSL.
-
-            ### Manual download
-            - Linux x86_64 (glibc 2.35): `pad-*-linux-x86_64-glibc-2.35.tar.gz`
-            - Linux ARM64 (glibc 2.35): `pad-*-linux-aarch64-glibc-2.35.tar.gz`
-            - Linux x86_64 (musl): `pad-*-linux-x86_64-musl.tar.gz`
-            - Linux ARM64 (musl): `pad-*-linux-aarch64-musl.tar.gz`
-            - macOS universal: `pad-*-macos-universal.tar.gz`
-
-            ```bash
-            tar -xzf pad-*.tar.gz
-            mv pad ~/.local/bin/
-            ```
+          body_path: release-body.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

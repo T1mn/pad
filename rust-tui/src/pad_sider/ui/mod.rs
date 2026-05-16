@@ -8,7 +8,7 @@ mod text_zoom;
 
 use super::app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -27,18 +27,36 @@ pub fn run(cwd: PathBuf, target_pane: Option<String>) -> Result<(), String> {
 
     let result = loop {
         app.tick();
-        terminal
-            .draw(|frame| render::draw(frame, &app))
-            .map_err(|err| err.to_string())?;
         if app.should_quit {
             break Ok(());
         }
+        if app.take_dirty() {
+            terminal
+                .draw(|frame| render::draw(frame, &app))
+                .map_err(|err| err.to_string())?;
+        }
         if event::poll(Duration::from_millis(200)).map_err(|err| err.to_string())? {
             match event::read().map_err(|err| err.to_string())? {
-                Event::Key(key) => input::handle_key(&mut app, key),
+                Event::Key(key) => {
+                    let should_redraw = key.kind == KeyEventKind::Press;
+                    input::handle_key(&mut app, key);
+                    if should_redraw {
+                        app.mark_dirty();
+                    }
+                }
                 Event::Mouse(mouse) => {
+                    let should_redraw = matches!(
+                        mouse.kind,
+                        MouseEventKind::ScrollDown | MouseEventKind::ScrollUp
+                    );
                     let area = terminal_area(&mut terminal).map_err(|err| err.to_string())?;
                     input::handle_mouse(&mut app, area, mouse);
+                    if should_redraw {
+                        app.mark_dirty();
+                    }
+                }
+                Event::Resize(_, _) => {
+                    app.mark_dirty();
                 }
                 _ => {}
             }

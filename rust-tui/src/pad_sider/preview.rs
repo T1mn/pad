@@ -9,12 +9,14 @@ pub enum PreviewKind {
     Missing,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct MarkdownPreview {
     pub path: std::path::PathBuf,
     pub content: String,
     pub scroll: u16,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct FilePreview {
     pub title: String,
     pub content: String,

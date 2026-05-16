@@ -11,6 +11,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+const DYNAMIC_REFRESH_SECS: u64 = 2;
+const FULL_REFRESH_SECS: u64 = 30;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Focus {
     Tree,
@@ -48,6 +51,8 @@ pub struct App {
     pub text_zoom: i8,
     pub last_index_toggle_key: Option<Instant>,
     pub last_refresh: Instant,
+    pub last_full_refresh: Instant,
+    pub dirty: bool,
     pub should_quit: bool,
 }
 
@@ -77,7 +82,9 @@ impl App {
             show_line_numbers: false,
             text_zoom: 0,
             last_index_toggle_key: None,
-            last_refresh: Instant::now() - Duration::from_secs(5),
+            last_refresh: Instant::now() - Duration::from_secs(DYNAMIC_REFRESH_SECS),
+            last_full_refresh: Instant::now() - Duration::from_secs(FULL_REFRESH_SECS),
+            dirty: true,
             should_quit: false,
         };
         app.refresh();
@@ -97,12 +104,54 @@ impl App {
         self.refresh_file_preview();
         self.refresh_preview();
         self.last_refresh = Instant::now();
+        self.last_full_refresh = self.last_refresh;
+        self.mark_dirty();
     }
 
-    pub fn tick(&mut self) {
-        if self.last_refresh.elapsed() >= Duration::from_secs(2) {
+    pub fn tick(&mut self) -> bool {
+        if self.last_full_refresh.elapsed() >= Duration::from_secs(FULL_REFRESH_SECS) {
             self.refresh();
+            return true;
         }
+        if self.last_refresh.elapsed() >= Duration::from_secs(DYNAMIC_REFRESH_SECS) {
+            return self.refresh_dynamic_content();
+        }
+        false
+    }
+
+    fn refresh_dynamic_content(&mut self) -> bool {
+        let previous_changes = self.changes.clone();
+        let previous_selected_stats = self.selected_stats.clone();
+        let previous_selected_label = self.selected_label.clone();
+        let previous_file_preview = self.file_preview.clone();
+        let previous_preview = self.preview.clone();
+
+        self.changes = read_changed_files(&self.cwd);
+        self.refresh_selected();
+        self.refresh_file_preview();
+        self.refresh_preview();
+        self.last_refresh = Instant::now();
+
+        let changed = previous_changes != self.changes
+            || previous_selected_stats != self.selected_stats
+            || previous_selected_label != self.selected_label
+            || previous_file_preview != self.file_preview
+            || previous_preview != self.preview;
+
+        if changed {
+            self.mark_dirty();
+        }
+        changed
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    pub fn take_dirty(&mut self) -> bool {
+        let dirty = self.dirty;
+        self.dirty = false;
+        dirty
     }
 
     pub fn selected_path(&self) -> Option<&PathBuf> {
