@@ -44,13 +44,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install tmux
-        run: |
-          if ! command -v tmux >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y tmux
-          fi
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -59,16 +52,20 @@ jobs:
         with:
           workspaces: rust-tui -> target
 
-      - name: Build debug binary for smoke
-        run: cargo build
+      - name: Build dist
+        run: cargo build --profile dist
+
+      - name: Install tmux
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y tmux
+          fi
 
       - name: Run tmux smoke
         env:
-          PAD_BIN: ${{ github.workspace }}/rust-tui/target/debug/pad
+          PAD_BIN: ${{ github.workspace }}/rust-tui/target/dist/pad
         run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"
-
-      - name: Build dist
-        run: cargo build --profile dist
 
       - name: Run PAD power smoke
         working-directory: ${{ github.workspace }}
@@ -263,20 +260,6 @@ jobs:
         with:
           workspaces: rust-tui -> target
 
-      - name: Install tmux
-        run: |
-          if ! command -v tmux >/dev/null 2>&1; then
-            brew install tmux
-          fi
-
-      - name: Build debug binary for smoke
-        run: cargo build
-
-      - name: Run tmux smoke
-        env:
-          PAD_BIN: ${{ github.workspace }}/rust-tui/target/debug/pad
-        run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"
-
       - name: Build Intel
         run: cargo build --profile dist --target x86_64-apple-darwin
 
@@ -290,6 +273,17 @@ jobs:
             target/x86_64-apple-darwin/dist/pad \
             target/aarch64-apple-darwin/dist/pad \
             -output target/dist/universal/pad
+
+      - name: Install tmux
+        run: |
+          if ! command -v tmux >/dev/null 2>&1; then
+            brew install tmux
+          fi
+
+      - name: Run tmux smoke
+        env:
+          PAD_BIN: ${{ github.workspace }}/rust-tui/target/dist/universal/pad
+        run: bash "${{ github.workspace }}/scripts/ci/tmux_smoke.sh"
 
       - name: Smoke packaged binary
         run: |

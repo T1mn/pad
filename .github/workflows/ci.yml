@@ -143,8 +143,49 @@ jobs:
           "${INSTALL_DIR}/pad" --version
           "${INSTALL_DIR}/pad" --tmux-doctor
 
-  linux-prebuilt-fixtures:
-    name: Linux prebuilt fixtures
+  linux-prebuilt-glibc-fixture:
+    name: Linux prebuilt fixture (glibc)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: rust-tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-tui -> target
+
+      - name: Build glibc dist binary
+        run: cargo build --profile dist
+
+      - name: Inspect glibc binary
+        run: |
+          file ./target/dist/pad
+          ldd ./target/dist/pad
+
+      - name: Prepare local Linux glibc release archive
+        shell: bash
+        env:
+          PAD_TEST_VERSION: v0.0.0-ci
+        run: |
+          set -euo pipefail
+          release_dir="${GITHUB_WORKSPACE}/pad-release-fixtures/${PAD_TEST_VERSION}"
+          mkdir -p "${release_dir}"
+          tar -czf "${release_dir}/pad-${PAD_TEST_VERSION}-linux-x86_64-glibc-2.35.tar.gz" -C target/dist pad
+
+      - name: Upload local Linux glibc release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-prebuilt-glibc-fixture
+          path: pad-release-fixtures
+
+  linux-prebuilt-musl-fixture:
+    name: Linux prebuilt fixture (musl)
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -163,9 +204,6 @@ jobs:
           workspaces: rust-tui -> target
           cache-targets: false
 
-      - name: Build glibc dist binary
-        run: cargo build --profile dist
-
       - name: Cache cross binary
         id: cross-cache
         uses: actions/cache@v4
@@ -182,15 +220,10 @@ jobs:
       - name: Build musl dist binary
         run: cross build --profile dist --target x86_64-unknown-linux-musl
 
-      - name: Inspect glibc binary
-        run: |
-          file ./target/dist/pad
-          ldd ./target/dist/pad
-
       - name: Inspect musl binary
         run: file ./target/x86_64-unknown-linux-musl/dist/pad
 
-      - name: Prepare local Linux release archives
+      - name: Prepare local Linux musl release archive
         shell: bash
         env:
           PAD_TEST_VERSION: v0.0.0-ci
@@ -198,18 +231,19 @@ jobs:
           set -euo pipefail
           release_dir="${GITHUB_WORKSPACE}/pad-release-fixtures/${PAD_TEST_VERSION}"
           mkdir -p "${release_dir}"
-          tar -czf "${release_dir}/pad-${PAD_TEST_VERSION}-linux-x86_64-glibc-2.35.tar.gz" -C target/dist pad
           tar -czf "${release_dir}/pad-${PAD_TEST_VERSION}-linux-x86_64-musl.tar.gz" -C target/x86_64-unknown-linux-musl/dist pad
 
-      - name: Upload local Linux release archives
+      - name: Upload local Linux musl release archive
         uses: actions/upload-artifact@v4
         with:
-          name: linux-prebuilt-fixtures
+          name: linux-prebuilt-musl-fixture
           path: pad-release-fixtures
 
   linux-installer-matrix:
     name: Linux installer smoke (${{ matrix.name }})
-    needs: linux-prebuilt-fixtures
+    needs:
+      - linux-prebuilt-glibc-fixture
+      - linux-prebuilt-musl-fixture
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -274,8 +308,9 @@ jobs:
       - name: Download local Linux release archives
         uses: actions/download-artifact@v4
         with:
-          name: linux-prebuilt-fixtures
+          pattern: linux-prebuilt-*-fixture
           path: ${{ github.workspace }}/pad-release-fixtures
+          merge-multiple: true
 
       - name: Docker installer smoke
         env:
