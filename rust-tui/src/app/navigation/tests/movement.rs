@@ -91,3 +91,30 @@ fn numeric_jump_uses_filtered_visible_threads() {
 
     assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%2"));
 }
+
+#[test]
+fn shift_j_k_moves_selected_thread_without_following_completion_sort() {
+    let mut app = App::new();
+    let mut first = sample_panel("%1", "/tmp/alpha");
+    first.agent_session_id = Some("sid-1".into());
+    let mut second = sample_panel("%2", "/tmp/beta");
+    second.agent_session_id = Some("sid-2".into());
+    app.panels.push(first);
+    app.panels.push(second);
+    app.sync_sidebar_selection();
+
+    assert_eq!(visible_item_keys(&mut app), vec!["/tmp/alpha", "/tmp/beta"]);
+    assert!(app.move_selected_sidebar_item_down());
+    assert_eq!(visible_item_keys(&mut app), vec!["/tmp/beta", "/tmp/alpha"]);
+    assert_eq!(
+        app.sidebar.selected_sidebar_key.as_deref(),
+        Some("/tmp/alpha")
+    );
+
+    assert!(app.move_selected_sidebar_item_up());
+    assert_eq!(visible_item_keys(&mut app), vec!["/tmp/alpha", "/tmp/beta"]);
+    assert_eq!(
+        app.sidebar.selected_sidebar_key.as_deref(),
+        Some("/tmp/alpha")
+    );
+}

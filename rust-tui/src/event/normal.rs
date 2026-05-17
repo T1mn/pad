@@ -237,6 +237,12 @@ where
 
     match key.code {
         KeyCode::Esc => {}
+        KeyCode::Char('J') => {
+            let _ = app.move_selected_sidebar_item_down();
+        }
+        KeyCode::Char('K') => {
+            let _ = app.move_selected_sidebar_item_up();
+        }
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.previous(),
         KeyCode::Char('h') | KeyCode::Left => {

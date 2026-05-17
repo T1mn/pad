@@ -230,7 +230,7 @@ fn app_thread_activity_prunes_by_ttl_and_cap() {
 }
 
 #[test]
-fn pane_sort_activity_updates_only_on_stop_hook() {
+fn pane_stop_hook_does_not_auto_reorder_sidebar() {
     let mut app = App::new();
     app.panels.push(AgentPanel {
         session: "0".into(),
@@ -259,11 +259,11 @@ fn pane_sort_activity_updates_only_on_stop_hook() {
     assert!(app.sidebar.thread_sort_activity.is_empty());
 
     app.apply_hook_event(stop_event("%1"));
-    assert!(!app.sidebar.thread_sort_activity.is_empty());
+    assert!(app.sidebar.thread_sort_activity.is_empty());
 }
 
 #[test]
-fn app_sort_activity_updates_only_on_stop_hook() {
+fn app_stop_hook_does_not_auto_reorder_sidebar() {
     let mut app = App::new();
 
     app.apply_hook_event(submit_event(None));
@@ -273,7 +273,7 @@ fn app_sort_activity_updates_only_on_stop_hook() {
     event.tmux.pane_id = None;
     event.cwd = Some("/tmp/demo".into());
     app.apply_hook_event(event);
-    assert!(!app.sidebar.thread_sort_activity.is_empty());
+    assert!(app.sidebar.thread_sort_activity.is_empty());
 }
 
 #[test]

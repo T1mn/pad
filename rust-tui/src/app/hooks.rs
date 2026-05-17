@@ -3,7 +3,7 @@ use crate::hook::HookEvent;
 use crate::log_debug;
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, SessionCacheState};
 use crate::notify::NotificationRequest;
-use crate::sidebar::{thread_sort_activity_keys, ThreadActivityOverride};
+use crate::sidebar::ThreadActivityOverride;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
@@ -33,7 +33,6 @@ impl App {
 
         let mut persisted_snapshot = None;
         let mut pending_claude_history_upsert = None;
-        let mut pending_thread_sort_activity = None;
         let mut pending_notification = None;
         let mut pending_title_summary = None;
 
@@ -88,19 +87,6 @@ impl App {
                     if event.last_assistant_message.is_some() {
                         panel.last_assistant_message = event.last_assistant_message.clone();
                     }
-                    pending_thread_sort_activity = Some((
-                        panel.agent_type.clone(),
-                        event
-                            .session_id
-                            .clone()
-                            .or_else(|| panel.agent_session_id.clone()),
-                        event
-                            .transcript_path
-                            .clone()
-                            .or_else(|| panel.transcript_path.clone()),
-                        panel.working_dir.clone(),
-                        unix_now_ts(),
-                    ));
                 }
                 _ => {}
             }
@@ -142,18 +128,6 @@ impl App {
                 self.invalidate_preview();
             }
             self.dirty = true;
-        }
-
-        if let Some((agent_type, session_id, transcript_path, working_dir, now_ts)) =
-            pending_thread_sort_activity
-        {
-            self.record_thread_sort_activity(
-                &agent_type,
-                session_id.as_deref(),
-                transcript_path.as_deref(),
-                Some(working_dir.as_str()),
-                now_ts,
-            );
         }
 
         if let Some((session_id, transcript_path, cwd, title, updated_at)) =
@@ -207,15 +181,6 @@ impl App {
             .clone()
             .or(activity.transcript_path.clone())
             .unwrap_or_else(|| format!("{}:{}", activity.agent_type, activity.working_dir));
-        if event.event == "stop" {
-            self.record_thread_sort_activity(
-                &activity.agent_type,
-                activity.session_id.as_deref(),
-                activity.transcript_path.as_deref(),
-                Some(activity.working_dir.as_str()),
-                activity.updated_at,
-            );
-        }
         self.sidebar.app_thread_activity.insert(key, activity);
         self.prune_app_thread_activity(unix_now_ts());
         self.invalidate_sidebar_cache();
@@ -257,48 +222,6 @@ impl App {
         }
 
         self.sidebar.app_thread_activity.len() != before
-    }
-
-    fn record_thread_sort_activity(
-        &mut self,
-        agent_type: &AgentType,
-        session_id: Option<&str>,
-        transcript_path: Option<&str>,
-        working_dir: Option<&str>,
-        now_ts: i64,
-    ) {
-        for key in thread_sort_activity_keys(agent_type, session_id, transcript_path, working_dir) {
-            self.sidebar.thread_sort_activity.insert(key, now_ts);
-        }
-        self.prune_thread_sort_activity(now_ts);
-    }
-
-    fn prune_thread_sort_activity(&mut self, now_ts: i64) {
-        let cutoff = now_ts.saturating_sub(APP_THREAD_ACTIVITY_TTL_SECS);
-        self.sidebar
-            .thread_sort_activity
-            .retain(|_, updated_at| *updated_at >= cutoff);
-
-        if self.sidebar.thread_sort_activity.len() <= APP_THREAD_ACTIVITY_MAX_ENTRIES {
-            return;
-        }
-
-        let mut keys_by_freshness = self
-            .sidebar
-            .thread_sort_activity
-            .iter()
-            .map(|(key, updated_at)| (key.clone(), *updated_at))
-            .collect::<Vec<_>>();
-        keys_by_freshness
-            .sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
-        let keep = keys_by_freshness
-            .into_iter()
-            .take(APP_THREAD_ACTIVITY_MAX_ENTRIES)
-            .map(|item| item.0)
-            .collect::<HashSet<_>>();
-        self.sidebar
-            .thread_sort_activity
-            .retain(|key, _| keep.contains(key));
     }
 
     fn panel_item_is_focused(&mut self, pane_id: &str) -> bool {
@@ -360,7 +283,7 @@ fn app_thread_activity_from_hook(event: &HookEvent) -> Option<ThreadActivityOver
 
 fn infer_hook_agent_type(event: &HookEvent) -> Option<AgentType> {
     if let Some(path) = event.transcript_path.as_deref() {
-        if path.contains("/.codex/") {
+        if path.contains("/.codex/") || path.contains("/.pad/codex-home/") {
             return Some(AgentType::Codex);
         }
         if path.contains("/.claude/") {

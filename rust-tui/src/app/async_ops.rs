@@ -481,6 +481,12 @@ impl App {
 
     pub fn trigger_async_preview_update(&mut self, request: PreviewRequest) {
         if self.preview.update_in_progress {
+            log_debug!(
+                "preview.load: queue_latest target={} previous_pending={}",
+                request.target_key,
+                self.preview.pending_update_request.is_some()
+            );
+            self.preview.pending_update_request = Some(request);
             return;
         }
 
@@ -511,15 +517,35 @@ impl App {
         if let Some(ref mut rx) = self.preview.rx {
             match rx.try_recv() {
                 Ok(update) => {
-                    if self.should_defer_ui_updates() {
+                    let pending = self.preview.pending_update_request.take();
+                    let should_skip_stale = pending
+                        .as_ref()
+                        .is_some_and(|request| request.target_key != update.target_key);
+                    self.preview.update_in_progress = false;
+                    self.preview.priority_refresh = false;
+                    self.preview.rx = None;
+
+                    if should_skip_stale {
+                        log_debug!(
+                            "preview.load: discard_stale loaded={} queued={}",
+                            update.target_key,
+                            pending
+                                .as_ref()
+                                .map(|request| request.target_key.as_str())
+                                .unwrap_or("")
+                        );
+                    } else if self.should_defer_ui_updates() {
                         log_debug!("async_ops: defer preview update while in detail view");
                         self.preview.deferred_preview_update = Some(update);
                     } else {
                         self.apply_preview_update_result(update);
                     }
-                    self.preview.update_in_progress = false;
-                    self.preview.priority_refresh = false;
-                    self.preview.rx = None;
+
+                    if let Some(request) = pending {
+                        if should_skip_stale {
+                            self.trigger_async_preview_update(request);
+                        }
+                    }
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -532,9 +558,7 @@ impl App {
     }
 
     pub fn check_preview_update(&mut self) {
-        if self.preview.update_in_progress
-            || (self.scan_in_progress && !self.preview.priority_refresh)
-        {
+        if self.scan_in_progress && !self.preview.priority_refresh {
             return;
         }
 

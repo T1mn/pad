@@ -54,6 +54,8 @@ pub(super) fn handle_key_event(
             | KeyCode::Char('h')
             | KeyCode::Char('j')
             | KeyCode::Char('k')
+            | KeyCode::Char('J')
+            | KeyCode::Char('K')
             | KeyCode::Char('l')
             | KeyCode::Char(' ')
     ) {
