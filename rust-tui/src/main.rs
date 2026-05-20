@@ -15,6 +15,7 @@ mod app;
 mod chat;
 mod claude_history;
 mod codex_provider_sync;
+mod codex_runtime;
 mod codex_state;
 mod detector;
 mod event;
@@ -182,6 +183,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if is_internal_command(&args) {
+        paths::ensure_runtime_layout()?;
+        logger::init()?;
         return run_internal_command(&args);
     }
 

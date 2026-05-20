@@ -1,7 +1,7 @@
 #[test]
 fn runtime_configs_apply_codex_status_line_without_relay_provider() {
-    with_temp_home("codex-status-line", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-status-line", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -34,8 +34,8 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
 
 #[test]
 fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
-    with_temp_home("codex-status-line-partial", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-status-line-partial", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -63,8 +63,8 @@ fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
 
 #[test]
 fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
-    with_temp_home("codex-status-line-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-status-line-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(

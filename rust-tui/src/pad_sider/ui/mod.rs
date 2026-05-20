@@ -31,9 +31,19 @@ pub fn run(cwd: PathBuf, target_pane: Option<String>) -> Result<(), String> {
             break Ok(());
         }
         if app.take_dirty() {
+            let started_at = std::time::Instant::now();
             terminal
                 .draw(|frame| render::draw(frame, &app))
                 .map_err(|err| err.to_string())?;
+            let elapsed = started_at.elapsed();
+            if elapsed >= Duration::from_millis(8) {
+                crate::log_debug!(
+                    "pad_sider.frame: draw_slow elapsed_ms={} preview_bytes={} markdown={}",
+                    elapsed.as_millis(),
+                    app.file_preview.content.len(),
+                    matches!(app.file_preview.kind, super::preview::PreviewKind::Markdown)
+                );
+            }
         }
         if event::poll(Duration::from_millis(200)).map_err(|err| err.to_string())? {
             match event::read().map_err(|err| err.to_string())? {

@@ -75,9 +75,7 @@ impl TempBackup {
 }
 
 pub fn sync_to_provider(target_provider: &str) -> io::Result<ProviderSyncResult> {
-    let codex_home = dirs::home_dir()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "home directory not found"))?
-        .join(".codex");
+    let codex_home = crate::paths::canonical_codex_home_dir();
     sync_to_provider_at(&codex_home, target_provider)
 }
 

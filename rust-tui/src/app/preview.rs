@@ -14,6 +14,7 @@ impl App {
         self.preview.detail_render_rx = None;
         self.preview.detail_pending_request = None;
         self.preview.plain_cache = None;
+        self.preview.session_list_cache = None;
     }
 
     pub fn current_preview_detail_request(&self) -> Option<PreviewDetailRenderRequest> {
@@ -80,10 +81,21 @@ impl App {
         self.preview.detail_cache = Some(cache);
     }
 
+    pub fn debounce_preview_after_navigation(&mut self) {
+        self.preview.navigation_debounce_until = Some(Instant::now() + Duration::from_millis(300));
+    }
+
+    pub fn preview_navigation_debounce_active(&self) -> bool {
+        self.preview
+            .navigation_debounce_until
+            .is_some_and(|until| Instant::now() < until)
+    }
+
     pub fn invalidate_preview(&mut self) {
         self.preview.last_preview_update = Instant::now() - Duration::from_secs(1);
         self.preview.priority_refresh = true;
         self.preview.plain_cache = None;
+        self.preview.session_list_cache = None;
     }
 
     pub(crate) fn prune_thread_preview_cache(&mut self) -> bool {
@@ -492,7 +504,7 @@ impl App {
     }
 
     pub fn busy_animation_interval(&self) -> Duration {
-        Duration::from_millis(16)
+        Duration::from_millis(120)
     }
 
     pub fn begin_preview_mouse_selection(&mut self, column: u16, row: u16) {

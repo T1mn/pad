@@ -11,5 +11,6 @@
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
 - `session_cache/`：会话快照缓存与持久化。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
+- `codex_runtime.rs`：pad 启动 Codex 时的 `CODEX_HOME` 注入。
 - `scanner.rs`：tmux pane 扫描与 agent 识别。
 - `event.rs` / `event/`：键鼠事件分发。

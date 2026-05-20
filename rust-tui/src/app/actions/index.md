@@ -2,7 +2,7 @@
 
 - `tree.rs`：tree 开关、搜索与侧栏显示动作。
 - `thread_actions.rs`：线程/会话级动作封装。
-- `codex_restart.rs`：选中 Codex pane 原地重启与 session resume。
+- `codex_restart.rs`：选中 Codex pane 原地重启、注入 `CODEX_HOME` 并 resume。
 - `settings.rs`：设置项读写与状态同步。
 - `relay_reload.rs`：relay 配置刷新。
 - `helpers.rs`：动作层公共辅助函数。

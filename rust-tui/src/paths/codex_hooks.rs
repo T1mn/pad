@@ -1,8 +1,7 @@
 use std::fs;
 use std::io;
-use std::path::PathBuf;
 
-use super::codex_hook_bridge_path;
+use super::{codex_hook_bridge_path, pad_codex_config_path, pad_codex_hooks_path};
 
 mod toml_edit;
 mod version;
@@ -25,7 +24,7 @@ pub(super) fn ensure_codex_hook_support() -> io::Result<()> {
 }
 
 fn ensure_codex_feature_enabled() -> io::Result<()> {
-    let path = codex_config_path();
+    let path = pad_codex_config_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -42,7 +41,7 @@ fn ensure_codex_feature_enabled() -> io::Result<()> {
 }
 
 fn ensure_codex_hooks_json() -> io::Result<()> {
-    let path = codex_hooks_path();
+    let path = pad_codex_hooks_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -122,18 +121,4 @@ fn ensure_codex_hook_entry(
             ]
         }));
     }
-}
-
-fn codex_config_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".codex")
-        .join("config.toml")
-}
-
-fn codex_hooks_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".codex")
-        .join("hooks.json")
 }

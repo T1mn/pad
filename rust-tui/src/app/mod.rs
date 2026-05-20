@@ -14,8 +14,8 @@ use async_ops::ScanResult;
 use ratatui::widgets::TableState;
 pub use state::{
     CopyToast, PendingThreadAction, PreviewDetailCache, PreviewDetailRenderRequest,
-    PreviewMouseSelection, PreviewPlainCache, ThreadActionKind, ThreadMetaEditKind,
-    ThreadPreviewCacheEntry,
+    PreviewMouseSelection, PreviewPlainCache, PreviewSessionListCache, PreviewSessionListItemCache,
+    ThreadActionKind, ThreadMetaEditKind, ThreadPreviewCacheEntry,
 };
 use state::{
     Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind, SettingsFocus, SidebarState,

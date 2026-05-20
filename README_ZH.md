@@ -50,6 +50,7 @@ cp target/dist/pad ~/.local/bin/
 ```
 
 PAD 是 tmux-first 的工具。`pad` 和 `tmux` 需要运行在同一个环境里。  
+macOS 下推荐使用 [Ghostty](https://ghostty.org/)，它和 tmux/TUI 的刷新体验通常更顺。  
 如果你在 WSL2 下使用，请确保两者都安装并运行在 WSL 内部。
 
 ## 演示

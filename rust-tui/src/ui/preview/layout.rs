@@ -25,7 +25,11 @@ pub(crate) fn draw_preview_info_card(
     thread: &SidebarThread,
 ) {
     let l = app.locale;
-    let live_panel = app.selected_panel().cloned();
+    let live_panel = thread
+        .live_pane_id
+        .as_deref()
+        .and_then(|pane_id| app.panels.iter().find(|panel| panel.pane_id == pane_id))
+        .cloned();
     let cache_badge_label = if app.preview.source == crate::model::PreviewSource::Session
         && app.preview.session_origin != Some(crate::model::PreviewSessionOrigin::App)
         && thread.session_cache_state == Some(crate::model::SessionCacheState::Cached)

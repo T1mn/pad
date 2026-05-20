@@ -37,6 +37,22 @@ pub struct PreviewPlainCache {
 }
 
 #[derive(Clone)]
+pub struct PreviewSessionListItemCache {
+    pub question: String,
+    pub answer: Option<String>,
+    pub normal_lines: Vec<ratatui::text::Line<'static>>,
+    pub selected_lines: Vec<ratatui::text::Line<'static>>,
+}
+
+#[derive(Clone)]
+pub struct PreviewSessionListCache {
+    pub target_key: String,
+    pub width: u16,
+    pub theme_name: String,
+    pub items: Vec<PreviewSessionListItemCache>,
+}
+
+#[derive(Clone)]
 pub struct ThreadPreviewCacheEntry {
     pub turns: SharedPreviewTurns,
     pub session_cache_state: Option<crate::model::SessionCacheState>,
@@ -77,12 +93,14 @@ pub struct PreviewState {
     pub detail_render_rx: Option<mpsc::Receiver<PreviewDetailCache>>,
     pub detail_pending_request: Option<PreviewDetailRenderRequest>,
     pub plain_cache: Option<PreviewPlainCache>,
+    pub session_list_cache: Option<PreviewSessionListCache>,
     pub thread_preview_cache: HashMap<String, ThreadPreviewCacheEntry>,
     pub last_preview_update: Instant,
     pub priority_refresh: bool,
     pub update_in_progress: bool,
     pub rx: Option<mpsc::Receiver<crate::preview_source::PreviewUpdate>>,
     pub pending_update_request: Option<crate::preview_source::PreviewRequest>,
+    pub navigation_debounce_until: Option<Instant>,
     pub theme_before_preview: Option<String>,
     pub focus: FocusTarget,
     pub scroll: u16,
@@ -118,12 +136,14 @@ impl PreviewState {
             detail_render_rx: None,
             detail_pending_request: None,
             plain_cache: None,
+            session_list_cache: None,
             thread_preview_cache: HashMap::new(),
             last_preview_update: Instant::now(),
             priority_refresh: false,
             update_in_progress: false,
             rx: None,
             pending_update_request: None,
+            navigation_debounce_until: None,
             theme_before_preview: None,
             focus: FocusTarget::Panel,
             scroll: 0,

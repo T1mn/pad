@@ -51,9 +51,7 @@ pub fn subagent_parent_thread_id(thread_id: &str) -> io::Result<Option<String>> 
 }
 
 pub(crate) fn default_db_path() -> io::Result<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "home directory not found"))?;
-    Ok(home.join(".codex").join("state_5.sqlite"))
+    Ok(crate::paths::canonical_codex_home_dir().join("state_5.sqlite"))
 }
 
 pub(crate) fn load_threads(

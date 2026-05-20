@@ -8,6 +8,7 @@
 - `tree.rs`：tree 构建、递归文件扫描与忽略目录规则。
 - `search.rs`：`/` 文件 fuzzy 搜索状态与匹配。
 - `preview.rs`：右侧文件预览模型，区分 Markdown、文本、目录与缺失文件。
+- `preview_cache.rs`：右侧预览按路径、mtime 和大小缓存文件内容，记录慢加载日志。
 - `sizing.rs`：sider 45%-65% 小步宽度档位与 tmux resize。
 - `fs.rs`：git changed files、文件统计、相对路径与 Markdown 读取。
 - `ui/mod.rs`：ratatui 主循环，启用键盘与鼠标事件。

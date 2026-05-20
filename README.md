@@ -51,7 +51,7 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
-PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On WSL2, install and run both inside WSL.
+PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On macOS, [Ghostty](https://ghostty.org/) is recommended for smoother tmux/TUI rendering. On WSL2, install and run both inside WSL.
 
 ## Demo
 

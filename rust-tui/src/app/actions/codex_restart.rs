@@ -33,6 +33,10 @@ impl App {
             self.show_action_toast(restart_failed_title(self.locale), &err.to_string());
             return false;
         }
+        if let Err(err) = crate::paths::ensure_pad_codex_home_layout() {
+            self.show_action_toast(restart_failed_title(self.locale), &err.to_string());
+            return false;
+        }
 
         let agent_cmd = self.codex_agent_command();
         let command = build_codex_restart_command(
@@ -83,14 +87,14 @@ fn build_codex_restart_command(agent_cmd: &str, cwd: &str, session_id: Option<&s
 
     format!(
         "exec {} -C {} resume {}",
-        agent_cmd,
+        crate::codex_runtime::with_codex_home(agent_cmd),
         shell_single_quote(cwd),
         session_part
     )
 }
 
 fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
+    crate::codex_runtime::shell_single_quote(value)
 }
 
 fn is_cjk_locale(locale: Locale) -> bool {
@@ -152,27 +156,38 @@ fn codex_busy_message(locale: Locale) -> &'static str {
 mod tests {
     use super::*;
 
+    fn assert_command_parts(command: &str, suffix: &str) {
+        assert!(
+            command.starts_with("exec env CODEX_HOME='"),
+            "missing CODEX_HOME prefix: {command}"
+        );
+        assert!(
+            command.ends_with(suffix),
+            "unexpected command suffix: {command}"
+        );
+    }
+
     #[test]
     fn restart_command_resumes_specific_session() {
-        assert_eq!(
-            build_codex_restart_command("codex", "/tmp/project", Some("sid-1")),
-            "exec codex -C '/tmp/project' resume 'sid-1'"
+        assert_command_parts(
+            &build_codex_restart_command("codex", "/tmp/project", Some("sid-1")),
+            " codex -C '/tmp/project' resume 'sid-1'",
         );
     }
 
     #[test]
     fn restart_command_falls_back_to_last_session() {
-        assert_eq!(
-            build_codex_restart_command("codex", "/tmp/project", None),
-            "exec codex -C '/tmp/project' resume --last"
+        assert_command_parts(
+            &build_codex_restart_command("codex", "/tmp/project", None),
+            " codex -C '/tmp/project' resume --last",
         );
     }
 
     #[test]
     fn restart_command_quotes_shell_values() {
-        assert_eq!(
-            build_codex_restart_command("codex --profile work", "/tmp/a'b", Some("s'id")),
-            "exec codex --profile work -C '/tmp/a'\\''b' resume 's'\\''id'"
+        assert_command_parts(
+            &build_codex_restart_command("codex --profile work", "/tmp/a'b", Some("s'id")),
+            r" codex --profile work -C '/tmp/a'\''b' resume 's'\''id'",
         );
     }
 }

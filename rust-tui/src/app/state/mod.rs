@@ -70,7 +70,8 @@ pub enum RelayPopupMode {
 
 pub use preview::{
     CopyToast, PreviewDetailCache, PreviewDetailRenderRequest, PreviewMouseSelection,
-    PreviewPlainCache, PreviewState, ThreadPreviewCacheEntry,
+    PreviewPlainCache, PreviewSessionListCache, PreviewSessionListItemCache, PreviewState,
+    ThreadPreviewCacheEntry,
 };
 pub use sidebar::{
     PendingThreadAction, SidebarState, ThreadActionKind, ThreadListView, ThreadMetaEditKind,

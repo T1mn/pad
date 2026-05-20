@@ -562,6 +562,14 @@ impl App {
             return;
         }
 
+        if let Some(until) = self.preview.navigation_debounce_until {
+            if Instant::now() < until {
+                return;
+            }
+            self.preview.navigation_debounce_until = None;
+            self.invalidate_preview();
+        }
+
         if self.should_pause_preview_refresh() {
             return;
         }

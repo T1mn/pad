@@ -1,7 +1,7 @@
 # relay
 
 - `claude.rs`：Claude 原生配置写入。
-- `codex.rs`：Codex relay 配置导入导出与写入。
+- `codex.rs`：Codex relay 配置导入导出，并写入 pad 专用 Codex Home。
 - `gemini.rs`：Gemini 原生配置写入。
 - `opencode.rs`：OpenCode 原生配置写入。
 - `permissions.rs`：运行时权限、状态栏、prompt 覆盖。

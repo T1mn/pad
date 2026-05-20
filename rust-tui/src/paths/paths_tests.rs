@@ -112,6 +112,48 @@ fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
 }
 
 #[test]
+fn ensure_pad_codex_home_layout_copies_config_but_not_auth() {
+    with_temp_home("pad-codex-home-config", |home| {
+        let canonical = home.join(".codex");
+        fs::create_dir_all(&canonical).expect("create canonical codex home");
+        fs::write(canonical.join("config.toml"), "model_provider = \"cpa\"\n")
+            .expect("seed canonical config");
+        fs::write(
+            canonical.join("auth.json"),
+            "{\"OPENAI_API_KEY\":\"sk-live\"}\n",
+        )
+        .expect("seed canonical auth");
+
+        ensure_pad_codex_home_layout().expect("ensure pad codex home");
+
+        assert_eq!(
+            fs::read_to_string(pad_codex_config_path()).expect("read pad config"),
+            "model_provider = \"cpa\"\n"
+        );
+        assert!(!pad_codex_auth_path().exists());
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn ensure_pad_codex_home_layout_links_sessions_to_canonical_home() {
+    with_temp_home("pad-codex-home-sessions", |_home| {
+        ensure_pad_codex_home_layout().expect("ensure pad codex home");
+
+        let sessions_meta =
+            fs::symlink_metadata(pad_codex_home_dir().join("sessions")).expect("sessions link");
+        let db_meta = fs::symlink_metadata(pad_codex_home_dir().join("state_5.sqlite"))
+            .expect("state db link");
+        let wal_meta = fs::symlink_metadata(pad_codex_home_dir().join("state_5.sqlite-wal"))
+            .expect("state wal link");
+        assert!(sessions_meta.file_type().is_symlink());
+        assert!(db_meta.file_type().is_symlink());
+        assert!(wal_meta.file_type().is_symlink());
+        assert!(canonical_codex_home_dir().join("sessions").is_dir());
+    });
+}
+
+#[test]
 fn write_codex_selected_prompt_file_combines_selected_candidates() {
     with_temp_home("selected-prompt-combine", |_home| {
         fs::create_dir_all(prompts_dir()).expect("create prompt dir");

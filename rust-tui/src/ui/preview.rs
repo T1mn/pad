@@ -4,6 +4,7 @@ mod layout;
 mod markdown;
 mod plain;
 mod session;
+mod session_list_cache;
 
 use crate::app::state::FocusTarget;
 use crate::app::App;
@@ -140,7 +141,12 @@ pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let selected_thread = app.selected_preview_thread();
+    let selected_thread = if app.preview_navigation_debounce_active() {
+        app.preview_target_thread()
+            .or_else(|| app.selected_preview_thread())
+    } else {
+        app.selected_preview_thread()
+    };
     if let Some(thread) = selected_thread {
         let inner = block.inner(area);
         f.render_widget(block.clone(), area);

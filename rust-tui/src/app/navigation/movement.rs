@@ -34,7 +34,7 @@ impl App {
         self.table_state.select(Some(i));
         self.sidebar.selected_sidebar_key = selected_key;
         self.clear_unread_stop_for_selected_panel();
-        self.invalidate_preview();
+        self.debounce_preview_after_navigation();
         self.update_tree_for_selection();
         self.dirty = true;
     }
@@ -70,7 +70,7 @@ impl App {
         self.table_state.select(Some(i));
         self.sidebar.selected_sidebar_key = selected_key;
         self.clear_unread_stop_for_selected_panel();
-        self.invalidate_preview();
+        self.debounce_preview_after_navigation();
         self.update_tree_for_selection();
         self.dirty = true;
     }

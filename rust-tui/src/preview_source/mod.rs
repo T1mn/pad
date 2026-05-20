@@ -12,8 +12,8 @@ use crate::model::{
 use std::time::Instant;
 
 const TMUX_CAPTURE_LINES: usize = 50;
-const BUSY_REFRESH_MS: u64 = 200;
-const WAITING_REFRESH_MS: u64 = 700;
+const BUSY_REFRESH_MS: u64 = 1000;
+const WAITING_REFRESH_MS: u64 = 1200;
 const APP_IDLE_REFRESH_MS: u64 = 1200;
 const LIVE_IDLE_REFRESH_MS: u64 = 2500;
 const HISTORY_IDLE_REFRESH_MS: u64 = 4000;
@@ -483,11 +483,11 @@ mod tests {
 
         let mut waiting = base.clone();
         waiting.state = AgentState::Waiting;
-        assert_eq!(preview_refresh_interval_ms_for_request(&waiting), 700);
+        assert_eq!(preview_refresh_interval_ms_for_request(&waiting), 1200);
 
         let mut busy = base.clone();
         busy.state = AgentState::Busy;
-        assert_eq!(preview_refresh_interval_ms_for_request(&busy), 200);
+        assert_eq!(preview_refresh_interval_ms_for_request(&busy), 1000);
 
         let mut app_idle = base.clone();
         app_idle.live_pane_id = None;

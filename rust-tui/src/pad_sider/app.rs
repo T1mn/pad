@@ -5,6 +5,7 @@ use super::fs::{
 use super::index_map::{build_index_map, IndexRow};
 use super::layout::LayoutWeights;
 use super::preview::{FilePreview, MarkdownPreview};
+use super::preview_cache::FilePreviewCache;
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
 use std::collections::HashSet;
@@ -44,6 +45,7 @@ pub struct App {
     pub selected_stats: FileStats,
     pub selected_label: String,
     pub file_preview: FilePreview,
+    pub file_preview_cache: FilePreviewCache,
     pub preview: Option<MarkdownPreview>,
     pub search: Option<FileSearch>,
     pub show_help: bool,
@@ -76,6 +78,7 @@ impl App {
             selected_stats: FileStats::default(),
             selected_label: String::new(),
             file_preview: FilePreview::empty(),
+            file_preview_cache: FilePreviewCache::default(),
             preview: None,
             search: None,
             show_help: false,
@@ -219,7 +222,7 @@ impl App {
         let previous_scroll = self.file_preview.scroll;
         let mut preview = path
             .as_deref()
-            .map(|path| FilePreview::from_path(&self.cwd, path))
+            .map(|path| self.file_preview_cache.preview_for(&self.cwd, path))
             .unwrap_or_else(FilePreview::empty);
         if preview.title == previous_title {
             preview.scroll = previous_scroll;

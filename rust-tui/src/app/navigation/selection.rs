@@ -83,6 +83,18 @@ impl App {
             .or_else(|| items.first().cloned())
     }
 
+    pub fn preview_target_thread(&mut self) -> Option<SidebarThread> {
+        let target_key = self.preview.pane_id.clone()?;
+        let mut thread = self
+            .sidebar_folders_ref()
+            .iter()
+            .flat_map(|folder| folder.threads.iter())
+            .find(|thread| thread.key == target_key)
+            .map(|thread| thread.as_ref().clone())?;
+        self.apply_cached_preview_to_thread(&mut thread);
+        Some(thread)
+    }
+
     pub fn selected_preview_thread(&mut self) -> Option<SidebarThread> {
         if self.sidebar.selected_sidebar_key.is_none()
             && self.thread_list_view() == ThreadListView::Normal

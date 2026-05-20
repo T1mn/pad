@@ -1,7 +1,7 @@
 #[test]
 fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
-    with_temp_home("codex-fast-mode", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-fast-mode", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -30,8 +30,8 @@ fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
 
 #[test]
 fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
-    with_temp_home("codex-fast-mode-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-fast-mode-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(
@@ -66,8 +66,8 @@ fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
 
 #[test]
 fn runtime_configs_apply_codex_goals_without_relay_provider() {
-    with_temp_home("codex-goals", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-goals", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -95,8 +95,8 @@ fn runtime_configs_apply_codex_goals_without_relay_provider() {
 
 #[test]
 fn runtime_configs_restore_previous_codex_goals_when_disabled() {
-    with_temp_home("codex-goals-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-goals-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n[features]\ngoals = false\n")
@@ -127,8 +127,8 @@ fn runtime_configs_restore_previous_codex_goals_when_disabled() {
 
 #[test]
 fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
-    with_temp_home("codex-multi-agent", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-multi-agent", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -156,8 +156,8 @@ fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
 
 #[test]
 fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
-    with_temp_home("codex-multi-agent-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-multi-agent-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(
@@ -191,8 +191,8 @@ fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
 
 #[test]
 fn runtime_configs_apply_codex_web_search_without_relay_provider() {
-    with_temp_home("codex-web-search", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-web-search", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
@@ -220,8 +220,8 @@ fn runtime_configs_apply_codex_web_search_without_relay_provider() {
 
 #[test]
 fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
-    with_temp_home("codex-web-search-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-web-search-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(&config_path, "model = \"gpt-5\"\nweb_search = \"cached\"\n")

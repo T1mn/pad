@@ -202,7 +202,5 @@ fn rollout_date_parts(file_name: &str) -> io::Result<(&str, &str, &str)> {
 }
 
 fn codex_home_dir() -> io::Result<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "home directory not found"))?;
-    Ok(home.join(".codex"))
+    Ok(crate::paths::canonical_codex_home_dir())
 }

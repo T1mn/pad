@@ -1,7 +1,7 @@
 #[test]
 fn runtime_configs_apply_combined_codex_overlays_together() {
-    with_temp_home("codex-combined-overlays", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-combined-overlays", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(
@@ -46,8 +46,8 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
 
 #[test]
 fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
-    with_temp_home("codex-combined-restore", |home| {
-        let codex_dir = home.join(".codex");
+    with_temp_home("codex-combined-restore", |_home| {
+        let codex_dir = crate::paths::pad_codex_home_dir();
         std::fs::create_dir_all(&codex_dir).expect("create codex dir");
         let config_path = codex_dir.join("config.toml");
         std::fs::write(

@@ -69,7 +69,7 @@ pub(super) fn gemini_env_backup_path() -> PathBuf {
 }
 
 pub(super) fn codex_config_path() -> PathBuf {
-    home_dir().join(".codex").join("config.toml")
+    crate::paths::pad_codex_config_path()
 }
 
 pub(super) fn codex_backup_path() -> PathBuf {
@@ -77,7 +77,7 @@ pub(super) fn codex_backup_path() -> PathBuf {
 }
 
 pub(super) fn codex_auth_path() -> PathBuf {
-    home_dir().join(".codex").join("auth.json")
+    crate::paths::pad_codex_auth_path()
 }
 
 pub(super) fn codex_auth_backup_path() -> PathBuf {

@@ -30,7 +30,23 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
             KeyCode::Enter => {
                 if let Some(agent) = launcher.selected_agent() {
                     let target_dir = launcher.target_dir.clone();
-                    let agent_cmd = agent.1.to_string();
+                    let agent_name = agent.0.to_string();
+                    let raw_agent_cmd = agent.1.to_string();
+                    let agent_cmd = match crate::codex_runtime::prepare_agent_command(
+                        &agent_name,
+                        &raw_agent_cmd,
+                    ) {
+                        Ok(command) => command,
+                        Err(err) => {
+                            log_debug!(
+                                "agent_launcher: prepare command failed name={} cmd={} err={}",
+                                agent_name,
+                                raw_agent_cmd,
+                                err
+                            );
+                            return;
+                        }
+                    };
                     log_debug!(
                         "agent_launcher: launching cmd={} dir={}",
                         agent_cmd,

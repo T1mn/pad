@@ -14,6 +14,7 @@ use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
+    let frame_started = std::time::Instant::now();
     // Apply global background color from theme
     let bg_block = Block::default()
         .borders(Borders::NONE)
@@ -28,19 +29,42 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let (main_layout, body_layout) =
         layout::compute_layout(f.area(), app.sidebar.show_tree, preferred_left_width);
 
+    let left_started = std::time::Instant::now();
     if app.sidebar.show_tree {
         // Tree mode: left column = file tree + agent status bar, right = file preview
         let left_split = layout::split_tree_left(body_layout[0]);
         panel_list::draw_file_tree(f, app, left_split[0]);
         panel_list::draw_agent_status_bar(f, app, left_split[1]);
+    } else {
+        // Normal mode: left = agents panel
+        panel_list::draw_panel_list(f, app, body_layout[0]);
+    }
+    let left_elapsed = left_started.elapsed();
+
+    let preview_started = std::time::Instant::now();
+    if app.sidebar.show_tree {
         preview::draw_file_preview(f, app, body_layout[1]);
     } else {
-        // Normal mode: left = agents panel, right = agent preview
-        panel_list::draw_panel_list(f, app, body_layout[0]);
         preview::draw_preview(f, app, body_layout[1]);
     }
+    let preview_elapsed = preview_started.elapsed();
 
+    let status_started = std::time::Instant::now();
     status_bar::draw_status_bar(f, app, main_layout[1]);
+    let status_elapsed = status_started.elapsed();
+
+    let body_elapsed = frame_started.elapsed();
+    if body_elapsed >= std::time::Duration::from_millis(12) {
+        crate::log_debug!(
+            "ui.draw.parts: total_ms={} left_ms={} preview_ms={} status_ms={} preview_source={:?} turns={}",
+            body_elapsed.as_millis(),
+            left_elapsed.as_millis(),
+            preview_elapsed.as_millis(),
+            status_elapsed.as_millis(),
+            app.preview.source,
+            app.preview.turns.len()
+        );
+    }
 
     if app.settings_open {
         modals::draw_settings_modal(f, app);

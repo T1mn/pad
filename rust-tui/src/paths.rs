@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod codex_home;
 mod codex_hooks;
 mod hook_bridge;
 
@@ -88,6 +89,30 @@ pub fn codex_index_prompt_file_path() -> PathBuf {
 
 pub fn codex_selected_prompt_file_path() -> PathBuf {
     prompts_dir().join("codex_selected.md")
+}
+
+pub fn pad_codex_home_dir() -> PathBuf {
+    codex_home::pad_codex_home_dir()
+}
+
+pub fn canonical_codex_home_dir() -> PathBuf {
+    codex_home::canonical_codex_home_dir()
+}
+
+pub fn pad_codex_config_path() -> PathBuf {
+    codex_home::pad_codex_config_path()
+}
+
+pub fn pad_codex_auth_path() -> PathBuf {
+    codex_home::pad_codex_auth_path()
+}
+
+pub fn pad_codex_hooks_path() -> PathBuf {
+    codex_home::pad_codex_hooks_path()
+}
+
+pub fn ensure_pad_codex_home_layout() -> io::Result<()> {
+    codex_home::ensure_pad_codex_home_layout()
 }
 
 fn legacy_codex_prompt_file_path() -> PathBuf {
@@ -266,6 +291,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(sessions_dir())?;
     ensure_codex_jailbreak_prompt_file_seeded()?;
     ensure_codex_index_prompt_file_seeded()?;
+    ensure_pad_codex_home_layout()?;
     if !hook_events_path().exists() {
         fs::write(hook_events_path(), "")?;
     }

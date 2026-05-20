@@ -4,6 +4,9 @@ use super::markdown::{
     normalize_session_detail_markdown, render_detail_content_line, render_detail_padding_line,
     render_detail_separator_line, total_span_count, wrap_text_to_width,
 };
+use super::session_list_cache::{
+    ensure_session_list_cache, selected_session_list_range, visible_session_list_lines,
+};
 use crate::app::App;
 use crate::theme::Theme;
 use ratatui::{
@@ -36,14 +39,16 @@ pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, the
 }
 
 fn draw_session_list(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
-    let width = area.width.max(8) as usize;
-    let (lines, selected_range) =
-        build_session_list_lines(&app.preview.turns, app.preview.selected_turn, width, theme);
+    let width = area.width.max(8);
+    ensure_session_list_cache(app, width, theme);
 
-    let scroll = resolve_session_list_scroll(app, selected_range, area.height, lines.len());
-    let paragraph = Paragraph::new(ratatui::text::Text::from(lines))
-        .style(Style::default().fg(theme.fg))
-        .scroll((scroll, 0));
+    let total_lines = session_list_total_lines(app.preview.turns.len());
+    let selected_range =
+        selected_session_list_range(app.preview.selected_turn, app.preview.turns.len());
+    let scroll = resolve_session_list_scroll(app, selected_range, area.height, total_lines);
+    let lines = visible_session_list_lines(app, width as usize, theme, scroll, area.height);
+    let paragraph =
+        Paragraph::new(ratatui::text::Text::from(lines)).style(Style::default().fg(theme.fg));
     f.render_widget(paragraph, area);
 }
 
@@ -349,7 +354,7 @@ pub(crate) fn session_turn_index_at_line(line: usize, turn_count: usize) -> Opti
     }
 }
 
-fn render_session_gap_line(width: usize, theme: &Theme) -> Line<'static> {
+pub(super) fn render_session_gap_line(width: usize, theme: &Theme) -> Line<'static> {
     Line::from(Span::styled(
         " ".repeat(width.max(1)),
         Style::default().bg(theme.bg),
