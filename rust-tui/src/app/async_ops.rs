@@ -410,7 +410,16 @@ impl App {
         }
 
         if let Some(update) = self.preview.deferred_preview_update.take() {
-            self.apply_preview_update_result(update);
+            if self.preview_navigation_debounce_active() {
+                self.preview.deferred_preview_update = Some(update);
+            } else if self.preview_update_matches_current_selection(&update) {
+                self.apply_preview_update_result(update);
+            } else {
+                log_debug!(
+                    "preview.load: discard_deferred_stale target={}",
+                    update.target_key
+                );
+            }
         }
 
         if !self.deferred_hook_events.is_empty() {
@@ -534,6 +543,12 @@ impl App {
                                 .map(|request| request.target_key.as_str())
                                 .unwrap_or("")
                         );
+                    } else if self.preview_navigation_debounce_active() {
+                        log_debug!(
+                            "preview.load: defer_result_during_navigation target={}",
+                            update.target_key
+                        );
+                        self.preview.deferred_preview_update = Some(update);
                     } else if self.should_defer_ui_updates() {
                         log_debug!("async_ops: defer preview update while in detail view");
                         self.preview.deferred_preview_update = Some(update);
@@ -600,6 +615,14 @@ impl App {
             }
             self.trigger_async_preview_update(request);
         }
+    }
+
+    fn preview_update_matches_current_selection(&mut self, update: &PreviewUpdate) -> bool {
+        if let Some(selected_key) = self.selected_preview_thread().map(|thread| thread.key) {
+            return selected_key == update.target_key;
+        }
+
+        self.preview.pane_id.as_deref() == Some(update.target_key.as_str())
     }
 }
 
