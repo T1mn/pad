@@ -71,8 +71,10 @@ fn maybe_refresh_after_same_session_return(app: &mut App, ev: &Event) {
                 app.saved_tmux_status_target = None;
                 app.same_session_trace_id = None;
                 app.refresh_panels();
-                app.invalidate_preview();
-                app.needs_clear = true;
+                // Avoid a full-screen clear on F12/C-q return. The pad pane usually
+                // still has a valid frame in tmux, so a normal diff draw is cheaper.
+                // Preview refresh is delayed to keep the first return frame light.
+                app.debounce_preview_after_navigation();
                 app.dirty = true;
             } else if matches!(
                 ev,
