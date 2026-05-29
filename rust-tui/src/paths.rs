@@ -7,7 +7,7 @@ mod codex_hooks;
 mod hook_bridge;
 
 const CODEX_JAILBREAK_PROMPT_VERSION: &str = "codex-jailbreak-prompt-2026-04-26.1";
-const CODEX_INDEX_PROMPT_VERSION: &str = "codex-index-prompt-2026-04-26.1";
+const CODEX_INDEX_PROMPT_VERSION: &str = "codex-index-prompt-2026-05-29.1";
 const LEGACY_CODEX_JAILBREAK_PROMPT_HASHES: &[&str] = &["c8bf76a53a9b840d52c987ebff0310b2"];
 pub const DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE: &str =
     include_str!("../assets/prompts/codex_jailbreak.md");
@@ -371,6 +371,7 @@ fn write_managed_prompt_state(path: &Path, state: &ManagedPromptState) -> io::Re
 use codex_hooks::{
     test_codex_hooks_feature_key_for_version as codex_hooks_feature_key_for_version,
     test_parse_codex_cli_version as parse_codex_cli_version,
+    test_remove_toml_key_in_section as remove_toml_key_in_section,
     test_set_toml_bool_in_section as set_toml_bool_in_section,
 };
 #[cfg(test)]

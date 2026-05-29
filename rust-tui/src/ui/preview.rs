@@ -161,10 +161,16 @@ pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
 
         layout::draw_preview_info_card(f, app, split[0], &theme, &thread);
 
-        if app.preview.source == crate::model::PreviewSource::Session
+        if app.config.codex.show_qa_preview
+            && app.preview.source == crate::model::PreviewSource::Session
             && !app.preview.turns.is_empty()
         {
             session::draw_session_preview(f, app, split[1], &theme);
+        } else if app.preview.source == crate::model::PreviewSource::Session
+            && !app.preview.turns.is_empty()
+        {
+            let blank = Paragraph::new("").style(Style::default().bg(theme.bg).fg(theme.comment));
+            f.render_widget(blank, split[1]);
         } else {
             plain::draw_plain_preview(f, app, split[1], false, &block, &theme);
         }

@@ -94,6 +94,19 @@ fn set_toml_bool_in_section_writes_new_hooks_key() {
 }
 
 #[test]
+fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
+    let updated = remove_toml_key_in_section(
+        "[features]\ncodex_hooks = true\nhooks = true\n",
+        "features",
+        "codex_hooks",
+    );
+
+    assert!(updated.contains("[features]\n"));
+    assert!(updated.contains("hooks = true\n"));
+    assert!(!updated.contains("codex_hooks = true\n"));
+}
+
+#[test]
 fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
     with_temp_home("runtime-layout", |_home| {
         ensure_runtime_layout().expect("ensure runtime layout");

@@ -255,6 +255,15 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
             },
             "settings.codex_title_summary_desc",
         ),
+        (
+            "settings.codex_qa_preview",
+            if app.config.codex.show_qa_preview {
+                t(locale, "settings.on")
+            } else {
+                t(locale, "settings.off")
+            },
+            "settings.codex_qa_preview_desc",
+        ),
     ]
     .iter()
     .map(|(name_key, value, desc_key)| SelectionItem {
@@ -288,7 +297,7 @@ pub(super) fn draw_codex_detail(f: &mut Frame, app: &App, area: Rect) {
         ..Default::default()
     };
     state.clamp_selected(items.len());
-    let footer = if app.codex_settings_selected == 11 {
+    let footer = if app.codex_settings_selected == 12 {
         "j/k move · Enter check · u update · Esc back"
     } else {
         "j/k move · Enter/Space toggle or cycle · Esc back"

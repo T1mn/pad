@@ -86,6 +86,7 @@ pub struct CodexConfig {
     pub jailbreak_prompt_file: bool,
     pub index_prompt_file: bool,
     pub title_summary: bool,
+    pub show_qa_preview: bool,
 }
 
 impl CodexConfig {
@@ -126,6 +127,7 @@ impl Default for CodexConfig {
             jailbreak_prompt_file: false,
             index_prompt_file: false,
             title_summary: false,
+            show_qa_preview: false,
         }
     }
 }

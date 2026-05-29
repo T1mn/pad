@@ -334,6 +334,58 @@ fn archive_thread_moves_rollout_and_updates_db() {
     cleanup_dir(&codex_home);
 }
 
+#[cfg(unix)]
+#[test]
+fn archive_thread_accepts_rollout_through_symlinked_sessions_dir() {
+    let db_path = temp_db_path();
+    let codex_home = temp_codex_home();
+    let pad_home = temp_codex_home();
+    create_threads_db(&db_path);
+
+    let thread_id = "019d2de5-879e-7330-a83e-16ed3e454f71";
+    let file_name = sample_rollout_name(thread_id);
+    let canonical_source_path = codex_home
+        .join("sessions")
+        .join("2026")
+        .join("03")
+        .join("27")
+        .join(&file_name);
+    write_rollout(&canonical_source_path);
+
+    std::fs::create_dir_all(&pad_home).unwrap();
+    std::os::unix::fs::symlink(codex_home.join("sessions"), pad_home.join("sessions")).unwrap();
+    let symlink_source_path = pad_home
+        .join("sessions")
+        .join("2026")
+        .join("03")
+        .join("27")
+        .join(&file_name);
+    let target_path = codex_home.join("archived_sessions").join(&file_name);
+
+    let connection = Connection::open(&db_path).unwrap();
+    insert_thread(
+        &connection,
+        thread_id,
+        "/tmp/project",
+        42_i64,
+        &symlink_source_path,
+        false,
+    );
+
+    mutate_thread_archive_state_at(&db_path, &codex_home, thread_id, true).unwrap();
+
+    assert!(!canonical_source_path.exists());
+    assert!(target_path.exists());
+    assert_eq!(
+        thread_rollout_path(&connection, thread_id),
+        target_path.display().to_string()
+    );
+
+    cleanup_file(&db_path);
+    cleanup_dir(&codex_home);
+    cleanup_dir(&pad_home);
+}
+
 #[test]
 fn unarchive_thread_moves_rollout_back_and_updates_db() {
     let db_path = temp_db_path();

@@ -42,6 +42,7 @@ fn config_round_trips_opencode_provider_models() {
         config.codex.jailbreak_prompt_file = true;
         config.codex.index_prompt_file = true;
         config.codex.title_summary = true;
+        config.codex.show_qa_preview = true;
         let opencode = config
             .agents
             .iter_mut()
@@ -82,6 +83,7 @@ fn config_round_trips_opencode_provider_models() {
         assert!(loaded.codex.jailbreak_prompt_file);
         assert!(loaded.codex.index_prompt_file);
         assert!(loaded.codex.title_summary);
+        assert!(loaded.codex.show_qa_preview);
         let opencode = loaded
             .agents
             .iter()

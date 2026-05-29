@@ -29,7 +29,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Char('j') | KeyCode::Down => {
-            if app.codex_settings_selected < 11 {
+            if app.codex_settings_selected < 12 {
                 app.codex_settings_selected += 1;
             }
             app.dirty = true;
@@ -86,6 +86,9 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
                     app.config.codex.title_summary = !app.config.codex.title_summary;
                 }
                 11 => {
+                    app.config.codex.show_qa_preview = !app.config.codex.show_qa_preview;
+                }
+                12 => {
                     app.trigger_codex_cli_version_check();
                     return true;
                 }
@@ -99,7 +102,7 @@ pub(super) fn handle_codex_settings_detail_mode(app: &mut App, key: KeyCode) -> 
             );
             app.dirty = true;
         }
-        KeyCode::Char('u') if app.codex_settings_selected == 11 => {
+        KeyCode::Char('u') if app.codex_settings_selected == 12 => {
             app.trigger_codex_cli_update();
             app.dirty = true;
         }

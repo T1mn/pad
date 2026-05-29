@@ -62,6 +62,10 @@ impl Config {
             self.codex.index_prompt_file
         ));
         content.push_str(&format!("title_summary = {}\n", self.codex.title_summary));
+        content.push_str(&format!(
+            "show_qa_preview = {}\n",
+            self.codex.show_qa_preview
+        ));
         content.push_str("\n[agent_permissions]\n");
         content.push_str(&format!(
             "codex_auto_full_access = {}\n",

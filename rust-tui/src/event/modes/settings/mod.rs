@@ -302,6 +302,7 @@ mod tests {
             app.config.codex.jailbreak_prompt_file = false;
             app.config.codex.index_prompt_file = false;
             app.config.codex.title_summary = false;
+            app.config.codex.show_qa_preview = false;
 
             app.codex_settings_selected = 0;
             handle_settings_mode(&mut app, KeyCode::Enter);
@@ -374,6 +375,13 @@ mod tests {
             assert!(app.config.codex.title_summary);
             handle_settings_mode(&mut app, KeyCode::Enter);
             assert!(!app.config.codex.title_summary);
+
+            handle_settings_mode(&mut app, KeyCode::Down);
+            assert_eq!(app.codex_settings_selected, 11);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.codex.show_qa_preview);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(!app.config.codex.show_qa_preview);
         });
     }
 
@@ -390,10 +398,10 @@ mod tests {
             handle_settings_mode(&mut app, KeyCode::Up);
             assert_eq!(app.codex_settings_selected, 0);
 
-            for _ in 0..12 {
+            for _ in 0..13 {
                 handle_settings_mode(&mut app, KeyCode::Down);
             }
-            assert_eq!(app.codex_settings_selected, 11);
+            assert_eq!(app.codex_settings_selected, 12);
 
             handle_settings_mode(&mut app, KeyCode::Esc);
             assert!(matches!(app.settings_focus, SettingsFocus::List));

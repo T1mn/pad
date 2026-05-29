@@ -188,6 +188,9 @@ fn apply_codex(value: Option<&toml::Value>, config: &mut Config) {
     if let Some(toml::Value::Boolean(enabled)) = codex.get("title_summary") {
         config.codex.title_summary = *enabled;
     }
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("show_qa_preview") {
+        config.codex.show_qa_preview = *enabled;
+    }
 }
 
 fn apply_permissions(value: Option<&toml::Value>, config: &mut Config) {

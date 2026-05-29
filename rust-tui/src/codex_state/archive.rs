@@ -65,6 +65,13 @@ pub(crate) fn mutate_thread_archive_state_at(
         ));
     }
 
+    if !source_path.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("rollout file not found: {}", source_path.display()),
+        ));
+    }
+
     let target_path = if archive {
         ensure_path_in_dir(&source_path, &codex_home.join("sessions"), "sessions")?;
         codex_home.join("archived_sessions").join(file_name)
@@ -94,12 +101,6 @@ pub(crate) fn mutate_thread_archive_state_at(
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("target rollout already exists: {}", target_path.display()),
-        ));
-    }
-    if !source_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("rollout file not found: {}", source_path.display()),
         ));
     }
 
@@ -166,7 +167,10 @@ fn read_thread_for_update(connection: &Connection, thread_id: &str) -> io::Resul
 }
 
 fn ensure_path_in_dir(path: &Path, dir: &Path, label: &str) -> io::Result<()> {
-    if !path.starts_with(dir) {
+    let normalized_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let normalized_dir = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+
+    if !normalized_path.starts_with(&normalized_dir) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("rollout path `{}` must be in {}", path.display(), label),

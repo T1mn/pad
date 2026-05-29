@@ -6,11 +6,14 @@ use super::{codex_hook_bridge_path, pad_codex_config_path, pad_codex_hooks_path}
 mod toml_edit;
 mod version;
 
-use toml_edit::set_toml_bool_in_section;
+use toml_edit::{remove_toml_key_in_section, set_toml_bool_in_section};
 use version::{codex_hooks_feature_key_for_version, detect_codex_cli_version};
 
 #[cfg(test)]
-pub(super) use toml_edit::set_toml_bool_in_section as test_set_toml_bool_in_section;
+pub(super) use toml_edit::{
+    remove_toml_key_in_section as test_remove_toml_key_in_section,
+    set_toml_bool_in_section as test_set_toml_bool_in_section,
+};
 #[cfg(test)]
 pub(super) use version::{
     codex_hooks_feature_key_for_version as test_codex_hooks_feature_key_for_version,
@@ -31,7 +34,10 @@ fn ensure_codex_feature_enabled() -> io::Result<()> {
 
     let existing = fs::read_to_string(&path).unwrap_or_default();
     let key = codex_hooks_feature_key_for_version(detect_codex_cli_version().as_deref());
-    let updated = set_toml_bool_in_section(&existing, "features", key, true);
+    let mut updated = set_toml_bool_in_section(&existing, "features", key, true);
+    if key == "hooks" {
+        updated = remove_toml_key_in_section(&updated, "features", "codex_hooks");
+    }
 
     if updated != existing {
         fs::write(path, updated)?;
