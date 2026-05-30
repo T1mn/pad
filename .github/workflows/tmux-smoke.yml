@@ -31,6 +31,9 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CARGO_HTTP_MULTIPLEXING: "false"
+  CARGO_HTTP_TIMEOUT: "120"
+  CARGO_NET_RETRY: "10"
 
 jobs:
   smoke:
@@ -73,7 +76,17 @@ jobs:
 
       - name: Build debug binary
         working-directory: rust-tui
-        run: cargo build
+        run: |
+          for attempt in 1 2 3; do
+            if cargo build --locked; then
+              exit 0
+            fi
+            status=$?
+            if [ "$attempt" -eq 3 ]; then
+              exit "$status"
+            fi
+            sleep $((attempt * 10))
+          done
 
       - name: Run tmux smoke
         env:
