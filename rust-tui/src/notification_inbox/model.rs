@@ -9,7 +9,7 @@ pub struct NotificationInbox {
     pub entries: Vec<NotificationEntry>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NotificationEntry {
     pub id: String,
     pub ts: i64,
@@ -85,24 +85,6 @@ impl NotificationInbox {
         let before = self.entries.len();
         self.entries.retain(|entry| entry.id != id);
         self.entries.len() != before
-    }
-}
-
-impl Default for NotificationEntry {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            ts: 0,
-            event: String::new(),
-            agent_type: String::new(),
-            title: String::new(),
-            body: String::new(),
-            working_dir: None,
-            session_id: None,
-            transcript_path: None,
-            pane_id: None,
-            read: false,
-        }
     }
 }
 
