@@ -18,8 +18,13 @@ impl App {
                     self.refresh_file_preview();
                 }
             }
+            Focus::CodexRuns => {
+                if self.codex_diff_selected + 1 < self.codex_diffs.len() {
+                    self.codex_diff_selected += 1;
+                    self.refresh_file_preview();
+                }
+            }
             Focus::Preview => self.file_preview_scroll_down(1),
-            Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_add(1),
         }
     }
 
@@ -36,8 +41,11 @@ impl App {
                 self.index_selected = self.index_selected.saturating_sub(1);
                 self.refresh_file_preview();
             }
+            Focus::CodexRuns => {
+                self.codex_diff_selected = self.codex_diff_selected.saturating_sub(1);
+                self.refresh_file_preview();
+            }
             Focus::Preview => self.file_preview_scroll_up(1),
-            Focus::Changes => self.changes_scroll = self.changes_scroll.saturating_sub(1),
         }
     }
 
@@ -68,16 +76,18 @@ impl App {
                 self.index_selected = 0;
                 self.refresh_file_preview();
             }
+            Focus::CodexRuns => {
+                self.codex_diff_selected = 0;
+                self.refresh_file_preview();
+            }
             Focus::Preview => self.file_preview.scroll = 0,
-            Focus::Changes => self.changes_scroll = 0,
         }
     }
 
     pub fn cycle_focus(&mut self) {
         self.focus = match self.focus {
-            Focus::Tree | Focus::IndexMap => Focus::Preview,
-            Focus::Preview => Focus::Changes,
-            Focus::Changes => self.active_nav_focus(),
+            Focus::Tree | Focus::IndexMap | Focus::CodexRuns => Focus::Preview,
+            Focus::Preview => self.active_nav_focus(),
         };
     }
 
@@ -89,25 +99,19 @@ impl App {
         self.focus = Focus::Preview;
     }
 
-    pub fn focus_changes(&mut self) {
-        self.focus = Focus::Changes;
+    pub fn focus_codex_runs(&mut self) {
+        self.set_codex_runs_mode();
     }
 
     pub fn focus_active_nav(&mut self) {
         self.focus = self.active_nav_focus();
     }
 
-    pub fn active_nav_weight(&self) -> u16 {
-        match self.nav_mode {
-            NavMode::Tree => self.layout_weights.tree,
-            NavMode::IndexMap => self.layout_weights.index_map,
-        }
-    }
-
     pub fn active_nav_focus(&self) -> Focus {
         match self.nav_mode {
             NavMode::Tree => Focus::Tree,
             NavMode::IndexMap => Focus::IndexMap,
+            NavMode::CodexRuns => Focus::CodexRuns,
         }
     }
 
@@ -174,14 +178,16 @@ impl App {
                 self.index_selected = self.index_rows.len().saturating_sub(1);
                 self.refresh_file_preview();
             }
+            Focus::CodexRuns => {
+                self.codex_diff_selected = self.codex_diffs.len().saturating_sub(1);
+                self.refresh_file_preview();
+            }
             Focus::Preview => self.file_preview.scroll = u16::MAX,
-            Focus::Changes => self.changes_scroll = u16::MAX,
         }
     }
 }
 
 mod index_map;
-mod layout;
 mod nav_mode;
 mod preview;
 

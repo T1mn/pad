@@ -118,8 +118,8 @@ fn display_options_toggle_numbers_and_zoom() {
 }
 
 #[test]
-fn idle_tick_without_changes_keeps_dirty_clear() {
-    let root = temp_dir("idle_tick_without_changes_keeps_dirty_clear");
+fn idle_tick_without_content_changes_keeps_dirty_clear() {
+    let root = temp_dir("idle_tick_without_content_changes_keeps_dirty_clear");
     fs::create_dir_all(&root).unwrap();
 
     let mut app = App::new(root.clone(), None);

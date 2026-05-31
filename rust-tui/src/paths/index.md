@@ -8,3 +8,4 @@
 
 - `~/.pad/workspace-recipes.toml`：workspace recipe 配置文件。
 - `~/.pad/pad-api.sock`：socket API 监听地址。
+- `~/.pad/codex-turn-diffs/`：Codex 单轮问答 diff 的 pending、patch 与索引存储目录。

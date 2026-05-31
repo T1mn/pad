@@ -39,16 +39,13 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('n') => app.toggle_line_numbers(),
         KeyCode::Char('=') | KeyCode::Char('+') => app.zoom_text_in(),
         KeyCode::Char('-') => app.zoom_text_out(),
-        KeyCode::Char('{') => app.shrink_focused_section(),
-        KeyCode::Char('}') => app.grow_focused_section(),
         KeyCode::Char('[') => resize_sider(app, false),
         KeyCode::Char(']') => resize_sider(app, true),
-        KeyCode::Char('0') => app.reset_layout(),
         KeyCode::Tab => app.cycle_focus(),
         KeyCode::Char('t') => app.focus_tree(),
         KeyCode::Char('p') => app.focus_preview(),
+        KeyCode::Char('c') => app.focus_codex_runs(),
         KeyCode::Char('I') => app.press_index_toggle_key(),
-        KeyCode::Char('d') => app.focus_changes(),
         KeyCode::PageDown => app.file_preview_down(),
         KeyCode::PageUp => app.file_preview_up(),
         KeyCode::Enter if app.focus == Focus::Tree => app.toggle_selected(),
@@ -90,23 +87,8 @@ pub fn handle_mouse(app: &mut App, area: Rect, mouse: MouseEvent) {
         return;
     }
 
-    let left_height = area.height.saturating_sub(6);
-    let nav_weight = app.active_nav_weight();
-    let changes_weight = app.layout_weights.changes;
-    let total = nav_weight + changes_weight;
-    let nav_height = if total == 0 {
-        left_height
-    } else {
-        (left_height as u32 * nav_weight as u32 / total as u32) as u16
-    };
-
-    if mouse.row.saturating_sub(6) < nav_height {
-        app.focus_active_nav();
-        scroll_nav(app, down);
-    } else {
-        app.focus_changes();
-        scroll_changes(app, down);
-    }
+    app.focus_active_nav();
+    scroll_nav(app, down);
 }
 
 fn resize_sider(app: &App, wider: bool) {
@@ -186,13 +168,5 @@ fn scroll_nav(app: &mut App, down: bool) {
         } else {
             app.previous();
         }
-    }
-}
-
-fn scroll_changes(app: &mut App, down: bool) {
-    if down {
-        app.changes_scroll = app.changes_scroll.saturating_add(MOUSE_SCROLL_LINES);
-    } else {
-        app.changes_scroll = app.changes_scroll.saturating_sub(MOUSE_SCROLL_LINES);
     }
 }

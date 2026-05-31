@@ -1,3 +1,4 @@
+mod diff;
 mod input;
 mod line_numbers;
 mod markdown;

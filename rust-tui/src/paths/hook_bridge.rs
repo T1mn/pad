@@ -5,7 +5,7 @@ use std::path::Path;
 use super::{claude_hook_bridge_path, codex_hook_bridge_path};
 
 pub(super) const CLAUDE_BRIDGE_VERSION: &str = "claude-2026-04-08.1";
-pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-04-08.2";
+pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-05-31.1";
 const BRIDGE_VERSION_PREFIX: &str = "# pad-bridge-version: ";
 
 pub(super) fn install_bridge_scripts() -> io::Result<()> {
@@ -120,6 +120,7 @@ struct HookBridgeTemplateOptions {
     payload_expr: &'static str,
     hook_type_line: &'static str,
     event_name_expr: &'static str,
+    record_turn_diff_block: String,
 }
 
 pub(super) fn claude_hook_bridge_template() -> String {
@@ -132,10 +133,15 @@ pub(super) fn claude_hook_bridge_template() -> String {
         payload_expr: "json.loads(raw)",
         hook_type_line: "",
         event_name_expr: "payload.get(\"hook_event_name\")",
+        record_turn_diff_block: "def record_codex_turn_diff(message):\n    pass\n".into(),
     })
 }
 
 pub(super) fn codex_hook_bridge_template() -> String {
+    let pad_binary = std::env::current_exe()
+        .ok()
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_default();
     build_hook_bridge_template(HookBridgeTemplateOptions {
         version: CODEX_BRIDGE_VERSION,
         silence_stdio_block: r#"def silence_stdio():
@@ -157,6 +163,28 @@ pub(super) fn codex_hook_bridge_template() -> String {
         hook_type_line:
             "    hook_type = sys.argv[1] if len(sys.argv) > 1 else payload.get(\"hook_event_name\")",
         event_name_expr: "payload.get(\"hook_event_name\") or hook_type",
+        record_turn_diff_block: format!(
+            r#"PAD_BINARY = {pad_binary:?}
+
+
+def record_codex_turn_diff(message):
+    if message.get("event") not in ("user_prompt_submit", "stop"):
+        return
+    if not PAD_BINARY:
+        return
+    try:
+        subprocess.run(
+            [PAD_BINARY, "__internal", "codex-turn-diff", "hook"],
+            input=json.dumps(message, ensure_ascii=False),
+            text=True,
+            timeout=12,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+"#
+        ),
     })
 }
 
@@ -170,6 +198,10 @@ fn build_hook_bridge_template(options: HookBridgeTemplateOptions) -> String {
         .replace("__PAD_PAYLOAD_EXPR__", options.payload_expr)
         .replace("__PAD_HOOK_TYPE_LINE__", options.hook_type_line)
         .replace("__PAD_EVENT_NAME_EXPR__", options.event_name_expr)
+        .replace(
+            "__PAD_RECORD_TURN_DIFF_BLOCK__",
+            &options.record_turn_diff_block,
+        )
 }
 
 const HOOK_BRIDGE_TEMPLATE_BASE: &str = r###"#!/usr/bin/env python3
@@ -238,6 +270,7 @@ def normalized_event_name(name):
 
 
 __PAD_LOAD_PAYLOAD_BLOCK__
+__PAD_RECORD_TURN_DIFF_BLOCK__
 def main():
 __PAD_MAIN_START_LINE__
     payload = __PAD_PAYLOAD_EXPR__
@@ -257,6 +290,8 @@ __PAD_HOOK_TYPE_LINE__
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tmux": tmux,
     }
+
+    record_codex_turn_diff(message)
 
     for socket_path in SOCKET_PATHS:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

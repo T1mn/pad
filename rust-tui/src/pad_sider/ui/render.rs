@@ -1,5 +1,6 @@
 use super::super::app::{App, Focus, NavMode};
 use super::super::preview::PreviewKind;
+use super::diff::render_diff_patch;
 use super::line_numbers::{add_line_numbers, text_lines};
 use super::markdown::render_markdown;
 use super::overlay;
@@ -20,23 +21,13 @@ pub fn draw(frame: &mut Frame, app: &App) {
     }
 
     let (left_area, preview_area) = split::split_columns(frame.area());
-    let nav_weight = match app.nav_mode {
-        NavMode::Tree => app.layout_weights.tree,
-        NavMode::IndexMap => app.layout_weights.index_map,
-    };
-    let left_total = (nav_weight + app.layout_weights.changes) as u32;
     let left = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(6),
-            Constraint::Ratio(nav_weight as u32, left_total),
-            Constraint::Ratio(app.layout_weights.changes as u32, left_total),
-        ])
+        .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(left_area);
 
     draw_header(frame, app, left[0]);
     draw_nav(frame, app, left[1]);
-    draw_changes(frame, app, left[2]);
     draw_file_preview(frame, app, preview_area);
 
     if let Some(search) = app.search.as_ref() {
@@ -51,6 +42,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     let mode = match app.nav_mode {
         NavMode::Tree => "tree",
         NavMode::IndexMap => "index map",
+        NavMode::CodexRuns => "codex runs",
     };
     let lines = vec![
         Line::from(format!("cwd: {}", app.cwd.display())),
@@ -67,7 +59,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
             if app.show_line_numbers { "on" } else { "off" }
         )),
         Line::from(
-            "keys: ? help · n numbers · =/- zoom · [/] preview width · / search · Space full preview",
+            "keys: ? help · t tree · c codex runs · II index · n numbers · [/] width · / search",
         ),
     ];
     let paragraph = Paragraph::new(lines)
@@ -80,7 +72,34 @@ fn draw_nav(frame: &mut Frame, app: &App, area: Rect) {
     match app.nav_mode {
         NavMode::Tree => draw_tree(frame, app, area),
         NavMode::IndexMap => draw_index_map(frame, app, area),
+        NavMode::CodexRuns => draw_codex_runs(frame, app, area),
     }
+}
+
+fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
+    let items = app
+        .codex_diffs
+        .iter()
+        .map(|entry| {
+            let status = match entry.status {
+                crate::codex_turn_diff::TurnDiffStatus::Running => "●",
+                crate::codex_turn_diff::TurnDiffStatus::Completed => "✓",
+            };
+            let prompt = crate::codex_turn_diff::prompt_summary(entry.prompt.as_deref(), 44);
+            let time = entry.ended_at.as_deref().unwrap_or(&entry.started_at);
+            ListItem::new(Line::from(format!(
+                "{status} {time}  {} files +{} -{}  {prompt}",
+                entry.stats.files_changed, entry.stats.insertions, entry.stats.deletions
+            )))
+        })
+        .collect::<Vec<_>>();
+    let mut state = ListState::default();
+    state.select(Some(app.codex_diff_selected));
+    let title = format!(" codex runs ({}) ", app.codex_diffs.len());
+    let list = List::new(items)
+        .block(focus_block(&title, app.focus == Focus::CodexRuns))
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
@@ -132,24 +151,13 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn draw_changes(frame: &mut Frame, app: &App, area: Rect) {
-    let text = Text::from(
-        app.changes
-            .iter()
-            .map(|line| Line::from(line.clone()))
-            .collect::<Vec<_>>(),
-    );
-    let paragraph = Paragraph::new(text)
-        .block(focus_block(" changes ", app.focus == Focus::Changes))
-        .wrap(Wrap { trim: false })
-        .scroll((app.changes_scroll, 0));
-    frame.render_widget(paragraph, area);
-}
-
 fn draw_file_preview(frame: &mut Frame, app: &App, area: Rect) {
     let title = format!(" preview {} ", app.file_preview.title);
     let text = match app.file_preview.kind {
         PreviewKind::Markdown => render_markdown(&app.file_preview.content),
+        PreviewKind::Diff => {
+            render_diff_patch(&app.file_preview.content, area.width.saturating_sub(2))
+        }
         _ => text_lines(&app.file_preview.content),
     };
     let text = with_preview_display_options(text, app.show_line_numbers, app.text_zoom);

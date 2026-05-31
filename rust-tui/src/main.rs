@@ -19,6 +19,7 @@ mod claude_history;
 mod codex_provider_sync;
 mod codex_runtime;
 mod codex_state;
+mod codex_turn_diff;
 mod detector;
 mod event;
 mod fuzzy;
@@ -116,6 +117,7 @@ fn run_internal_command(args: &[String]) -> Result<(), Box<dyn Error>> {
         Some("browser-remote") => browser_remote::run_args(args.iter().skip(3).cloned()),
         Some("agent-resume") => agent_resume::run_args(args.iter().skip(3).cloned()),
         Some("socket-api") => socket_api::run_args(args.iter().skip(3).cloned()),
+        Some("codex-turn-diff") => codex_turn_diff::run_args(args.iter().skip(3).cloned()),
         Some(other) => Err(format!("unknown internal command: {other}").into()),
         None => Err("missing internal command".into()),
     }

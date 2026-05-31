@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct FileStats {
@@ -39,29 +38,6 @@ pub fn read_text_file(path: &Path) -> String {
         text.push_str("\n\n… truncated preview …");
     }
     text
-}
-
-pub fn read_changed_files(root: &Path) -> Vec<String> {
-    let output = Command::new("git")
-        .args(["-C", &root.to_string_lossy(), "status", "--short"])
-        .output();
-    let Ok(output) = output else {
-        return vec!["Not a git repository".into()];
-    };
-    if !output.status.success() {
-        return vec!["Not a git repository".into()];
-    }
-
-    let lines = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .take(10)
-        .map(|line| line.to_string())
-        .collect::<Vec<_>>();
-    if lines.is_empty() {
-        vec!["Working tree clean".into()]
-    } else {
-        lines
-    }
 }
 
 pub fn read_file_stats(path: &Path) -> FileStats {

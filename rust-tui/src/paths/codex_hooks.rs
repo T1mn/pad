@@ -72,8 +72,8 @@ fn ensure_codex_hooks_json() -> io::Result<()> {
 
     let hooks_map = hooks_obj.as_object_mut().expect("hooks object");
     ensure_codex_hook_entry(hooks_map, "SessionStart", 8);
-    ensure_codex_hook_entry(hooks_map, "UserPromptSubmit", 5);
-    ensure_codex_hook_entry(hooks_map, "Stop", 5);
+    ensure_codex_hook_entry(hooks_map, "UserPromptSubmit", 15);
+    ensure_codex_hook_entry(hooks_map, "Stop", 15);
 
     let formatted = serde_json::to_string_pretty(&root)?;
     if formatted != existing {
@@ -103,18 +103,37 @@ fn ensure_codex_hook_entry(
     }
 
     let arr = entries.as_array_mut().expect("array");
-    let already_present = arr.iter().any(|entry| {
-        entry
-            .get("hooks")
-            .and_then(|v| v.as_array())
-            .map(|hooks| {
-                hooks.iter().any(|hook| {
-                    hook.get("type").and_then(|v| v.as_str()) == Some("command")
-                        && hook.get("command").and_then(|v| v.as_str()) == Some(command.as_str())
+    let mut already_present = false;
+    for entry in arr.iter_mut() {
+        let Some(hooks) = entry.get_mut("hooks").and_then(|v| v.as_array_mut()) else {
+            continue;
+        };
+        for hook in hooks {
+            let is_command = hook.get("type").and_then(|v| v.as_str()) == Some("command")
+                && hook.get("command").and_then(|v| v.as_str()) == Some(command.as_str());
+            if is_command {
+                if let Some(obj) = hook.as_object_mut() {
+                    obj.insert("timeout".into(), serde_json::json!(timeout));
+                }
+                already_present = true;
+            }
+        }
+    }
+
+    let already_present = already_present
+        || arr.iter().any(|entry| {
+            entry
+                .get("hooks")
+                .and_then(|v| v.as_array())
+                .map(|hooks| {
+                    hooks.iter().any(|hook| {
+                        hook.get("type").and_then(|v| v.as_str()) == Some("command")
+                            && hook.get("command").and_then(|v| v.as_str())
+                                == Some(command.as_str())
+                    })
                 })
-            })
-            .unwrap_or(false)
-    });
+                .unwrap_or(false)
+        });
 
     if !already_present {
         arr.push(serde_json::json!({

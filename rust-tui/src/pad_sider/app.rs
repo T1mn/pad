@@ -1,13 +1,12 @@
 use super::fs::{
-    is_markdown_file, read_changed_files, read_file_stats, read_markdown_file, relative_path_label,
-    FileStats,
+    is_markdown_file, read_file_stats, read_markdown_file, relative_path_label, FileStats,
 };
 use super::index_map::{build_index_map, IndexRow};
-use super::layout::LayoutWeights;
 use super::preview::{FilePreview, MarkdownPreview};
 use super::preview_cache::FilePreviewCache;
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
+use crate::codex_turn_diff::TurnDiffEntry;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -19,14 +18,15 @@ const FULL_REFRESH_SECS: u64 = 30;
 pub enum Focus {
     Tree,
     IndexMap,
+    CodexRuns,
     Preview,
-    Changes,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NavMode {
     Tree,
     IndexMap,
+    CodexRuns,
 }
 
 pub struct App {
@@ -37,11 +37,10 @@ pub struct App {
     pub selected: usize,
     pub index_rows: Vec<IndexRow>,
     pub index_selected: usize,
+    pub codex_diffs: Vec<TurnDiffEntry>,
+    pub codex_diff_selected: usize,
     pub focus: Focus,
     pub nav_mode: NavMode,
-    pub layout_weights: LayoutWeights,
-    pub changes: Vec<String>,
-    pub changes_scroll: u16,
     pub selected_stats: FileStats,
     pub selected_label: String,
     pub file_preview: FilePreview,
@@ -70,11 +69,10 @@ impl App {
             selected: 0,
             index_rows: Vec::new(),
             index_selected: 0,
+            codex_diffs: Vec::new(),
+            codex_diff_selected: 0,
             focus: Focus::Tree,
             nav_mode: NavMode::Tree,
-            layout_weights: LayoutWeights::default(),
-            changes: Vec::new(),
-            changes_scroll: 0,
             selected_stats: FileStats::default(),
             selected_label: String::new(),
             file_preview: FilePreview::empty(),
@@ -101,8 +99,11 @@ impl App {
         if self.index_selected >= self.index_rows.len() {
             self.index_selected = self.index_rows.len().saturating_sub(1);
         }
+        self.codex_diffs = crate::codex_turn_diff::list_for_cwd(&self.cwd);
+        if self.codex_diff_selected >= self.codex_diffs.len() {
+            self.codex_diff_selected = self.codex_diffs.len().saturating_sub(1);
+        }
         self.restore_selection(selected_path.as_deref());
-        self.changes = read_changed_files(&self.cwd);
         self.refresh_selected();
         self.refresh_file_preview();
         self.refresh_preview();
@@ -123,23 +124,26 @@ impl App {
     }
 
     fn refresh_dynamic_content(&mut self) -> bool {
-        let previous_changes = self.changes.clone();
         let previous_selected_stats = self.selected_stats.clone();
         let previous_selected_label = self.selected_label.clone();
         let previous_file_preview = self.file_preview.clone();
         let previous_preview = self.preview.clone();
+        let previous_codex_diffs = self.codex_diffs.clone();
 
-        self.changes = read_changed_files(&self.cwd);
+        self.codex_diffs = crate::codex_turn_diff::list_for_cwd(&self.cwd);
+        if self.codex_diff_selected >= self.codex_diffs.len() {
+            self.codex_diff_selected = self.codex_diffs.len().saturating_sub(1);
+        }
         self.refresh_selected();
         self.refresh_file_preview();
         self.refresh_preview();
         self.last_refresh = Instant::now();
 
-        let changed = previous_changes != self.changes
-            || previous_selected_stats != self.selected_stats
+        let changed = previous_selected_stats != self.selected_stats
             || previous_selected_label != self.selected_label
             || previous_file_preview != self.file_preview
-            || previous_preview != self.preview;
+            || previous_preview != self.preview
+            || previous_codex_diffs != self.codex_diffs;
 
         if changed {
             self.mark_dirty();
@@ -217,6 +221,10 @@ impl App {
         let path = match self.nav_mode {
             NavMode::Tree => self.selected_path().cloned(),
             NavMode::IndexMap => self.selected_index_path().cloned(),
+            NavMode::CodexRuns => {
+                self.refresh_codex_diff_preview();
+                return;
+            }
         };
         let previous_title = self.file_preview.title.clone();
         let previous_scroll = self.file_preview.scroll;

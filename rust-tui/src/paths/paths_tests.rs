@@ -52,6 +52,8 @@ fn codex_bridge_template_keeps_required_stdin_and_turn_id_handling() {
     assert!(template.contains("def load_payload():"));
     assert!(template.contains("stderr=subprocess.DEVNULL"));
     assert!(template.contains("payload.get(\"hook_event_name\") or hook_type"));
+    assert!(template.contains("__internal\", \"codex-turn-diff\", \"hook\""));
+    assert!(template.contains("record_codex_turn_diff(message)"));
 }
 
 #[test]

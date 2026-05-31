@@ -27,6 +27,12 @@ impl App {
         self.refresh_file_preview();
     }
 
+    pub fn set_codex_runs_mode(&mut self) {
+        self.nav_mode = NavMode::CodexRuns;
+        self.focus = Focus::CodexRuns;
+        self.refresh_file_preview();
+    }
+
     fn toggle_nav_mode(&mut self) {
         match self.nav_mode {
             NavMode::Tree => {
@@ -34,6 +40,10 @@ impl App {
                 self.focus = Focus::IndexMap;
             }
             NavMode::IndexMap => {
+                self.nav_mode = NavMode::Tree;
+                self.focus = Focus::Tree;
+            }
+            NavMode::CodexRuns => {
                 self.nav_mode = NavMode::Tree;
                 self.focus = Focus::Tree;
             }

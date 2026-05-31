@@ -2,6 +2,7 @@
 pub enum PreviewKind {
     Markdown,
     Text,
+    Diff,
     Directory,
     Missing,
 }
