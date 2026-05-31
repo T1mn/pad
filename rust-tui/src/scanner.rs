@@ -25,7 +25,13 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     let total_panes = stdout.lines().count();
 
     let mut panels = Vec::new();
-    let mut caches = ScanCaches::default();
+    let pane_pids = stdout
+        .lines()
+        .filter_map(|line| line.split('|').nth(5))
+        .filter(|pid| !pid.trim().is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let mut caches = ScanCaches::with_pane_pids(pane_pids);
 
     for line in stdout.lines() {
         let parts: Vec<&str> = line.split('|').collect();
@@ -123,6 +129,13 @@ struct ScanCaches {
 }
 
 impl ScanCaches {
+    fn with_pane_pids(pane_pids: Vec<String>) -> Self {
+        Self {
+            git_info: HashMap::new(),
+            processes: ProcessSnapshot::for_root_pids(pane_pids),
+        }
+    }
+
     fn cached_process_cmd(&mut self, pid: &str) -> Option<String> {
         self.processes.command(pid)
     }
@@ -230,7 +243,7 @@ pub fn strip_ansi(s: &str) -> String {
 
 fn get_git_info(working_dir: &str) -> Option<GitInfo> {
     let output = Command::new("git")
-        .args(["-C", working_dir, "rev-parse", "--git-dir"])
+        .args(["-C", working_dir, "status", "--porcelain=v2", "--branch"])
         .output()
         .ok()?;
 
@@ -238,42 +251,33 @@ fn get_git_info(working_dir: &str) -> Option<GitInfo> {
         return None;
     }
 
-    let branch = Command::new("git")
-        .args(["-C", working_dir, "branch", "--show-current"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        });
+    parse_git_status_porcelain_v2(&String::from_utf8_lossy(&output.stdout))
+}
 
-    let commit = Command::new("git")
-        .args(["-C", working_dir, "rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        });
+fn parse_git_status_porcelain_v2(stdout: &str) -> Option<GitInfo> {
+    let mut branch = None;
+    let mut commit = None;
+    let mut changed_files = 0usize;
 
-    let changed_files = Command::new("git")
-        .args(["-C", working_dir, "status", "--porcelain"])
-        .output()
-        .ok()
-        .map(|o| {
-            if o.status.success() {
-                String::from_utf8_lossy(&o.stdout).lines().count()
-            } else {
-                0
+    for line in stdout.lines() {
+        if let Some(value) = line.strip_prefix("# branch.head ") {
+            if value != "(unknown)" {
+                branch = Some(value.to_string());
             }
-        })
-        .unwrap_or(0);
+            continue;
+        }
+
+        if let Some(value) = line.strip_prefix("# branch.oid ") {
+            if value != "(initial)" {
+                commit = Some(value.to_string());
+            }
+            continue;
+        }
+
+        if !line.trim().is_empty() && !line.starts_with('#') {
+            changed_files += 1;
+        }
+    }
 
     Some(GitInfo {
         branch,
@@ -283,38 +287,4 @@ fn get_git_info(working_dir: &str) -> Option<GitInfo> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{detect_agent_type, ScanCaches};
-    use crate::model::{AgentType, GitInfo};
-
-    #[test]
-    fn detect_agent_type_prefers_tmux_current_command() {
-        let mut caches = ScanCaches::default();
-        let (agent_type, main_process, child_processes) =
-            detect_agent_type("codex", "123", &mut caches);
-
-        assert_eq!(agent_type, AgentType::Codex);
-        assert_eq!(main_process, "codex");
-        assert!(child_processes.is_empty());
-        assert!(!caches.processes.is_loaded());
-    }
-
-    #[test]
-    fn cached_git_info_reuses_existing_result() {
-        let mut caches = ScanCaches::default();
-        caches.git_info.insert(
-            "/tmp/project".to_string(),
-            Some(GitInfo {
-                branch: Some("main".to_string()),
-                commit: Some("abc".to_string()),
-                changed_files: 3,
-            }),
-        );
-
-        let first = caches.cached_git_info("/tmp/project");
-        let second = caches.cached_git_info("/tmp/project");
-
-        assert_eq!(first, second);
-        assert_eq!(caches.git_info.len(), 1);
-    }
-}
+mod tests;

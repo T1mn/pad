@@ -1,15 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::time::Instant;
 
 #[derive(Default)]
 pub(super) struct ProcessSnapshot {
     loaded: bool,
+    root_pids: Vec<String>,
     commands: HashMap<String, String>,
     child_pids: HashMap<String, Vec<String>>,
 }
 
 impl ProcessSnapshot {
+    pub(super) fn for_root_pids(root_pids: Vec<String>) -> Self {
+        Self {
+            root_pids,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn command(&mut self, pid: &str) -> Option<String> {
         self.ensure_loaded();
         if let Some(cmd) = self.commands.get(pid) {
@@ -46,7 +54,12 @@ impl ProcessSnapshot {
         }
         self.loaded = true;
         let started_at = Instant::now();
-        match load_process_snapshot() {
+        let snapshot = if self.root_pids.is_empty() {
+            load_process_snapshot()
+        } else {
+            load_targeted_process_snapshot(&self.root_pids).or_else(load_process_snapshot)
+        };
+        match snapshot {
             Some((commands, child_pids)) => {
                 let process_count = commands.len();
                 self.commands = commands;
@@ -71,6 +84,56 @@ impl ProcessSnapshot {
 
 type ProcessMaps = (HashMap<String, String>, HashMap<String, Vec<String>>);
 
+fn load_targeted_process_snapshot(root_pids: &[String]) -> Option<ProcessMaps> {
+    let mut pids = Vec::with_capacity(root_pids.len());
+    let mut seen = HashSet::with_capacity(root_pids.len());
+    for pid in root_pids {
+        let pid = pid.trim();
+        if !pid.is_empty() && seen.insert(pid.to_string()) {
+            pids.push(pid.to_string());
+        }
+    }
+    if pids.is_empty() {
+        return None;
+    }
+
+    let root_list = pids.join(",");
+    let child_output = Command::new("pgrep")
+        .args(["-P", root_list.as_str()])
+        .output()
+        .ok()?;
+    if child_output.status.success() {
+        let child_pids = String::from_utf8_lossy(&child_output.stdout);
+        for child_pid in child_pids
+            .lines()
+            .map(str::trim)
+            .filter(|pid| !pid.is_empty())
+        {
+            if seen.insert(child_pid.to_string()) {
+                pids.push(child_pid.to_string());
+            }
+        }
+    } else if !String::from_utf8_lossy(&child_output.stderr)
+        .trim()
+        .is_empty()
+    {
+        return None;
+    }
+
+    let pid_list = pids.join(",");
+    let output = Command::new("ps")
+        .args(["-p", pid_list.as_str(), "-o", "pid=,ppid=,args="])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(parse_process_snapshot(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
 fn load_process_snapshot() -> Option<ProcessMaps> {
     let output = Command::new("ps")
         .args(["-axo", "pid=,ppid=,args="])
@@ -94,19 +157,19 @@ fn parse_process_snapshot(stdout: &str) -> ProcessMaps {
         if trimmed.is_empty() {
             continue;
         }
-        let mut parts = trimmed.split_whitespace();
-        let Some(pid) = parts.next() else {
+        let Some((pid, rest)) = split_once_whitespace(trimmed) else {
             continue;
         };
-        let Some(ppid) = parts.next() else {
+        let rest = rest.trim_start();
+        let Some((ppid, args)) = split_once_whitespace(rest) else {
             continue;
         };
-        let args = parts.collect::<Vec<_>>().join(" ");
+        let args = args.trim_start();
         if args.is_empty() {
             continue;
         }
 
-        commands.insert(pid.to_string(), args);
+        commands.insert(pid.to_string(), args.to_string());
         child_pids
             .entry(ppid.to_string())
             .or_default()
@@ -114,6 +177,11 @@ fn parse_process_snapshot(stdout: &str) -> ProcessMaps {
     }
 
     (commands, child_pids)
+}
+
+fn split_once_whitespace(value: &str) -> Option<(&str, &str)> {
+    let split_at = value.find(char::is_whitespace)?;
+    Some((&value[..split_at], &value[split_at..]))
 }
 
 fn get_child_processes<F>(pid: &str, mut process_cmd_lookup: F) -> String

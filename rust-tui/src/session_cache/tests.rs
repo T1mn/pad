@@ -6,7 +6,9 @@ mod cases {
         SessionCacheSnapshot,
     };
     use super::super::persist::merge_recent_turns;
-    use super::super::preload::{apply_snapshot_to_panel, latest_turn_missing_answer};
+    use super::super::preload::{
+        apply_snapshot_to_panel, latest_turn_missing_answer, panel_needs_preload,
+    };
     use super::super::util::now_ts;
     use crate::model::{
         AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn, SessionCacheState,
@@ -284,6 +286,19 @@ mod cases {
         assert_eq!(restored_panel.state, AgentState::Idle);
         assert_eq!(restored_panel.state_source, AgentStateSource::Scanner);
         assert!(!restored_panel.is_active);
+    }
+
+    #[test]
+    fn preload_index_is_needed_only_for_supported_empty_panels() {
+        let mut empty = panel("%1", "dev", "1", "0", "/repo");
+        assert!(panel_needs_preload(&empty));
+
+        empty.agent_session_id = Some("session-1".to_string());
+        assert!(!panel_needs_preload(&empty));
+
+        let mut unsupported = panel("%2", "dev", "1", "1", "/repo");
+        unsupported.agent_type = AgentType::Aider;
+        assert!(!panel_needs_preload(&unsupported));
     }
 
     #[test]

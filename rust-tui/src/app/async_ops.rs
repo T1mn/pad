@@ -118,7 +118,7 @@ impl App {
         self.trigger_async_preview_detail_render(width);
     }
 
-    fn sidebar_panels_changed(&self, next_panels: &[AgentPanel]) -> bool {
+    fn panels_affecting_refresh_changed(&self, next_panels: &[AgentPanel]) -> bool {
         if self.panels.len() != next_panels.len() {
             return true;
         }
@@ -131,14 +131,23 @@ impl App {
             else {
                 return true;
             };
-            if current.working_dir != next.working_dir
+            if current.session != next.session
+                || current.window != next.window
+                || current.window_index != next.window_index
+                || current.pane != next.pane
+                || current.working_dir != next.working_dir
                 || current.agent_type != next.agent_type
                 || current.state != next.state
+                || current.state_source != next.state_source
                 || current.is_active != next.is_active
+                || current.transcript_path != next.transcript_path
+                || current.cached_preview_turns != next.cached_preview_turns
+                || current.session_cache_state != next.session_cache_state
+                || current.git_info != next.git_info
                 || current.pid != next.pid
                 || current.last_user_prompt != next.last_user_prompt
+                || current.last_assistant_message != next.last_assistant_message
                 || current.agent_session_id != next.agent_session_id
-                || current.transcript_path != next.transcript_path
                 || current.has_unread_stop != next.has_unread_stop
             {
                 return true;
@@ -184,13 +193,12 @@ impl App {
             log_debug!("session_cache: preload after scan failed: {}", err);
         }
 
-        let sidebar_changed = self.sidebar_panels_changed(&panels);
+        let refresh_changed = self.panels_affecting_refresh_changed(&panels);
+        let sidebar_cache_empty =
+            !panels.is_empty() && self.sidebar.visible_sidebar_items_cache.is_empty();
         self.panels = panels;
         let startup_sort_seeded = self.seed_startup_thread_sort_activity_once();
-        if startup_sort_seeded
-            || sidebar_changed
-            || (!self.panels.is_empty() && self.sidebar.visible_sidebar_items_cache.is_empty())
-        {
+        if startup_sort_seeded || refresh_changed || sidebar_cache_empty {
             self.invalidate_sidebar_cache();
             self.sync_sidebar_selection();
         }
@@ -198,8 +206,12 @@ impl App {
             self.focus_panel();
         }
         self.last_refresh = Instant::now();
-        self.invalidate_preview();
-        self.dirty = true;
+        if refresh_changed {
+            self.invalidate_preview();
+        }
+        if startup_sort_seeded || refresh_changed || sidebar_cache_empty {
+            self.dirty = true;
+        }
     }
 
     fn apply_preview_update_result(&mut self, update: PreviewUpdate) {

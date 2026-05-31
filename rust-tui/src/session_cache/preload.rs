@@ -6,17 +6,15 @@ use crate::model::{
 };
 
 pub fn preload_panels(panels: &mut [AgentPanel]) -> std::io::Result<()> {
+    if !panels.iter().any(panel_needs_preload) {
+        return Ok(());
+    }
+
     let mut index = load_index();
     let changed = prune_index(&mut index);
 
     for panel in panels.iter_mut() {
-        if !supports_cached_session(panel) {
-            continue;
-        }
-        if panel.agent_session_id.is_some()
-            || panel.transcript_path.is_some()
-            || !panel.cached_preview_turns.is_empty()
-        {
+        if !panel_needs_preload(panel) {
             continue;
         }
 
@@ -30,6 +28,13 @@ pub fn preload_panels(panels: &mut [AgentPanel]) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+pub(super) fn panel_needs_preload(panel: &AgentPanel) -> bool {
+    supports_cached_session(panel)
+        && panel.agent_session_id.is_none()
+        && panel.transcript_path.is_none()
+        && panel.cached_preview_turns.is_empty()
 }
 
 pub(super) fn apply_snapshot_to_panel(panel: &mut AgentPanel, snapshot: &SessionCacheSnapshot) {
