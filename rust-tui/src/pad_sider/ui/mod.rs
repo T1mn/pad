@@ -1,9 +1,12 @@
 mod diff;
+mod file_preview;
 mod input;
 mod line_numbers;
 mod markdown;
+mod nav_window;
 mod overlay;
 mod render;
+mod render_window;
 mod split;
 mod text_zoom;
 
@@ -34,7 +37,7 @@ pub fn run(cwd: PathBuf, target_pane: Option<String>) -> Result<(), String> {
         if app.take_dirty() {
             let started_at = std::time::Instant::now();
             terminal
-                .draw(|frame| render::draw(frame, &app))
+                .draw(|frame| render::draw(frame, &mut app))
                 .map_err(|err| err.to_string())?;
             let elapsed = started_at.elapsed();
             if elapsed >= Duration::from_millis(8) {

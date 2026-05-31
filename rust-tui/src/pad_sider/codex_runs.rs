@@ -10,8 +10,23 @@ impl App {
     pub(crate) fn refresh_codex_diff_preview(&mut self) {
         let previous_title = self.file_preview.title.clone();
         let previous_scroll = self.file_preview.scroll;
-        let preview = self
-            .selected_codex_diff()
+        let selected = self.selected_codex_diff().cloned();
+        if let Some(entry) = selected.as_ref() {
+            if entry.status == TurnDiffStatus::Completed {
+                let key = codex_diff_preview_key(entry);
+                if self.codex_diff_preview_key.as_deref() == Some(key.as_str()) {
+                    return;
+                }
+                self.codex_diff_preview_key = Some(key);
+            } else {
+                self.codex_diff_preview_key = None;
+            }
+        } else {
+            self.codex_diff_preview_key = None;
+        }
+
+        let preview = selected
+            .as_ref()
             .map(codex_diff_preview)
             .unwrap_or_else(|| {
                 FilePreview::new(
@@ -24,8 +39,27 @@ impl App {
         if preview.title == previous_title {
             preview.scroll = previous_scroll;
         }
-        self.file_preview = preview;
+        self.set_file_preview(preview);
     }
+}
+
+fn codex_diff_preview_key(entry: &TurnDiffEntry) -> String {
+    format!(
+        "{}|{:?}|{}|{}|{}|{}|{}|{}|{}",
+        entry.id,
+        entry.status,
+        entry.started_at,
+        entry.ended_at.as_deref().unwrap_or("-"),
+        entry.prompt.as_deref().unwrap_or(""),
+        entry.stats.files_changed,
+        entry.stats.insertions,
+        entry.stats.deletions,
+        entry
+            .patch_path
+            .as_ref()
+            .map(|path| path.to_string_lossy())
+            .unwrap_or_default()
+    )
 }
 
 fn codex_diff_preview(entry: &TurnDiffEntry) -> FilePreview {

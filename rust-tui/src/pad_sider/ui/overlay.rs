@@ -1,6 +1,6 @@
 use super::super::{app::App, preview::MarkdownPreview, search::FileSearch};
+use super::file_preview::with_preview_display_options;
 use super::markdown::render_markdown;
-use super::render::with_preview_display_options;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},

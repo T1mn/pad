@@ -2,7 +2,7 @@ use super::fs::{
     is_markdown_file, read_file_stats, read_markdown_file, relative_path_label, FileStats,
 };
 use super::index_map::{build_index_map, IndexRow};
-use super::preview::{FilePreview, MarkdownPreview};
+use super::preview::{FilePreview, MarkdownPreview, RenderedFilePreview};
 use super::preview_cache::FilePreviewCache;
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
@@ -39,11 +39,14 @@ pub struct App {
     pub index_selected: usize,
     pub codex_diffs: Vec<TurnDiffEntry>,
     pub codex_diff_selected: usize,
+    pub codex_diff_preview_key: Option<String>,
     pub focus: Focus,
     pub nav_mode: NavMode,
     pub selected_stats: FileStats,
     pub selected_label: String,
     pub file_preview: FilePreview,
+    pub file_preview_revision: u64,
+    pub rendered_file_preview: Option<RenderedFilePreview>,
     pub file_preview_cache: FilePreviewCache,
     pub preview: Option<MarkdownPreview>,
     pub search: Option<FileSearch>,
@@ -71,11 +74,14 @@ impl App {
             index_selected: 0,
             codex_diffs: Vec::new(),
             codex_diff_selected: 0,
+            codex_diff_preview_key: None,
             focus: Focus::Tree,
             nav_mode: NavMode::Tree,
             selected_stats: FileStats::default(),
             selected_label: String::new(),
             file_preview: FilePreview::empty(),
+            file_preview_revision: 0,
+            rendered_file_preview: None,
             file_preview_cache: FilePreviewCache::default(),
             preview: None,
             search: None,
@@ -126,7 +132,7 @@ impl App {
     fn refresh_dynamic_content(&mut self) -> bool {
         let previous_selected_stats = self.selected_stats.clone();
         let previous_selected_label = self.selected_label.clone();
-        let previous_file_preview = self.file_preview.clone();
+        let previous_file_preview_revision = self.file_preview_revision;
         let previous_preview = self.preview.clone();
         let previous_codex_diffs = self.codex_diffs.clone();
 
@@ -141,7 +147,7 @@ impl App {
 
         let changed = previous_selected_stats != self.selected_stats
             || previous_selected_label != self.selected_label
-            || previous_file_preview != self.file_preview
+            || previous_file_preview_revision != self.file_preview_revision
             || previous_preview != self.preview
             || previous_codex_diffs != self.codex_diffs;
 
@@ -226,6 +232,7 @@ impl App {
                 return;
             }
         };
+        self.codex_diff_preview_key = None;
         let previous_title = self.file_preview.title.clone();
         let previous_scroll = self.file_preview.scroll;
         let mut preview = path
@@ -235,7 +242,7 @@ impl App {
         if preview.title == previous_title {
             preview.scroll = previous_scroll;
         }
-        self.file_preview = preview;
+        self.set_file_preview(preview);
     }
 
     pub(crate) fn refresh_preview(&mut self) {

@@ -6,6 +6,7 @@ mod fs;
 mod index_map;
 mod preview;
 mod preview_cache;
+mod preview_render_cache;
 mod search;
 mod sizing;
 mod tmux;

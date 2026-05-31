@@ -22,6 +22,15 @@ pub struct FilePreview {
     pub scroll: u16,
 }
 
+#[derive(Clone)]
+pub struct RenderedFilePreview {
+    pub revision: u64,
+    pub width: u16,
+    pub show_line_numbers: bool,
+    pub text_zoom: i8,
+    pub lines: Vec<ratatui::text::Line<'static>>,
+}
+
 impl FilePreview {
     pub fn empty() -> Self {
         Self::new(

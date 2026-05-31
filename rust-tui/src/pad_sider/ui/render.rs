@@ -1,20 +1,17 @@
 use super::super::app::{App, Focus, NavMode};
-use super::super::preview::PreviewKind;
-use super::diff::render_diff_patch;
-use super::line_numbers::{add_line_numbers, text_lines};
-use super::markdown::render_markdown;
+use super::file_preview;
+use super::nav_window::{list_viewport_height, relative_selection, selected_window};
 use super::overlay;
 use super::split;
-use super::text_zoom::apply_text_zoom;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
-    text::{Line, Text},
+    text::Line,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
 
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
     if let Some(preview) = app.preview.as_ref() {
         overlay::draw_preview(frame, app, preview);
         return;
@@ -28,7 +25,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     draw_header(frame, app, left[0]);
     draw_nav(frame, app, left[1]);
-    draw_file_preview(frame, app, preview_area);
+    file_preview::draw_file_preview(frame, app, preview_area);
 
     if let Some(search) = app.search.as_ref() {
         overlay::draw_search(frame, search);
@@ -77,8 +74,17 @@ fn draw_nav(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
+    let title = format!(" codex runs ({}) ", app.codex_diffs.len());
+    let block = focus_block(&title, app.focus == Focus::CodexRuns);
+    let range = selected_window(
+        app.codex_diffs.len(),
+        app.codex_diff_selected,
+        list_viewport_height(area.height),
+    );
     let items = app
         .codex_diffs
+        .get(range.clone())
+        .unwrap_or_default()
         .iter()
         .map(|entry| {
             let status = match entry.status {
@@ -94,17 +100,25 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(Some(app.codex_diff_selected));
-    let title = format!(" codex runs ({}) ", app.codex_diffs.len());
+    state.select(relative_selection(app.codex_diff_selected, &range));
     let list = List::new(items)
-        .block(focus_block(&title, app.focus == Focus::CodexRuns))
+        .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
     frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
+    let title = format!(" index map ({}) ", app.index_rows.len());
+    let block = focus_block(&title, app.focus == Focus::IndexMap);
+    let range = selected_window(
+        app.index_rows.len(),
+        app.index_selected,
+        list_viewport_height(area.height),
+    );
     let items = app
         .index_rows
+        .get(range.clone())
+        .unwrap_or_default()
         .iter()
         .map(|row| {
             let indent = "  ".repeat(row.depth);
@@ -117,17 +131,24 @@ fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(Some(app.index_selected));
-    let title = format!(" index map ({}) ", app.index_rows.len());
+    state.select(relative_selection(app.index_selected, &range));
     let list = List::new(items)
-        .block(focus_block(&title, app.focus == Focus::IndexMap))
+        .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
     frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
+    let block = focus_block(" tree ", app.focus == Focus::Tree);
+    let range = selected_window(
+        app.tree.len(),
+        app.selected,
+        list_viewport_height(area.height),
+    );
     let items = app
         .tree
+        .get(range.clone())
+        .unwrap_or_default()
         .iter()
         .map(|row| {
             let indent = "  ".repeat(row.depth);
@@ -144,44 +165,14 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(Some(app.selected));
+    state.select(relative_selection(app.selected, &range));
     let list = List::new(items)
-        .block(focus_block(" tree ", app.focus == Focus::Tree))
+        .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn draw_file_preview(frame: &mut Frame, app: &App, area: Rect) {
-    let title = format!(" preview {} ", app.file_preview.title);
-    let text = match app.file_preview.kind {
-        PreviewKind::Markdown => render_markdown(&app.file_preview.content),
-        PreviewKind::Diff => {
-            render_diff_patch(&app.file_preview.content, area.width.saturating_sub(2))
-        }
-        _ => text_lines(&app.file_preview.content),
-    };
-    let text = with_preview_display_options(text, app.show_line_numbers, app.text_zoom);
-    let paragraph = Paragraph::new(text)
-        .block(focus_block(&title, app.focus == Focus::Preview))
-        .wrap(Wrap { trim: false })
-        .scroll((app.file_preview.scroll, 0));
-    frame.render_widget(paragraph, area);
-}
-
-pub(super) fn with_preview_display_options(
-    text: Text<'static>,
-    show_line_numbers: bool,
-    text_zoom: i8,
-) -> Text<'static> {
-    let text = if show_line_numbers {
-        add_line_numbers(text)
-    } else {
-        text
-    };
-    apply_text_zoom(text, text_zoom)
-}
-
-fn focus_block(title: &str, focused: bool) -> Block<'static> {
+pub(super) fn focus_block(title: &str, focused: bool) -> Block<'static> {
     let mut block = Block::default()
         .title(title.to_string())
         .borders(Borders::ALL);

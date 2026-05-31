@@ -2,7 +2,9 @@
 
 - `mod.rs`：pad sider TUI 主循环，启用键盘与鼠标事件。
 - `input.rs`：快捷键、鼠标滚动与当前焦点动作分发。
-- `render.rs`：左右分栏渲染；左侧 tree/index map/Codex runs，右侧文件或 diff 预览。
+- `render.rs`：左右分栏渲染；左侧 tree/index map/Codex runs，右侧交给文件预览模块。
+- `nav_window.rs`：左侧 tree/index/Codex runs 只构建可见行，避免大目录每帧全量 ListItem。
+- `file_preview.rs` / `render_window.rs`：右侧文件/diff 预览渲染缓存与可见行窗口。
 - `diff.rs` / `diff/`：Codex 单轮 patch 的结构化 diff 解析与 side-by-side / unified 配色渲染。
 - `split.rs`：固定左侧可读宽度，把额外宽度优先留给 preview。
 - `overlay.rs`：全屏 Markdown 预览、搜索弹层与快捷键帮助。
