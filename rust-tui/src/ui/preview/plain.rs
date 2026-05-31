@@ -1,3 +1,5 @@
+mod window;
+
 use super::common::display_width;
 use super::markdown::format_line;
 use crate::app::{App, PreviewPlainCache};
@@ -10,6 +12,7 @@ use ratatui::{
     Frame,
 };
 use std::time::{Duration, Instant};
+use window::{line_wrapped_rows, visible_plain_line_window};
 
 pub(crate) fn draw_plain_preview(
     f: &mut Frame,
@@ -23,17 +26,25 @@ pub(crate) fn draw_plain_preview(
     ensure_plain_preview_cache(app, viewport.width);
 
     let scroll = resolve_preview_scroll_from_cache(app, viewport);
-    let lines = app
+    let (lines, local_scroll) = app
         .preview
         .plain_cache
         .as_ref()
-        .map(|cache| cache.lines.clone())
+        .map(|cache| {
+            let (range, local_scroll) = visible_plain_line_window(
+                &cache.lines,
+                viewport.width as usize,
+                scroll,
+                viewport.height as usize,
+            );
+            (cache.lines[range].to_vec(), local_scroll)
+        })
         .unwrap_or_default();
 
     let mut paragraph = Paragraph::new(Text::from(lines))
         .style(Style::default().fg(theme.fg))
         .wrap(Wrap { trim: false })
-        .scroll((scroll, 0));
+        .scroll((local_scroll, 0));
     if with_block {
         paragraph = paragraph.block(block.clone());
     }
@@ -149,17 +160,7 @@ pub(crate) fn wrapped_row_count_for_lines(lines: &[Line<'_>], viewport_width: us
 
     let mut total = 0usize;
     for line in lines {
-        let width = line
-            .spans
-            .iter()
-            .map(|span| display_width(span.content.as_ref()))
-            .sum::<usize>();
-        let rows = if width == 0 {
-            1
-        } else {
-            width.div_ceil(viewport_width)
-        };
-        total += rows.max(1);
+        total += line_wrapped_rows(line, viewport_width);
     }
 
     if total == 0 {

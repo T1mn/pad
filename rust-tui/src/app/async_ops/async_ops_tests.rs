@@ -7,7 +7,7 @@ fn panel_with_state(state: AgentState, source: AgentStateSource) -> AgentPanel {
         window_index: "1".into(),
         pane: "1".into(),
         pane_id: "%1".into(),
-        agent_type: crate::model::AgentType::Codex,
+        agent_type: crate::model::AgentType::Aider,
         working_dir: "/tmp/demo".into(),
         is_active: matches!(state, AgentState::Busy),
         state,

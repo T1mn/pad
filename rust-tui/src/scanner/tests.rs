@@ -1,5 +1,8 @@
 use super::{
-    capture_pane_content, detect_agent_type, parse_git_status_porcelain_v2, scan_panels, ScanCaches,
+    capture_pane_content, capture_panes_content, detect_agent_type, get_git_info_for_paths,
+    parse_git_status_porcelain_v2, scan_panels,
+    tmux_panes::{parse_pane_line, LIST_PANES_FORMAT},
+    ScanCaches,
 };
 use crate::model::{AgentState, AgentType, GitInfo};
 use std::process::Command;
@@ -92,14 +95,9 @@ struct ScanBreakdown {
 fn measure_scan_breakdown() -> ScanBreakdown {
     let list_started_at = Instant::now();
     let output = Command::new("tmux")
-            .args([
-                "list-panes",
-                "-a",
-                "-F",
-                "#{session_name}|#{window_name}|#{window_index}|#{pane_index}|#{pane_id}|#{pane_pid}|#{pane_current_command}|#{pane_current_path}",
-            ])
-            .output()
-            .expect("tmux list-panes should run");
+        .args(["list-panes", "-a", "-F", LIST_PANES_FORMAT])
+        .output()
+        .expect("tmux list-panes should run");
     let list_ms = list_started_at.elapsed().as_secs_f64() * 1000.0;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -115,37 +113,51 @@ fn measure_scan_breakdown() -> ScanBreakdown {
         list_ms,
         ..ScanBreakdown::default()
     };
+    let mut agent_panes = Vec::new();
+    let mut agent_dirs = Vec::new();
 
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.split('|').collect();
-        if parts.len() < 8 {
+        let Some(pane_line) = parse_pane_line(line) else {
             continue;
-        }
-        let pane_id = parts[4];
-        let pane_pid = parts[5];
-        let current_cmd = parts[6];
-        let working_dir = parts[7];
+        };
 
         let started_at = Instant::now();
-        let (agent_type, _, _) = detect_agent_type(current_cmd, pane_pid, &mut caches);
+        let (agent_type, _, _) =
+            detect_agent_type(pane_line.current_cmd, pane_line.pane_pid, &mut caches);
         out.detect_ms += started_at.elapsed().as_secs_f64() * 1000.0;
         if matches!(agent_type, AgentType::Unknown) {
             continue;
         }
 
         out.agents += 1;
-        let started_at = Instant::now();
-        let _state = if let Ok(content) = capture_pane_content(pane_id, 20) {
-            crate::detector::detect_state(&content)
-        } else {
-            AgentState::Idle
-        };
-        out.capture_ms += started_at.elapsed().as_secs_f64() * 1000.0;
-
-        let started_at = Instant::now();
-        let _git = caches.cached_git_info(working_dir);
-        out.git_ms += started_at.elapsed().as_secs_f64() * 1000.0;
+        agent_panes.push(pane_line.pane_id.to_string());
+        agent_dirs.push(pane_line.working_dir.to_string());
     }
+
+    let started_at = Instant::now();
+    let captures = capture_panes_content(&agent_panes, 20).unwrap_or_default();
+    for pane_id in &agent_panes {
+        let _state = captures
+            .get(pane_id)
+            .map(|content| crate::detector::detect_state(content))
+            .or_else(|| {
+                capture_pane_content(pane_id, 20)
+                    .ok()
+                    .map(|content| crate::detector::detect_state(&content))
+            })
+            .unwrap_or(AgentState::Idle);
+    }
+    out.capture_ms = started_at.elapsed().as_secs_f64() * 1000.0;
+
+    let started_at = Instant::now();
+    let git_infos = get_git_info_for_paths(&agent_dirs);
+    for working_dir in agent_dirs {
+        let _git = git_infos
+            .get(&working_dir)
+            .cloned()
+            .unwrap_or_else(|| caches.cached_git_info(&working_dir));
+    }
+    out.git_ms = started_at.elapsed().as_secs_f64() * 1000.0;
 
     out
 }
