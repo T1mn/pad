@@ -49,6 +49,7 @@ pub(super) fn finalize_turns(turns: VecDeque<PreviewTurn>) -> Vec<PreviewTurn> {
     turns.into_iter().rev().collect()
 }
 
+#[cfg(test)]
 pub(super) fn format_session_turns(turns: &[PreviewTurn]) -> String {
     turns
         .iter()

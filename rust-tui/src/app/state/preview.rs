@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreviewDetailRenderRequest {
     pub target_key: String,
+    pub turns: SharedPreviewTurns,
     pub turn_index: usize,
     pub width: u16,
     pub theme_name: String,
@@ -18,6 +19,7 @@ pub struct PreviewDetailRenderRequest {
 #[derive(Clone)]
 pub struct PreviewDetailCache {
     pub target_key: String,
+    pub turns: SharedPreviewTurns,
     pub turn_index: usize,
     pub width: u16,
     pub theme_name: String,
@@ -38,8 +40,6 @@ pub struct PreviewPlainCache {
 
 #[derive(Clone)]
 pub struct PreviewSessionListItemCache {
-    pub question: String,
-    pub answer: Option<String>,
     pub normal_lines: Vec<ratatui::text::Line<'static>>,
     pub selected_lines: Vec<ratatui::text::Line<'static>>,
 }
@@ -49,6 +49,7 @@ pub struct PreviewSessionListCache {
     pub target_key: String,
     pub width: u16,
     pub theme_name: String,
+    pub turns: SharedPreviewTurns,
     pub items: Vec<PreviewSessionListItemCache>,
 }
 

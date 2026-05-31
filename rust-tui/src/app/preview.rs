@@ -1,7 +1,6 @@
-use super::{
-    App, PreviewDetailCache, PreviewDetailRenderRequest, PreviewMouseSelection,
-    THREAD_PREVIEW_CACHE_MAX_ENTRIES,
-};
+mod detail_cache;
+
+use super::{App, PreviewMouseSelection, THREAD_PREVIEW_CACHE_MAX_ENTRIES};
 use crate::model::{AgentState, PreviewSource, PreviewView, SharedPreviewTurns};
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -15,70 +14,6 @@ impl App {
         self.preview.detail_pending_request = None;
         self.preview.plain_cache = None;
         self.preview.session_list_cache = None;
-    }
-
-    pub fn current_preview_detail_request(&self) -> Option<PreviewDetailRenderRequest> {
-        let selected = self.preview.expanded_turn?;
-        let turn = self.preview.turns.get(selected)?;
-        Some(PreviewDetailRenderRequest {
-            target_key: self.preview.pane_id.clone().unwrap_or_default(),
-            turn_index: selected,
-            width: 0,
-            theme_name: self.theme.name.to_string(),
-            question: turn.question.clone(),
-            answer: turn.answer.clone(),
-        })
-    }
-
-    pub fn cached_preview_detail_for(
-        &mut self,
-        target_key: &str,
-        turn_index: usize,
-        width: u16,
-        theme_name: &str,
-        question: &str,
-        answer: &Option<String>,
-    ) -> Option<PreviewDetailCache> {
-        if let Some(cache) = self.preview.detail_cache.as_ref().filter(|cache| {
-            cache.target_key == target_key
-                && cache.turn_index == turn_index
-                && cache.width == width
-                && cache.theme_name == theme_name
-                && cache.question == question
-                && cache.answer == *answer
-        }) {
-            return Some(cache.clone());
-        }
-
-        if let Some(idx) = self.preview.detail_lru.iter().position(|cache| {
-            cache.target_key == target_key
-                && cache.turn_index == turn_index
-                && cache.width == width
-                && cache.theme_name == theme_name
-                && cache.question == question
-                && cache.answer == *answer
-        }) {
-            let cache = self.preview.detail_lru.remove(idx);
-            self.preview.detail_lru.insert(0, cache.clone());
-            self.preview.detail_cache = Some(cache.clone());
-            return Some(cache);
-        }
-
-        None
-    }
-
-    pub fn store_preview_detail_cache(&mut self, cache: PreviewDetailCache) {
-        self.preview.detail_lru.retain(|existing| {
-            !(existing.target_key == cache.target_key
-                && existing.turn_index == cache.turn_index
-                && existing.width == cache.width
-                && existing.theme_name == cache.theme_name
-                && existing.question == cache.question
-                && existing.answer == cache.answer)
-        });
-        self.preview.detail_lru.insert(0, cache.clone());
-        self.preview.detail_lru.truncate(6);
-        self.preview.detail_cache = Some(cache);
     }
 
     pub fn debounce_preview_after_navigation(&mut self) {

@@ -1,8 +1,13 @@
+mod process_snapshot;
+
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, GitInfo};
+use process_snapshot::ProcessSnapshot;
 use std::collections::HashMap;
 use std::process::Command;
+use std::time::Instant;
 
 pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
+    let scan_started_at = Instant::now();
     let output = Command::new("tmux")
         .args([
             "list-panes",
@@ -18,7 +23,6 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let total_panes = stdout.lines().count();
-    log_debug!("scanner: list-panes 返回 {} 行", total_panes);
 
     let mut panels = Vec::new();
     let mut caches = ScanCaches::default();
@@ -41,15 +45,6 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         let (agent_type, main_process, child_processes) =
             detect_agent_type(current_cmd, &pane_pid, &mut caches);
 
-        log_debug!(
-            "scanner: pane={} session={} main=[{}] children=[{}] -> agent={:?}",
-            pane_id,
-            session,
-            main_process,
-            child_processes,
-            agent_type
-        );
-
         if matches!(agent_type, AgentType::Unknown) {
             continue;
         }
@@ -64,11 +59,14 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         let git_info = caches.cached_git_info(&working_dir);
 
         log_debug!(
-            "scanner: 检测到智能体面板 pane={} agent={:?} state={:?} dir={}",
+            "scanner: agent pane={} session={} agent={:?} state={:?} dir={} main=[{}] children=[{}]",
             pane_id,
+            session,
             agent_type,
             state,
-            working_dir
+            working_dir,
+            main_process,
+            child_processes
         );
 
         panels.push(AgentPanel {
@@ -95,7 +93,13 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
         });
     }
 
-    log_debug!("scanner: 共检测到 {} 个智能体面板", panels.len());
+    let elapsed = scan_started_at.elapsed();
+    log_debug!(
+        "scanner: completed panes={} agents={} elapsed_ms={}",
+        total_panes,
+        panels.len(),
+        elapsed.as_millis()
+    );
 
     // Sort: Waiting > Busy > Idle
     panels.sort_by(|a, b| {
@@ -115,30 +119,16 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
 #[derive(Default)]
 struct ScanCaches {
     git_info: HashMap<String, Option<GitInfo>>,
-    process_cmds: HashMap<String, String>,
-    child_processes: HashMap<String, String>,
+    processes: ProcessSnapshot,
 }
 
 impl ScanCaches {
     fn cached_process_cmd(&mut self, pid: &str) -> Option<String> {
-        if let Some(cmd) = self.process_cmds.get(pid) {
-            return Some(cmd.clone());
-        }
-
-        let cmd = get_process_cmd(pid).ok()?;
-        self.process_cmds.insert(pid.to_string(), cmd.clone());
-        Some(cmd)
+        self.processes.command(pid)
     }
 
     fn cached_child_processes(&mut self, pid: &str) -> String {
-        if let Some(processes) = self.child_processes.get(pid) {
-            return processes.clone();
-        }
-
-        let processes = get_child_processes(pid, |child_pid| self.cached_process_cmd(child_pid));
-        self.child_processes
-            .insert(pid.to_string(), processes.clone());
-        processes
+        self.processes.child_processes(pid)
     }
 
     fn cached_git_info(&mut self, working_dir: &str) -> Option<GitInfo> {
@@ -172,48 +162,6 @@ fn detect_agent_type(
     let child_processes = caches.cached_child_processes(pane_pid);
     agent_type = AgentType::from_processes(&child_processes);
     (agent_type, main_process, child_processes)
-}
-
-fn get_child_processes<F>(pid: &str, mut process_cmd_lookup: F) -> String
-where
-    F: FnMut(&str) -> Option<String>,
-{
-    let output = Command::new("pgrep").args(["-P", pid]).output().ok();
-
-    if let Some(output) = output {
-        if output.status.success() {
-            let child_pids = String::from_utf8_lossy(&output.stdout);
-            let mut processes = Vec::new();
-
-            for child_pid in child_pids.lines() {
-                let child_pid = child_pid.trim();
-                if child_pid.is_empty() {
-                    continue;
-                }
-                if let Some(cmd) = process_cmd_lookup(child_pid) {
-                    log_debug!("scanner: child pid={} cmd={}", child_pid, cmd);
-                    processes.push(cmd);
-                }
-            }
-
-            return processes.join(" ");
-        }
-    }
-
-    String::new()
-}
-
-fn get_process_cmd(pid: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    // Use 'args=' instead of 'comm=' to get full command path (avoids macOS 15-char truncation)
-    let output = Command::new("ps")
-        .args(["-p", pid, "-o", "args="])
-        .output()?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        Err("Failed to get process cmd".into())
-    }
 }
 
 fn capture_pane_content(
@@ -348,8 +296,7 @@ mod tests {
         assert_eq!(agent_type, AgentType::Codex);
         assert_eq!(main_process, "codex");
         assert!(child_processes.is_empty());
-        assert!(caches.process_cmds.is_empty());
-        assert!(caches.child_processes.is_empty());
+        assert!(!caches.processes.is_loaded());
     }
 
     #[test]

@@ -53,11 +53,38 @@ fn draw_session_list(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
 }
 
 fn draw_session_detail(f: &mut Frame, app: &mut App, area: Rect, theme: &Theme, selected: usize) {
+    let target_key = app.preview.pane_id.clone().unwrap_or_default();
+    let theme_name = theme.name.to_string();
+    if app.ensure_preview_detail_cache_for_current_turns(
+        &target_key,
+        selected,
+        area.width,
+        &theme_name,
+    ) {
+        let total_lines = app
+            .current_preview_detail_cache_for_current_turns(
+                &target_key,
+                selected,
+                area.width,
+                &theme_name,
+            )
+            .map(|cache| cache.lines.len())
+            .unwrap_or_default();
+        let scroll = resolve_preview_scroll_for_line_count(app, total_lines, area.height);
+        if let Some(cache) = app.current_preview_detail_cache_for_current_turns(
+            &target_key,
+            selected,
+            area.width,
+            &theme_name,
+        ) {
+            render_detail_viewport(f, area, &cache.lines, scroll, detail_surface(theme));
+            return;
+        }
+    }
+
     let Some(turn) = app.preview.turns.get(selected).cloned() else {
         return;
     };
-    let target_key = app.preview.pane_id.clone().unwrap_or_default();
-    let theme_name = theme.name.to_string();
     let cache = app.cached_preview_detail_for(
         &target_key,
         selected,
@@ -302,6 +329,7 @@ fn take_prefix_by_width(text: &str, max_width: usize) -> (&str, &str) {
     (prefix, rest)
 }
 
+#[cfg(test)]
 pub(crate) fn build_session_list_lines(
     turns: &[crate::model::PreviewTurn],
     selected_turn: Option<usize>,

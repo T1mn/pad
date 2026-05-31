@@ -59,6 +59,7 @@ impl App {
             }
             let _ = tx.blocking_send(crate::app::PreviewDetailCache {
                 target_key: request.target_key,
+                turns: request.turns,
                 turn_index: request.turn_index,
                 width: request.width,
                 theme_name: request.theme_name,

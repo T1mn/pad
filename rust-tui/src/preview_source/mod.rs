@@ -116,7 +116,9 @@ pub fn load_preview(request: &PreviewRequest, mode: &str, locale: Locale) -> Pre
         ),
         PreviewSource::Session => match load_session_preview(request, locale) {
             Ok(data) => (
-                turns::format_session_turns(&data.turns),
+                // Session UI renders from structured turns. Avoid building and
+                // storing a second full transcript string on every preview tick.
+                String::new(),
                 PreviewSource::Session,
                 Some(data.session_origin),
                 data.session_id,
@@ -526,6 +528,34 @@ mod tests {
         assert_eq!(preview.turns[0].question, "hello");
         assert_eq!(preview.turns[0].answer.as_deref(), Some("world"));
         assert_eq!(preview.updated_at, Some(42));
+    }
+
+    #[test]
+    fn session_preview_update_keeps_content_empty_for_memory() {
+        let request = PreviewRequest {
+            target_key: "codex:test".into(),
+            live_pane_id: None,
+            agent_type: AgentType::Codex,
+            working_dir: "/tmp/demo".into(),
+            state: AgentState::Idle,
+            transcript_path: None,
+            cached_preview_turns: vec![PreviewTurn {
+                question: "hello".into(),
+                answer: Some("world".into()),
+            }]
+            .into(),
+            session_cache_state: Some(SessionCacheState::Confirmed),
+            agent_session_id: Some("session-1".into()),
+            session_origin: Some(PreviewSessionOrigin::App),
+            persist_resolved_session: false,
+            known_updated_at: Some(42),
+        };
+
+        let update = load_preview(&request, "session", Locale::ZhCN);
+
+        assert_eq!(update.source, PreviewSource::Session);
+        assert_eq!(update.turns.len(), 1);
+        assert!(update.content.is_empty());
     }
 
     #[test]

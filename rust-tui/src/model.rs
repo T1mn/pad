@@ -119,7 +119,7 @@ pub struct PreviewTurn {
     pub answer: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SharedPreviewTurns(Arc<[PreviewTurn]>);
 
 impl SharedPreviewTurns {
@@ -157,6 +157,14 @@ impl AsRef<[PreviewTurn]> for SharedPreviewTurns {
         self.0.as_ref()
     }
 }
+
+impl PartialEq for SharedPreviewTurns {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0.as_ref() == other.0.as_ref()
+    }
+}
+
+impl Eq for SharedPreviewTurns {}
 
 impl AgentState {
     pub fn icon(&self, animation_frame: usize) -> &'static str {
@@ -328,5 +336,16 @@ mod tests {
         assert!(turns.shares_allocation_with(&cloned));
         assert_eq!(cloned[0].question, "hello");
         assert_eq!(cloned[0].answer.as_deref(), Some("world"));
+    }
+
+    #[test]
+    fn shared_preview_turns_equality_uses_same_allocation() {
+        let turns = SharedPreviewTurns::from(vec![PreviewTurn {
+            question: "hello".into(),
+            answer: Some("world".into()),
+        }]);
+        let cloned = turns.clone();
+
+        assert_eq!(turns, cloned);
     }
 }

@@ -1,7 +1,10 @@
 use super::common::{display_width, truncate_to_width};
 use super::session::{
-    build_session_list_lines, fixed_label, preview_agent_badge_colors, preview_badge,
-    resolve_preview_scroll_for_line_count, resolve_session_list_scroll, visible_detail_window,
+    fixed_label, preview_agent_badge_colors, preview_badge, resolve_preview_scroll_for_line_count,
+    resolve_session_list_scroll, session_list_total_lines, visible_detail_window,
+};
+use super::session_list_cache::{
+    ensure_session_list_cache, selected_session_list_range, visible_session_list_lines,
 };
 use crate::app::App;
 use crate::model::AgentType;
@@ -296,19 +299,15 @@ fn preview_plain_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
 
 fn preview_session_list_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
     let width = area.width.max(8) as usize;
-    let (lines, selected_range) = build_session_list_lines(
-        &app.preview.turns,
-        app.preview.selected_turn,
-        width,
-        &app.theme,
-    );
+    let theme = app.theme.clone();
+    ensure_session_list_cache(app, width as u16, &theme);
 
-    let scroll =
-        resolve_session_list_scroll(app, selected_range, area.height, lines.len()) as usize;
-    lines
+    let total_lines = session_list_total_lines(app.preview.turns.len());
+    let selected_range =
+        selected_session_list_range(app.preview.selected_turn, app.preview.turns.len());
+    let scroll = resolve_session_list_scroll(app, selected_range, area.height, total_lines);
+    visible_session_list_lines(app, width, &theme, scroll, area.height)
         .into_iter()
-        .skip(scroll)
-        .take(area.height as usize)
         .map(|line| line_to_plain_string(&line))
         .collect()
 }
@@ -317,12 +316,45 @@ fn preview_detail_visible_rows(app: &mut App, area: Rect) -> Vec<String> {
     let Some(selected) = app.preview.expanded_turn else {
         return Vec::new();
     };
-    let Some(turn) = app.preview.turns.get(selected).cloned() else {
-        return Vec::new();
-    };
 
     let target_key = app.preview.pane_id.clone().unwrap_or_default();
     let theme_name = app.theme.name.to_string();
+    if app.ensure_preview_detail_cache_for_current_turns(
+        &target_key,
+        selected,
+        area.width,
+        &theme_name,
+    ) {
+        let total_lines = app
+            .current_preview_detail_cache_for_current_turns(
+                &target_key,
+                selected,
+                area.width,
+                &theme_name,
+            )
+            .map(|cache| cache.lines.len())
+            .unwrap_or_default();
+        let scroll = resolve_preview_scroll_for_line_count(app, total_lines, area.height) as usize;
+        let window = visible_detail_window(total_lines, scroll as u16, area.height);
+        return app
+            .current_preview_detail_cache_for_current_turns(
+                &target_key,
+                selected,
+                area.width,
+                &theme_name,
+            )
+            .map(|cache| {
+                cache.lines[window]
+                    .iter()
+                    .map(line_to_plain_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+    }
+
+    let Some(turn) = app.preview.turns.get(selected).cloned() else {
+        return Vec::new();
+    };
     let lines = app
         .cached_preview_detail_for(
             &target_key,

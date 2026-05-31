@@ -13,53 +13,41 @@ pub(crate) fn ensure_session_list_cache(app: &mut App, width: u16, theme: &Theme
         .preview
         .session_list_cache
         .as_ref()
-        .is_some_and(|cache| {
-            cache.target_key == target_key
-                && cache.width == width
-                && cache.theme_name == theme_name
-                && cache.items.len() == app.preview.turns.len()
-                && cache
-                    .items
-                    .iter()
-                    .zip(app.preview.turns.iter())
-                    .all(|(cached, turn)| {
-                        cached.question == turn.question && cached.answer == turn.answer
-                    })
-        });
+        .is_some_and(|cache| session_list_cache_matches(cache, app, target_key, width, theme_name));
     if cache_hit {
         return;
     }
 
     let started_at = std::time::Instant::now();
     let previous = app.preview.session_list_cache.take();
-    let previous_items = previous
+    let previous_cache = previous
         .filter(|cache| {
             cache.target_key == target_key && cache.width == width && cache.theme_name == theme_name
         })
-        .map(|cache| cache.items)
-        .unwrap_or_default();
+        .map(|cache| (cache.turns, cache.items));
+    let (previous_turns, previous_items) =
+        previous_cache.unwrap_or_else(|| (Default::default(), Vec::new()));
     let render_width = width.max(8) as usize;
     let mut reused = 0usize;
-    let items =
-        app.preview
-            .turns
-            .iter()
-            .enumerate()
-            .map(|(index, turn)| {
-                if let Some(cached) = previous_items.get(index).filter(|cached| {
-                    cached.question == turn.question && cached.answer == turn.answer
-                }) {
-                    reused += 1;
-                    return cached.clone();
-                }
-                PreviewSessionListItemCache {
-                    question: turn.question.clone(),
-                    answer: turn.answer.clone(),
-                    normal_lines: render_session_card(turn, false, render_width, theme),
-                    selected_lines: render_session_card(turn, true, render_width, theme),
-                }
-            })
-            .collect::<Vec<_>>();
+    let items = app
+        .preview
+        .turns
+        .iter()
+        .enumerate()
+        .map(|(index, turn)| {
+            if let Some(cached) = previous_items
+                .get(index)
+                .filter(|_| previous_turns.get(index) == Some(turn))
+            {
+                reused += 1;
+                return cached.clone();
+            }
+            PreviewSessionListItemCache {
+                normal_lines: render_session_card(turn, false, render_width, theme),
+                selected_lines: render_session_card(turn, true, render_width, theme),
+            }
+        })
+        .collect::<Vec<_>>();
     let elapsed = started_at.elapsed();
     if elapsed >= std::time::Duration::from_millis(8) {
         crate::log_debug!(
@@ -75,8 +63,24 @@ pub(crate) fn ensure_session_list_cache(app: &mut App, width: u16, theme: &Theme
         target_key: target_key.to_string(),
         width,
         theme_name: theme_name.to_string(),
+        turns: app.preview.turns.clone(),
         items,
     });
+}
+
+fn session_list_cache_matches(
+    cache: &PreviewSessionListCache,
+    app: &App,
+    target_key: &str,
+    width: u16,
+    theme_name: &str,
+) -> bool {
+    cache.target_key == target_key
+        && cache.width == width
+        && cache.theme_name == theme_name
+        && cache.items.len() == app.preview.turns.len()
+        && (cache.turns.shares_allocation_with(&app.preview.turns)
+            || cache.turns.as_ref() == app.preview.turns.as_ref())
 }
 
 pub(crate) fn selected_session_list_range(
@@ -131,4 +135,29 @@ fn session_list_cached_line(
         &item.normal_lines
     };
     lines.get(offset).cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_session_list_cache;
+    use crate::app::App;
+    use crate::model::{PreviewTurn, SharedPreviewTurns};
+    use crate::theme::Theme;
+
+    #[test]
+    fn cache_keeps_turn_allocation_for_fast_hits() {
+        let turns = SharedPreviewTurns::from(vec![PreviewTurn {
+            question: "question".into(),
+            answer: Some("answer".into()),
+        }]);
+        let mut app = App::new();
+        app.preview.pane_id = Some("%1".into());
+        app.preview.turns = turns.clone();
+
+        ensure_session_list_cache(&mut app, 80, &Theme::default());
+
+        let cache = app.preview.session_list_cache.as_ref().expect("cache");
+        assert!(cache.turns.shares_allocation_with(&turns));
+        assert_eq!(cache.items.len(), 1);
+    }
 }

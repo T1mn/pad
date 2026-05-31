@@ -38,6 +38,7 @@ fn identical_preview_update_preserves_detail_cache() {
     app.preview.expanded_turn = Some(0);
     app.preview.detail_cache = Some(PreviewDetailCache {
         target_key: "live:%1".into(),
+        turns: app.preview.turns.clone(),
         turn_index: 0,
         width: 80,
         theme_name: "matrix".into(),
@@ -73,6 +74,48 @@ fn identical_preview_update_preserves_detail_cache() {
             .map(|line| line.to_string()),
         Some("cached".to_string())
     );
+}
+
+#[test]
+fn matching_detail_cache_rebases_to_current_turn_allocation() {
+    let mut app = App::new();
+    let old_turns: crate::model::SharedPreviewTurns = vec![PreviewTurn {
+        question: "latest".into(),
+        answer: Some("latest answer".into()),
+    }]
+    .into();
+    let new_turns: crate::model::SharedPreviewTurns = vec![PreviewTurn {
+        question: "latest".into(),
+        answer: Some("latest answer".into()),
+    }]
+    .into();
+    app.preview.pane_id = Some("live:%1".into());
+    app.preview.turns = old_turns.clone();
+    app.preview.detail_cache = Some(PreviewDetailCache {
+        target_key: "live:%1".into(),
+        turns: old_turns,
+        turn_index: 0,
+        width: 80,
+        theme_name: "matrix".into(),
+        question: "latest".into(),
+        answer: Some("latest answer".into()),
+        lines: vec![Line::from("cached")],
+    });
+    app.preview.turns = new_turns;
+
+    assert!(app
+        .cached_preview_detail_for(
+            "live:%1",
+            0,
+            80,
+            "matrix",
+            "latest",
+            &Some("latest answer".into()),
+        )
+        .is_some());
+    assert!(app
+        .current_preview_detail_cache_for_current_turns("live:%1", 0, 80, "matrix")
+        .is_some());
 }
 
 #[test]
@@ -198,4 +241,3 @@ fn preview_update_marks_dirty_when_turns_change_but_content_does_not() {
     assert_eq!(app.preview.expanded_turn, Some(0));
     assert_eq!(app.preview.view, PreviewView::SessionDetail);
 }
-
