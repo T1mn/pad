@@ -1,4 +1,4 @@
-use crate::app::state::{RelayView, SettingsDetailKind, SettingsFocus};
+use crate::app::state::{CodexSettingsView, RelayView, SettingsDetailKind, SettingsFocus};
 use crate::app::App;
 use crate::ui::selection::render::recommended_list_modal_height;
 
@@ -46,7 +46,7 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
             )
         }
         Some(SettingsDetailKind::AgentStyle) => (64, 12),
-        Some(SettingsDetailKind::CodexSettings) => (76, 25),
+        Some(SettingsDetailKind::CodexSettings) => codex_modal_size(app),
         Some(SettingsDetailKind::Sound) => {
             (78, recommended_list_modal_height(9, 2, 1, 1).clamp(16, 22))
         }
@@ -60,6 +60,18 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
         Some(SettingsDetailKind::Telegram) => (72, 13),
         None => settings_list_modal_size(app),
     }
+}
+
+fn codex_modal_size(app: &App) -> (u16, u16) {
+    let row_count = match app.codex_settings_view {
+        CodexSettingsView::Categories => CodexSettingsView::CATEGORY_COUNT,
+        view => view.item_count(),
+    }
+    .max(1) as u16;
+    (
+        76,
+        recommended_list_modal_height(row_count, 2, 1, 1).clamp(10, 16),
+    )
 }
 
 fn relay_modal_size(app: &App) -> (u16, u16) {

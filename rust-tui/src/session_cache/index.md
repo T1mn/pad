@@ -6,3 +6,5 @@
 - `preload.rs`：启动预热。
 - `util.rs`：缓存辅助函数。
 - `tests.rs`：缓存测试。
+
+- `list_cached_sessions()`：为 agent resume/socket API 暴露缓存会话摘要。

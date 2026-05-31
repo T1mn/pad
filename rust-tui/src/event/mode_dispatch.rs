@@ -72,3 +72,7 @@ pub(super) fn handle_agent_style_mode(app: &mut App, key: KeyCode) {
 pub(super) fn handle_telegram_settings_mode(app: &mut App, key: KeyCode) {
     modes::handle_telegram_settings_mode(app, key);
 }
+
+pub(super) fn handle_notification_inbox_mode(app: &mut App, key: KeyCode) {
+    modes::handle_notification_inbox_mode(app, key);
+}

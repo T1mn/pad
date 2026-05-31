@@ -11,7 +11,9 @@ use std::error::Error;
 use std::io::{self, IsTerminal};
 use std::process::Command;
 
+mod agent_resume;
 mod app;
+mod browser_remote;
 mod chat;
 mod claude_history;
 mod codex_provider_sync;
@@ -26,6 +28,7 @@ mod i18n;
 #[macro_use]
 mod logger;
 mod model;
+mod notification_inbox;
 mod notify;
 mod pad_sider;
 mod paths;
@@ -39,6 +42,7 @@ mod session;
 mod session_cache;
 mod session_continuity;
 mod sidebar;
+mod socket_api;
 mod sound;
 mod system_check;
 mod telegram;
@@ -51,6 +55,7 @@ mod tmux_capabilities;
 mod tmux_dispatch;
 mod tree;
 mod ui;
+mod workspace_recipe;
 
 use app::App;
 use scanner::scan_panels;
@@ -107,6 +112,10 @@ fn is_internal_command(args: &[String]) -> bool {
 fn run_internal_command(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.get(2).map(String::as_str) {
         Some("pad-sider") => pad_sider::run_args(args.iter().skip(3).cloned()),
+        Some("workspace-recipe") => workspace_recipe::run_args(args.iter().skip(3).cloned()),
+        Some("browser-remote") => browser_remote::run_args(args.iter().skip(3).cloned()),
+        Some("agent-resume") => agent_resume::run_args(args.iter().skip(3).cloned()),
+        Some("socket-api") => socket_api::run_args(args.iter().skip(3).cloned()),
         Some(other) => Err(format!("unknown internal command: {other}").into()),
         None => Err("missing internal command".into()),
     }
@@ -338,6 +347,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     app.hook_rx = Some(hook::start_hook_listener()?);
+    if let Err(err) = socket_api::start_api_listener() {
+        log_debug!("socket_api: listener not started: {}", err);
+    }
     log_debug!(
         "配置加载: theme={}, auto_refresh={}",
         app.config.theme,

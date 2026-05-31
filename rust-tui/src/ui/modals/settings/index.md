@@ -4,4 +4,5 @@
 - `layout.rs`：整体布局。
 - `list.rs`：设置项列表。
 - `detail.rs` / `detail_lists.rs`：详情面板与多值列表。
+- `codex/`：Codex settings 二级目录与子项渲染。
 - `launcher.rs`：启动器相关渲染。

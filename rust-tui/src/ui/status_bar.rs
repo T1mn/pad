@@ -27,6 +27,7 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             mode_badge(crate::i18n::t(l, "mode.theme"), theme.keyword)
         }
         crate::app::state::Mode::Help => mode_badge(crate::i18n::t(l, "mode.help"), theme.accent),
+        crate::app::state::Mode::NotificationInbox => mode_badge("INBOX", theme.accent),
         crate::app::state::Mode::FilePreview => {
             mode_badge(crate::i18n::t(l, "mode.preview"), theme.mode_tree_bg)
         }
@@ -72,6 +73,9 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
             String::from(crate::i18n::t(l, "status.theme_nav"))
         }
         crate::app::state::Mode::Help => String::from(crate::i18n::t(l, "status.help_close")),
+        crate::app::state::Mode::NotificationInbox => {
+            "j/k move | Enter/m read | a all read | d delete | Esc close".to_string()
+        }
         crate::app::state::Mode::FilePreview => {
             String::from(crate::i18n::t(l, "status.preview_nav"))
         }

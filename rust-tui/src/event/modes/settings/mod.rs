@@ -1,4 +1,5 @@
 mod appearance;
+mod codex;
 mod general;
 mod list;
 mod telegram;
@@ -40,7 +41,7 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
             appearance::handle_agent_style_detail_mode(app, key)
         }
         Some(SettingsDetailKind::CodexSettings) => {
-            general::handle_codex_settings_detail_mode(app, key)
+            codex::handle_codex_settings_detail_mode(app, key)
         }
         Some(SettingsDetailKind::ClaudeFullAccess) => {
             general::handle_claude_full_access_detail_mode(app, key)
@@ -280,132 +281,6 @@ mod tests {
             assert!(matches!(app.settings_focus, SettingsFocus::List));
             assert_eq!(app.locale, preview_locale);
             assert_eq!(app.config.language, preview_locale.as_str());
-        });
-    }
-
-    #[test]
-    fn codex_settings_enter_toggles_all_switches_and_cycles_web_search() {
-        with_temp_home("codex-settings-toggle", || {
-            let mut app = App::new();
-            app.mode = Mode::Settings;
-            app.settings_open = true;
-            app.settings_focus = SettingsFocus::Detail;
-            app.active_settings_detail = Some(SettingsDetailKind::CodexSettings);
-            app.config.agent_permissions.codex_auto_full_access = false;
-            app.config.codex.fast_mode = false;
-            app.config.codex.goals = false;
-            app.config.codex.multi_agent = false;
-            app.config.codex.web_search = "default".into();
-            app.config.codex.status_line_model_with_reasoning = false;
-            app.config.codex.status_line_context_remaining = false;
-            app.config.codex.status_line_current_dir = false;
-            app.config.codex.jailbreak_prompt_file = false;
-            app.config.codex.index_prompt_file = false;
-            app.config.codex.title_summary = false;
-            app.config.codex.show_qa_preview = false;
-
-            app.codex_settings_selected = 0;
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.agent_permissions.codex_auto_full_access);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 1);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.fast_mode);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 2);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.goals);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 3);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.multi_agent);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 4);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert_eq!(app.config.codex.web_search, "cached");
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert_eq!(app.config.codex.web_search, "live");
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert_eq!(app.config.codex.web_search, "disabled");
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert_eq!(app.config.codex.web_search, "default");
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 5);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.status_line_model_with_reasoning);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.status_line_model_with_reasoning);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 6);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.status_line_context_remaining);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.status_line_context_remaining);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 7);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.status_line_current_dir);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.status_line_current_dir);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 8);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.jailbreak_prompt_file);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.jailbreak_prompt_file);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 9);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.index_prompt_file);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.index_prompt_file);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 10);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.title_summary);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.title_summary);
-
-            handle_settings_mode(&mut app, KeyCode::Down);
-            assert_eq!(app.codex_settings_selected, 11);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(app.config.codex.show_qa_preview);
-            handle_settings_mode(&mut app, KeyCode::Enter);
-            assert!(!app.config.codex.show_qa_preview);
-        });
-    }
-
-    #[test]
-    fn codex_settings_navigation_is_bounded() {
-        with_temp_home("codex-settings-nav", || {
-            let mut app = App::new();
-            app.mode = Mode::Settings;
-            app.settings_open = true;
-            app.settings_focus = SettingsFocus::Detail;
-            app.active_settings_detail = Some(SettingsDetailKind::CodexSettings);
-            app.codex_settings_selected = 0;
-
-            handle_settings_mode(&mut app, KeyCode::Up);
-            assert_eq!(app.codex_settings_selected, 0);
-
-            for _ in 0..13 {
-                handle_settings_mode(&mut app, KeyCode::Down);
-            }
-            assert_eq!(app.codex_settings_selected, 12);
-
-            handle_settings_mode(&mut app, KeyCode::Esc);
-            assert!(matches!(app.settings_focus, SettingsFocus::List));
-            assert!(app.active_settings_detail.is_none());
         });
     }
 

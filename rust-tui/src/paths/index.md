@@ -4,3 +4,7 @@
 - `codex_hooks.rs` / `codex_hooks/`：Codex hooks feature 开关、`hooks.json` 写入与版本兼容。
 - `codex_home.rs`：pad 专用 Codex Home 初始化，session/db 共享链接。
 - `paths_tests.rs`：runtime layout、prompt seed、hook bridge 模板测试。
+- `~/.pad/notifications/inbox.json`：notification inbox 持久化文件。
+
+- `~/.pad/workspace-recipes.toml`：workspace recipe 配置文件。
+- `~/.pad/pad-api.sock`：socket API 监听地址。

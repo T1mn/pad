@@ -5,3 +5,4 @@
 - `settings/`: settings modal screens.
 - `relay/`: relay/provider modals.
 - `telegram.rs`: Telegram settings modal.
+- `notification_inbox.rs`: notification inbox modal.

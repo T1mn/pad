@@ -125,6 +125,8 @@ impl App {
                 self.agent_style_selected = 0;
             }
             SettingsDetailKind::CodexSettings => {
+                self.codex_settings_view = crate::app::state::CodexSettingsView::Categories;
+                self.codex_settings_category_selected = 0;
                 self.codex_settings_selected = 0;
             }
             SettingsDetailKind::Sound => {
@@ -140,6 +142,11 @@ impl App {
 
     pub fn leave_settings_detail(&mut self) {
         self.restore_settings_detail_preview_state();
+        if self.active_settings_detail == Some(SettingsDetailKind::CodexSettings) {
+            self.codex_settings_view = crate::app::state::CodexSettingsView::Categories;
+            self.codex_settings_category_selected = 0;
+            self.codex_settings_selected = 0;
+        }
         self.settings_focus = SettingsFocus::List;
         self.active_settings_detail = None;
         self.relay_editing = false;

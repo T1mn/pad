@@ -40,6 +40,9 @@ pub(super) fn handle_key_event(
         Mode::TelegramSettings => {
             super::mode_dispatch::handle_telegram_settings_mode(app, key.code)
         }
+        Mode::NotificationInbox => {
+            super::mode_dispatch::handle_notification_inbox_mode(app, key.code)
+        }
     }
 
     if matches!(

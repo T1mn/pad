@@ -88,6 +88,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         modals::draw_help(f, app, f.area());
     }
 
+    if app.mode == Mode::NotificationInbox {
+        modals::draw_notification_inbox(f, app);
+    }
+
     // Render FuzzyPicker modal overlay
     if let Some(ref picker) = app.fuzzy_picker {
         picker.draw(f);

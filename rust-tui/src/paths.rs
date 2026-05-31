@@ -36,6 +36,10 @@ pub fn relay_export_path() -> PathBuf {
     pad_home_dir().join("relay.yaml")
 }
 
+pub fn workspace_recipes_path() -> PathBuf {
+    pad_home_dir().join("workspace-recipes.toml")
+}
+
 pub fn pad_db_path() -> PathBuf {
     pad_home_dir().join("pad.db")
 }
@@ -65,6 +69,14 @@ pub fn telegram_bot_log_path() -> PathBuf {
 
 pub fn hook_events_path() -> PathBuf {
     logs_dir().join("hook-events.jsonl")
+}
+
+pub fn notifications_dir() -> PathBuf {
+    pad_home_dir().join("notifications")
+}
+
+pub fn notification_inbox_path() -> PathBuf {
+    notifications_dir().join("inbox.json")
 }
 
 pub fn session_continuity_log_path() -> PathBuf {
@@ -267,6 +279,10 @@ pub fn hook_socket_path() -> PathBuf {
     pad_home_dir().join("pad-hook.sock")
 }
 
+pub fn api_socket_path() -> PathBuf {
+    pad_home_dir().join("pad-api.sock")
+}
+
 pub fn pad_status_path() -> PathBuf {
     pad_home_dir().join("pad-status.json")
 }
@@ -286,6 +302,7 @@ pub fn telegram_hook_socket_path() -> PathBuf {
 pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(pad_home_dir())?;
     fs::create_dir_all(logs_dir())?;
+    fs::create_dir_all(notifications_dir())?;
     fs::create_dir_all(scripts_dir())?;
     fs::create_dir_all(prompts_dir())?;
     fs::create_dir_all(sessions_dir())?;

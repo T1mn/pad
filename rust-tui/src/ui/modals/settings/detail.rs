@@ -1,8 +1,8 @@
 use super::super::relay::draw_relay_in_area;
 use super::super::telegram::draw_telegram_settings_content;
+use super::codex::draw_codex_detail;
 use super::detail_lists::{
-    draw_agent_style_detail, draw_codex_detail, draw_language_detail, draw_sound_detail,
-    draw_theme_detail,
+    draw_agent_style_detail, draw_language_detail, draw_sound_detail, draw_theme_detail,
 };
 use crate::app::state::SettingsDetailKind;
 use crate::app::App;

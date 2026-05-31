@@ -19,3 +19,42 @@ pub fn load_snapshots_by_agent_type(
     let index = storage::load_index();
     bindings::load_snapshots_for_agent_type(&index, &agent_type.to_string())
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CachedSessionSummary {
+    pub agent_session_id: String,
+    pub agent_type: String,
+    pub transcript_path: Option<String>,
+    pub working_dir: Option<String>,
+    pub pane_id: Option<String>,
+    pub last_user_prompt: Option<String>,
+    pub last_assistant_message: Option<String>,
+    pub updated_at: i64,
+    pub last_seen_at: i64,
+}
+
+pub fn list_cached_sessions() -> Vec<CachedSessionSummary> {
+    let index = storage::load_index();
+    index
+        .sessions
+        .iter()
+        .map(|record| {
+            let binding = index
+                .pane_bindings
+                .iter()
+                .filter(|binding| binding.agent_session_id == record.agent_session_id)
+                .max_by_key(|binding| binding.updated_at);
+            CachedSessionSummary {
+                agent_session_id: record.agent_session_id.clone(),
+                agent_type: record.agent_type.clone(),
+                transcript_path: record.transcript_path.clone(),
+                working_dir: binding.map(|binding| binding.path.clone()),
+                pane_id: binding.map(|binding| binding.pane_id.clone()),
+                last_user_prompt: record.last_user_prompt.clone(),
+                last_assistant_message: record.last_assistant_message.clone(),
+                updated_at: record.updated_at,
+                last_seen_at: record.last_seen_at,
+            }
+        })
+        .collect()
+}

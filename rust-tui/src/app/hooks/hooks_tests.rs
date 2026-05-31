@@ -386,3 +386,41 @@ fn stop_hook_emits_completion_sound_event() {
         });
     });
 }
+
+#[test]
+fn stop_hook_adds_completion_to_notification_inbox() {
+    let mut app = App::new();
+    app.notification_inbox.entries.clear();
+    app.panels.push(AgentPanel {
+        session: "0".into(),
+        window: "main".into(),
+        window_index: "1".into(),
+        pane: "1".into(),
+        pane_id: "%1".into(),
+        agent_type: AgentType::Codex,
+        working_dir: "/tmp/demo".into(),
+        is_active: true,
+        state: AgentState::Busy,
+        state_source: AgentStateSource::Scanner,
+        transcript_path: Some("/tmp/demo/transcript.jsonl".into()),
+        cached_preview_turns: Default::default(),
+        session_cache_state: None,
+        git_info: None,
+        pid: None,
+        start_time: None,
+        agent_session_id: Some("session-1".into()),
+        last_user_prompt: Some("ship it".into()),
+        last_assistant_message: None,
+        has_unread_stop: false,
+    });
+
+    app.apply_hook_event(stop_event("%1"));
+
+    assert_eq!(app.notification_inbox.entries.len(), 1);
+    let entry = &app.notification_inbox.entries[0];
+    assert_eq!(entry.agent_type, "codex");
+    assert_eq!(entry.event, "stop");
+    assert_eq!(entry.body, "ship it");
+    assert_eq!(entry.pane_id.as_deref(), Some("%1"));
+    assert!(!entry.read);
+}

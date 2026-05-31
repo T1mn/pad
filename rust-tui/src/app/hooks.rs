@@ -2,11 +2,18 @@ use super::{unix_now_ts, App, APP_THREAD_ACTIVITY_MAX_ENTRIES, APP_THREAD_ACTIVI
 use crate::hook::HookEvent;
 use crate::log_debug;
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, SessionCacheState};
+use crate::notification_inbox::{NotificationDraft, NotificationEntry};
 use crate::notify::NotificationRequest;
 use crate::sidebar::ThreadActivityOverride;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+
+#[derive(Clone, Debug)]
+struct PendingNotification {
+    request: NotificationRequest,
+    draft: NotificationDraft,
+}
 
 #[derive(Clone, Debug)]
 struct PendingCodexTitleSummary {
@@ -144,8 +151,12 @@ impl App {
             }
         }
 
-        if let Some(request) = pending_notification {
-            emit_completion_notification(&self.config, request);
+        if let Some(notification) = pending_notification {
+            self.push_notification_entry(NotificationEntry::from_draft(
+                notification.draft,
+                unix_now_ts(),
+            ));
+            emit_completion_notification(&self.config, notification.request);
         }
 
         if let Some(request) = pending_title_summary {
@@ -190,8 +201,12 @@ impl App {
         }
         self.dirty = true;
 
-        if let Some(request) = pending_notification {
-            emit_completion_notification(&self.config, request);
+        if let Some(notification) = pending_notification {
+            self.push_notification_entry(NotificationEntry::from_draft(
+                notification.draft,
+                unix_now_ts(),
+            ));
+            emit_completion_notification(&self.config, notification.request);
         }
     }
 
@@ -322,7 +337,7 @@ fn completion_notification_for_panel(
     panel: &AgentPanel,
     event: &HookEvent,
     persisted_snapshot: Option<&crate::session_cache::SessionCacheSnapshot>,
-) -> Option<NotificationRequest> {
+) -> Option<PendingNotification> {
     if event.event != "stop" {
         return None;
     }
@@ -338,34 +353,70 @@ fn completion_notification_for_panel(
         .or_else(|| persisted_snapshot.and_then(|snapshot| snapshot.last_user_prompt.as_deref()))
         .or(event.prompt.as_deref());
 
-    Some(build_completion_notification(
+    let request = build_completion_notification(
         &panel.agent_type,
         session_id,
         fallback_prompt,
         Some(panel.working_dir.as_str()),
-    ))
+    );
+    Some(PendingNotification {
+        draft: NotificationDraft {
+            event: event.event.clone(),
+            agent_type: panel.agent_type.to_string(),
+            title: request.title.clone(),
+            body: request.body.clone(),
+            working_dir: Some(panel.working_dir.clone()),
+            session_id: session_id.map(str::to_string),
+            transcript_path: panel
+                .transcript_path
+                .clone()
+                .or_else(|| {
+                    persisted_snapshot.and_then(|snapshot| snapshot.transcript_path.clone())
+                })
+                .or_else(|| event.transcript_path.clone()),
+            pane_id: Some(panel.pane_id.clone()),
+        },
+        request,
+    })
 }
 
 fn completion_notification_for_activity(
     activity: &ThreadActivityOverride,
     event: &HookEvent,
-) -> Option<NotificationRequest> {
+) -> Option<PendingNotification> {
     if event.event != "stop" {
         return None;
     }
 
-    Some(build_completion_notification(
+    let session_id = activity
+        .session_id
+        .as_deref()
+        .or(event.session_id.as_deref());
+    let request = build_completion_notification(
         &activity.agent_type,
-        activity
-            .session_id
-            .as_deref()
-            .or(event.session_id.as_deref()),
+        session_id,
         activity
             .last_user_prompt
             .as_deref()
             .or(event.prompt.as_deref()),
         Some(activity.working_dir.as_str()),
-    ))
+    );
+    Some(PendingNotification {
+        draft: NotificationDraft {
+            event: event.event.clone(),
+            agent_type: activity.agent_type.to_string(),
+            title: request.title.clone(),
+            body: request.body.clone(),
+            working_dir: Some(activity.working_dir.clone()),
+            session_id: session_id.map(str::to_string),
+            transcript_path: activity
+                .transcript_path
+                .clone()
+                .or_else(|| event.transcript_path.clone()),
+            pane_id: event.tmux.pane_id.clone(),
+        },
+        request,
+    })
 }
 
 fn codex_title_summary_request_for_panel(

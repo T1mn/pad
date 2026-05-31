@@ -1,3 +1,4 @@
+mod codex;
 mod detail;
 mod detail_lists;
 mod launcher;

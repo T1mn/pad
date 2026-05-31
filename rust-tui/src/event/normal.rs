@@ -99,6 +99,10 @@ where
             app.dirty = true;
             return Ok(());
         }
+        KeyCode::Char('n') | KeyCode::Char('N') => {
+            app.open_notification_inbox();
+            return Ok(());
+        }
         KeyCode::Char('R') => {
             app.restart_selected_codex_panel();
             return Ok(());

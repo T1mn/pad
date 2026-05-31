@@ -1,5 +1,6 @@
 mod codex_restart;
 mod helpers;
+mod notification_inbox;
 mod relay_reload;
 mod settings;
 mod thread_actions;

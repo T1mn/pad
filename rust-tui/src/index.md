@@ -8,8 +8,13 @@
 - `relay/`：各 agent relay/native 配置与运行时覆盖。
 - `preview_source/`：Claude/Codex/Gemini 会话预览解析。
 - `chat/`：聊天后端与 Telegram 集成。
+- `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
 - `session_cache/`：会话快照缓存与持久化。
+- `agent_resume/`：从缓存记录列出并恢复 agent 会话。
+- `workspace_recipe/`：工作区 recipe 解析、dry-run 与 tmux 启动。
+- `browser_remote/`：浏览器打开与远程 SSH 命令联动。
+- `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
 - `codex_runtime.rs`：pad 启动 Codex 时的 `CODEX_HOME` 注入。
 - `scanner.rs`：tmux pane 扫描与 agent 识别。

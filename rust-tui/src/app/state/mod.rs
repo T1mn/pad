@@ -21,6 +21,7 @@ pub enum Mode {
     FilePreview,
     AgentStyleSettings,
     TelegramSettings,
+    NotificationInbox,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,51 @@ pub enum SettingsDetailKind {
     Trash,
     Language,
     Version,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CodexSettingsView {
+    Categories,
+    Runtime,
+    StatusLine,
+    Prompts,
+    Preview,
+    Cli,
+}
+
+impl CodexSettingsView {
+    pub const CATEGORY_COUNT: usize = 5;
+
+    pub fn from_category_index(index: usize) -> Self {
+        match index {
+            0 => Self::Runtime,
+            1 => Self::StatusLine,
+            2 => Self::Prompts,
+            3 => Self::Preview,
+            _ => Self::Cli,
+        }
+    }
+
+    pub fn category_index(self) -> usize {
+        match self {
+            Self::Categories | Self::Runtime => 0,
+            Self::StatusLine => 1,
+            Self::Prompts => 2,
+            Self::Preview => 3,
+            Self::Cli => 4,
+        }
+    }
+
+    pub fn item_count(self) -> usize {
+        match self {
+            Self::Categories => Self::CATEGORY_COUNT,
+            Self::Runtime => 5,
+            Self::StatusLine => 3,
+            Self::Prompts => 2,
+            Self::Preview => 2,
+            Self::Cli => 1,
+        }
+    }
 }
 
 /// Relay settings sub-view

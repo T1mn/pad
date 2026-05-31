@@ -12,14 +12,14 @@ use crate::model::AgentPanel;
 use crate::theme::{Config, Theme};
 use async_ops::ScanResult;
 use ratatui::widgets::TableState;
+use state::{
+    CodexSettingsView, Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind,
+    SettingsFocus, SidebarState, ThreadListView,
+};
 pub use state::{
     CopyToast, PendingThreadAction, PreviewDetailCache, PreviewDetailRenderRequest,
     PreviewMouseSelection, PreviewPlainCache, PreviewSessionListCache, PreviewSessionListItemCache,
     ThreadActionKind, ThreadMetaEditKind, ThreadPreviewCacheEntry,
-};
-use state::{
-    Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind, SettingsFocus, SidebarState,
-    ThreadListView,
 };
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -108,6 +108,8 @@ pub struct App {
     pub title_summary_in_flight: HashSet<String>,
     // Agent style settings
     pub agent_style_selected: usize,
+    pub codex_settings_view: CodexSettingsView,
+    pub codex_settings_category_selected: usize,
     pub codex_settings_selected: usize,
     pub sound_settings_selected: usize,
     // Telegram settings
@@ -120,6 +122,8 @@ pub struct App {
     pub frame_budget_exceeded: bool,
     pub deferred_hook_events: Vec<HookEvent>,
     pub deferred_scan_result: Option<Vec<AgentPanel>>,
+    pub notification_inbox: crate::notification_inbox::NotificationInbox,
+    pub notification_inbox_selected: usize,
     relay_config_last_poll_at: Instant,
     relay_config_source_path: Option<PathBuf>,
     relay_config_source_modified_ms: Option<u128>,
@@ -197,6 +201,8 @@ impl App {
             title_summary_rx: None,
             title_summary_in_flight: HashSet::new(),
             agent_style_selected: 0,
+            codex_settings_view: CodexSettingsView::Categories,
+            codex_settings_category_selected: 0,
             codex_settings_selected: 0,
             sound_settings_selected: 0,
             telegram_selected_field: 0,
@@ -208,6 +214,8 @@ impl App {
             frame_budget_exceeded: false,
             deferred_hook_events: Vec::new(),
             deferred_scan_result: None,
+            notification_inbox: crate::notification_inbox::load(),
+            notification_inbox_selected: 0,
             relay_config_last_poll_at: Instant::now(),
             relay_config_source_path: None,
             relay_config_source_modified_ms: None,
