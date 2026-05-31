@@ -1,10 +1,12 @@
-use super::turns::{finalize_turns, push_session_message, SessionRole};
+#[path = "codex/parser.rs"]
+mod parser;
+#[path = "codex/tail.rs"]
+mod tail;
+
 use super::SessionReadMode;
 use crate::model::PreviewTurn;
 use serde_json::Value;
-use std::collections::{HashMap, VecDeque};
-use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -37,44 +39,7 @@ pub(super) fn parse_transcript(
     path: &Path,
     read_mode: SessionReadMode,
 ) -> Result<Vec<PreviewTurn>, String> {
-    let mut turns = VecDeque::new();
-
-    for_each_session_line(path, read_mode, |line| {
-        let Ok(value) = serde_json::from_str::<Value>(line) else {
-            return;
-        };
-
-        if value.get("type").and_then(Value::as_str) != Some("response_item") {
-            return;
-        }
-
-        let payload = match value.get("payload") {
-            Some(payload) => payload,
-            None => return,
-        };
-
-        match payload.get("type").and_then(Value::as_str) {
-            Some("message") => {
-                let role = match payload.get("role").and_then(Value::as_str) {
-                    Some("user") => SessionRole::User,
-                    Some("assistant") => SessionRole::Assistant,
-                    _ => return,
-                };
-
-                let (effective_role, text) = extract_message_text(payload, role);
-                push_session_message(&mut turns, effective_role, text);
-            }
-            Some("function_call") => {
-                if let Some(summary) = extract_spawn_agent_event_text(payload) {
-                    push_session_message(&mut turns, SessionRole::Assistant, summary);
-                }
-            }
-            _ => {}
-        }
-    })
-    .map_err(|err| err.to_string())?;
-
-    Ok(finalize_turns(turns))
+    parser::parse_transcript(path, read_mode)
 }
 
 pub(super) fn resolve_live_session_id(pane_id: &str) -> Option<String> {
@@ -185,62 +150,6 @@ fn looks_like_uuid(text: &str) -> bool {
     }
 
     true
-}
-
-fn extract_message_text(payload: &Value, role: SessionRole) -> (SessionRole, String) {
-    let Some(content) = payload.get("content").and_then(Value::as_array) else {
-        return (role, String::new());
-    };
-
-    if role == SessionRole::User {
-        let text = extract_codex_user_message_text(content);
-        if let Some(summary) = extract_subagent_notification_summary(&text) {
-            return (SessionRole::Assistant, summary);
-        }
-        return (role, text);
-    }
-
-    (role, join_message_text(content, "output_text"))
-}
-
-fn join_message_text(content: &[Value], target_type: &str) -> String {
-    content
-        .iter()
-        .filter_map(|item| {
-            if item.get("type").and_then(Value::as_str) != Some(target_type) {
-                return None;
-            }
-            item.get("text")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|text| !text.is_empty())
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn extract_codex_user_message_text(content: &[Value]) -> String {
-    let mut image_count = 0usize;
-    let mut parts = Vec::new();
-
-    for item in content {
-        match item.get("type").and_then(Value::as_str) {
-            Some("input_image") => image_count += 1,
-            Some("input_text") => {
-                if let Some(text) = item
-                    .get("text")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|text| !text.is_empty())
-                {
-                    parts.push(text);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    normalize_codex_user_text(&parts.join("\n"), Some(image_count))
 }
 
 pub(crate) fn normalize_codex_user_text(text: &str, image_count_hint: Option<usize>) -> String {
@@ -428,34 +337,6 @@ fn is_image_ref_token(text: &str) -> bool {
     !inner.is_empty() && inner.chars().all(|ch| ch.is_ascii_digit())
 }
 
-fn extract_spawn_agent_event_text(payload: &Value) -> Option<String> {
-    if payload.get("name").and_then(Value::as_str) != Some("spawn_agent") {
-        return None;
-    }
-
-    let arguments = payload
-        .get("arguments")
-        .and_then(Value::as_str)
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
-
-    let task_name = arguments
-        .as_ref()
-        .and_then(|value| value.get("task_name"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let agent_type = arguments
-        .as_ref()
-        .and_then(|value| value.get("agent_type"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-
-    let kind = agent_type.unwrap_or("worker");
-    let task = task_name.unwrap_or("task");
-    Some(format!("[subagent/start][{}] {}", kind, task))
-}
-
 fn extract_subagent_notification_summary(text: &str) -> Option<String> {
     const OPEN: &str = "<subagent_notification>";
     const CLOSE: &str = "</subagent_notification>";
@@ -524,27 +405,6 @@ fn truncate_chars_with_ellipsis(text: &str, max_chars: usize) -> String {
     out
 }
 
-fn for_each_session_line<F>(
-    path: &Path,
-    read_mode: SessionReadMode,
-    mut f: F,
-) -> std::io::Result<()>
-where
-    F: FnMut(&str),
-{
-    match read_mode {
-        SessionReadMode::FullBackfill => {
-            let file = File::open(path)?;
-            let reader = BufReader::new(file);
-            for line in reader.lines() {
-                f(&line?);
-            }
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{extract_status_session_id, normalize_codex_user_text, parse_transcript};
@@ -604,6 +464,36 @@ mod tests {
         assert_eq!(turns.len(), 8);
         assert_eq!(turns[0].question, "q7");
         assert_eq!(turns[7].question, "q0");
+    }
+
+    #[test]
+    fn parse_codex_transcript_keeps_latest_real_user_turns() {
+        let path = temp_jsonl_path("codex-history-limit");
+        let mut content = String::new();
+        for idx in 0..60 {
+            content.push_str(&format!(
+                "{{\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"q{idx}\"}}]}}}}\n"
+            ));
+            content.push_str(&format!(
+                "{{\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{{\"type\":\"output_text\",\"text\":\"a{idx}\"}}]}}}}\n"
+            ));
+        }
+        for _ in 0..20 {
+            content.push_str(
+                "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<environment_context>\\n  <cwd>/tmp/demo</cwd>\\n</environment_context>\"}]}}\n",
+            );
+        }
+        fs::write(&path, content).unwrap();
+
+        let turns = parse_transcript(&path, SessionReadMode::FullBackfill).unwrap();
+        fs::remove_file(&path).ok();
+
+        assert_eq!(
+            turns.len(),
+            crate::session_cache::SESSION_HISTORY_TURN_LIMIT
+        );
+        assert_eq!(turns[0].question, "q59");
+        assert_eq!(turns[49].question, "q10");
     }
 
     #[test]
