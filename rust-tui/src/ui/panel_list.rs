@@ -3,6 +3,7 @@ mod folder_row;
 mod metrics;
 mod style;
 mod thread_row;
+mod viewport;
 
 use crate::app::state::FocusTarget;
 use crate::app::state::ThreadListView;
@@ -29,8 +30,12 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let selected_idx = app.table_state.selected();
     let expanded_folders = app.sidebar.expanded_folders.clone();
     let hovered_folder_key = app.sidebar.hovered_folder_key.clone();
+    let visible_stats = {
+        app.visible_sidebar_items_ref();
+        app.sidebar.visible_sidebar_stats
+    };
 
-    let item_count = visible_thread_count(app.visible_sidebar_items_ref());
+    let item_count = visible_stats.thread_count;
     let border_color = if panel_is_focused {
         theme.border_focused
     } else {
@@ -63,25 +68,13 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let (show_scrollbar, actual_item_count) = {
+    let (show_scrollbar, actual_item_count, table_offset) = {
         let items = app.visible_sidebar_items_ref();
-        let actual_item_count = items.len();
+        let actual_item_count = visible_stats.item_count;
         let content_width = inner.width as usize;
-        let is_minimal = content_width < 12;
-        let total_h: usize = items
-            .iter()
-            .map(|item| match item {
-                SidebarItem::Folder(_) => 1,
-                SidebarItem::Thread(_) => {
-                    if is_minimal {
-                        1
-                    } else {
-                        2
-                    }
-                }
-            })
-            .sum();
+        let total_h = visible_stats.row_count;
         let show_scrollbar = total_h > inner.height as usize;
+        let mut table_offset = 0usize;
 
         if items.is_empty() {
             let empty_msg = if thread_list_view != ThreadListView::Normal {
@@ -137,14 +130,22 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
                 .wrap(Wrap { trim: false });
             f.render_widget(empty, inner);
         } else {
-            let jump_badges = visible_thread_jump_badges(items);
-            let rows: Vec<Row> = items
+            let render_window =
+                viewport::render_window(items.len(), selected_idx, inner.height as usize, |idx| {
+                    viewport::item_row_height(&items[idx])
+                });
+            table_offset = render_window.start;
+            let mut next_jump_badge =
+                viewport::next_jump_badge_for_start(items, render_window.start);
+            let rows: Vec<Row> = items[render_window.clone()]
                 .iter()
                 .enumerate()
-                .map(|(idx, item)| {
+                .map(|(offset, item)| {
+                    let idx = render_window.start + offset;
+                    let jump_badge = viewport::jump_badge_for_item(item, &mut next_jump_badge);
                     build_sidebar_row(
                         item,
-                        jump_badges[idx],
+                        jump_badge,
                         idx == selected_idx.unwrap_or(usize::MAX),
                         content_width,
                         &theme,
@@ -157,12 +158,17 @@ pub fn draw_panel_list(f: &mut Frame, app: &mut App, area: Rect) {
             let table = Table::new(rows, [Constraint::Min(0)])
                 .highlight_spacing(ratatui::widgets::HighlightSpacing::Never);
 
-            let mut table_state = app.table_state;
+            let mut table_state = ratatui::widgets::TableState::default();
+            table_state.select(
+                selected_idx
+                    .and_then(|idx| idx.checked_sub(render_window.start))
+                    .filter(|idx| *idx < render_window.len()),
+            );
             f.render_stateful_widget(table, inner, &mut table_state);
-            app.table_state = table_state;
         }
-        (show_scrollbar, actual_item_count)
+        (show_scrollbar, actual_item_count, table_offset)
     };
+    *app.table_state.offset_mut() = table_offset;
 
     if show_scrollbar && actual_item_count > 0 {
         let scrollbar = Scrollbar::default()
@@ -204,19 +210,6 @@ fn build_sidebar_row(
             thread_row::build_thread_row(thread, is_selected, content_width, theme, jump_badge)
         }
     }
-}
-
-fn visible_thread_jump_badges(items: &[SidebarItem]) -> Vec<Option<usize>> {
-    let mut next_jump_badge = 1usize;
-    items
-        .iter()
-        .map(|item| {
-            item.as_thread()?;
-            let badge = (next_jump_badge <= 9).then_some(next_jump_badge);
-            next_jump_badge += 1;
-            badge
-        })
-        .collect()
 }
 
 fn special_view_title_label(locale: Locale, view: ThreadListView) -> &'static str {
@@ -317,13 +310,6 @@ fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }
 
-fn visible_thread_count(items: &[SidebarItem]) -> usize {
-    items
-        .iter()
-        .filter(|item| matches!(item, SidebarItem::Thread(_)))
-        .count()
-}
-
 pub fn preferred_panel_width(app: &mut App) -> u16 {
     let thread_list_view = app.thread_list_view();
     let locale = app.locale;
@@ -344,9 +330,9 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
         ))
     };
     let items = app.visible_sidebar_items_ref();
-    let content_width = items
-        .iter()
-        .map(|item| match item {
+    let mut content_width = 10usize;
+    for item in items {
+        let item_width = match item {
             SidebarItem::Folder(folder) => {
                 2 + metrics::display_width(&metrics::truncate_to_width(&folder.label, 28))
             }
@@ -358,9 +344,12 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
                     metrics::display_width(&metrics::truncate_to_width(&subtitle, 32));
                 9 + title_width.max(subtitle_width)
             }
-        })
-        .max()
-        .unwrap_or(10);
+        };
+        content_width = content_width.max(item_width);
+        if content_width >= 40 {
+            break;
+        }
+    }
     (content_width.max(title_width) as u16 + 6).clamp(6, 46)
 }
 
@@ -513,7 +502,10 @@ mod tests {
             SidebarItem::Thread(Arc::new(thread)),
         ];
 
-        assert_eq!(visible_thread_count(&items), 1);
+        assert_eq!(
+            crate::app::state::VisibleSidebarStats::from_items(&items).thread_count,
+            1
+        );
     }
 
     #[test]
@@ -564,7 +556,7 @@ mod tests {
             items.push(SidebarItem::Thread(Arc::new(thread(index))));
         }
 
-        let badges = visible_thread_jump_badges(&items);
+        let badges = viewport::visible_thread_jump_badges(&items);
         assert_eq!(badges[0], None);
         assert_eq!(badges[1], Some(1));
         assert_eq!(badges[9], Some(9));

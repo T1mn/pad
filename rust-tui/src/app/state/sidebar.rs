@@ -65,8 +65,36 @@ pub struct SidebarState {
     pub startup_thread_sort_seeded: bool,
     pub sidebar_folders_cache: Vec<SidebarFolder>,
     pub visible_sidebar_items_cache: Vec<SidebarItem>,
+    pub visible_sidebar_stats: VisibleSidebarStats,
     pub sidebar_folders_dirty: bool,
     pub visible_sidebar_items_dirty: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VisibleSidebarStats {
+    pub item_count: usize,
+    pub thread_count: usize,
+    pub row_count: usize,
+}
+
+impl VisibleSidebarStats {
+    pub fn from_items(items: &[SidebarItem]) -> Self {
+        let mut stats = Self {
+            item_count: items.len(),
+            thread_count: 0,
+            row_count: 0,
+        };
+        for item in items {
+            match item {
+                SidebarItem::Folder(_) => stats.row_count += 1,
+                SidebarItem::Thread(_) => {
+                    stats.thread_count += 1;
+                    stats.row_count += 2;
+                }
+            }
+        }
+        stats
+    }
 }
 
 impl SidebarState {
@@ -94,6 +122,7 @@ impl SidebarState {
             startup_thread_sort_seeded: false,
             sidebar_folders_cache: Vec::new(),
             visible_sidebar_items_cache: Vec::new(),
+            visible_sidebar_stats: VisibleSidebarStats::default(),
             sidebar_folders_dirty: true,
             visible_sidebar_items_dirty: true,
         }

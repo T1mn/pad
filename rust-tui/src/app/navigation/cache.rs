@@ -148,12 +148,17 @@ impl App {
                 &self.sidebar.expanded_folders,
                 &self.search_query,
             );
+            self.sidebar.visible_sidebar_stats = crate::app::state::VisibleSidebarStats::from_items(
+                &self.sidebar.visible_sidebar_items_cache,
+            );
             self.sidebar.visible_sidebar_items_dirty = false;
             let elapsed = started_at.elapsed();
             if elapsed >= std::time::Duration::from_millis(8) {
                 log_debug!(
-                    "sidebar.cache: rebuild_visible items={} elapsed_ms={}",
-                    self.sidebar.visible_sidebar_items_cache.len(),
+                    "sidebar.cache: rebuild_visible items={} threads={} rows={} elapsed_ms={}",
+                    self.sidebar.visible_sidebar_stats.item_count,
+                    self.sidebar.visible_sidebar_stats.thread_count,
+                    self.sidebar.visible_sidebar_stats.row_count,
                     elapsed.as_millis()
                 );
             }

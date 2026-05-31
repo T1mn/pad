@@ -121,4 +121,5 @@ pub use preview::{
 };
 pub use sidebar::{
     PendingThreadAction, SidebarState, ThreadActionKind, ThreadListView, ThreadMetaEditKind,
+    VisibleSidebarStats,
 };

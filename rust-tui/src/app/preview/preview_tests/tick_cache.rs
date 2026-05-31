@@ -214,7 +214,41 @@ fn app_only_busy_thread_keeps_busy_animation_ticking() {
 }
 
 #[test]
-fn detail_view_busy_threads_use_high_frequency_tick_rate() {
+fn hidden_busy_threads_do_not_force_animation_redraws() {
+    let mut app = App::new();
+    app.preview.view = PreviewView::SessionList;
+    app.last_busy_animation_tick = Instant::now() - Duration::from_secs(1);
+    app.panels.push(AgentPanel {
+        session: "0".into(),
+        window: "1".into(),
+        window_index: "1".into(),
+        pane: "1".into(),
+        pane_id: "%1".into(),
+        agent_type: AgentType::Codex,
+        working_dir: "/tmp/demo".into(),
+        is_active: true,
+        state: AgentState::Busy,
+        state_source: AgentStateSource::Scanner,
+        transcript_path: None,
+        cached_preview_turns: Default::default(),
+        session_cache_state: None,
+        git_info: None,
+        pid: None,
+        start_time: None,
+        agent_session_id: None,
+        last_user_prompt: None,
+        last_assistant_message: None,
+        has_unread_stop: false,
+    });
+    app.sidebar.visible_sidebar_items_dirty = false;
+    app.sidebar.visible_sidebar_items_cache.clear();
+
+    assert!(!app.should_tick_busy_animation());
+    assert_eq!(app.desired_tick_rate(), Duration::from_millis(120));
+}
+
+#[test]
+fn busy_threads_use_moderate_tick_rate() {
     let mut app = App::new();
     app.preview.view = PreviewView::SessionDetail;
     app.panels.push(AgentPanel {
@@ -240,7 +274,7 @@ fn detail_view_busy_threads_use_high_frequency_tick_rate() {
         has_unread_stop: false,
     });
 
-    assert_eq!(app.desired_tick_rate(), Duration::from_millis(16));
+    assert_eq!(app.desired_tick_rate(), Duration::from_millis(60));
 }
 
 #[test]

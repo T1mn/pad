@@ -33,11 +33,13 @@ pub(super) fn run_pre_event_cycle(
     app.check_codex_cli_update_result();
     app.check_title_summary_result();
     app.check_preview_update();
-    let terminal_area: Rect = terminal.size()?.into();
-    let preview_detail_width = super::mouse::normal_mouse_regions(app, terminal_area)
-        .preview_content_area
-        .width;
-    app.check_preview_detail_update(preview_detail_width);
+    if app.preview.view == crate::model::PreviewView::SessionDetail {
+        let terminal_area: Rect = terminal.size()?.into();
+        let preview_detail_width = super::mouse::normal_mouse_regions(app, terminal_area)
+            .preview_content_area
+            .width;
+        app.check_preview_detail_update(preview_detail_width);
+    }
 
     drain_hook_events(app);
     drain_pipe_events(state, pipe_rx);
