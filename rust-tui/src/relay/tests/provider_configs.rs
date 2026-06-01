@@ -338,6 +338,71 @@ fn incomplete_gemini_provider_restores_original_files() {
     });
 }
 
+
+#[test]
+fn opencode_provider_prefers_existing_jsonc_and_preserves_urls_in_strings() {
+    with_temp_home("opencode-jsonc", |home| {
+        let config_dir = home.join(".config").join("opencode");
+        std::fs::create_dir_all(&config_dir).expect("create opencode dir");
+        let config_path = config_dir.join("opencode.jsonc");
+        std::fs::write(
+            &config_path,
+            r#"{
+              // OpenCode accepts JSONC config files.
+              "$schema": "https://opencode.ai/config.json",
+              "theme": "tokyonight",
+              "note": "keep https://example.test/path intact",
+              "provider": {}
+            }
+            "#,
+        )
+        .expect("seed jsonc config");
+
+        let agent = AgentConfig {
+            name: "opencode".into(),
+            cmd: "opencode".into(),
+            providers: vec![ProviderConfig {
+                label: "Relay A".into(),
+                base_url: "https://relay.example/v1".into(),
+                api_key: "sk-op-test".into(),
+                env_key: String::new(),
+                wire_api: "responses".into(),
+                provider_key: "relay-a".into(),
+                npm_package: "@ai-sdk/openai-compatible".into(),
+                models: vec![crate::theme::OpenCodeModelConfig {
+                    id: "gpt-4o".into(),
+                    name: "GPT-4o".into(),
+                }],
+                test_status: None,
+                test_http_status: None,
+                test_latency_ms: None,
+                test_result: None,
+            }],
+            active_provider: Some(0),
+            default_model: "relay-a/gpt-4o".into(),
+            small_model: String::new(),
+            base_url: None,
+            api_key: None,
+        };
+
+        apply_relay_configs(&[agent]);
+
+        assert!(config_path.exists());
+        assert!(!config_dir.join("opencode.json").exists());
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).expect("read"))
+                .expect("parse");
+        assert_eq!(
+            value.pointer("/provider/relay-a/options/baseURL").and_then(|v| v.as_str()),
+            Some("https://relay.example/v1")
+        );
+        assert_eq!(
+            value.get("note").and_then(|v| v.as_str()),
+            Some("keep https://example.test/path intact")
+        );
+    });
+}
+
 #[test]
 fn opencode_provider_writes_additive_live_config_and_models() {
     with_temp_home("opencode-write", |home| {

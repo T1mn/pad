@@ -16,13 +16,21 @@ pub(super) fn opencode_config_path() -> PathBuf {
     }
 
     if let Some(dir) = std::env::var_os("OPENCODE_CONFIG_DIR") {
-        return PathBuf::from(dir).join("opencode.json");
+        let dir = PathBuf::from(dir);
+        return existing_opencode_config_in(&dir).unwrap_or_else(|| dir.join("opencode.jsonc"));
     }
 
-    home_dir()
-        .join(".config")
-        .join("opencode")
-        .join("opencode.json")
+    let dir = home_dir().join(".config").join("opencode");
+    existing_opencode_config_in(&dir).unwrap_or_else(|| dir.join("opencode.jsonc"))
+}
+
+fn existing_opencode_config_in(dir: &Path) -> Option<PathBuf> {
+    let jsonc = dir.join("opencode.jsonc");
+    if jsonc.exists() {
+        return Some(jsonc);
+    }
+    let json = dir.join("opencode.json");
+    json.exists().then_some(json)
 }
 
 pub(super) fn opencode_managed_state_path() -> PathBuf {
@@ -113,12 +121,71 @@ pub(super) fn read_json_value(path: &Path, fallback: serde_json::Value) -> serde
     let Ok(content) = std::fs::read_to_string(path) else {
         return fallback;
     };
-    let parsed = serde_json::from_str::<serde_json::Value>(&content).unwrap_or(fallback);
+    let parsed = serde_json::from_str::<serde_json::Value>(&strip_json_comments(&content))
+        .unwrap_or(fallback);
     if parsed.is_object() {
         parsed
     } else {
         json!({})
     }
+}
+
+fn strip_json_comments(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut chars = content.chars().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            continue;
+        }
+
+        if ch == '/' {
+            match chars.peek().copied() {
+                Some('/') => {
+                    chars.next();
+                    for next in chars.by_ref() {
+                        if next == '\n' {
+                            out.push('\n');
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                Some('*') => {
+                    chars.next();
+                    let mut previous = '\0';
+                    for next in chars.by_ref() {
+                        if previous == '*' && next == '/' {
+                            break;
+                        }
+                        previous = next;
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out
 }
 
 pub(super) fn write_json_value(path: &Path, value: &serde_json::Value) {
