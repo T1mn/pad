@@ -6,4 +6,4 @@
 - `stats.rs`：读取并格式化 OpenCode session share/cost/token 元数据，兼容旧 schema。
 - `query_tests.rs`：OpenCode SQLite 查询测试夹具。
 - `archive.rs`：通过 OpenCode session 的 `time_archived` 字段归档/恢复。
-- `util.rs`：默认数据路径与 SQLite 错误转换。
+- `util.rs`：默认数据路径、`opencode db path` 兜底与 SQLite 错误转换。
