@@ -185,6 +185,10 @@ where
             let _ = app.open_opencode_pr_from_clipboard();
             return Ok(());
         }
+        KeyCode::Char('L') => {
+            let _ = app.install_opencode_plugin_from_clipboard();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

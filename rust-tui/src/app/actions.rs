@@ -6,6 +6,7 @@ mod opencode_cli;
 mod opencode_diagnostics;
 mod opencode_export;
 mod opencode_import;
+mod opencode_plugin;
 mod opencode_pr;
 mod opencode_run;
 mod opencode_serve;
