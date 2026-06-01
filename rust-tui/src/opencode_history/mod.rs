@@ -1,6 +1,7 @@
 mod archive;
 mod model;
 mod query;
+mod stats;
 mod util;
 
 use std::io;

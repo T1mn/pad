@@ -1,4 +1,7 @@
 use super::model::OpenCodeThreadRef;
+use super::stats::{
+    format_cost, format_token_summary, read_session_stats, session_stats_select, SessionStats,
+};
 use super::util::{default_db_paths, open_readonly, to_io_error};
 use rusqlite::OptionalExtension;
 use serde_json::Value;
@@ -55,8 +58,9 @@ pub(crate) fn query_threads_at(
         Some(false) => "WHERE time_archived IS NULL",
         None => "",
     };
+    let stats_select = session_stats_select(&connection)?;
     let sql = format!(
-        "SELECT id, directory, path, title, time_updated, time_archived, model FROM session {where_clause} ORDER BY time_updated DESC"
+        "SELECT id, directory, path, title, time_updated, time_archived, model, {stats_select} FROM session {where_clause} ORDER BY time_updated DESC"
     );
     let mut statement = connection.prepare(&sql).map_err(to_io_error)?;
     let rows = statement
@@ -69,6 +73,7 @@ pub(crate) fn query_threads_at(
                 updated_at: row.get(4)?,
                 archived_at: row.get(5)?,
                 model: row.get(6)?,
+                stats: read_session_stats(row, 7)?,
             })
         })
         .map_err(to_io_error)?
@@ -94,22 +99,23 @@ fn query_thread_for_id_at(
     if !has_table(&connection, "session")? || !has_table(&connection, "message")? {
         return Ok(None);
     }
+    let stats_select = session_stats_select(&connection)?;
+    let sql = format!(
+        "SELECT id, directory, path, title, time_updated, time_archived, model, {stats_select} FROM session WHERE id = ?1 LIMIT 1"
+    );
     let row = connection
-        .query_row(
-            "SELECT id, directory, path, title, time_updated, time_archived, model FROM session WHERE id = ?1 LIMIT 1",
-            [session_id],
-            |row| {
-                Ok(SessionRow {
-                    id: row.get(0)?,
-                    directory: row.get(1)?,
-                    path: row.get(2)?,
-                    title: row.get(3)?,
-                    updated_at: row.get(4)?,
-                    archived_at: row.get(5)?,
-                    model: row.get(6)?,
-                })
-            },
-        )
+        .query_row(&sql, [session_id], |row| {
+            Ok(SessionRow {
+                id: row.get(0)?,
+                directory: row.get(1)?,
+                path: row.get(2)?,
+                title: row.get(3)?,
+                updated_at: row.get(4)?,
+                archived_at: row.get(5)?,
+                model: row.get(6)?,
+                stats: read_session_stats(row, 7)?,
+            })
+        })
         .optional()
         .map_err(to_io_error)?;
     let Some(row) = row else { return Ok(None) };
@@ -126,6 +132,7 @@ struct SessionRow {
     updated_at: i64,
     archived_at: Option<i64>,
     model: Option<String>,
+    stats: SessionStats,
 }
 
 #[derive(Default)]
@@ -160,6 +167,13 @@ fn build_thread(
         last_assistant_message: summary.and_then(|summary| summary.last_assistant.clone()),
         provider_name,
         model_name,
+        share_url: row
+            .stats
+            .share_url
+            .clone()
+            .filter(|url| !url.trim().is_empty()),
+        cost: format_cost(row.stats.cost),
+        token_summary: format_token_summary(&row.stats),
         archived: row.archived_at.is_some(),
     })
 }
@@ -323,99 +337,5 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use rusqlite::{params, Connection};
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_db_path(name: &str) -> PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad-opencode-{name}-{stamp}.db"))
-    }
-
-    fn seed_db(path: &Path) {
-        let connection = Connection::open(path).unwrap();
-        connection
-            .execute_batch(
-                r#"
-                CREATE TABLE session (
-                    id text PRIMARY KEY,
-                    directory text NOT NULL,
-                    path text,
-                    title text NOT NULL,
-                    time_updated integer NOT NULL,
-                    time_archived integer,
-                    model text
-                );
-                CREATE TABLE message (
-                    id text PRIMARY KEY,
-                    session_id text NOT NULL,
-                    time_created integer NOT NULL,
-                    data text NOT NULL
-                );
-                CREATE TABLE part (
-                    id text PRIMARY KEY,
-                    message_id text NOT NULL,
-                    session_id text NOT NULL,
-                    time_created integer NOT NULL,
-                    data text NOT NULL
-                );
-                "#,
-            )
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO session (id, directory, path, title, time_updated, time_archived, model) VALUES (?1, ?2, NULL, ?3, ?4, NULL, ?5)",
-                params![
-                    "ses_1",
-                    "/repo",
-                    "Build feature",
-                    100_i64,
-                    r#"{"providerID":"wzw","id":"gpt-5.4"}"#
-                ],
-            )
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO message (id, session_id, time_created, data) VALUES (?1, ?2, ?3, ?4)",
-                params!["msg_1", "ses_1", 1_i64, r#"{"role":"user"}"#],
-            )
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO part (id, message_id, session_id, time_created, data) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params!["prt_1", "msg_1", "ses_1", 2_i64, r#"{"type":"text","text":"hello"}"#],
-            )
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO message (id, session_id, time_created, data) VALUES (?1, ?2, ?3, ?4)",
-                params!["msg_2", "ses_1", 3_i64, r#"{"role":"assistant"}"#],
-            )
-            .unwrap();
-        connection
-            .execute(
-                "INSERT INTO part (id, message_id, session_id, time_created, data) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params!["prt_2", "msg_2", "ses_1", 4_i64, r#"{"type":"text","text":"world"}"#],
-            )
-            .unwrap();
-    }
-
-    #[test]
-    fn query_threads_reads_opencode_sqlite() {
-        let path = temp_db_path("query");
-        seed_db(&path);
-
-        let threads = query_threads_at(&path, Some(false)).unwrap();
-        std::fs::remove_file(&path).ok();
-
-        assert_eq!(threads.len(), 1);
-        assert_eq!(threads[0].session_id, "ses_1");
-        assert_eq!(threads[0].last_user_message.as_deref(), Some("hello"));
-        assert_eq!(threads[0].last_assistant_message.as_deref(), Some("world"));
-        assert_eq!(threads[0].provider_name.as_deref(), Some("wzw"));
-    }
-}
+#[path = "query_tests.rs"]
+mod query_tests;

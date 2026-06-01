@@ -12,5 +12,8 @@ pub struct OpenCodeThreadRef {
     pub last_assistant_message: Option<String>,
     pub provider_name: Option<String>,
     pub model_name: Option<String>,
+    pub share_url: Option<String>,
+    pub cost: Option<String>,
+    pub token_summary: Option<String>,
     pub archived: bool,
 }

@@ -49,6 +49,15 @@ pub(super) fn merge_or_insert_thread(
         if existing.note.is_none() {
             existing.note = history_entry.note;
         }
+        if existing.share_url.is_none() {
+            existing.share_url = history_entry.share_url.clone();
+        }
+        if existing.cost.is_none() {
+            existing.cost = history_entry.cost.clone();
+        }
+        if existing.token_summary.is_none() {
+            existing.token_summary = history_entry.token_summary.clone();
+        }
         if existing.tags.is_empty() {
             existing.tags = history_entry.tags;
         } else {

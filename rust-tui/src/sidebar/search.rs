@@ -74,6 +74,24 @@ fn thread_matches_search(thread: &SidebarThread, query: &str) -> bool {
             .unwrap_or_default()
             .to_lowercase()
             .contains(query)
+        || thread
+            .share_url
+            .as_deref()
+            .unwrap_or_default()
+            .to_lowercase()
+            .contains(query)
+        || thread
+            .token_summary
+            .as_deref()
+            .unwrap_or_default()
+            .to_lowercase()
+            .contains(query)
+        || thread
+            .cost
+            .as_deref()
+            .unwrap_or_default()
+            .to_lowercase()
+            .contains(query)
         || thread.agent_type.to_string().contains(query)
         || thread
             .tags
@@ -105,6 +123,9 @@ mod tests {
             subtitle: Some("prompt".into()),
             title_override: None,
             note: None,
+            share_url: None,
+            cost: None,
+            token_summary: None,
             tags: Vec::new(),
             pinned: false,
             updated_at: 1,

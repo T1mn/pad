@@ -158,6 +158,26 @@ pub(crate) fn draw_preview_info_card(
             ),
         ]),
         Line::from(vec![
+            fixed_label("USAGE", label_width, theme),
+            Span::styled(
+                truncate_to_width(
+                    &preview_usage_value(thread),
+                    inner.width.saturating_sub((label_width + 1) as u16) as usize,
+                ),
+                Style::default().fg(theme.fg),
+            ),
+        ]),
+        Line::from(vec![
+            fixed_label("SHARE", label_width, theme),
+            Span::styled(
+                truncate_to_width(
+                    thread.share_url.as_deref().unwrap_or("—"),
+                    inner.width.saturating_sub((label_width + 1) as u16) as usize,
+                ),
+                Style::default().fg(theme.fg),
+            ),
+        ]),
+        Line::from(vec![
             fixed_label("SUMMARY", label_width, theme),
             Span::styled(
                 truncate_to_width(
@@ -428,6 +448,15 @@ fn slice_text_by_width(text: &str, start: usize, end: usize) -> String {
     out
 }
 
+fn preview_usage_value(thread: &SidebarThread) -> String {
+    match (thread.cost.as_deref(), thread.token_summary.as_deref()) {
+        (Some(cost), Some(tokens)) => format!("{cost} · {tokens}"),
+        (Some(cost), None) => cost.to_string(),
+        (None, Some(tokens)) => tokens.to_string(),
+        (None, None) => "—".to_string(),
+    }
+}
+
 fn shortened_thread_path(thread: &SidebarThread, max_len: usize) -> String {
     let home = std::env::var("HOME").unwrap_or_default();
     let path = if thread.working_dir.starts_with(&home) {
@@ -610,6 +639,9 @@ mod tests {
             subtitle: None,
             title_override: None,
             note: None,
+            share_url: None,
+            cost: None,
+            token_summary: None,
             tags: Vec::new(),
             pinned: false,
             updated_at: 0,
@@ -677,6 +709,9 @@ mod tests {
             subtitle: None,
             title_override: None,
             note: None,
+            share_url: None,
+            cost: None,
+            token_summary: None,
             tags: Vec::new(),
             pinned: false,
             updated_at: 0,

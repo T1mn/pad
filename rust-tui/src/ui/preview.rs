@@ -16,7 +16,7 @@ use ratatui::{
     Frame,
 };
 
-pub const PREVIEW_INFO_CARD_HEIGHT: u16 = 9;
+pub const PREVIEW_INFO_CARD_HEIGHT: u16 = 11;
 pub(crate) const DETAIL_SMOOTH_SPAN_THRESHOLD: usize = 320;
 pub(crate) const DETAIL_SMOOTH_LINE_THRESHOLD: usize = 72;
 
