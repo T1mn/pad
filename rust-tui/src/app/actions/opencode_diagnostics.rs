@@ -27,6 +27,9 @@ fn export_diagnostics(command: &OsString) -> io::Result<PathBuf> {
     let sections = [
         diagnostics_section(command, "version", &["--version"]),
         diagnostics_section(command, "db path", &["db", "path"]),
+        diagnostics_section(command, "debug info", &["debug", "info"]),
+        diagnostics_section(command, "debug paths", &["debug", "paths"]),
+        diagnostics_section(command, "debug config", &["debug", "config"]),
         diagnostics_section(command, "providers list", &["providers", "list"]),
         diagnostics_section(command, "models --verbose", &["models", "--verbose"]),
         diagnostics_section(command, "agent list", &["agent", "list"]),

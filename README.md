@@ -259,7 +259,7 @@ Full session workflows:
 
 Extended session / history support:
 
-- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, project `opencode stats`, provider/model diagnostics, `opencode attach`, `opencode web`, and `opencode --session` resume
+- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, project `opencode stats`, debug/provider/model diagnostics, `opencode attach`, `opencode web`, and `opencode --session` resume
 
 Basic launcher / pane workflows:
 

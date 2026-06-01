@@ -17,6 +17,18 @@ fn diagnostics_report_has_expected_sections() {
             body: "1.2.3\n".into(),
         },
         DiagnosticsSection {
+            title: "debug info",
+            body: "info\n".into(),
+        },
+        DiagnosticsSection {
+            title: "debug paths",
+            body: "paths\n".into(),
+        },
+        DiagnosticsSection {
+            title: "debug config",
+            body: "config\n".into(),
+        },
+        DiagnosticsSection {
             title: "providers list",
             body: "providers\n".into(),
         },
@@ -32,6 +44,9 @@ fn diagnostics_report_has_expected_sections() {
     let body = format_report(&sections);
     assert!(body.contains("## version"));
     assert!(body.contains("1.2.3"));
+    assert!(body.contains("## debug info"));
+    assert!(body.contains("## debug paths"));
+    assert!(body.contains("## debug config"));
     assert!(body.contains("## providers list"));
     assert!(body.contains("## models --verbose"));
     assert!(body.contains("## mcp list"));

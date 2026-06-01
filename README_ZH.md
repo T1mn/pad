@@ -258,7 +258,7 @@ Linux 发布产物现在按运行时家族分开：
 
 增强 session / history 支持：
 
-- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、usage/share 元数据、archive/unarchive、`opencode export` / `--sanitize` 导出、`opencode import` 导入、项目 `opencode stats`、provider/model 诊断、`opencode attach`、`opencode web`，以及通过 `opencode --session` 恢复会话
+- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、usage/share 元数据、archive/unarchive、`opencode export` / `--sanitize` 导出、`opencode import` 导入、项目 `opencode stats`、debug/provider/model 诊断、`opencode attach`、`opencode web`，以及通过 `opencode --session` 恢复会话
 
 基础 launcher / pane 工作流支持：
 
