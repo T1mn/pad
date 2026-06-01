@@ -189,6 +189,10 @@ where
             let _ = app.install_opencode_plugin_from_clipboard();
             return Ok(());
         }
+        KeyCode::Char('H') => {
+            let _ = app.install_opencode_github_agent();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

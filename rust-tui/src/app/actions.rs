@@ -5,6 +5,7 @@ mod opencode_attach;
 mod opencode_cli;
 mod opencode_diagnostics;
 mod opencode_export;
+mod opencode_github;
 mod opencode_import;
 mod opencode_plugin;
 mod opencode_pr;
