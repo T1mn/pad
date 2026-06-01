@@ -1,4 +1,4 @@
-use super::{first_command_token, opencode_export_path, safe_filename, ExportMode};
+use super::{opencode_export_path, safe_filename, ExportMode};
 use std::path::Path;
 
 #[test]
@@ -18,10 +18,6 @@ fn opencode_sanitized_export_path_uses_distinct_suffix() {
 }
 
 #[test]
-fn opencode_command_uses_first_configured_token() {
-    assert_eq!(
-        first_command_token("/opt/bin/opencode --pure"),
-        "/opt/bin/opencode"
-    );
+fn safe_filename_falls_back_for_empty_value() {
     assert_eq!(safe_filename("***"), "session");
 }

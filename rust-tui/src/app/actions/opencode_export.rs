@@ -40,7 +40,11 @@ impl App {
             return false;
         };
 
-        match export_opencode_session(session_id, &self.opencode_export_command(), mode) {
+        match export_opencode_session(
+            session_id,
+            &opencode_cli::opencode_command(&self.config),
+            mode,
+        ) {
             Ok(path) => {
                 self.show_action_toast(
                     export_saved_title(self.locale, mode),
@@ -53,17 +57,6 @@ impl App {
                 false
             }
         }
-    }
-
-    fn opencode_export_command(&self) -> OsString {
-        self.config
-            .agents
-            .iter()
-            .find(|agent| agent.name == "opencode")
-            .map(|agent| first_command_token(&agent.cmd))
-            .filter(|cmd| !cmd.is_empty())
-            .map(OsString::from)
-            .unwrap_or_else(default_opencode_command)
     }
 }
 
@@ -131,26 +124,6 @@ fn safe_filename(value: &str) -> String {
         "session".to_string()
     } else {
         out.chars().take(96).collect()
-    }
-}
-
-fn first_command_token(command: &str) -> String {
-    command
-        .split_whitespace()
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string()
-}
-
-fn default_opencode_command() -> OsString {
-    let home_bin = crate::paths::pad_home_dir()
-        .parent()
-        .map(|home| home.join(".opencode").join("bin").join("opencode"));
-    if let Some(path) = home_bin.filter(|path| path.exists()) {
-        path.into_os_string()
-    } else {
-        OsString::from("opencode")
     }
 }
 

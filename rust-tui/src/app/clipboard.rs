@@ -52,6 +52,58 @@ impl App {
     }
 }
 
+pub fn read_text_from_clipboard() -> io::Result<String> {
+    let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
+
+    if cfg!(target_os = "macos") {
+        candidates.push(("pbpaste", Vec::new()));
+    }
+
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        candidates.push(("wl-paste", vec!["--no-newline"]));
+    }
+
+    if std::env::var_os("DISPLAY").is_some() {
+        candidates.push(("xclip", vec!["-selection", "clipboard", "-out"]));
+        candidates.push(("xsel", vec!["--clipboard", "--output"]));
+    }
+
+    if std::env::var_os("TMUX").is_some() {
+        candidates.push(("tmux", vec!["save-buffer", "-"]));
+    }
+
+    let mut last_error = None;
+    for (program, args) in candidates {
+        match read_clipboard_command(program, &args) {
+            Ok(text) => return Ok(text),
+            Err(err) => last_error = Some(err),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "no supported clipboard read command is available",
+        )
+    }))
+}
+
+fn read_clipboard_command(program: &str, args: &[&str]) -> io::Result<String> {
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(io::Error::other(format!(
+            "{} exited with status {}",
+            program, output.status
+        )))
+    }
+}
+
 fn summarize_copy_preview(text: &str, max_chars: usize) -> String {
     let condensed = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if condensed.is_empty() {

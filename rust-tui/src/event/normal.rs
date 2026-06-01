@@ -153,6 +153,10 @@ where
             let _ = app.export_sanitized_selected_opencode_thread();
             return Ok(());
         }
+        KeyCode::Char('I') => {
+            let _ = app.import_opencode_thread_from_clipboard();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());
