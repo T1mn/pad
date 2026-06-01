@@ -21,6 +21,18 @@ case "${agent_name}" in
     ;;
 esac
 
+sleep_bin="$(command -v sleep)"
+mock_process="${TMPDIR:-/tmp}/${agent_name}-mock-agent-$$"
+
+cleanup() {
+  rm -f "${mock_process}"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 0' HUP INT TERM
+
+ln -sf "${sleep_bin}" "${mock_process}"
+
 while true; do
-  sleep 5
+  "${mock_process}" 3600 &
+  wait "$!" || true
 done
