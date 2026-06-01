@@ -241,7 +241,7 @@ Linux 发布产物现在按运行时家族分开：
 | `d` | 删除 pane |
 | `A` / `U` | 归档 / 恢复选中 session |
 | `Z` | 切换归档 session 视图 |
-| `E` / `S` / `I` / `X` / `O` / `P` / `Y` / `W` | 导出/导入 OpenCode JSON、运行剪贴板 prompt、stats、诊断、attach server URL，或打开 OpenCode Web |
+| `E` / `S` / `I` / `X` / `B` / `O` / `P` / `Y` / `W` | 导出/导入 OpenCode JSON、运行剪贴板 prompt、启动本地 server、stats、诊断、attach server URL，或打开 OpenCode Web |
 | `r` | 刷新 |
 | `Ctrl+F` | 搜索 panel |
 | `/` | 打开设置 |
@@ -258,7 +258,7 @@ Linux 发布产物现在按运行时家族分开：
 
 增强 session / history 支持：
 
-- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、usage/share 元数据、archive/unarchive、`opencode export` / `--sanitize` 导出、`opencode import` 导入、`opencode run`、项目 `opencode stats`、debug/provider/model 诊断、`opencode attach`、`opencode web`，以及通过 `opencode --session` 恢复会话
+- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、usage/share 元数据、archive/unarchive、`opencode export` / `--sanitize` 导出、`opencode import` 导入、`opencode run`、本地 `opencode serve`、项目 `opencode stats`、debug/provider/model 诊断、`opencode attach`、`opencode web`，以及通过 `opencode --session` 恢复会话
 
 基础 launcher / pane 工作流支持：
 

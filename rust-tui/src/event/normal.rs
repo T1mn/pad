@@ -177,6 +177,10 @@ where
             let _ = app.run_opencode_prompt_from_clipboard();
             return Ok(());
         }
+        KeyCode::Char('B') => {
+            let _ = app.serve_opencode_for_selected_thread();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

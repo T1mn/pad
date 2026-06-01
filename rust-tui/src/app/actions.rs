@@ -7,6 +7,7 @@ mod opencode_diagnostics;
 mod opencode_export;
 mod opencode_import;
 mod opencode_run;
+mod opencode_serve;
 mod opencode_stats;
 mod opencode_web;
 mod relay_reload;
