@@ -265,7 +265,7 @@ Basic launcher / pane workflows:
 
 - 🟢 Kimi (`kimi-cli`)
 
-PAD can still detect and attach to other terminal agents. OpenCode now has practical session workflows, while hook-driven live events are still deeper for Claude, Codex, and Gemini.
+PAD can still detect and attach to other terminal agents. OpenCode now has practical session workflows, while hook-driven live events are still deeper for Claude, Codex, and Gemini. See `docs/opencode-support.md` for the OpenCode capability matrix.
 
 ## Acknowledgements
 

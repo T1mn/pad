@@ -264,7 +264,7 @@ Linux 发布产物现在按运行时家族分开：
 
 - 🟢 Kimi (`kimi-cli`)
 
-PAD 仍然可以识别并 attach 到其他终端 agent。OpenCode 现在已经有可用的 session 工作流，但 hook 驱动的实时事件深度仍然是 Claude、Codex 和 Gemini 更完整。
+PAD 仍然可以识别并 attach 到其他终端 agent。OpenCode 现在已经有可用的 session 工作流，但 hook 驱动的实时事件深度仍然是 Claude、Codex 和 Gemini 更完整。OpenCode 能力矩阵见 `docs/opencode-support.md`。
 
 ## 致谢
 
