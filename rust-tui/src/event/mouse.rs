@@ -151,6 +151,10 @@ fn handle_normal_left_click(app: &mut App, terminal_area: Rect, column: u16, row
             if let Some(session_id) = ui::preview::preview_sid_text_at(app, info_area, column, row)
             {
                 let _ = app.copy_text_with_toast("SID", &session_id);
+            } else if let Some(share_url) =
+                ui::preview::preview_share_url_text_at(app, info_area, column, row)
+            {
+                let _ = app.copy_text_with_toast("SHARE", &share_url);
             }
         }
         return;
