@@ -1,5 +1,13 @@
 # Release Checklist
 
+## Version policy
+
+1. Prefer a normal patch bump for accumulated fixes, for example `0.6.16` -> `0.6.17`.
+2. Use `hotfix` only for one urgent, narrow fix immediately after a release.
+3. After more than 2 consecutive hotfix tags on the same version, stop adding `hotfixN` and bump the next patch version.
+4. If the change includes mixed CI, release, performance, or user-visible behavior, bump the patch version instead of adding another hotfix tag.
+5. Do not keep repairing an already pushed failed tag; fix `master`, bump version, and create a new release tag.
+
 ## Pre-release
 
 1. Ensure the worktree is in the expected state.
