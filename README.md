@@ -242,7 +242,7 @@ Linux release assets are published in separate families:
 | `d` | Delete pane and hide thread in PAD |
 | `A` / `U` | Archive / restore selected session |
 | `Z` | Toggle archived session view |
-| `E` / `S` / `I` / `O` | Export selected OpenCode JSON / sanitized JSON, import JSON/share URL, or export project stats |
+| `E` / `S` / `I` / `O` / `P` | Export selected OpenCode JSON / sanitized JSON, import JSON/share URL, export project stats, or export provider/model diagnostics |
 | `r` | Refresh |
 | `Ctrl+F` | Search panels |
 | `/` | Open settings |
@@ -259,7 +259,7 @@ Full session workflows:
 
 Extended session / history support:
 
-- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, project `opencode stats`, and `opencode --session` resume
+- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, project `opencode stats`, provider/model diagnostics, and `opencode --session` resume
 
 Basic launcher / pane workflows:
 
