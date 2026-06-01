@@ -157,6 +157,10 @@ where
             let _ = app.import_opencode_thread_from_clipboard();
             return Ok(());
         }
+        KeyCode::Char('O') => {
+            let _ = app.export_selected_opencode_stats();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

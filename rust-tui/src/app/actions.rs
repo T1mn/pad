@@ -4,6 +4,7 @@ mod notification_inbox;
 mod opencode_cli;
 mod opencode_export;
 mod opencode_import;
+mod opencode_stats;
 mod relay_reload;
 mod settings;
 mod thread_actions;

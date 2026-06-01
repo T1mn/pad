@@ -12,6 +12,23 @@ pub(super) fn opencode_command(config: &Config) -> OsString {
         .unwrap_or_else(default_opencode_command)
 }
 
+pub(super) fn safe_filename(value: &str) -> String {
+    let mut out = String::new();
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+            out.push(ch);
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "session".to_string()
+    } else {
+        out.chars().take(96).collect()
+    }
+}
+
 fn first_command_token(command: &str) -> String {
     command
         .split_whitespace()
@@ -34,7 +51,7 @@ fn default_opencode_command() -> OsString {
 
 #[cfg(test)]
 mod tests {
-    use super::first_command_token;
+    use super::{first_command_token, safe_filename};
 
     #[test]
     fn opencode_command_uses_first_configured_token() {
@@ -42,5 +59,11 @@ mod tests {
             first_command_token("/opt/bin/opencode --pure"),
             "/opt/bin/opencode"
         );
+    }
+
+    #[test]
+    fn safe_filename_sanitizes_and_falls_back() {
+        assert_eq!(safe_filename("ses/../abc def"), "ses_abc_def");
+        assert_eq!(safe_filename("***"), "session");
     }
 }

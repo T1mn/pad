@@ -40,6 +40,10 @@ pub fn opencode_exports_dir() -> PathBuf {
     pad_home_dir().join("opencode-exports")
 }
 
+pub fn opencode_stats_dir() -> PathBuf {
+    pad_home_dir().join("opencode-stats")
+}
+
 pub fn workspace_recipes_path() -> PathBuf {
     pad_home_dir().join("workspace-recipes.toml")
 }

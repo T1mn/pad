@@ -1,4 +1,4 @@
-use super::{opencode_export_path, safe_filename, ExportMode};
+use super::{opencode_export_path, ExportMode};
 use std::path::Path;
 
 #[test]
@@ -15,9 +15,4 @@ fn opencode_sanitized_export_path_uses_distinct_suffix() {
         opencode_export_path("ses_123", Path::new("/tmp/out"), ExportMode::Sanitized),
         Path::new("/tmp/out/ses_123.sanitized.json")
     );
-}
-
-#[test]
-fn safe_filename_falls_back_for_empty_value() {
-    assert_eq!(safe_filename("***"), "session");
 }

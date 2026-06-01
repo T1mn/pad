@@ -107,24 +107,11 @@ fn opencode_export_path(session_id: &str, dir: &Path, mode: ExportMode) -> PathB
         ExportMode::Raw => "json",
         ExportMode::Sanitized => "sanitized.json",
     };
-    dir.join(format!("{}.{}", safe_filename(session_id), suffix))
-}
-
-fn safe_filename(value: &str) -> String {
-    let mut out = String::new();
-    for ch in value.chars() {
-        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
-            out.push(ch);
-        } else if !out.ends_with('_') {
-            out.push('_');
-        }
-    }
-    let out = out.trim_matches('_');
-    if out.is_empty() {
-        "session".to_string()
-    } else {
-        out.chars().take(96).collect()
-    }
+    dir.join(format!(
+        "{}.{}",
+        opencode_cli::safe_filename(session_id),
+        suffix
+    ))
 }
 
 fn is_cjk_locale(locale: Locale) -> bool {
