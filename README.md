@@ -248,18 +248,21 @@ Linux release assets are published in separate families:
 
 ## Agent Support
 
-Fully supported session workflows:
+Full session workflows:
 
 - 🟣 Claude (`claude`)
 - 🔵 Codex (`codex`)
 - 🔷 Gemini (`gemini-cli`)
 
+Extended session / history support:
+
+- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, archive/unarchive, and `opencode --session` resume
+
 Basic launcher / pane workflows:
 
 - 🟢 Kimi (`kimi-cli`)
-- 🟠 OpenCode (`opencode`)
 
-PAD can still detect and attach to other terminal agents, but history, archive, and session-aware preview are currently centered on Codex, Claude, and Gemini.
+PAD can still detect and attach to other terminal agents. OpenCode now has practical session workflows, while hook-driven live events are still deeper for Claude, Codex, and Gemini.
 
 ## Acknowledgements
 

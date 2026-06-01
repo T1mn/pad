@@ -253,12 +253,15 @@ Linux 发布产物现在按运行时家族分开：
 - 🔵 Codex (`codex`)
 - 🔷 Gemini (`gemini-cli`)
 
+增强 session / history 支持：
+
+- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、archive/unarchive，以及通过 `opencode --session` 恢复会话
+
 基础 launcher / pane 工作流支持：
 
 - 🟢 Kimi (`kimi-cli`)
-- 🟠 OpenCode (`opencode`)
 
-PAD 仍然可以识别并 attach 到其他终端 agent，但 history、archive 和 session-aware preview 目前主要围绕 Codex、Claude 和 Gemini。
+PAD 仍然可以识别并 attach 到其他终端 agent。OpenCode 现在已经有可用的 session 工作流，但 hook 驱动的实时事件深度仍然是 Claude、Codex 和 Gemini 更完整。
 
 ## 致谢
 
