@@ -6,6 +6,14 @@ use std::process::Command;
 
 impl App {
     pub fn export_selected_opencode_thread(&mut self) -> bool {
+        self.export_selected_opencode_thread_with_options(ExportMode::Raw)
+    }
+
+    pub fn export_sanitized_selected_opencode_thread(&mut self) -> bool {
+        self.export_selected_opencode_thread_with_options(ExportMode::Sanitized)
+    }
+
+    fn export_selected_opencode_thread_with_options(&mut self, mode: ExportMode) -> bool {
         let Some(thread) = self.selected_preview_thread() else {
             self.show_action_toast(
                 export_failed_title(self.locale),
@@ -32,10 +40,10 @@ impl App {
             return false;
         };
 
-        match export_opencode_session(session_id, &self.opencode_export_command()) {
+        match export_opencode_session(session_id, &self.opencode_export_command(), mode) {
             Ok(path) => {
                 self.show_action_toast(
-                    export_saved_title(self.locale),
+                    export_saved_title(self.locale, mode),
                     &path.display().to_string(),
                 );
                 true
@@ -59,10 +67,22 @@ impl App {
     }
 }
 
-fn export_opencode_session(session_id: &str, command: &OsString) -> io::Result<PathBuf> {
-    let output = Command::new(command)
-        .args(["export", session_id])
-        .output()?;
+#[derive(Clone, Copy)]
+enum ExportMode {
+    Raw,
+    Sanitized,
+}
+
+fn export_opencode_session(
+    session_id: &str,
+    command: &OsString,
+    mode: ExportMode,
+) -> io::Result<PathBuf> {
+    let mut args = vec!["export", session_id];
+    if matches!(mode, ExportMode::Sanitized) {
+        args.push("--sanitize");
+    }
+    let output = Command::new(command).args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(if stderr.is_empty() {
@@ -77,7 +97,11 @@ fn export_opencode_session(session_id: &str, command: &OsString) -> io::Result<P
         return Err(io::Error::other("opencode export returned empty output"));
     }
 
-    let path = opencode_export_path(session_id, crate::paths::opencode_exports_dir().as_path());
+    let path = opencode_export_path(
+        session_id,
+        crate::paths::opencode_exports_dir().as_path(),
+        mode,
+    );
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -85,8 +109,12 @@ fn export_opencode_session(session_id: &str, command: &OsString) -> io::Result<P
     Ok(path)
 }
 
-fn opencode_export_path(session_id: &str, dir: &Path) -> PathBuf {
-    dir.join(format!("{}.json", safe_filename(session_id)))
+fn opencode_export_path(session_id: &str, dir: &Path, mode: ExportMode) -> PathBuf {
+    let suffix = match mode {
+        ExportMode::Raw => "json",
+        ExportMode::Sanitized => "sanitized.json",
+    };
+    dir.join(format!("{}.{}", safe_filename(session_id), suffix))
 }
 
 fn safe_filename(value: &str) -> String {
@@ -130,65 +158,43 @@ fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }
 
-fn export_saved_title(locale: Locale) -> &'static str {
+fn localized(locale: Locale, zh: &'static str, en: &'static str) -> &'static str {
     if is_cjk_locale(locale) {
-        "OpenCode 已导出"
+        zh
     } else {
-        "OpenCode Exported"
+        en
+    }
+}
+
+fn export_saved_title(locale: Locale, mode: ExportMode) -> &'static str {
+    match (is_cjk_locale(locale), mode) {
+        (true, ExportMode::Raw) => "OpenCode 已导出",
+        (true, ExportMode::Sanitized) => "OpenCode 已脱敏导出",
+        (false, ExportMode::Raw) => "OpenCode Exported",
+        (false, ExportMode::Sanitized) => "OpenCode Sanitized Exported",
     }
 }
 
 fn export_failed_title(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "OpenCode 导出失败"
-    } else {
-        "OpenCode Export Failed"
-    }
+    localized(locale, "OpenCode 导出失败", "OpenCode Export Failed")
 }
 
 fn no_thread_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "没有选中的线程"
-    } else {
-        "No selected thread"
-    }
+    localized(locale, "没有选中的线程", "No selected thread")
 }
 
 fn opencode_only_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "只支持 OpenCode 会话"
-    } else {
-        "Only OpenCode sessions can be exported"
-    }
+    localized(locale, "只支持 OpenCode 会话", "Only OpenCode sessions")
 }
 
 fn missing_session_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "选中的 OpenCode 线程缺少 session id"
-    } else {
-        "Selected OpenCode thread is missing session id"
-    }
+    localized(
+        locale,
+        "选中的 OpenCode 线程缺少 session id",
+        "Missing OpenCode session id",
+    )
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{first_command_token, opencode_export_path, safe_filename};
-    use std::path::Path;
-
-    #[test]
-    fn opencode_export_path_sanitizes_session_id() {
-        assert_eq!(
-            opencode_export_path("ses/../abc def", Path::new("/tmp/out")),
-            Path::new("/tmp/out/ses_abc_def.json")
-        );
-    }
-
-    #[test]
-    fn opencode_command_uses_first_configured_token() {
-        assert_eq!(
-            first_command_token("/opt/bin/opencode --pure"),
-            "/opt/bin/opencode"
-        );
-        assert_eq!(safe_filename("***"), "session");
-    }
-}
+#[path = "opencode_export_tests.rs"]
+mod opencode_export_tests;

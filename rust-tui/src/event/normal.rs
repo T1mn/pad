@@ -149,6 +149,10 @@ where
             let _ = app.export_selected_opencode_thread();
             return Ok(());
         }
+        KeyCode::Char('S') => {
+            let _ = app.export_sanitized_selected_opencode_thread();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());
