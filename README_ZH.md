@@ -239,6 +239,9 @@ Linux 发布产物现在按运行时家族分开：
 | `pad-sider 中对 .md 按 Space` | 打开全屏 Markdown 预览 |
 | `c` | 创建新 session |
 | `d` | 删除 pane |
+| `A` / `U` | 归档 / 恢复选中 session |
+| `Z` | 切换归档 session 视图 |
+| `E` | 导出选中的 OpenCode session JSON 到 `~/.pad/opencode-exports/` |
 | `r` | 刷新 |
 | `Ctrl+F` | 搜索 panel |
 | `/` | 打开设置 |
@@ -255,7 +258,7 @@ Linux 发布产物现在按运行时家族分开：
 
 增强 session / history 支持：
 
-- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、archive/unarchive，以及通过 `opencode --session` 恢复会话
+- 🟠 OpenCode (`opencode`)：launcher 与 pane attach、relay/model 配置、SQLite history、session preview、usage/share 元数据、archive/unarchive、`opencode export` 导出，以及通过 `opencode --session` 恢复会话
 
 基础 launcher / pane 工作流支持：
 

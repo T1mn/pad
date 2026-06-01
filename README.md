@@ -240,6 +240,9 @@ Linux release assets are published in separate families:
 | `Space` on `.md` in pad-sider | Open full Markdown preview |
 | `c` | Create new session |
 | `d` | Delete pane and hide thread in PAD |
+| `A` / `U` | Archive / restore selected session |
+| `Z` | Toggle archived session view |
+| `E` | Export the selected OpenCode session JSON to `~/.pad/opencode-exports/` |
 | `r` | Refresh |
 | `Ctrl+F` | Search panels |
 | `/` | Open settings |
@@ -256,7 +259,7 @@ Full session workflows:
 
 Extended session / history support:
 
-- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, archive/unarchive, and `opencode --session` resume
+- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export`, and `opencode --session` resume
 
 Basic launcher / pane workflows:
 

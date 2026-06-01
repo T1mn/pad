@@ -353,7 +353,7 @@ impl App {
             SidebarItem::Thread(thread)
                 if matches!(
                     thread.agent_type,
-                    AgentType::Codex | AgentType::Claude | AgentType::Gemini
+                    AgentType::Codex | AgentType::Claude | AgentType::Gemini | AgentType::OpenCode
                 ) && (self.thread_list_view() == ThreadListView::Trash
                     || thread.archived == archived)
                     && (self.thread_list_view() != ThreadListView::Trash || thread.deleted)
@@ -365,3 +365,7 @@ impl App {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "thread_actions_tests.rs"]
+mod thread_actions_tests;

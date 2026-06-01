@@ -145,6 +145,10 @@ where
             let _ = app.request_unarchive_selected_thread();
             return Ok(());
         }
+        KeyCode::Char('E') => {
+            let _ = app.export_selected_opencode_thread();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

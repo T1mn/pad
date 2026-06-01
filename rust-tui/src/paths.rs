@@ -36,6 +36,10 @@ pub fn relay_export_path() -> PathBuf {
     pad_home_dir().join("relay.yaml")
 }
 
+pub fn opencode_exports_dir() -> PathBuf {
+    pad_home_dir().join("opencode-exports")
+}
+
 pub fn workspace_recipes_path() -> PathBuf {
     pad_home_dir().join("workspace-recipes.toml")
 }
