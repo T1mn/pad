@@ -165,6 +165,10 @@ where
             let _ = app.export_opencode_diagnostics();
             return Ok(());
         }
+        KeyCode::Char('Y') => {
+            let _ = app.attach_opencode_from_clipboard();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());

@@ -1,6 +1,7 @@
 mod codex_restart;
 mod helpers;
 mod notification_inbox;
+mod opencode_attach;
 mod opencode_cli;
 mod opencode_diagnostics;
 mod opencode_export;
