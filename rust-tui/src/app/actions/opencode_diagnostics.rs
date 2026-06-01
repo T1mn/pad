@@ -24,8 +24,14 @@ impl App {
 }
 
 fn export_diagnostics(command: &OsString) -> io::Result<PathBuf> {
-    let providers = run_opencode(command, &["providers", "list"])?;
-    let models = run_opencode(command, &["models", "--verbose"])?;
+    let sections = [
+        diagnostics_section(command, "version", &["--version"]),
+        diagnostics_section(command, "db path", &["db", "path"]),
+        diagnostics_section(command, "providers list", &["providers", "list"]),
+        diagnostics_section(command, "models --verbose", &["models", "--verbose"]),
+        diagnostics_section(command, "agent list", &["agent", "list"]),
+        diagnostics_section(command, "mcp list", &["mcp", "list"]),
+    ];
     let path = diagnostics_path(
         crate::paths::opencode_diagnostics_dir().as_path(),
         current_unix_secs(),
@@ -33,8 +39,25 @@ fn export_diagnostics(command: &OsString) -> io::Result<PathBuf> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, format_report(&providers, &models).as_bytes())?;
+    std::fs::write(&path, format_report(&sections).as_bytes())?;
     Ok(path)
+}
+
+struct DiagnosticsSection {
+    title: &'static str,
+    body: String,
+}
+
+fn diagnostics_section(
+    command: &OsString,
+    title: &'static str,
+    args: &[&str],
+) -> DiagnosticsSection {
+    let body = match run_opencode(command, args) {
+        Ok(output) => output,
+        Err(err) => format!("ERROR: {err}"),
+    };
+    DiagnosticsSection { title, body }
 }
 
 fn run_opencode(command: &OsString, args: &[&str]) -> io::Result<String> {
@@ -58,12 +81,16 @@ fn run_opencode(command: &OsString, args: &[&str]) -> io::Result<String> {
     }
 }
 
-fn format_report(providers: &str, models: &str) -> String {
-    format!(
-        "# OpenCode diagnostics\n\n## providers list\n\n{}\n\n## models --verbose\n\n{}\n",
-        providers.trim_end(),
-        models.trim_end()
-    )
+fn format_report(sections: &[DiagnosticsSection]) -> String {
+    let mut report = String::from("# OpenCode diagnostics\n");
+    for section in sections {
+        report.push_str("\n## ");
+        report.push_str(section.title);
+        report.push_str("\n\n");
+        report.push_str(section.body.trim_end());
+        report.push('\n');
+    }
+    report
 }
 
 fn diagnostics_path(dir: &Path, timestamp: u64) -> PathBuf {
