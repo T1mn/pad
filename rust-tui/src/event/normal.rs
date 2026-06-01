@@ -169,6 +169,10 @@ where
             let _ = app.attach_opencode_from_clipboard();
             return Ok(());
         }
+        KeyCode::Char('W') => {
+            let _ = app.open_opencode_web_for_selected_thread();
+            return Ok(());
+        }
         KeyCode::Char('1') => {
             app.jump_to(0);
             return Ok(());
