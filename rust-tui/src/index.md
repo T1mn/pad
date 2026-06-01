@@ -7,10 +7,11 @@
 - `pad_sider/`：Codex pane 左侧辅助栏，负责 tree、Markdown 预览、`/` fuzzy 搜索与 Codex diff 审阅。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
 - `relay/`：各 agent relay/native 配置与运行时覆盖。
-- `preview_source/`：Claude/Codex/Gemini 会话预览解析。
+- `preview_source/`：Claude/Codex/Gemini/OpenCode 会话预览解析。
 - `chat/`：聊天后端与 Telegram 集成。
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
+- `opencode_history/`：读取 OpenCode 官方 SQLite 历史。
 - `session_cache/`：会话快照缓存与持久化。
 - `agent_resume/`：从缓存记录列出并恢复 agent 会话。
 - `workspace_recipe/`：工作区 recipe 解析、dry-run 与 tmux 启动。

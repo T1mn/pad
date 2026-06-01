@@ -75,7 +75,7 @@ impl HookBindingContext {
 pub(super) fn supports_cached_session(panel: &AgentPanel) -> bool {
     matches!(
         panel.agent_type,
-        AgentType::Claude | AgentType::Codex | AgentType::Gemini
+        AgentType::Claude | AgentType::Codex | AgentType::Gemini | AgentType::OpenCode
     )
 }
 
@@ -126,5 +126,10 @@ mod tests {
     #[test]
     fn gemini_is_supported_by_session_cache() {
         assert!(supports_cached_session(&panel(AgentType::Gemini)));
+    }
+
+    #[test]
+    fn opencode_is_supported_by_session_cache() {
+        assert!(supports_cached_session(&panel(AgentType::OpenCode)));
     }
 }

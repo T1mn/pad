@@ -2,6 +2,7 @@ mod activity;
 mod history_claude;
 mod history_codex;
 mod history_gemini;
+mod history_opencode;
 mod live;
 mod meta;
 mod trash;
@@ -21,6 +22,7 @@ use activity::apply_sort_activity;
 use history_claude::merge_claude_threads;
 use history_codex::merge_codex_threads;
 use history_gemini::merge_gemini_threads;
+use history_opencode::merge_opencode_threads;
 use live::{build_live_panel_fallback_folders, should_hide_live_panel};
 use meta::apply_thread_metadata;
 
@@ -43,6 +45,7 @@ pub fn build_sidebar_folders(
     let mut codex_history_threads = 0usize;
     let mut claude_history_threads = 0usize;
     let mut gemini_history_threads = 0usize;
+    let mut opencode_history_threads = 0usize;
     let archived_threads_view = thread_list_view == ThreadListView::Archived;
     let codex_session_snapshots = if !live_only || archived_threads_view {
         crate::session_cache::load_snapshots_by_agent_type(&AgentType::Codex)
@@ -62,6 +65,13 @@ pub fn build_sidebar_folders(
         None
     } else {
         crate::gemini_history::all_threads().ok()
+    };
+    let opencode_threads = if archived_threads_view {
+        crate::opencode_history::all_archived_threads().ok()
+    } else if live_only {
+        None
+    } else {
+        crate::opencode_history::all_threads().ok()
     };
     let seed_live_started_at = Instant::now();
     if !archived_threads_view {
@@ -88,6 +98,7 @@ pub fn build_sidebar_folders(
             archived_threads_view,
             claude_threads.as_deref(),
             gemini_threads.as_deref(),
+            opencode_threads.as_deref(),
         );
         log_sidebar_stage(
             "seed_history_folders",
@@ -153,6 +164,14 @@ pub fn build_sidebar_folders(
                     gemini_threads.as_deref(),
                     archived_threads_view,
                 );
+                opencode_history_threads += merge_opencode_threads(
+                    folder,
+                    activity_overrides,
+                    thread_sort_activity,
+                    startup_thread_sort_activity,
+                    opencode_threads.as_deref(),
+                    archived_threads_view,
+                );
             }
             for thread in &mut folder.threads {
                 apply_sort_activity(
@@ -215,14 +234,15 @@ pub fn build_sidebar_folders(
     log_sidebar_stage("final_sort", final_sort_started_at, values.len(), 0);
     if build_started_at.elapsed() >= Duration::from_millis(20) {
         crate::log_debug!(
-            "sidebar.build: total elapsed_ms={} folders={} live_threads={} hidden_live_panels={} codex_history_threads={} claude_history_threads={} gemini_history_threads={}",
+            "sidebar.build: total elapsed_ms={} folders={} live_threads={} hidden_live_panels={} codex_history_threads={} claude_history_threads={} gemini_history_threads={} opencode_history_threads={}",
             build_started_at.elapsed().as_millis(),
             values.len(),
             live_panel_threads,
             hidden_live_panels,
             codex_history_threads,
             claude_history_threads,
-            gemini_history_threads
+            gemini_history_threads,
+            opencode_history_threads
         );
     }
     values
@@ -246,6 +266,7 @@ fn seed_history_folders(
     archived_threads_view: bool,
     claude_threads: Option<&[ClaudeThreadRef]>,
     gemini_threads: Option<&[GeminiThreadRef]>,
+    opencode_threads: Option<&[crate::opencode_history::OpenCodeThreadRef]>,
 ) {
     let codex_threads = if archived_threads_view {
         crate::codex_state::all_archived_threads()
@@ -288,6 +309,19 @@ fn seed_history_folders(
         if thread.kind == "subagent" {
             continue;
         }
+        let folder_key = thread.cwd.to_string_lossy().to_string();
+        folders
+            .entry(folder_key.clone())
+            .or_insert_with(|| SidebarFolder {
+                key: folder_key.clone(),
+                path: folder_key.clone(),
+                label: folder_display_label(&folder_key),
+                updated_at: 0,
+                threads: Vec::new(),
+            });
+    }
+
+    for thread in opencode_threads.unwrap_or(&[]) {
         let folder_key = thread.cwd.to_string_lossy().to_string();
         folders
             .entry(folder_key.clone())

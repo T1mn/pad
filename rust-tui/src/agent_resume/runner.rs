@@ -22,7 +22,7 @@ pub fn build_resume_command(target: &ResumeTarget) -> String {
         ),
         "claude" => format!("exec claude --resume {}", sid),
         "gemini" => format!("exec gemini --resume {}", sid),
-        "opencode" => format!("exec opencode --resume {}", sid),
+        "opencode" => format!("exec opencode --session {}", sid),
         other => format!("exec {} --resume {}", shell_command_name(other), sid),
     }
 }
@@ -134,6 +134,23 @@ mod tests {
 
         assert!(command.contains("CODEX_HOME="));
         assert!(command.contains("codex -C '/tmp/demo dir' resume 'abc 123'"));
+    }
+
+    #[test]
+    fn opencode_resume_command_uses_session_flag() {
+        let target = ResumeTarget {
+            agent_session_id: "ses_123".into(),
+            agent_type: "opencode".into(),
+            working_dir: "/tmp/demo".into(),
+            transcript_path: None,
+            title: None,
+            updated_at: 1,
+        };
+
+        assert_eq!(
+            build_resume_command(&target),
+            "exec opencode --session 'ses_123'"
+        );
     }
 
     #[test]

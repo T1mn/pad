@@ -31,6 +31,7 @@ mod logger;
 mod model;
 mod notification_inbox;
 mod notify;
+mod opencode_history;
 mod pad_sider;
 mod paths;
 mod pipe;

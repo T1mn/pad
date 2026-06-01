@@ -190,6 +190,7 @@ impl App {
                 AgentType::Codex => crate::codex_state::archive_thread(session_id),
                 AgentType::Claude => crate::claude_history::archive_thread(session_id),
                 AgentType::Gemini => crate::gemini_history::archive_thread(session_id),
+                AgentType::OpenCode => crate::opencode_history::archive_thread(session_id),
                 _ => Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     "archive is not supported for this agent type",
@@ -199,6 +200,7 @@ impl App {
                 AgentType::Codex => crate::codex_state::unarchive_thread(session_id),
                 AgentType::Claude => crate::claude_history::unarchive_thread(session_id),
                 AgentType::Gemini => crate::gemini_history::unarchive_thread(session_id),
+                AgentType::OpenCode => crate::opencode_history::unarchive_thread(session_id),
                 _ => Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     "restore is not supported for this agent type",

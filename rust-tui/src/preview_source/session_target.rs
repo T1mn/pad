@@ -52,6 +52,15 @@ pub(super) fn resolve_session_target(request: &PreviewRequest) -> Option<Session
             .as_ref()
             .map(|thread| thread.updated_at)
             .or_else(|| transcript_updated_at(&transcript_path)),
+        AgentType::OpenCode => resolved_session_id
+            .as_deref()
+            .and_then(|session_id| {
+                crate::opencode_history::thread_for_id(session_id)
+                    .ok()
+                    .flatten()
+            })
+            .map(|thread| thread.updated_at)
+            .or_else(|| transcript_updated_at(&transcript_path)),
         _ => transcript_updated_at(&transcript_path),
     };
 
@@ -150,6 +159,10 @@ fn resolve_transcript_path(
                 })
         }
         AgentType::Gemini => gemini_transcript_path_for_session_id_from_thread(session_id, gemini_thread),
+        AgentType::OpenCode => crate::opencode_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .map(|thread| thread.db_path),
         _ => None,
     }
 }
@@ -176,6 +189,9 @@ fn resolved_session_id_for_request(
         .or_else(|| {
             if request.agent_type == AgentType::Codex {
                 codex_thread_for_working_dir(&request.working_dir).map(|thread| thread.thread_id)
+            } else if request.agent_type == AgentType::OpenCode {
+                opencode_thread_for_working_dir(&request.working_dir)
+                    .map(|thread| thread.session_id)
             } else {
                 None
             }
@@ -198,6 +214,14 @@ fn codex_thread_for_working_dir(working_dir: &str) -> Option<crate::codex_state:
     crate::codex_state::latest_thread_for_cwd(Path::new(working_dir))
         .ok()
         .flatten()
+}
+
+fn opencode_thread_for_working_dir(
+    working_dir: &str,
+) -> Option<crate::opencode_history::OpenCodeThreadRef> {
+    crate::opencode_history::threads_for_cwd(Path::new(working_dir))
+        .ok()
+        .and_then(|threads| threads.into_iter().next())
 }
 
 fn codex_transcript_path_for_session_id(session_id: &str) -> Option<PathBuf> {

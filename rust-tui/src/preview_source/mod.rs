@@ -1,6 +1,7 @@
 mod claude;
 pub(crate) mod codex;
 mod gemini;
+mod opencode;
 mod session_target;
 mod turns;
 
@@ -186,7 +187,7 @@ fn supports_session_preview(request: &PreviewRequest) -> bool {
                 || request.agent_session_id.is_some()
                 || !request.cached_preview_turns.is_empty()
         }
-        AgentType::Gemini => true,
+        AgentType::Gemini | AgentType::OpenCode => true,
         _ => false,
     }
 }
@@ -245,6 +246,11 @@ fn load_session_preview(
             AgentType::Gemini => {
                 gemini::parse_transcript(&transcript_path, SessionReadMode::FullBackfill)
             }
+            AgentType::OpenCode => opencode::parse_transcript(
+                &transcript_path,
+                target.session_id.as_deref(),
+                SessionReadMode::FullBackfill,
+            ),
             _ => Ok(Vec::new()),
         };
         let parse_elapsed = parse_started_at.elapsed();
