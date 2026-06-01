@@ -231,7 +231,7 @@ impl App {
                 cache.target_key.clone(),
                 cache.width,
                 cache.theme_name.clone(),
-                cache.content.clone(),
+                cache.content_revision,
             )
         });
         let previous_panel_cache_state = self
@@ -259,6 +259,9 @@ impl App {
             && self.preview.source == update.source
             && self.preview.session_origin == update.session_origin
             && self.preview.session_id == update.session_id;
+        if content_changed {
+            self.preview.content_revision = self.preview.content_revision.wrapping_add(1);
+        }
         self.preview.content = update.content;
         self.preview.pane_id = Some(update.target_key.clone());
         self.preview.source = update.source;
@@ -324,12 +327,12 @@ impl App {
         }
 
         let preserve_plain_cache = cached_plain_context.as_ref().is_some_and(
-            |(target_key, _width, theme_name, content)| {
+            |(target_key, _width, theme_name, content_revision)| {
                 self.preview.pane_id.as_deref() == Some(target_key.as_str())
                     && self.preview.source == crate::model::PreviewSource::Tmux
                     && self.preview.view == PreviewView::Plain
                     && self.theme.name == theme_name
-                    && self.preview.content == *content
+                    && self.preview.content_revision == *content_revision
             },
         );
         if !preserve_plain_cache {

@@ -4,6 +4,9 @@ mod metrics;
 mod style;
 mod thread_row;
 mod viewport;
+mod width;
+
+pub use width::preferred_panel_width;
 
 use crate::app::state::FocusTarget;
 use crate::app::state::ThreadListView;
@@ -310,49 +313,6 @@ fn is_cjk_locale(locale: Locale) -> bool {
     matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }
 
-pub fn preferred_panel_width(app: &mut App) -> u16 {
-    let thread_list_view = app.thread_list_view();
-    let locale = app.locale;
-    let live_only = app.showing_live_sessions();
-    let title_width = if thread_list_view != ThreadListView::Normal {
-        metrics::display_width(&format!(
-            " {} {} {} ",
-            "○",
-            special_view_title_label(locale, thread_list_view),
-            88
-        ))
-    } else {
-        metrics::display_width(&format!(
-            " {} {} {} ",
-            "○",
-            display_scope_title_label(locale, live_only),
-            888
-        ))
-    };
-    let items = app.visible_sidebar_items_ref();
-    let mut content_width = 10usize;
-    for item in items {
-        let item_width = match item {
-            SidebarItem::Folder(folder) => {
-                2 + metrics::display_width(&metrics::truncate_to_width(&folder.label, 28))
-            }
-            SidebarItem::Thread(thread) => {
-                let subtitle = thread_row::thread_subtitle(thread);
-                let title_width =
-                    metrics::display_width(&metrics::truncate_to_width(&thread.title, 38));
-                let subtitle_width =
-                    metrics::display_width(&metrics::truncate_to_width(&subtitle, 32));
-                9 + title_width.max(subtitle_width)
-            }
-        };
-        content_width = content_width.max(item_width);
-        if content_width >= 40 {
-            break;
-        }
-    }
-    (content_width.max(title_width) as u16 + 6).clamp(6, 46)
-}
-
 pub fn draw_file_tree(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(ref mut tree) = app.sidebar.file_tree {
         let theme = &app.theme;
@@ -393,7 +353,6 @@ pub fn draw_agent_status_bar(f: &mut Frame, app: &App, area: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::AgentPanel;
     use crate::sidebar::{SidebarFolder, SidebarThread};
     use std::sync::Arc;
 
@@ -410,35 +369,6 @@ mod tests {
         .map(|span| span.content.to_string())
         .collect();
         assert_eq!(rendered, text);
-    }
-
-    #[test]
-    fn preferred_panel_width_keeps_short_name_visible() {
-        let mut app = App::new();
-        app.panels.push(AgentPanel {
-            session: "0".into(),
-            window: "kanban".into(),
-            window_index: "1".into(),
-            pane: "1".into(),
-            pane_id: "%1".into(),
-            agent_type: crate::model::AgentType::Codex,
-            working_dir: "/tmp/rust-tui".into(),
-            is_active: true,
-            state: crate::model::AgentState::Busy,
-            state_source: crate::model::AgentStateSource::Scanner,
-            transcript_path: None,
-            cached_preview_turns: Default::default(),
-            session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
-            agent_session_id: None,
-            last_user_prompt: None,
-            last_assistant_message: None,
-            has_unread_stop: false,
-        });
-
-        assert!(preferred_panel_width(&mut app) >= 13);
     }
 
     #[test]

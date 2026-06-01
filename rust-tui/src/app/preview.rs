@@ -445,7 +445,11 @@ impl App {
     }
 
     pub fn busy_animation_interval(&self) -> Duration {
-        Duration::from_millis(120)
+        if self.frame_budget_exceeded {
+            Duration::from_millis(240)
+        } else {
+            Duration::from_millis(120)
+        }
     }
 
     pub fn begin_preview_mouse_selection(&mut self, column: u16, row: u16) {

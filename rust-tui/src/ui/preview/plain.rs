@@ -56,11 +56,12 @@ pub(crate) fn ensure_plain_preview_cache(app: &mut App, width: u16) {
     let target_key = app.preview.pane_id.as_deref().unwrap_or_default();
     let theme_name = app.theme.name;
     let content = app.preview.content.as_str();
+    let content_revision = app.preview.content_revision;
     let cache_hit = app.preview.plain_cache.as_ref().is_some_and(|cache| {
         cache.target_key == target_key
             && cache.width == width
             && cache.theme_name == theme_name
-            && cache.content == content
+            && cache.content_revision == content_revision
     });
     if cache_hit {
         return;
@@ -86,7 +87,7 @@ pub(crate) fn ensure_plain_preview_cache(app: &mut App, width: u16) {
         target_key: target_key.to_string(),
         width,
         theme_name: theme_name.to_string(),
-        content: content.to_string(),
+        content_revision,
         lines,
         wrapped_rows,
     });
@@ -190,7 +191,6 @@ mod tests {
         assert_eq!(initial_cache.target_key, repeated_cache.target_key);
         assert_eq!(initial_cache.width, repeated_cache.width);
         assert_eq!(initial_cache.theme_name, repeated_cache.theme_name);
-        assert_eq!(initial_cache.content, repeated_cache.content);
         assert_eq!(initial_cache.wrapped_rows, repeated_cache.wrapped_rows);
         assert_eq!(initial_cache.lines.len(), repeated_cache.lines.len());
     }

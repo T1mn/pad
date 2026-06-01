@@ -81,6 +81,7 @@ impl App {
             self.sidebar.sidebar_folders_cache = folders;
             self.sidebar.sidebar_folders_dirty = false;
             self.sidebar.visible_sidebar_items_dirty = true;
+            self.sidebar.preferred_panel_width_cache = None;
             let elapsed = started_at.elapsed();
             if elapsed >= std::time::Duration::from_millis(8) {
                 log_debug!(
@@ -152,6 +153,7 @@ impl App {
                 &self.sidebar.visible_sidebar_items_cache,
             );
             self.sidebar.visible_sidebar_items_dirty = false;
+            self.sidebar.preferred_panel_width_cache = None;
             let elapsed = started_at.elapsed();
             if elapsed >= std::time::Duration::from_millis(8) {
                 log_debug!(

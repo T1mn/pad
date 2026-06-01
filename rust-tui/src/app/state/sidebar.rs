@@ -66,6 +66,7 @@ pub struct SidebarState {
     pub sidebar_folders_cache: Vec<SidebarFolder>,
     pub visible_sidebar_items_cache: Vec<SidebarItem>,
     pub visible_sidebar_stats: VisibleSidebarStats,
+    pub preferred_panel_width_cache: Option<PreferredPanelWidthCache>,
     pub sidebar_folders_dirty: bool,
     pub visible_sidebar_items_dirty: bool,
 }
@@ -75,6 +76,14 @@ pub struct VisibleSidebarStats {
     pub item_count: usize,
     pub thread_count: usize,
     pub row_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PreferredPanelWidthCache {
+    pub width: u16,
+    pub locale: crate::i18n::Locale,
+    pub thread_list_view: ThreadListView,
+    pub live_only: bool,
 }
 
 impl VisibleSidebarStats {
@@ -123,6 +132,7 @@ impl SidebarState {
             sidebar_folders_cache: Vec::new(),
             visible_sidebar_items_cache: Vec::new(),
             visible_sidebar_stats: VisibleSidebarStats::default(),
+            preferred_panel_width_cache: None,
             sidebar_folders_dirty: true,
             visible_sidebar_items_dirty: true,
         }

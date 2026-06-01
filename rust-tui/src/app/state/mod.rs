@@ -120,6 +120,6 @@ pub use preview::{
     ThreadPreviewCacheEntry,
 };
 pub use sidebar::{
-    PendingThreadAction, SidebarState, ThreadActionKind, ThreadListView, ThreadMetaEditKind,
-    VisibleSidebarStats,
+    PendingThreadAction, PreferredPanelWidthCache, SidebarState, ThreadActionKind, ThreadListView,
+    ThreadMetaEditKind, VisibleSidebarStats,
 };

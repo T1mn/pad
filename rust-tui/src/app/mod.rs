@@ -250,10 +250,12 @@ impl App {
     pub fn invalidate_sidebar_cache(&mut self) {
         self.sidebar.sidebar_folders_dirty = true;
         self.sidebar.visible_sidebar_items_dirty = true;
+        self.sidebar.preferred_panel_width_cache = None;
     }
 
     pub fn invalidate_sidebar_visible_cache(&mut self) {
         self.sidebar.visible_sidebar_items_dirty = true;
+        self.sidebar.preferred_panel_width_cache = None;
     }
 
     pub fn showing_live_sessions(&self) -> bool {

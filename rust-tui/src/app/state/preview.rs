@@ -33,7 +33,7 @@ pub struct PreviewPlainCache {
     pub target_key: String,
     pub width: u16,
     pub theme_name: String,
-    pub content: String,
+    pub content_revision: u64,
     pub lines: Vec<ratatui::text::Line<'static>>,
     pub wrapped_rows: usize,
 }
@@ -80,6 +80,7 @@ pub struct CopyToast {
 
 pub struct PreviewState {
     pub content: String,
+    pub content_revision: u64,
     pub pane_id: Option<String>,
     pub source: PreviewSource,
     pub view: PreviewView,
@@ -123,6 +124,7 @@ impl PreviewState {
     pub fn new() -> Self {
         Self {
             content: String::from("Select a panel to preview"),
+            content_revision: 0,
             pane_id: None,
             source: PreviewSource::Tmux,
             view: PreviewView::Plain,

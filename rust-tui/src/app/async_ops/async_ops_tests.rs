@@ -41,7 +41,7 @@ fn warm_app_with_panel() -> App {
         target_key: "live:%1".into(),
         width: 80,
         theme_name: app.theme.name.to_string(),
-        content: "cached preview".into(),
+        content_revision: app.preview.content_revision,
         lines: Vec::new(),
         wrapped_rows: 1,
     });
