@@ -87,7 +87,7 @@ fn build_codex_restart_command(agent_cmd: &str, cwd: &str, session_id: Option<&s
 
     format!(
         "exec {} -C {} resume {}",
-        crate::codex_runtime::with_codex_home(agent_cmd),
+        crate::codex_runtime::with_pad_codex_runtime(agent_cmd),
         shell_single_quote(cwd),
         session_part
     )
@@ -158,8 +158,16 @@ mod tests {
 
     fn assert_command_parts(command: &str, suffix: &str) {
         assert!(
-            command.starts_with("exec env CODEX_HOME='"),
-            "missing CODEX_HOME prefix: {command}"
+            command.starts_with("exec env PAD_CODEX_HOOKS=1 "),
+            "missing PAD Codex runtime prefix: {command}"
+        );
+        assert!(
+            !command.contains("CODEX_HOME="),
+            "restart command must not override CODEX_HOME: {command}"
+        );
+        assert!(
+            command.contains(" codex --profile pad "),
+            "missing pad profile: {command}"
         );
         assert!(
             command.ends_with(suffix),
@@ -171,7 +179,7 @@ mod tests {
     fn restart_command_resumes_specific_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", Some("sid-1")),
-            " codex -C '/tmp/project' resume 'sid-1'",
+            " codex --profile pad -C '/tmp/project' resume 'sid-1'",
         );
     }
 
@@ -179,7 +187,7 @@ mod tests {
     fn restart_command_falls_back_to_last_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", None),
-            " codex -C '/tmp/project' resume --last",
+            " codex --profile pad -C '/tmp/project' resume --last",
         );
     }
 
@@ -187,7 +195,7 @@ mod tests {
     fn restart_command_quotes_shell_values() {
         assert_command_parts(
             &build_codex_restart_command("codex --profile work", "/tmp/a'b", Some("s'id")),
-            r" codex --profile work -C '/tmp/a'\''b' resume 's'\''id'",
+            r" codex --profile pad -C '/tmp/a'\''b' resume 's'\''id'",
         );
     }
 }

@@ -1,9 +1,9 @@
 #[test]
 fn runtime_configs_apply_combined_codex_overlays_together() {
     with_temp_home("codex-combined-overlays", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
+        std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
+            .expect("create codex config parent");
         std::fs::write(
             &config_path,
             "model = \"gpt-5\"\napproval_policy = \"on-request\"\nservice_tier = \"default\"\nweb_search = \"cached\"\n[features]\nfast_mode = false\nmulti_agent = false\n",
@@ -47,9 +47,9 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
 #[test]
 fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
     with_temp_home("codex-combined-restore", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
+        std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
+            .expect("create codex config parent");
         std::fs::write(
             &config_path,
             "model = \"gpt-5\"\napproval_policy = \"on-request\"\nservice_tier = \"default\"\nweb_search = \"cached\"\n[features]\nfast_mode = false\nmulti_agent = false\n",

@@ -456,6 +456,12 @@ impl App {
         self.scan_rx = Some(rx);
 
         tokio::task::spawn_blocking(move || {
+            if let Err(err) = crate::codex_state::normalize_pad_codex_home_rollout_paths() {
+                log_debug!(
+                    "async_ops: codex rollout path normalization failed: {}",
+                    err
+                );
+            }
             let result = scan_panels();
             let _ = tx.blocking_send(result);
         });

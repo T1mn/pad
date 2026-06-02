@@ -15,8 +15,8 @@ pub fn build_resume_command(target: &ResumeTarget) -> String {
     let cwd = shell_single_quote(&target.working_dir);
     match target.agent_type.as_str() {
         "codex" => format!(
-            "exec env CODEX_HOME={} codex -C {} resume {}",
-            shell_single_quote(&crate::paths::pad_codex_home_dir().to_string_lossy()),
+            "exec {} -C {} resume {}",
+            crate::codex_runtime::with_pad_codex_runtime("codex"),
             cwd,
             sid
         ),
@@ -121,7 +121,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn codex_resume_command_uses_pad_codex_home_and_resume() {
+    fn codex_resume_command_uses_pad_profile_and_resume() {
         let target = ResumeTarget {
             agent_session_id: "abc 123".into(),
             agent_type: "codex".into(),
@@ -132,8 +132,9 @@ mod tests {
         };
         let command = build_resume_command(&target);
 
-        assert!(command.contains("CODEX_HOME="));
-        assert!(command.contains("codex -C '/tmp/demo dir' resume 'abc 123'"));
+        assert!(command.starts_with("exec env PAD_CODEX_HOOKS=1 "));
+        assert!(!command.contains("CODEX_HOME="));
+        assert!(command.contains(" codex --profile pad -C '/tmp/demo dir' resume 'abc 123'"));
     }
 
     #[test]

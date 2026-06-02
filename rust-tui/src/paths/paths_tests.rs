@@ -52,6 +52,8 @@ fn codex_bridge_template_keeps_required_stdin_and_turn_id_handling() {
     assert!(template.contains("def load_payload():"));
     assert!(template.contains("stderr=subprocess.DEVNULL"));
     assert!(template.contains("payload.get(\"hook_event_name\") or hook_type"));
+    assert!(template.contains("def pad_codex_hooks_enabled():"));
+    assert!(template.contains("PAD_CODEX_HOOKS"));
     assert!(template.contains("__internal\", \"codex-turn-diff\", \"hook\""));
     assert!(template.contains("record_codex_turn_diff(message)"));
 }
@@ -127,8 +129,8 @@ fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
 }
 
 #[test]
-fn ensure_pad_codex_home_layout_copies_config_but_not_auth() {
-    with_temp_home("pad-codex-home-config", |home| {
+fn ensure_pad_codex_home_layout_copies_config_to_profile_but_not_auth() {
+    with_temp_home("pad-codex-profile-config", |home| {
         let canonical = home.join(".codex");
         fs::create_dir_all(&canonical).expect("create canonical codex home");
         fs::write(canonical.join("config.toml"), "model_provider = \"cpa\"\n")
@@ -149,22 +151,43 @@ fn ensure_pad_codex_home_layout_copies_config_but_not_auth() {
     });
 }
 
-#[cfg(unix)]
 #[test]
-fn ensure_pad_codex_home_layout_links_sessions_to_canonical_home() {
-    with_temp_home("pad-codex-home-sessions", |_home| {
+fn ensure_pad_codex_home_layout_does_not_create_session_or_db_links() {
+    with_temp_home("pad-codex-profile-no-links", |_home| {
         ensure_pad_codex_home_layout().expect("ensure pad codex home");
 
-        let sessions_meta =
-            fs::symlink_metadata(pad_codex_home_dir().join("sessions")).expect("sessions link");
-        let db_meta = fs::symlink_metadata(pad_codex_home_dir().join("state_5.sqlite"))
-            .expect("state db link");
-        let wal_meta = fs::symlink_metadata(pad_codex_home_dir().join("state_5.sqlite-wal"))
-            .expect("state wal link");
-        assert!(sessions_meta.file_type().is_symlink());
-        assert!(db_meta.file_type().is_symlink());
-        assert!(wal_meta.file_type().is_symlink());
-        assert!(canonical_codex_home_dir().join("sessions").is_dir());
+        assert_eq!(
+            pad_codex_config_path(),
+            canonical_codex_home_dir().join("pad.config.toml")
+        );
+        assert!(!pad_codex_home_dir().join("sessions").exists());
+        assert!(!pad_codex_home_dir().join("state_5.sqlite").exists());
+        assert!(!pad_codex_home_dir().join("state_5.sqlite-wal").exists());
+    });
+}
+
+#[test]
+fn ensure_runtime_layout_enables_codex_hooks_in_pad_profile_only() {
+    with_temp_home("runtime-layout-codex-profile-hooks", |home| {
+        let canonical_config = home.join(".codex").join("config.toml");
+        fs::create_dir_all(canonical_config.parent().expect("canonical config parent"))
+            .expect("create canonical config parent");
+        fs::write(&canonical_config, "model = \"gpt-5\"\n").expect("seed canonical config");
+
+        ensure_runtime_layout().expect("ensure runtime layout");
+
+        let canonical = fs::read_to_string(&canonical_config).expect("read canonical config");
+        let profile = fs::read_to_string(pad_codex_config_path()).expect("read pad profile");
+
+        assert_eq!(canonical, "model = \"gpt-5\"\n");
+        assert!(profile.contains("model = \"gpt-5\""));
+        assert!(profile.contains("[features]"));
+        assert!(profile.contains("codex_hooks = true") || profile.contains("hooks = true"));
+        assert_eq!(
+            pad_codex_hooks_path(),
+            canonical_codex_home_dir().join("hooks.json")
+        );
+        assert!(pad_codex_hooks_path().exists());
     });
 }
 

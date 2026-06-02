@@ -1,9 +1,9 @@
 #[test]
 fn runtime_configs_apply_codex_status_line_without_relay_provider() {
     with_temp_home("codex-status-line", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
+        std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
+            .expect("create codex config parent");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
 
         let agent = AgentConfig {
@@ -35,9 +35,9 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
 #[test]
 fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
     with_temp_home("codex-status-line-partial", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
+        std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
+            .expect("create codex config parent");
         std::fs::write(&config_path, "model = \"gpt-5\"\n").expect("seed codex config");
 
         let agent = AgentConfig {
@@ -64,9 +64,9 @@ fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
 #[test]
 fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
     with_temp_home("codex-status-line-restore", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
+        std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
+            .expect("create codex config parent");
         std::fs::write(
             &config_path,
             "model = \"gpt-5\"\n[tui]\nstatus_line = [\"project\", \"git-branch\"]\n",

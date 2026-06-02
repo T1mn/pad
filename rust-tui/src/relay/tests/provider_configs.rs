@@ -33,9 +33,6 @@ fn complete_codex_provider_keeps_relay_config() {
 #[test]
 fn codex_relay_normalizes_root_base_url_to_v1() {
     with_temp_home("codex-root-base-url", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-
         let agent = AgentConfig {
             name: "codex".into(),
             cmd: "codex".into(),
@@ -49,7 +46,7 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
 
         apply_relay_configs(&[agent]);
 
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
         let config = std::fs::read_to_string(&config_path).expect("read codex config");
         let parsed: toml::Value = config.parse().expect("parse codex config");
         assert_eq!(
@@ -83,7 +80,7 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
             Some(true)
         );
 
-        let auth_path = codex_dir.join("auth.json");
+        let auth_path = crate::paths::pad_codex_auth_path();
         let auth: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&auth_path).expect("read codex auth"))
                 .expect("parse codex auth");
@@ -158,9 +155,6 @@ fn codex_import_restores_exported_pad_yaml() {
 #[test]
 fn codex_relay_preserves_explicit_v1_base_url() {
     with_temp_home("codex-v1-base-url", |_home| {
-        let codex_dir = crate::paths::pad_codex_home_dir();
-        std::fs::create_dir_all(&codex_dir).expect("create codex dir");
-
         let agent = AgentConfig {
             name: "codex".into(),
             cmd: "codex".into(),
@@ -174,7 +168,7 @@ fn codex_relay_preserves_explicit_v1_base_url() {
 
         apply_relay_configs(&[agent]);
 
-        let config_path = codex_dir.join("config.toml");
+        let config_path = crate::paths::pad_codex_config_path();
         let config = std::fs::read_to_string(&config_path).expect("read codex config");
         let parsed: toml::Value = config.parse().expect("parse codex config");
         assert_eq!(
@@ -514,4 +508,3 @@ fn opencode_sync_removes_previously_managed_provider_keys() {
         assert!(value.get("model").is_none());
     });
 }
-

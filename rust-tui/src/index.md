@@ -18,6 +18,6 @@
 - `browser_remote/`：浏览器打开与远程 SSH 命令联动。
 - `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
-- `codex_runtime.rs`：pad 启动 Codex 时的 `CODEX_HOME` 注入。
+- `codex_runtime.rs`：pad 启动 Codex 时注入 `--profile pad`、hook 标记与 relay token。
 - `scanner.rs` / `scanner/`：tmux pane 扫描、进程快照与 agent 识别。
 - `event.rs` / `event/`：键鼠事件分发。

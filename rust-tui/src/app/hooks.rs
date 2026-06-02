@@ -24,6 +24,8 @@ struct PendingCodexTitleSummary {
 
 impl App {
     pub fn apply_hook_event(&mut self, event: HookEvent) {
+        normalize_codex_rollout_paths_if_needed(&event);
+
         let pane_id = match event.tmux.pane_id.clone() {
             Some(id) => id,
             None => {
@@ -268,6 +270,21 @@ impl App {
         {
             panel.has_unread_stop = false;
         }
+    }
+}
+
+fn normalize_codex_rollout_paths_if_needed(event: &HookEvent) {
+    let Some(path) = event.transcript_path.as_deref() else {
+        return;
+    };
+    let pad_codex_home = crate::paths::pad_codex_home_dir()
+        .to_string_lossy()
+        .to_string();
+    if !path.starts_with(&pad_codex_home) {
+        return;
+    }
+    if let Err(err) = crate::codex_state::normalize_pad_codex_home_rollout_paths() {
+        log_debug!("hook: codex rollout path normalization failed: {}", err);
     }
 }
 

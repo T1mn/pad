@@ -119,6 +119,10 @@ pub fn pad_codex_home_dir() -> PathBuf {
     codex_home::pad_codex_home_dir()
 }
 
+pub fn pad_codex_profile() -> &'static str {
+    codex_home::PAD_CODEX_PROFILE
+}
+
 pub fn canonical_codex_home_dir() -> PathBuf {
     codex_home::canonical_codex_home_dir()
 }

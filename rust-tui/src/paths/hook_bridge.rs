@@ -5,7 +5,7 @@ use std::path::Path;
 use super::{claude_hook_bridge_path, codex_hook_bridge_path};
 
 pub(super) const CLAUDE_BRIDGE_VERSION: &str = "claude-2026-04-08.1";
-pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-05-31.1";
+pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-06-02.1";
 const BRIDGE_VERSION_PREFIX: &str = "# pad-bridge-version: ";
 
 pub(super) fn install_bridge_scripts() -> io::Result<()> {
@@ -157,6 +157,13 @@ pub(super) fn codex_hook_bridge_template() -> String {
         return json.load(sys.stdin)
     except Exception:
         return {}
+
+
+def pad_codex_hooks_enabled():
+    if os.environ.get("PAD_CODEX_HOOKS") == "1":
+        return True
+    legacy_home = os.environ.get("CODEX_HOME", "")
+    return legacy_home.endswith("/.pad/codex-home")
 "#,
         main_start_line: "    silence_stdio()",
         payload_expr: "load_payload()",
@@ -273,6 +280,8 @@ __PAD_LOAD_PAYLOAD_BLOCK__
 __PAD_RECORD_TURN_DIFF_BLOCK__
 def main():
 __PAD_MAIN_START_LINE__
+    if "codex-" in "__PAD_BRIDGE_VERSION__" and not pad_codex_hooks_enabled():
+        return
     payload = __PAD_PAYLOAD_EXPR__
 __PAD_HOOK_TYPE_LINE__
     tmux = tmux_info_from_env()

@@ -148,7 +148,7 @@ pub(super) fn draw_relay_detail_content(f: &mut Frame, app: &App, area: Rect) {
             detail_lines.push(Line::from(""));
             detail_lines.push(Line::from(Span::styled(
                 format!(
-                    "auth.json: {}  ·  config.toml: {}",
+                    "auth.json: {}  ·  pad.config.toml: {}",
                     yes_no(provider.codex_auth_token().is_some()),
                     yes_no(!provider.base_url.trim().is_empty())
                 ),
