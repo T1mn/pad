@@ -1,8 +1,6 @@
-use super::fs::{
-    is_markdown_file, read_file_stats, read_markdown_file, relative_path_label, FileStats,
-};
+use super::fs::{read_file_stats, relative_path_label, FileStats};
 use super::index_map::{build_index_map, IndexRow};
-use super::preview::{FilePreview, MarkdownPreview, RenderedFilePreview};
+use super::preview::{FilePreview, FullscreenPreview, RenderedFilePreview};
 use super::preview_cache::FilePreviewCache;
 use super::search::FileSearch;
 use super::tree::{build_tree, TreeRow};
@@ -48,7 +46,7 @@ pub struct App {
     pub file_preview_revision: u64,
     pub rendered_file_preview: Option<RenderedFilePreview>,
     pub file_preview_cache: FilePreviewCache,
-    pub preview: Option<MarkdownPreview>,
+    pub preview: Option<FullscreenPreview>,
     pub search: Option<FileSearch>,
     pub show_help: bool,
     pub show_line_numbers: bool,
@@ -184,12 +182,6 @@ impl App {
             .unwrap_or(false)
     }
 
-    pub fn selected_is_markdown(&self) -> bool {
-        self.selected_path()
-            .map(|path| is_markdown_file(path))
-            .unwrap_or(false)
-    }
-
     pub(crate) fn restore_selection(&mut self, selected_path: Option<&Path>) {
         if let Some(path) = selected_path {
             if self.set_selected_path(path) {
@@ -250,7 +242,11 @@ impl App {
             return;
         };
         if preview.path.is_file() {
-            preview.content = read_markdown_file(&preview.path);
+            let scroll = preview.preview.scroll;
+            preview.preview = self
+                .file_preview_cache
+                .preview_for(&self.cwd, &preview.path);
+            preview.preview.scroll = scroll;
         } else {
             self.preview = None;
         }

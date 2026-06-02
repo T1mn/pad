@@ -1,9 +1,17 @@
-use std::path::PathBuf;
+mod pane;
+
 use std::process::Command;
+
+use pane::{
+    ensure_pane_unzoomed, ensure_pane_zoomed, focus_pane, pane_exists, pane_info,
+    panes_share_window, PaneInfo,
+};
 
 const TARGET_OPTION: &str = "@pad_sider_pane";
 const HELPER_TARGET_OPTION: &str = "@pad_sider_target";
+const TARGET_WAS_ZOOMED_OPTION: &str = "@pad_sider_target_was_zoomed";
 const HIDDEN_WINDOW_PREFIX: &str = "__pad_sider_";
+const PANE_INFO_SEP: &str = "\x1f";
 
 pub fn toggle(target_pane: &str) -> Result<(), String> {
     let target_pane = resolve_target_pane(target_pane)?;
@@ -16,17 +24,19 @@ pub fn toggle(target_pane: &str) -> Result<(), String> {
 
     match helper {
         Some(helper_pane) if panes_share_window(&target_pane, &helper_pane)? => {
-            hide_helper(&helper_pane)?;
+            hide_helper(&target_pane, &helper_pane)?;
         }
         Some(helper_pane) => {
+            remember_target_zoom(&target_pane, pane_info(&target_pane)?.zoomed)?;
             show_helper(&helper_pane, &target_pane)?;
-            focus_helper(&helper_pane)?;
+            focus_and_zoom_helper(&helper_pane)?;
         }
         None => {
+            remember_target_zoom(&target_pane, target.zoomed)?;
             let helper_pane = create_helper(&target)?;
             set_option(&target_pane, TARGET_OPTION, &helper_pane)?;
             set_option(&helper_pane, HELPER_TARGET_OPTION, &target_pane)?;
-            focus_helper(&helper_pane)?;
+            focus_and_zoom_helper(&helper_pane)?;
         }
     }
 
@@ -55,33 +65,6 @@ fn helper_pane_for_target(target_pane: &str) -> Result<Option<String>, String> {
     }
 }
 
-struct PaneInfo {
-    pane_id: String,
-    window_id: String,
-    command: String,
-    cwd: PathBuf,
-}
-
-fn pane_info(target_pane: &str) -> Result<PaneInfo, String> {
-    let output = run_tmux(&[
-        "display-message",
-        "-p",
-        "-t",
-        target_pane,
-        "#{pane_id}|#{session_name}|#{window_id}|#{pane_current_command}|#{pane_current_path}",
-    ])?;
-    let parts: Vec<_> = output.trim().split('|').collect();
-    if parts.len() != 5 {
-        return Err(format!("unexpected pane info: {output}"));
-    }
-    Ok(PaneInfo {
-        pane_id: parts[0].to_string(),
-        window_id: parts[2].to_string(),
-        command: parts[3].to_string(),
-        cwd: PathBuf::from(parts[4]),
-    })
-}
-
 fn create_helper(target: &PaneInfo) -> Result<String, String> {
     let binary = std::env::current_exe().map_err(|err| err.to_string())?;
     let width = super::sizing::stored_or_default_width(&target.pane_id);
@@ -108,9 +91,18 @@ fn create_helper(target: &PaneInfo) -> Result<String, String> {
     .map(|value| value.trim().to_string())
 }
 
-fn hide_helper(helper_pane: &str) -> Result<(), String> {
+fn hide_helper(target_pane: &str, helper_pane: &str) -> Result<(), String> {
+    let restore_zoom =
+        should_restore_target_zoom(show_option(target_pane, TARGET_WAS_ZOOMED_OPTION));
+    ensure_pane_unzoomed(helper_pane)?;
     let window_name = hidden_window_name(helper_pane);
-    run_tmux(&["break-pane", "-d", "-s", helper_pane, "-n", &window_name]).map(|_| ())
+    run_tmux(&["break-pane", "-d", "-s", helper_pane, "-n", &window_name])?;
+    focus_pane(target_pane)?;
+    if restore_zoom {
+        ensure_pane_zoomed(target_pane)?;
+    }
+    unset_option(target_pane, TARGET_WAS_ZOOMED_OPTION)?;
+    Ok(())
 }
 
 fn show_helper(helper_pane: &str, target_pane: &str) -> Result<(), String> {
@@ -130,20 +122,21 @@ fn show_helper(helper_pane: &str, target_pane: &str) -> Result<(), String> {
     .map(|_| ())
 }
 
-fn focus_helper(helper_pane: &str) -> Result<(), String> {
-    run_tmux(&["select-pane", "-t", helper_pane]).map(|_| ())
+fn focus_and_zoom_helper(helper_pane: &str) -> Result<(), String> {
+    focus_pane(helper_pane)?;
+    ensure_pane_zoomed(helper_pane)
 }
 
-fn panes_share_window(left: &str, right: &str) -> Result<bool, String> {
-    let left_window = pane_info(left)?.window_id;
-    let right_window = pane_info(right)?.window_id;
-    Ok(left_window == right_window)
+fn remember_target_zoom(target_pane: &str, zoomed: bool) -> Result<(), String> {
+    set_option(
+        target_pane,
+        TARGET_WAS_ZOOMED_OPTION,
+        if zoomed { "1" } else { "0" },
+    )
 }
 
-fn pane_exists(pane_id: &str) -> bool {
-    run_tmux(&["list-panes", "-a", "-F", "#{pane_id}"])
-        .map(|output| output.lines().any(|line| line.trim() == pane_id))
-        .unwrap_or(false)
+fn should_restore_target_zoom(value: Option<String>) -> bool {
+    value.as_deref() == Some("1")
 }
 
 fn show_option(target: &str, key: &str) -> Option<String> {
@@ -187,9 +180,17 @@ fn shell_single_quote(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::super::sizing::default_width;
+    use super::*;
 
     #[test]
     fn helper_uses_half_width() {
         assert_eq!(default_width(), "50%");
+    }
+
+    #[test]
+    fn zoom_restore_option_only_restores_explicit_zoomed_targets() {
+        assert!(should_restore_target_zoom(Some("1".into())));
+        assert!(!should_restore_target_zoom(Some("0".into())));
+        assert!(!should_restore_target_zoom(None));
     }
 }

@@ -63,6 +63,29 @@ fn selected_index_preview_opens_from_index_map() {
 }
 
 #[test]
+fn open_preview_supports_code_files() {
+    let root = temp_dir("open_preview_supports_code_files");
+    let source = root.join("src/main.rs");
+    fs::create_dir_all(source.parent().unwrap()).unwrap();
+    fs::write(&source, "fn main() {}\n").unwrap();
+
+    let mut app = App::new(root.clone(), None);
+    app.reveal_path(&source);
+    app.open_preview();
+
+    assert_eq!(
+        app.preview.as_ref().map(|preview| preview.path.as_path()),
+        Some(source.as_path())
+    );
+    assert!(app
+        .preview
+        .as_ref()
+        .is_some_and(|preview| preview.preview.content.contains("fn main")));
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn reveal_selected_index_returns_to_tree() {
     let root = temp_dir("reveal_selected_index_returns_to_tree");
     fs::create_dir_all(root.join("docs")).unwrap();

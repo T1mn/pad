@@ -1,19 +1,23 @@
 use super::super::app::App;
-use super::super::fs::{is_markdown_file, read_markdown_file};
-use super::super::preview::MarkdownPreview;
+use super::super::preview::FullscreenPreview;
+use std::path::Path;
 
 impl App {
     pub fn open_preview(&mut self) {
         let Some(path) = self.selected_path().cloned() else {
             return;
         };
-        if !is_markdown_file(&path) {
+        self.open_preview_path(&path);
+    }
+
+    pub(crate) fn open_preview_path(&mut self, path: &Path) {
+        if !path.is_file() {
             return;
         }
-        self.preview = Some(MarkdownPreview {
-            content: read_markdown_file(&path),
-            path,
-            scroll: 0,
+        let preview = self.file_preview_cache.preview_for(&self.cwd, path);
+        self.preview = Some(FullscreenPreview {
+            path: path.to_path_buf(),
+            preview,
         });
     }
 
@@ -23,25 +27,25 @@ impl App {
 
     pub fn preview_down(&mut self) {
         if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = preview.scroll.saturating_add(1);
+            preview.preview.scroll = preview.preview.scroll.saturating_add(1);
         }
     }
 
     pub fn preview_up(&mut self) {
         if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = preview.scroll.saturating_sub(1);
+            preview.preview.scroll = preview.preview.scroll.saturating_sub(1);
         }
     }
 
     pub fn reset_preview(&mut self) {
         if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = 0;
+            preview.preview.scroll = 0;
         }
     }
 
     pub fn preview_bottom(&mut self) {
         if let Some(preview) = self.preview.as_mut() {
-            preview.scroll = u16::MAX;
+            preview.preview.scroll = u16::MAX;
         }
     }
 

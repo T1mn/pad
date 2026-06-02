@@ -98,7 +98,7 @@ fn resize_sider(app: &App, wider: bool) {
 fn handle_tree_space(app: &mut App) {
     if app.selected_is_dir() {
         app.toggle_selected();
-    } else if app.selected_is_markdown() {
+    } else {
         app.open_preview();
     }
 }

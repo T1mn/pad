@@ -1,4 +1,5 @@
 mod diff;
+mod file_icons;
 mod file_preview;
 mod input;
 mod line_numbers;
@@ -8,6 +9,7 @@ mod overlay;
 mod render;
 mod render_window;
 mod split;
+mod syntax;
 mod text_zoom;
 
 use super::app::App;

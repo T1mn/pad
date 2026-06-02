@@ -1,6 +1,4 @@
 use super::super::app::App;
-use super::super::fs::read_markdown_file;
-use super::super::preview::MarkdownPreview;
 use std::path::PathBuf;
 
 impl App {
@@ -9,22 +7,14 @@ impl App {
             return;
         };
         self.reveal_path(&path);
-        self.preview = Some(MarkdownPreview {
-            content: read_markdown_file(&path),
-            path,
-            scroll: 0,
-        });
+        self.open_preview_path(&path);
     }
 
     pub fn open_selected_index_preview(&mut self) {
         let Some(path) = self.selected_index_path().cloned() else {
             return;
         };
-        self.preview = Some(MarkdownPreview {
-            content: read_markdown_file(&path),
-            path,
-            scroll: 0,
-        });
+        self.open_preview_path(&path);
     }
 
     pub fn reveal_selected_index_in_tree(&mut self) {

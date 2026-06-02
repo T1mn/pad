@@ -1,6 +1,5 @@
-use super::super::{app::App, preview::MarkdownPreview, search::FileSearch};
-use super::file_preview::with_preview_display_options;
-use super::markdown::render_markdown;
+use super::super::{app::App, preview::FullscreenPreview, search::FileSearch};
+use super::file_preview::{preview_title, render_preview_text, with_preview_display_options};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
@@ -9,24 +8,23 @@ use ratatui::{
     Frame,
 };
 
-pub fn draw_preview(frame: &mut Frame, app: &App, preview: &MarkdownPreview) {
-    let title = format!(
-        " preview {} ",
-        preview
-            .path
-            .strip_prefix(&app.cwd)
-            .unwrap_or(&preview.path)
-            .display()
-    );
+pub fn draw_preview(frame: &mut Frame, app: &App, preview: &FullscreenPreview) {
+    let title = preview_title(&preview.preview.title, preview.preview.kind);
+    let inner = frame.area().inner(Margin::new(1, 1));
     let text = with_preview_display_options(
-        render_markdown(&preview.content),
+        render_preview_text(
+            &preview.preview.title,
+            &preview.preview.content,
+            preview.preview.kind,
+            inner.width,
+        ),
         app.show_line_numbers,
         app.text_zoom,
     );
     let paragraph = Paragraph::new(text)
         .block(focus_block(&title, true))
         .wrap(Wrap { trim: false })
-        .scroll((preview.scroll, 0));
+        .scroll((preview.preview.scroll, 0));
     frame.render_widget(paragraph, frame.area());
 }
 
@@ -102,7 +100,7 @@ pub fn draw_help(frame: &mut Frame) {
         )]),
         Line::default(),
         Line::from("Global"),
-        Line::from("  F10           toggle sider"),
+        Line::from("  F10           toggle fullscreen sider overlay"),
         Line::from("  ?             show / hide this help"),
         Line::from("  q             quit sider UI"),
         Line::from("  r             refresh project state"),
@@ -117,7 +115,7 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("Tree"),
         Line::from("  j/k ↑/↓       move / scroll focused area"),
         Line::from("  Enter/Space   expand or collapse directory"),
-        Line::from("  Space         preview selected .md file"),
+        Line::from("  Space         fullscreen preview selected file"),
         Line::from("  i             open nearest index.md guide"),
         Line::from("  /             fuzzy search files"),
         Line::default(),
@@ -132,7 +130,7 @@ pub fn draw_help(frame: &mut Frame) {
         Line::from("  PgUp/PgDn     scroll selected diff"),
         Line::default(),
         Line::from("Preview"),
-        Line::from("  q/Esc         close full preview"),
+        Line::from("  q/Esc         close fullscreen preview"),
         Line::from("  j/k ↑/↓       scroll full or focused right preview"),
         Line::from("  PgUp/PgDn     scroll right preview"),
         Line::from("  g/G           top / bottom"),

@@ -8,10 +8,9 @@ pub enum PreviewKind {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct MarkdownPreview {
+pub struct FullscreenPreview {
     pub path: std::path::PathBuf,
-    pub content: String,
-    pub scroll: u16,
+    pub preview: FilePreview,
 }
 
 #[derive(Clone, PartialEq, Eq)]

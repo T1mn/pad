@@ -1,12 +1,13 @@
 use super::super::app::{App, Focus, NavMode};
+use super::file_icons;
 use super::file_preview;
 use super::nav_window::{list_viewport_height, relative_selection, selected_window};
 use super::overlay;
 use super::split;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    text::Line,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame,
 };
@@ -161,7 +162,17 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 "•"
             };
-            ListItem::new(Line::from(format!("{}{} {}", indent, marker, row.label)))
+            let icon = file_icons::icon(&row.label, row.is_dir);
+            let accent = file_icons::accent(&row.label, row.is_dir);
+            ListItem::new(Line::from(vec![
+                Span::styled(indent, Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{marker} "), Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{icon} "), Style::default().fg(accent)),
+                Span::styled(
+                    row.label.clone(),
+                    Style::default().fg(Color::Rgb(212, 212, 212)),
+                ),
+            ]))
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
