@@ -278,7 +278,7 @@ fn app_stop_hook_does_not_auto_reorder_sidebar() {
 
 #[test]
 fn completion_notification_uses_prompt_when_lookup_is_unavailable() {
-    let request = super::build_completion_notification(
+    let request = super::notification::build_completion_notification(
         &AgentType::Codex,
         Some("missing-session"),
         Some("Ship the relay settings redesign with a compact layout"),
@@ -294,7 +294,7 @@ fn completion_notification_uses_prompt_when_lookup_is_unavailable() {
 
 #[test]
 fn completion_notification_falls_back_to_workdir_name() {
-    let request = super::build_completion_notification(
+    let request = super::notification::build_completion_notification(
         &AgentType::OpenCode,
         None,
         None,
@@ -312,14 +312,14 @@ fn completion_notification_falls_back_to_workdir_name() {
 
 #[test]
 fn completion_notification_truncates_long_text() {
-    let body = super::completion_notification_body(
-            &AgentType::Unknown,
-            None,
-            Some(
-                "this is a very long prompt that should be truncated before it reaches the desktop notification surface because otherwise it becomes noisy",
-            ),
-            None,
-        );
+    let body = super::notification_text::completion_notification_body(
+        &AgentType::Unknown,
+        None,
+        Some(
+            "this is a very long prompt that should be truncated before it reaches the desktop notification surface because otherwise it becomes noisy",
+        ),
+        None,
+    );
 
     assert!(body.ends_with("..."));
     assert!(body.chars().count() <= 75);
@@ -334,7 +334,7 @@ fn completion_notification_prefers_latest_prompt_over_persisted_codex_title() {
         create_codex_threads_db(&db_path);
         insert_codex_thread(&db_path, "session-1", "Very old title");
 
-        let request = super::build_completion_notification(
+        let request = super::notification::build_completion_notification(
             &AgentType::Codex,
             Some("session-1"),
             Some("Latest prompt should win over the old title"),
