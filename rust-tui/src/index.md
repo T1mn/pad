@@ -15,6 +15,7 @@
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
 - `opencode_history/`：读取 OpenCode 官方 SQLite 历史。
 - `session_cache/`：会话快照缓存与持久化。
+- `thread_meta.rs` / `thread_meta/`：thread 标题、删除状态、标签等本地元数据。
 - `session_continuity.rs` / `session_continuity/`：agent session continuity ledger、预览 fallback 健康判断与诊断日志。
 - `agent_resume/`：从缓存记录列出并恢复 agent 会话。
 - `workspace_recipe/`：工作区 recipe 解析、dry-run 与 tmux 启动。
