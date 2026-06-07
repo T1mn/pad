@@ -1,7 +1,7 @@
 # ui/modals
 
 - `common.rs`: shared modal surface and text helpers.
-- `dialogs.rs`: confirm/help dialogs and thread title/tag editor.
+- `dialogs.rs` / `dialogs/`: confirm/help dialogs, thread action copy, and title/tag editor rendering.
 - `settings/`: settings modal screens.
 - `relay/`: relay/provider modals.
 - `telegram.rs`: Telegram settings modal.
