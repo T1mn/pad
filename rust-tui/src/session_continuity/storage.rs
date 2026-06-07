@@ -1,7 +1,8 @@
-use super::{
-    clean_text, now_ts, ContinuityDiagnosticEvent, ContinuityLedger, ContinuitySnapshot,
-    SessionContinuityRecord, CONTINUITY_IO_LOCK, CONTINUITY_VERSION,
+use super::model::{
+    ContinuityDiagnosticEvent, ContinuityLedger, ContinuitySnapshot, SessionContinuityRecord,
 };
+use super::utils::{clean_text, now_ts};
+use super::{CONTINUITY_IO_LOCK, CONTINUITY_VERSION};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::sync::Mutex;

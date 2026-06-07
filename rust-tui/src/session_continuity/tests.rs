@@ -1,7 +1,7 @@
 use super::{
-    classify_health, classify_preview_health, recompute_record_health,
-    ContinuityAttemptClassification, ContinuityHealth, PreviewFallbackDecision,
-    SessionContinuityRecord,
+    classify_health, test_classify_preview_health as classify_preview_health,
+    test_recompute_record_health as recompute_record_health, ContinuityAttemptClassification,
+    ContinuityHealth, PreviewFallbackDecision, SessionContinuityRecord,
 };
 
 fn record(session_id: &str) -> SessionContinuityRecord {
