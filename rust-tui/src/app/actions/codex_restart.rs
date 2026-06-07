@@ -37,6 +37,17 @@ impl App {
             self.show_action_toast(restart_failed_title(self.locale), &err.to_string());
             return false;
         }
+        crate::relay::apply_runtime_configs(
+            &self.config.agents,
+            &self.config.agent_permissions,
+            &self.config.codex,
+        );
+        if let Err(err) = crate::paths::ensure_pad_codex_wrapper()
+            .and_then(|_| crate::codex_runtime::ensure_pad_codex_auth_ready())
+        {
+            self.show_action_toast(restart_failed_title(self.locale), &err.to_string());
+            return false;
+        }
 
         let agent_cmd = self.codex_agent_command();
         let command = build_codex_restart_command(
@@ -158,7 +169,7 @@ mod tests {
 
     fn assert_command_parts(command: &str, suffix: &str) {
         assert!(
-            command.starts_with("exec env PAD_CODEX_HOOKS=1 "),
+            command.starts_with("exec '"),
             "missing PAD Codex runtime prefix: {command}"
         );
         assert!(
@@ -166,8 +177,8 @@ mod tests {
             "restart command must not override CODEX_HOME: {command}"
         );
         assert!(
-            command.contains(" codex --profile pad "),
-            "missing pad profile: {command}"
+            command.contains("/.pad/scripts/pad-codex'"),
+            "missing pad-codex wrapper: {command}"
         );
         assert!(
             command.ends_with(suffix),
@@ -179,7 +190,7 @@ mod tests {
     fn restart_command_resumes_specific_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", Some("sid-1")),
-            " codex --profile pad -C '/tmp/project' resume 'sid-1'",
+            "/.pad/scripts/pad-codex' -C '/tmp/project' resume 'sid-1'",
         );
     }
 
@@ -187,7 +198,7 @@ mod tests {
     fn restart_command_falls_back_to_last_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", None),
-            " codex --profile pad -C '/tmp/project' resume --last",
+            "/.pad/scripts/pad-codex' -C '/tmp/project' resume --last",
         );
     }
 
@@ -195,7 +206,7 @@ mod tests {
     fn restart_command_quotes_shell_values() {
         assert_command_parts(
             &build_codex_restart_command("codex --profile work", "/tmp/a'b", Some("s'id")),
-            r" codex --profile pad -C '/tmp/a'\''b' resume 's'\''id'",
+            r"/.pad/scripts/pad-codex' -C '/tmp/a'\''b' resume 's'\''id'",
         );
     }
 }

@@ -125,6 +125,29 @@ fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
             std::fs::read_to_string(codex_index_prompt_file_path()).expect("read prompt file"),
             DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE
         );
+        assert!(pad_codex_wrapper_path().is_file());
+    });
+}
+
+#[test]
+fn ensure_runtime_layout_installs_executable_pad_codex_wrapper() {
+    with_temp_home("runtime-layout-wrapper", |_home| {
+        ensure_runtime_layout().expect("ensure runtime layout");
+
+        let wrapper = pad_codex_wrapper_path();
+        let content = fs::read_to_string(&wrapper).expect("read wrapper");
+        assert!(content.contains(".pad/codex-home/auth.json"));
+        assert!(content.contains("exec \"$CODEX_BIN\" --profile pad \"$@\""));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&wrapper)
+                .expect("wrapper metadata")
+                .permissions()
+                .mode();
+            assert_ne!(mode & 0o111, 0);
+        }
     });
 }
 
@@ -147,6 +170,10 @@ fn ensure_pad_codex_home_layout_copies_config_to_profile_but_not_auth() {
             fs::read_to_string(pad_codex_config_path()).expect("read pad config"),
             "model_provider = \"cpa\"\n"
         );
+        assert_eq!(
+            pad_codex_config_path(),
+            pad_codex_home_dir().join("pad.config.toml")
+        );
         assert!(!pad_codex_auth_path().exists());
     });
 }
@@ -158,11 +185,46 @@ fn ensure_pad_codex_home_layout_does_not_create_session_or_db_links() {
 
         assert_eq!(
             pad_codex_config_path(),
-            canonical_codex_home_dir().join("pad.config.toml")
+            pad_codex_home_dir().join("pad.config.toml")
         );
         assert!(!pad_codex_home_dir().join("sessions").exists());
         assert!(!pad_codex_home_dir().join("state_5.sqlite").exists());
         assert!(!pad_codex_home_dir().join("state_5.sqlite-wal").exists());
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn ensure_pad_codex_home_layout_unlinks_legacy_shared_state_symlinks() {
+    with_temp_home("pad-codex-profile-unlink-legacy", |home| {
+        use std::os::unix::fs::symlink;
+
+        let canonical = home.join(".codex");
+        let canonical_sessions = canonical.join("sessions");
+        let canonical_archived = canonical.join("archived_sessions");
+        let canonical_db = canonical.join("state_5.sqlite");
+        fs::create_dir_all(&canonical_sessions).expect("create canonical sessions");
+        fs::create_dir_all(&canonical_archived).expect("create canonical archived");
+        fs::write(&canonical_db, "db").expect("write canonical db");
+
+        fs::create_dir_all(pad_codex_home_dir()).expect("create pad codex home");
+        symlink(&canonical_sessions, pad_codex_home_dir().join("sessions"))
+            .expect("symlink sessions");
+        symlink(
+            &canonical_archived,
+            pad_codex_home_dir().join("archived_sessions"),
+        )
+        .expect("symlink archived");
+        symlink(&canonical_db, pad_codex_home_dir().join("state_5.sqlite")).expect("symlink db");
+
+        ensure_pad_codex_home_layout().expect("ensure pad codex home");
+
+        assert!(!pad_codex_home_dir().join("sessions").exists());
+        assert!(!pad_codex_home_dir().join("archived_sessions").exists());
+        assert!(!pad_codex_home_dir().join("state_5.sqlite").exists());
+        assert!(canonical_sessions.is_dir());
+        assert!(canonical_archived.is_dir());
+        assert!(canonical_db.is_file());
     });
 }
 
@@ -185,7 +247,7 @@ fn ensure_runtime_layout_enables_codex_hooks_in_pad_profile_only() {
         assert!(profile.contains("codex_hooks = true") || profile.contains("hooks = true"));
         assert_eq!(
             pad_codex_hooks_path(),
-            canonical_codex_home_dir().join("hooks.json")
+            pad_codex_home_dir().join("hooks.json")
         );
         assert!(pad_codex_hooks_path().exists());
     });

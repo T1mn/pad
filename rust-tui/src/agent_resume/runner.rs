@@ -56,6 +56,8 @@ pub fn build_launch_plan(target: &ResumeTarget) -> ResumeLaunchPlan {
 pub fn launch_resume_target(target: &ResumeTarget, dry_run: bool) -> io::Result<ResumeLaunchPlan> {
     if target.agent_type == "codex" {
         crate::paths::ensure_pad_codex_home_layout()?;
+        crate::paths::ensure_pad_codex_wrapper()?;
+        crate::codex_runtime::ensure_pad_codex_auth_ready()?;
     }
     let plan = build_launch_plan(target);
     if dry_run {
@@ -132,9 +134,9 @@ mod tests {
         };
         let command = build_resume_command(&target);
 
-        assert!(command.starts_with("exec env PAD_CODEX_HOOKS=1 "));
+        assert!(command.starts_with("exec '"));
         assert!(!command.contains("CODEX_HOME="));
-        assert!(command.contains(" codex --profile pad -C '/tmp/demo dir' resume 'abc 123'"));
+        assert!(command.contains("/.pad/scripts/pad-codex' -C '/tmp/demo dir' resume 'abc 123'"));
     }
 
     #[test]

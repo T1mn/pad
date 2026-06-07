@@ -75,7 +75,7 @@ impl TempBackup {
 }
 
 pub fn sync_to_provider(target_provider: &str) -> io::Result<ProviderSyncResult> {
-    let codex_home = crate::paths::canonical_codex_home_dir();
+    let codex_home = crate::paths::pad_codex_home_dir();
     sync_to_provider_at(&codex_home, target_provider)
 }
 
@@ -373,8 +373,10 @@ fn to_io_error(err: rusqlite::Error) -> io::Error {
 
 #[cfg(test)]
 mod tests {
-    use super::sync_to_provider_at;
+    use super::{sync_to_provider, sync_to_provider_at};
     use rusqlite::Connection;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_codex_home(name: &str) -> std::path::PathBuf {
         let path = std::env::temp_dir().join(format!(
@@ -384,6 +386,37 @@ mod tests {
         let _ = std::fs::remove_dir_all(&path);
         std::fs::create_dir_all(&path).expect("create temp codex home");
         path
+    }
+
+    fn temp_home(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("pad-codex-provider-sync-home-{name}-{stamp}"))
+    }
+
+    fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
+        let _guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock provider sync tests");
+        let home = temp_home(name);
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).expect("create temp home");
+
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        let result = f(&home);
+
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        let _ = std::fs::remove_dir_all(&home);
+
+        result
     }
 
     fn write_rollout(path: &std::path::Path, thread_id: &str, provider: &str) {
@@ -495,5 +528,58 @@ mod tests {
         assert!(rollout.contains("\"model_provider\":\"openai\""));
 
         let _ = std::fs::remove_dir_all(&codex_home);
+    }
+
+    #[test]
+    fn sync_to_provider_uses_pad_private_codex_home() {
+        with_temp_home("private-home", |_home| {
+            let canonical_home = crate::paths::canonical_codex_home_dir();
+            let pad_home = crate::paths::pad_codex_home_dir();
+
+            write_rollout(
+                &canonical_home.join("sessions/2026/04/10/rollout-canonical.jsonl"),
+                "thread-a",
+                "canonical-old",
+            );
+            write_state_db(&canonical_home.join("state_5.sqlite"));
+
+            write_rollout(
+                &pad_home.join("sessions/2026/04/10/rollout-pad.jsonl"),
+                "thread-a",
+                "pad-old",
+            );
+            write_state_db(&pad_home.join("state_5.sqlite"));
+
+            let result = sync_to_provider("pad-provider").expect("sync provider");
+
+            assert_eq!(
+                result,
+                super::ProviderSyncResult {
+                    updated_rollout_files: 1,
+                    updated_sqlite_rows: 2,
+                }
+            );
+            assert!(std::fs::read_to_string(
+                pad_home.join("sessions/2026/04/10/rollout-pad.jsonl")
+            )
+            .expect("read pad rollout")
+            .contains("\"model_provider\":\"pad-provider\""));
+            assert!(std::fs::read_to_string(
+                canonical_home.join("sessions/2026/04/10/rollout-canonical.jsonl")
+            )
+            .expect("read canonical rollout")
+            .contains("\"model_provider\":\"canonical-old\""));
+
+            let canonical_connection =
+                Connection::open(canonical_home.join("state_5.sqlite")).expect("open canonical db");
+            let canonical_provider = canonical_connection
+                .query_row(
+                    "SELECT model_provider FROM threads WHERE id = 'thread-a'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .expect("query canonical provider");
+            assert_eq!(canonical_provider, "old");
+        });
     }
 }

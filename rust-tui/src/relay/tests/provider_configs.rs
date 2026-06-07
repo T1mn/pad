@@ -88,6 +88,10 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
             auth.get("OPENAI_API_KEY").and_then(|value| value.as_str()),
             Some("sk-test")
         );
+        assert_eq!(
+            auth.get("auth_mode").and_then(|value| value.as_str()),
+            Some("apikey")
+        );
     });
 }
 

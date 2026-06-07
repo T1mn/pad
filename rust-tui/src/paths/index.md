@@ -2,7 +2,8 @@
 
 - `hook_bridge.rs`：Claude/Codex hook bridge 模板安装与 Codex hook 配置。
 - `codex_hooks.rs` / `codex_hooks/`：Codex hooks feature 开关、`hooks.json` 写入与版本兼容。
-- `codex_home.rs`：pad Codex profile/auth 路径初始化与旧 rollout 路径兼容。
+- `codex_wrapper.rs`：安装 `~/.pad/scripts/pad-codex`，固定使用 PAD 私有 Codex home、profile 与 relay auth。
+- `codex_home.rs`：`~/.pad/codex-home` 私有 Codex 配置/auth/hooks 路径初始化，与官方 `~/.codex` 隔离。
 - `paths_tests.rs`：runtime layout、prompt seed、hook bridge 模板测试。
 - `~/.pad/notifications/inbox.json`：notification inbox 持久化文件。
 - `~/.pad/opencode-exports/` / `opencode-stats/` / `opencode-diagnostics/`：OpenCode 导出 JSON、stats 与诊断报告。

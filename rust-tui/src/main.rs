@@ -190,8 +190,7 @@ fn bootstrap_into_tmux(args: &[String]) -> Result<(), Box<dyn Error>> {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
 
     if is_internal_command(&args) {
@@ -249,6 +248,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    runtime.block_on(async_main(args))
+}
+
+async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let telegram_daemon = is_telegram_daemon_command(&args);
     let debug = args.iter().any(|a| a == "--debug" || a == "-d");
     let tmux_env_present = std::env::var_os("TMUX").is_some();

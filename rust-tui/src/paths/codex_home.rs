@@ -6,7 +6,7 @@ use super::pad_home_dir;
 
 pub(super) const PAD_CODEX_PROFILE: &str = "pad";
 
-/// Legacy PAD Codex home, kept for PAD-private auth and old rollout migration.
+/// PAD-private Codex home. Official Codex App continues to use `~/.codex`.
 pub(super) fn pad_codex_home_dir() -> PathBuf {
     pad_home_dir().join("codex-home")
 }
@@ -20,39 +20,68 @@ pub(super) fn canonical_codex_home_dir() -> PathBuf {
 }
 
 pub(super) fn pad_codex_config_path() -> PathBuf {
-    canonical_codex_home_dir().join(format!("{PAD_CODEX_PROFILE}.config.toml"))
+    pad_codex_home_dir().join(format!("{PAD_CODEX_PROFILE}.config.toml"))
 }
 
-/// PAD relay auth is injected as process env so Codex app auth stays untouched.
+/// PAD relay auth lives outside `~/.codex` so Codex App auth stays untouched.
 pub(super) fn pad_codex_auth_path() -> PathBuf {
     pad_codex_home_dir().join("auth.json")
 }
 
-/// Hooks live in the canonical home; the bridge no-ops unless PAD sets its guard env.
+/// Hooks live in PAD's private Codex home; official Codex App hooks stay untouched.
 pub(super) fn pad_codex_hooks_path() -> PathBuf {
-    canonical_codex_home_dir().join("hooks.json")
+    pad_codex_home_dir().join("hooks.json")
 }
 
 pub(super) fn ensure_pad_codex_home_layout() -> io::Result<()> {
-    let canonical_home = canonical_codex_home_dir();
-
     fs::create_dir_all(pad_codex_home_dir())?;
-    fs::create_dir_all(&canonical_home)?;
-    seed_pad_profile_from_canonical(&canonical_home)?;
-    if let Err(err) = crate::codex_state::normalize_pad_codex_home_rollout_paths() {
-        crate::log_debug!("codex_home: rollout path normalization skipped: {}", err);
-    }
+    unlink_legacy_shared_state_symlinks()?;
+    seed_pad_profile_from_canonical()?;
 
     Ok(())
 }
 
-fn seed_pad_profile_from_canonical(canonical_home: &Path) -> io::Result<()> {
+fn unlink_legacy_shared_state_symlinks() -> io::Result<()> {
+    for name in [
+        "sessions",
+        "archived_sessions",
+        "state_5.sqlite",
+        "state_5.sqlite-shm",
+        "state_5.sqlite-wal",
+    ] {
+        let path = pad_codex_home_dir().join(name);
+        let Ok(meta) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if !meta.file_type().is_symlink() {
+            continue;
+        }
+        remove_symlink(&path)?;
+        crate::log_debug!(
+            "codex_home: removed legacy shared Codex state symlink {}",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+fn remove_symlink(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(file_err) => match fs::remove_dir(path) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(file_err),
+        },
+    }
+}
+
+fn seed_pad_profile_from_canonical() -> io::Result<()> {
     let target = pad_codex_config_path();
     if path_exists_or_symlink(&target) {
         return Ok(());
     }
 
-    let source = canonical_home.join("config.toml");
+    let source = canonical_codex_home_dir().join("config.toml");
     if source.exists() {
         fs::copy(source, target)?;
     }

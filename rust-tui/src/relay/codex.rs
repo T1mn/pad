@@ -348,6 +348,7 @@ fn update_codex_auth_config(content: &str, api_key: &str) -> String {
     if !obj.is_object() {
         obj = json!({});
     }
+    obj["auth_mode"] = serde_json::Value::String("apikey".to_string());
     obj["OPENAI_API_KEY"] = serde_json::Value::String(api_key.to_string());
     let mut serialized = serde_json::to_string_pretty(&obj).unwrap_or_default();
     if !serialized.ends_with('\n') {

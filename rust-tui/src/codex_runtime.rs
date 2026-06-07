@@ -1,7 +1,6 @@
 use serde_json::Value;
 use std::io;
 
-const PAD_CODEX_HOOKS_ENV: &str = "PAD_CODEX_HOOKS";
 const OPENAI_API_KEY_ENV: &str = "OPENAI_API_KEY";
 
 pub fn prepare_agent_command(agent_name: &str, agent_cmd: &str) -> io::Result<String> {
@@ -10,38 +9,43 @@ pub fn prepare_agent_command(agent_name: &str, agent_cmd: &str) -> io::Result<St
     }
 
     crate::paths::ensure_pad_codex_home_layout()?;
+    crate::paths::ensure_pad_codex_wrapper()?;
+    ensure_pad_codex_auth_ready()?;
     Ok(with_pad_codex_runtime(agent_cmd))
 }
 
 pub fn with_pad_codex_runtime(agent_cmd: &str) -> String {
-    let command = with_pad_profile(agent_cmd);
-    let mut env_parts = vec![format!("{PAD_CODEX_HOOKS_ENV}=1")];
-    if let Some(api_key) = pad_codex_openai_api_key() {
-        env_parts.push(format!(
-            "{OPENAI_API_KEY_ENV}={}",
-            shell_single_quote(&api_key)
-        ));
+    let rest = codex_args_without_profile(agent_cmd);
+    let wrapper = shell_single_quote(&crate::paths::pad_codex_wrapper_path().to_string_lossy());
+    if rest.trim().is_empty() {
+        wrapper
+    } else {
+        format!("{wrapper} {rest}")
     }
-    format!("env {} {}", env_parts.join(" "), command)
 }
 
-fn with_pad_profile(agent_cmd: &str) -> String {
+pub fn ensure_pad_codex_auth_ready() -> io::Result<()> {
+    if !pad_profile_requires_openai_auth() {
+        return Ok(());
+    }
+    if pad_codex_openai_api_key().is_some() || std::env::var_os(OPENAI_API_KEY_ENV).is_some() {
+        return Ok(());
+    }
+
+    Err(io::Error::other(format!(
+        "Codex pad profile needs relay auth, but {OPENAI_API_KEY_ENV} is missing and {} has no key",
+        crate::paths::pad_codex_auth_path().display()
+    )))
+}
+
+fn codex_args_without_profile(agent_cmd: &str) -> String {
     let cmd = agent_cmd.trim();
     let cmd = if cmd.is_empty() { "codex" } else { cmd };
     let cmd = strip_profile_args(cmd);
 
-    let Some((first, rest)) = split_first_token(&cmd) else {
-        return format!("codex --profile {}", crate::paths::pad_codex_profile());
-    };
-    let rest = rest.trim_start();
-    if rest.is_empty() {
-        format!("{first} --profile {}", crate::paths::pad_codex_profile())
-    } else {
-        format!(
-            "{first} --profile {} {rest}",
-            crate::paths::pad_codex_profile()
-        )
-    }
+    split_first_token(&cmd)
+        .map(|(_, rest)| rest.trim_start().to_string())
+        .unwrap_or_default()
 }
 
 fn strip_profile_args(command: &str) -> String {
@@ -99,6 +103,27 @@ fn pad_codex_openai_api_key() -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn pad_profile_requires_openai_auth() -> bool {
+    let content = match std::fs::read_to_string(crate::paths::pad_codex_config_path()) {
+        Ok(content) => content,
+        Err(_) => return false,
+    };
+    let doc = match content.parse::<toml::Value>() {
+        Ok(doc) => doc,
+        Err(_) => return false,
+    };
+    let Some(provider_name) = doc.get("model_provider").and_then(toml::Value::as_str) else {
+        return false;
+    };
+    doc.get("model_providers")
+        .and_then(toml::Value::as_table)
+        .and_then(|providers| providers.get(provider_name))
+        .and_then(toml::Value::as_table)
+        .and_then(|provider| provider.get("requires_openai_auth"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false)
+}
+
 pub(crate) fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
@@ -126,7 +151,9 @@ mod tests {
         std::fs::create_dir_all(&home).expect("create temp home");
 
         let prev_home = std::env::var_os("HOME");
+        let prev_openai_api_key = std::env::var_os(OPENAI_API_KEY_ENV);
         std::env::set_var("HOME", &home);
+        std::env::remove_var(OPENAI_API_KEY_ENV);
 
         let result = f(&home);
 
@@ -134,6 +161,11 @@ mod tests {
             std::env::set_var("HOME", prev);
         } else {
             std::env::remove_var("HOME");
+        }
+        if let Some(prev) = prev_openai_api_key {
+            std::env::set_var(OPENAI_API_KEY_ENV, prev);
+        } else {
+            std::env::remove_var(OPENAI_API_KEY_ENV);
         }
         let _ = std::fs::remove_dir_all(&home);
 
@@ -144,9 +176,10 @@ mod tests {
     fn codex_agent_command_uses_pad_profile_without_codex_home() {
         with_temp_home("profile", |_home| {
             let command = with_pad_codex_runtime("codex --model gpt-5");
-            assert!(command.starts_with("env PAD_CODEX_HOOKS=1 codex --profile pad"));
+            assert!(command.starts_with("'"));
+            assert!(command.contains("/.pad/scripts/pad-codex'"));
             assert!(command.ends_with(" --model gpt-5"));
-            assert!(!command.contains("CODEX_HOME="));
+            assert!(!command.contains("OPENAI_API_KEY="));
         });
     }
 
@@ -155,13 +188,13 @@ mod tests {
         with_temp_home("replace-profile", |_home| {
             let command = with_pad_codex_runtime("codex --profile work --model gpt-5");
 
-            assert!(command.contains(" codex --profile pad --model gpt-5"));
+            assert!(command.contains("/.pad/scripts/pad-codex' --model gpt-5"));
             assert!(!command.contains("--profile work"));
         });
     }
 
     #[test]
-    fn codex_agent_command_injects_pad_auth_as_environment_only() {
+    fn codex_agent_command_uses_wrapper_instead_of_inlining_auth() {
         with_temp_home("auth", |_home| {
             let auth_path = crate::paths::pad_codex_auth_path();
             std::fs::create_dir_all(auth_path.parent().expect("auth parent"))
@@ -170,8 +203,60 @@ mod tests {
 
             let command = with_pad_codex_runtime("codex");
 
-            assert!(command.contains("OPENAI_API_KEY='sk-test'\\''1'"));
-            assert!(command.contains(" codex --profile pad"));
+            assert!(command.contains("/.pad/scripts/pad-codex'"));
+            assert!(!command.contains("sk-test"));
+        });
+    }
+
+    #[test]
+    fn codex_prepare_fails_when_pad_provider_requires_auth_but_key_is_missing() {
+        with_temp_home("missing-auth", |_home| {
+            let config_path = crate::paths::pad_codex_config_path();
+            std::fs::create_dir_all(config_path.parent().expect("config parent"))
+                .expect("create config parent");
+            std::fs::write(
+                &config_path,
+                r#"
+model_provider = "local"
+
+[model_providers.local]
+base_url = "http://localhost:8317/v1"
+name = "local"
+requires_openai_auth = true
+"#,
+            )
+            .expect("write config");
+
+            let err = prepare_agent_command("codex", "codex").expect_err("missing key");
+            assert!(err.to_string().contains("needs relay auth"));
+        });
+    }
+
+    #[test]
+    fn codex_prepare_allows_required_auth_when_pad_key_exists() {
+        with_temp_home("ready-auth", |_home| {
+            let config_path = crate::paths::pad_codex_config_path();
+            std::fs::create_dir_all(config_path.parent().expect("config parent"))
+                .expect("create config parent");
+            std::fs::write(
+                &config_path,
+                r#"
+model_provider = "local"
+
+[model_providers.local]
+base_url = "http://localhost:8317/v1"
+name = "local"
+requires_openai_auth = true
+"#,
+            )
+            .expect("write config");
+            let auth_path = crate::paths::pad_codex_auth_path();
+            std::fs::create_dir_all(auth_path.parent().expect("auth parent"))
+                .expect("create auth parent");
+            std::fs::write(&auth_path, r#"{"OPENAI_API_KEY":"local-key"}"#).expect("write auth");
+
+            let command = prepare_agent_command("codex", "codex --model gpt-5").expect("ready");
+            assert!(command.contains("/.pad/scripts/pad-codex' --model gpt-5"));
         });
     }
 

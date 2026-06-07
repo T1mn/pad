@@ -32,6 +32,11 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                     let target_dir = launcher.target_dir.clone();
                     let agent_name = agent.0.to_string();
                     let raw_agent_cmd = agent.1.to_string();
+                    relay::apply_runtime_configs(
+                        &app.config.agents,
+                        &app.config.agent_permissions,
+                        &app.config.codex,
+                    );
                     let agent_cmd = match crate::codex_runtime::prepare_agent_command(
                         &agent_name,
                         &raw_agent_cmd,
@@ -55,12 +60,6 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
 
                     app.close_agent_launcher();
                     app.dirty = true;
-
-                    relay::apply_runtime_configs(
-                        &app.config.agents,
-                        &app.config.agent_permissions,
-                        &app.config.codex,
-                    );
 
                     if from_fuzzy {
                         let dir_str = target_dir.to_string_lossy().to_string();

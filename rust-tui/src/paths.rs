@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 mod codex_home;
 mod codex_hooks;
+mod codex_wrapper;
 mod hook_bridge;
 
 const CODEX_JAILBREAK_PROMPT_VERSION: &str = "codex-jailbreak-prompt-2026-04-26.1";
@@ -117,10 +118,6 @@ pub fn codex_selected_prompt_file_path() -> PathBuf {
 
 pub fn pad_codex_home_dir() -> PathBuf {
     codex_home::pad_codex_home_dir()
-}
-
-pub fn pad_codex_profile() -> &'static str {
-    codex_home::PAD_CODEX_PROFILE
 }
 
 pub fn canonical_codex_home_dir() -> PathBuf {
@@ -291,6 +288,15 @@ pub fn codex_hook_bridge_path() -> PathBuf {
     scripts_dir().join("codex_hook_bridge.py")
 }
 
+pub fn pad_codex_wrapper_path() -> PathBuf {
+    scripts_dir().join("pad-codex")
+}
+
+pub fn ensure_pad_codex_wrapper() -> io::Result<()> {
+    fs::create_dir_all(scripts_dir())?;
+    codex_wrapper::install_pad_codex_wrapper()
+}
+
 pub fn hook_socket_path() -> PathBuf {
     pad_home_dir().join("pad-hook.sock")
 }
@@ -329,6 +335,7 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
         fs::write(hook_events_path(), "")?;
     }
     hook_bridge::install_bridge_scripts()?;
+    ensure_pad_codex_wrapper()?;
     crate::sound::ensure_runtime_assets()?;
     codex_hooks::ensure_codex_hook_support()?;
     crate::thread_meta::ensure_db()?;
