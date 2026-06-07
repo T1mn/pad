@@ -2,6 +2,7 @@
 
 - `main.rs`：入口与主循环；启动参数、tmux bootstrap、终端管理、启动服务和信号处理拆到邻近模块。
 - `cli.rs` / `bootstrap.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
+- `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
 - `theme/`：配置模型、加载保存、主题。
