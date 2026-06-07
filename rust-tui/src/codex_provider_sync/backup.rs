@@ -1,7 +1,10 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static TEMP_BACKUP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug)]
 pub(super) struct TempBackup {
@@ -13,9 +16,10 @@ impl TempBackup {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis();
+            .as_nanos();
+        let counter = TEMP_BACKUP_COUNTER.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
-            "pad-codex-provider-sync-{}-{stamp}",
+            "pad-codex-provider-sync-{}-{stamp}-{counter}",
             std::process::id()
         ));
         fs::create_dir_all(&root)?;
