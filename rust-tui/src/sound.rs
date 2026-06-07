@@ -5,11 +5,12 @@ use std::cell::Cell;
 use std::f32::consts::PI;
 use std::fs;
 use std::io;
-use std::path::Path;
-#[cfg(any(target_os = "linux", target_os = "macos", test))]
-use std::process::{Command, Stdio};
 #[cfg(test)]
 use std::sync::{LazyLock, Mutex};
+
+mod playback;
+#[cfg(test)]
+mod tests;
 
 const SAMPLE_RATE: u32 = 22_050;
 const WAV_CHANNELS: u16 = 1;
@@ -249,19 +250,19 @@ fn play_internal(_event: Option<SoundEvent>, preset_id: &str) -> io::Result<bool
 
     #[cfg(target_os = "macos")]
     {
-        let Some(spec) = macos::command_spec(&path, command_exists) else {
+        let Some(spec) = playback::macos_command_spec(&path, playback::command_exists) else {
             return Ok(false);
         };
-        spawn_audio(&spec.program, &spec.args)?;
+        playback::spawn_audio(&spec.program, &spec.args)?;
         Ok(true)
     }
 
     #[cfg(target_os = "linux")]
     {
-        let Some(spec) = linux_command_spec(&path, command_exists) else {
+        let Some(spec) = playback::linux_command_spec(&path, playback::command_exists) else {
             return Ok(false);
         };
-        spawn_audio(&spec.program, &spec.args)?;
+        playback::spawn_audio(&spec.program, &spec.args)?;
         Ok(true)
     }
 
@@ -369,110 +370,6 @@ fn write_wav(samples: &[i16]) -> Vec<u8> {
     bytes
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", test))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct CommandSpec {
-    program: String,
-    args: Vec<String>,
-}
-
-#[cfg(any(target_os = "linux", test))]
-fn linux_command_spec(path: &Path, has_command: impl Fn(&str) -> bool) -> Option<CommandSpec> {
-    let file = path.to_string_lossy().into_owned();
-    if has_command("paplay") {
-        return Some(CommandSpec {
-            program: "paplay".into(),
-            args: vec![file],
-        });
-    }
-    if has_command("pw-play") {
-        return Some(CommandSpec {
-            program: "pw-play".into(),
-            args: vec![file],
-        });
-    }
-    if has_command("aplay") {
-        return Some(CommandSpec {
-            program: "aplay".into(),
-            args: vec!["-q".into(), file],
-        });
-    }
-    if has_command("play") {
-        return Some(CommandSpec {
-            program: "play".into(),
-            args: vec!["-q".into(), file],
-        });
-    }
-    None
-}
-
-#[cfg(any(target_os = "macos", test))]
-mod macos {
-    use super::CommandSpec;
-    use std::path::Path;
-
-    pub(super) fn command_spec(
-        path: &Path,
-        has_command: impl Fn(&str) -> bool,
-    ) -> Option<CommandSpec> {
-        if !has_command("afplay") {
-            return None;
-        }
-        Some(CommandSpec {
-            program: "afplay".into(),
-            args: vec![path.to_string_lossy().into_owned()],
-        })
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
-fn spawn_audio(program: &str, args: &[String]) -> io::Result<()> {
-    let mut child = Command::new(program)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-
-    std::thread::spawn(move || {
-        let _ = child.wait();
-    });
-
-    Ok(())
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
-fn command_exists(program: &str) -> bool {
-    let Some(paths) = std::env::var_os("PATH") else {
-        return false;
-    };
-
-    std::env::split_paths(&paths).any(|dir| executable_exists(&dir.join(program)))
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
-fn executable_exists(path: &Path) -> bool {
-    std::fs::metadata(path)
-        .map(|meta| {
-            if !meta.is_file() {
-                return false;
-            }
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                meta.permissions().mode() & 0o111 != 0
-            }
-            #[cfg(not(unix))]
-            {
-                true
-            }
-        })
-        .unwrap_or(false)
-}
-
 #[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TestPlayback {
@@ -516,124 +413,4 @@ pub(crate) fn with_test_sound_capture<T>(f: impl FnOnce() -> T) -> T {
 #[cfg(test)]
 fn should_capture_test_sounds() -> bool {
     TEST_SOUND_CAPTURE.with(|capture| capture.get())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::theme::SoundConfig;
-    use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-        let _guard = crate::test_support::home_env_lock()
-            .lock()
-            .expect("lock sound tests");
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time")
-            .as_nanos();
-        let home = std::env::temp_dir().join(format!("pad-sound-{name}-{stamp}"));
-        let _ = std::fs::remove_dir_all(&home);
-        std::fs::create_dir_all(&home).expect("create temp home");
-
-        let prev_home = std::env::var_os("HOME");
-        std::env::set_var("HOME", &home);
-
-        let result = f(&home);
-
-        if let Some(prev) = prev_home {
-            std::env::set_var("HOME", prev);
-        } else {
-            std::env::remove_var("HOME");
-        }
-        let _ = std::fs::remove_dir_all(&home);
-        result
-    }
-
-    #[test]
-    fn ensure_runtime_assets_writes_all_presets() {
-        with_temp_home("runtime-assets", |_home| {
-            ensure_runtime_assets().expect("write sound assets");
-
-            for preset in presets() {
-                let path = crate::paths::sound_file_path(preset.id);
-                let body = std::fs::read(&path).expect("preset file");
-                assert!(body.starts_with(b"RIFF"));
-                assert!(body.len() > 44);
-            }
-        });
-    }
-
-    #[test]
-    fn normalize_preset_id_falls_back_to_default() {
-        assert_eq!(
-            normalize_preset_id_or_default("no-such-preset", "glass"),
-            "glass"
-        );
-        assert_eq!(normalize_preset_id("ping"), Some("ping"));
-    }
-
-    #[test]
-    fn play_event_records_test_playback_when_enabled() {
-        let _guard = crate::test_support::home_env_lock()
-            .lock()
-            .expect("lock sound test playback");
-        with_test_sound_capture(|| {
-            let _ = take_test_playbacks();
-            let config = SoundConfig::default();
-
-            let played = play_event(&config, SoundEvent::Completion).expect("play sound");
-            assert!(played);
-            assert_eq!(
-                take_test_playbacks(),
-                vec![TestPlayback {
-                    event: Some(SoundEvent::Completion),
-                    preset: "glass".into(),
-                }]
-            );
-        });
-    }
-
-    #[test]
-    fn play_event_respects_global_and_event_switches() {
-        let _guard = crate::test_support::home_env_lock()
-            .lock()
-            .expect("lock sound toggle tests");
-        with_test_sound_capture(|| {
-            let _ = take_test_playbacks();
-            let mut config = SoundConfig {
-                enabled: false,
-                ..SoundConfig::default()
-            };
-            assert!(!play_event(&config, SoundEvent::Completion).expect("play sound"));
-            assert!(take_test_playbacks().is_empty());
-
-            config.enabled = true;
-            config.completion.enabled = false;
-            assert!(!play_event(&config, SoundEvent::Completion).expect("play sound"));
-            assert!(take_test_playbacks().is_empty());
-        });
-    }
-
-    #[test]
-    fn linux_command_spec_uses_expected_priority() {
-        let path = PathBuf::from("/tmp/glass.wav");
-        let spec =
-            linux_command_spec(&path, |cmd| matches!(cmd, "aplay" | "play")).expect("linux spec");
-        assert_eq!(spec.program, "aplay");
-        assert_eq!(spec.args, vec!["-q", "/tmp/glass.wav"]);
-
-        let spec = linux_command_spec(&path, |cmd| cmd == "paplay").expect("paplay spec");
-        assert_eq!(spec.program, "paplay");
-        assert_eq!(spec.args, vec!["/tmp/glass.wav"]);
-    }
-
-    #[test]
-    fn macos_command_spec_uses_local_wav_path() {
-        let spec = macos::command_spec(Path::new("/tmp/ping.wav"), |cmd| cmd == "afplay")
-            .expect("macos spec");
-        assert_eq!(spec.program, "afplay");
-        assert_eq!(spec.args, vec!["/tmp/ping.wav"]);
-    }
 }

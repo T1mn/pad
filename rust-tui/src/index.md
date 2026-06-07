@@ -7,6 +7,7 @@
 - `pad_sider/`：Codex pane 左侧全屏辅助栏，负责 tree、文件/代码预览、`/` fuzzy 搜索与 Codex diff 审阅。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
 - `codex_provider_sync.rs`：同步 PAD 私有 Codex home 内的 provider 元数据，避免改动官方 `~/.codex`。
+- `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
 - `relay/`：各 agent relay/native 配置与运行时覆盖。
 - `preview_source/`：Claude/Codex/Gemini/OpenCode 会话预览解析。
 - `chat/`：聊天后端与 Telegram 集成。
