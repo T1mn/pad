@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "pad"
-version = "0.6.22"
+version = "0.6.23"
 dependencies = [
  "crossterm 0.28.1",
  "dirs",

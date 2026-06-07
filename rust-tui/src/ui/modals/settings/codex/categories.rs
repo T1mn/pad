@@ -58,9 +58,10 @@ fn runtime_summary(app: &App) -> String {
 
 fn status_line_summary(app: &App) -> String {
     format!(
-        "{}/3 · Model {} · Context {} · Dir {}",
+        "{}/4 · Model {} · Fast {} · Context {} · Dir {}",
         app.config.codex.status_line_items().len(),
         on_off(app, app.config.codex.status_line_model_with_reasoning),
+        on_off(app, app.config.codex.status_line_fast_mode),
         on_off(app, app.config.codex.status_line_context_remaining),
         on_off(app, app.config.codex.status_line_current_dir)
     )

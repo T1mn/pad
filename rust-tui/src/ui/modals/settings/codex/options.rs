@@ -51,6 +51,12 @@ pub(super) fn status_line_items(app: &App) -> Vec<SelectionItem> {
         ),
         switch_item(
             app,
+            "settings.codex_status_fast",
+            app.config.codex.status_line_fast_mode,
+            "settings.codex_status_fast_desc",
+        ),
+        switch_item(
+            app,
             "settings.codex_status_context",
             app.config.codex.status_line_context_remaining,
             "settings.codex_status_context_desc",

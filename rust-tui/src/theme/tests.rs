@@ -37,6 +37,7 @@ fn config_round_trips_opencode_provider_models() {
         config.codex.multi_agent = true;
         config.codex.web_search = "live".into();
         config.codex.status_line_model_with_reasoning = true;
+        config.codex.status_line_fast_mode = true;
         config.codex.status_line_context_remaining = true;
         config.codex.status_line_current_dir = false;
         config.codex.jailbreak_prompt_file = true;
@@ -78,6 +79,7 @@ fn config_round_trips_opencode_provider_models() {
         assert!(loaded.codex.multi_agent);
         assert_eq!(loaded.codex.web_search, "live");
         assert!(loaded.codex.status_line_model_with_reasoning);
+        assert!(loaded.codex.status_line_fast_mode);
         assert!(loaded.codex.status_line_context_remaining);
         assert!(!loaded.codex.status_line_current_dir);
         assert!(loaded.codex.jailbreak_prompt_file);

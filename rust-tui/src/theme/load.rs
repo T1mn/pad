@@ -163,6 +163,10 @@ fn apply_codex(value: Option<&toml::Value>, config: &mut Config) {
         config.codex.status_line_model_with_reasoning = *enabled;
         explicit_status_line_item = true;
     }
+    if let Some(toml::Value::Boolean(enabled)) = codex.get("status_line_fast_mode") {
+        config.codex.status_line_fast_mode = *enabled;
+        explicit_status_line_item = true;
+    }
     if let Some(toml::Value::Boolean(enabled)) = codex.get("status_line_context_remaining") {
         config.codex.status_line_context_remaining = *enabled;
         explicit_status_line_item = true;

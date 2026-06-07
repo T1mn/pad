@@ -58,10 +58,13 @@ fn apply_status_line_action(app: &mut App) {
                 !app.config.codex.status_line_model_with_reasoning;
         }
         1 => {
+            app.config.codex.status_line_fast_mode = !app.config.codex.status_line_fast_mode;
+        }
+        2 => {
             app.config.codex.status_line_context_remaining =
                 !app.config.codex.status_line_context_remaining;
         }
-        2 => {
+        3 => {
             app.config.codex.status_line_current_dir = !app.config.codex.status_line_current_dir;
         }
         _ => return,

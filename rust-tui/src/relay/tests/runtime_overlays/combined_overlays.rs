@@ -26,6 +26,7 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
         codex.multi_agent = true;
         codex.web_search = "live".into();
         codex.status_line_model_with_reasoning = true;
+        codex.status_line_fast_mode = true;
         codex.status_line_context_remaining = true;
         codex.status_line_current_dir = true;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);
@@ -38,7 +39,7 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
         assert!(value.contains("fast_mode = true"));
         assert!(value.contains("multi_agent = true"));
         assert!(value.contains(
-            "status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"
+            "status_line = [\"model-with-reasoning\", \"fast-mode\", \"context-remaining\", \"current-dir\"]"
         ));
         assert!(codex_permission_state_path().exists());
     });
@@ -72,6 +73,7 @@ fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
         codex.multi_agent = true;
         codex.web_search = "live".into();
         codex.status_line_model_with_reasoning = true;
+        codex.status_line_fast_mode = true;
         codex.status_line_context_remaining = true;
         codex.status_line_current_dir = true;
         apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
@@ -84,6 +86,7 @@ fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
         codex.multi_agent = false;
         codex.web_search = "default".into();
         codex.status_line_model_with_reasoning = false;
+        codex.status_line_fast_mode = false;
         codex.status_line_context_remaining = false;
         codex.status_line_current_dir = false;
         apply_runtime_configs(&[agent], &disabled, &codex);
@@ -96,9 +99,8 @@ fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
         assert!(value.contains("fast_mode = false"));
         assert!(value.contains("multi_agent = false"));
         assert!(!value.contains(
-            "status_line = [\"model-with-reasoning\", \"context-remaining\", \"current-dir\"]"
+            "status_line = [\"model-with-reasoning\", \"fast-mode\", \"context-remaining\", \"current-dir\"]"
         ));
         assert!(!codex_permission_state_path().exists());
     });
 }
-
