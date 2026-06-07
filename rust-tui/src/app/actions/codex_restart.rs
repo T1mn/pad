@@ -10,19 +10,8 @@ impl App {
             return false;
         };
 
-        if panel.agent_type != AgentType::Codex {
-            self.show_action_toast(
-                restart_failed_title(self.locale),
-                codex_only_message(self.locale),
-            );
-            return false;
-        }
-
-        if panel.state != crate::model::AgentState::Idle {
-            self.show_action_toast(
-                restart_failed_title(self.locale),
-                codex_busy_message(self.locale),
-            );
+        if let Some(message) = codex_restart_preflight_message(&panel, self.locale) {
+            self.show_action_toast(restart_failed_title(self.locale), message);
             return false;
         }
 
@@ -81,6 +70,17 @@ impl App {
             .map(|agent| agent.cmd.trim())
             .filter(|cmd| !cmd.is_empty())
             .unwrap_or("codex")
+    }
+}
+
+fn codex_restart_preflight_message(
+    panel: &crate::model::AgentPanel,
+    locale: Locale,
+) -> Option<&'static str> {
+    if panel.agent_type != AgentType::Codex {
+        Some(codex_only_message(locale))
+    } else {
+        None
     }
 }
 
@@ -155,17 +155,10 @@ fn codex_only_message(locale: Locale) -> &'static str {
     }
 }
 
-fn codex_busy_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "Codex 正在运行中，等空闲后再重启"
-    } else {
-        "Codex is busy; restart when idle"
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{AgentPanel, AgentState, AgentStateSource};
 
     fn assert_command_parts(command: &str, suffix: &str) {
         assert!(
@@ -183,6 +176,48 @@ mod tests {
         assert!(
             command.ends_with(suffix),
             "unexpected command suffix: {command}"
+        );
+    }
+
+    fn test_panel(agent_type: AgentType, state: AgentState) -> AgentPanel {
+        AgentPanel {
+            session: "s".into(),
+            window: "w".into(),
+            window_index: "1".into(),
+            pane: "1".into(),
+            pane_id: "%1".into(),
+            agent_type,
+            working_dir: "/tmp".into(),
+            is_active: false,
+            state,
+            state_source: AgentStateSource::Scanner,
+            transcript_path: None,
+            cached_preview_turns: Default::default(),
+            session_cache_state: None,
+            git_info: None,
+            pid: None,
+            start_time: None,
+            agent_session_id: None,
+            last_user_prompt: None,
+            last_assistant_message: None,
+            has_unread_stop: false,
+        }
+    }
+
+    #[test]
+    fn restart_preflight_does_not_block_non_idle_codex() {
+        for state in [AgentState::Idle, AgentState::Busy, AgentState::Waiting] {
+            let panel = test_panel(AgentType::Codex, state);
+            assert!(codex_restart_preflight_message(&panel, Locale::ZhCN).is_none());
+        }
+    }
+
+    #[test]
+    fn restart_preflight_still_blocks_non_codex() {
+        let panel = test_panel(AgentType::Claude, AgentState::Idle);
+        assert_eq!(
+            codex_restart_preflight_message(&panel, Locale::ZhCN),
+            Some("只支持 Codex 面板")
         );
     }
 
