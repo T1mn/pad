@@ -30,7 +30,7 @@ PAD Installer
 
 Usage:
   ./install.sh
-  curl -fsSL https://raw.githubusercontent.com/T1mn/pad/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
 
 What this script does:
   1. Try to download a matching release binary

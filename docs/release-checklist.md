@@ -46,7 +46,7 @@
 1. Create and push a tag like `v0.6.0`.
 2. Wait for the `Release` workflow to finish.
 3. Download one release artifact and verify `pad --help`.
-4. Verify `curl -fsSL https://raw.githubusercontent.com/T1mn/pad/main/install.sh | bash` still works.
+4. Verify `curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash` still works.
 
 ## Rollback
 
