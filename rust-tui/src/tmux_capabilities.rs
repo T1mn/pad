@@ -2,96 +2,14 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TmuxVersion {
-    pub major: u32,
-    pub minor: u32,
-    pub patch: Option<u32>,
-    pub suffix: Option<String>,
-}
+mod report;
+#[cfg(test)]
+mod tests;
+mod version;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TmuxCapabilities {
-    pub pane_metadata_formats: bool,
-    pub display_message_formats: bool,
-    pub root_key_table: bool,
-    pub literal_send_keys: bool,
-    pub bracketed_paste: bool,
-    pub control_mode_flags: bool,
-    pub focus_events: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TmuxProbeReport {
-    pub version_raw: String,
-    pub version: Option<TmuxVersion>,
-    pub capabilities: TmuxCapabilities,
-    pub notes: Vec<String>,
-}
-
-impl TmuxProbeReport {
-    pub fn missing_required_capabilities(&self) -> Vec<&'static str> {
-        let mut missing = Vec::new();
-        if !self.capabilities.pane_metadata_formats {
-            missing.push("pane metadata formats");
-        }
-        if !self.capabilities.display_message_formats {
-            missing.push("display-message formats");
-        }
-        if !self.capabilities.root_key_table {
-            missing.push("root key table bindings");
-        }
-        if !self.capabilities.literal_send_keys {
-            missing.push("send-keys -l");
-        }
-        missing
-    }
-
-    pub fn missing_optional_capabilities(&self) -> Vec<&'static str> {
-        let mut missing = Vec::new();
-        if !self.capabilities.control_mode_flags {
-            missing.push("control-mode attach flags");
-        }
-        if !self.capabilities.bracketed_paste {
-            missing.push("bracketed paste");
-        }
-        if !self.capabilities.focus_events {
-            missing.push("focus-events");
-        }
-        missing
-    }
-
-    pub fn summary_lines(&self) -> Vec<String> {
-        let version = self.version_raw.trim();
-        let mut lines = vec![format!("tmux version: {}", version)];
-        let caps = &self.capabilities;
-        lines.push(format!(
-            "capabilities: pane-metadata={} display-message={} root-keys={} send-keys-l={} paste-p={} control-flags={} focus-events={}",
-            yes_no(caps.pane_metadata_formats),
-            yes_no(caps.display_message_formats),
-            yes_no(caps.root_key_table),
-            yes_no(caps.literal_send_keys),
-            yes_no(caps.bracketed_paste),
-            yes_no(caps.control_mode_flags),
-            yes_no(caps.focus_events),
-        ));
-        if !self.notes.is_empty() {
-            lines.push("notes:".to_string());
-            for note in &self.notes {
-                lines.push(format!("  - {}", note));
-            }
-        }
-        lines
-    }
-}
-
-fn yes_no(value: bool) -> &'static str {
-    if value {
-        "yes"
-    } else {
-        "no"
-    }
-}
+pub use report::{TmuxCapabilities, TmuxProbeReport};
+use version::parse_tmux_version;
+pub use version::TmuxVersion;
 
 pub fn read_tmux_version() -> Result<(String, Option<TmuxVersion>), String> {
     let output = Command::new("tmux")
@@ -135,64 +53,6 @@ pub fn probe_tmux_capabilities() -> Result<TmuxProbeReport, String> {
         version,
         capabilities,
         notes,
-    })
-}
-
-fn parse_tmux_version(raw: &str) -> Option<TmuxVersion> {
-    let version = raw.strip_prefix("tmux ")?;
-    let mut parts = version.split('.');
-    let major = parts.next()?.parse().ok()?;
-    let minor_part = parts.next()?;
-    let minor_digits: String = minor_part
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit())
-        .collect();
-    let minor = minor_digits.parse().ok()?;
-    let minor_suffix = minor_part[minor_digits.len()..].trim();
-
-    let third_part = parts.next();
-    let (patch, suffix) = if let Some(third_part) = third_part {
-        let patch_digits: String = third_part
-            .chars()
-            .take_while(|ch| ch.is_ascii_digit())
-            .collect();
-        let patch = if patch_digits.is_empty() {
-            None
-        } else {
-            patch_digits.parse().ok()
-        };
-        let patch_suffix = third_part[patch_digits.len()..].trim();
-        let suffix = if patch_suffix.is_empty() {
-            minor_suffix
-        } else if minor_suffix.is_empty() {
-            patch_suffix
-        } else {
-            return None;
-        };
-        (
-            patch,
-            if suffix.is_empty() {
-                None
-            } else {
-                Some(suffix.to_string())
-            },
-        )
-    } else {
-        (
-            None,
-            if minor_suffix.is_empty() {
-                None
-            } else {
-                Some(minor_suffix.to_string())
-            },
-        )
-    };
-
-    Some(TmuxVersion {
-        major,
-        minor,
-        patch,
-        suffix,
     })
 }
 
@@ -474,66 +334,4 @@ fn now_stamp() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{parse_tmux_version, TmuxCapabilities, TmuxProbeReport, TmuxVersion};
-
-    #[test]
-    fn parse_tmux_version_handles_suffix_minor() {
-        assert_eq!(
-            parse_tmux_version("tmux 3.5a"),
-            Some(TmuxVersion {
-                major: 3,
-                minor: 5,
-                patch: None,
-                suffix: Some("a".to_string()),
-            })
-        );
-    }
-
-    #[test]
-    fn parse_tmux_version_handles_patch() {
-        assert_eq!(
-            parse_tmux_version("tmux 3.4.1"),
-            Some(TmuxVersion {
-                major: 3,
-                minor: 4,
-                patch: Some(1),
-                suffix: None,
-            })
-        );
-    }
-
-    #[test]
-    fn report_separates_required_and_optional_capabilities() {
-        let report = TmuxProbeReport {
-            version_raw: "tmux 3.1".to_string(),
-            version: None,
-            capabilities: TmuxCapabilities {
-                pane_metadata_formats: false,
-                display_message_formats: true,
-                root_key_table: true,
-                literal_send_keys: false,
-                bracketed_paste: false,
-                control_mode_flags: false,
-                focus_events: false,
-            },
-            notes: Vec::new(),
-        };
-
-        assert_eq!(
-            report.missing_required_capabilities(),
-            vec!["pane metadata formats", "send-keys -l"]
-        );
-        assert_eq!(
-            report.missing_optional_capabilities(),
-            vec![
-                "control-mode attach flags",
-                "bracketed paste",
-                "focus-events"
-            ]
-        );
-    }
 }
