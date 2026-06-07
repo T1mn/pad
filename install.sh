@@ -171,7 +171,10 @@ resolved_release_version() {
   fi
 
   local version
-  version="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  version="$(resolve_latest_release_from_api || true)"
+  if [ -z "$version" ]; then
+    version="$(resolve_latest_release_from_redirect || true)"
+  fi
   if [ -z "$version" ]; then
     return 1
   fi
@@ -179,6 +182,24 @@ resolved_release_version() {
   PAD_RESOLVED_RELEASE_VERSION="$version"
   export PAD_RESOLVED_RELEASE_VERSION
   echo "$version"
+}
+
+resolve_latest_release_from_api() {
+  curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' \
+    | head -n1
+}
+
+resolve_latest_release_from_redirect() {
+  local effective tag
+  effective="$(curl -fsSIL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" 2>/dev/null || true)"
+  case "$effective" in
+    */tag/*)
+      tag="${effective##*/tag/}"
+      tag="${tag%%[\?#]*}"
+      [ -n "$tag" ] && printf '%s\n' "$tag"
+      ;;
+  esac
 }
 
 release_download_url() {
@@ -592,13 +613,13 @@ download_source_tree() {
   TEMP_DIRS+=("${tmp_dir}")
 
   if [ "$version" = "latest" ]; then
-    archive_url="https://github.com/${REPO}/archive/refs/heads/main.tar.gz"
+    archive_url="https://github.com/${REPO}/archive/refs/heads/master.tar.gz"
   else
     archive_url="https://github.com/${REPO}/archive/refs/tags/${version}.tar.gz"
   fi
 
-  say "${BLUE}Downloading source archive...${NC}"
-  say "  URL: ${archive_url}"
+  say "${BLUE}Downloading source archive...${NC}" >&2
+  say "  URL: ${archive_url}" >&2
 
   curl -fsSL "${archive_url}" -o "${tmp_dir}/source.tar.gz"
   tar -xzf "${tmp_dir}/source.tar.gz" -C "${tmp_dir}"

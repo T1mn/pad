@@ -65,13 +65,13 @@ download_source_tree() {
   TEMP_DIRS+=("${tmp_dir}")
 
   if [ "$version" = "latest" ]; then
-    archive_url="https://github.com/${REPO}/archive/refs/heads/main.tar.gz"
+    archive_url="https://github.com/${REPO}/archive/refs/heads/master.tar.gz"
   else
     archive_url="https://github.com/${REPO}/archive/refs/tags/${version}.tar.gz"
   fi
 
-  say "${BLUE}Downloading source archive...${NC}"
-  say "  URL: ${archive_url}"
+  say "${BLUE}Downloading source archive...${NC}" >&2
+  say "  URL: ${archive_url}" >&2
 
   curl -fsSL "${archive_url}" -o "${tmp_dir}/source.tar.gz"
   tar -xzf "${tmp_dir}/source.tar.gz" -C "${tmp_dir}"
