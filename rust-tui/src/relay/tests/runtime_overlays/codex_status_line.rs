@@ -20,6 +20,8 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
         let mut codex = sample_codex_config();
         codex.status_line_model_with_reasoning = true;
         codex.status_line_fast_mode = true;
+        codex.status_line_five_hour_limit = true;
+        codex.status_line_weekly_limit = true;
         codex.status_line_context_remaining = true;
         codex.status_line_current_dir = true;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);
@@ -27,7 +29,7 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
         assert!(value.contains("[tui]"));
         assert!(value.contains(
-            "status_line = [\"model-with-reasoning\", \"fast-mode\", \"context-remaining\", \"current-dir\"]"
+            "status_line = [\"model-with-reasoning\", \"fast-mode\", \"five-hour-limit\", \"weekly-limit\", \"context-remaining\", \"current-dir\"]"
         ));
         assert!(codex_permission_state_path().exists());
     });
@@ -53,11 +55,12 @@ fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
         };
 
         let mut codex = sample_codex_config();
-        codex.status_line_fast_mode = true;
+        codex.status_line_five_hour_limit = true;
+        codex.status_line_weekly_limit = true;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);
 
         let value = std::fs::read_to_string(&config_path).expect("read codex config");
-        assert!(value.contains("status_line = [\"fast-mode\"]"));
+        assert!(value.contains("status_line = [\"five-hour-limit\", \"weekly-limit\"]"));
     });
 }
 
@@ -87,12 +90,16 @@ fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
         let mut codex = sample_codex_config();
         codex.status_line_model_with_reasoning = true;
         codex.status_line_fast_mode = true;
+        codex.status_line_five_hour_limit = true;
+        codex.status_line_weekly_limit = true;
         codex.status_line_context_remaining = true;
         codex.status_line_current_dir = true;
         apply_runtime_configs(std::slice::from_ref(&agent), &sample_permissions(), &codex);
 
         codex.status_line_model_with_reasoning = false;
         codex.status_line_fast_mode = false;
+        codex.status_line_five_hour_limit = false;
+        codex.status_line_weekly_limit = false;
         codex.status_line_context_remaining = false;
         codex.status_line_current_dir = false;
         apply_runtime_configs(&[agent], &sample_permissions(), &codex);

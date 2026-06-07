@@ -82,6 +82,8 @@ pub struct CodexConfig {
     pub web_search: String,
     pub status_line_model_with_reasoning: bool,
     pub status_line_fast_mode: bool,
+    pub status_line_five_hour_limit: bool,
+    pub status_line_weekly_limit: bool,
     pub status_line_context_remaining: bool,
     pub status_line_current_dir: bool,
     pub jailbreak_prompt_file: bool,
@@ -108,6 +110,12 @@ impl CodexConfig {
         if self.status_line_fast_mode {
             items.push("fast-mode");
         }
+        if self.status_line_five_hour_limit {
+            items.push("five-hour-limit");
+        }
+        if self.status_line_weekly_limit {
+            items.push("weekly-limit");
+        }
         if self.status_line_context_remaining {
             items.push("context-remaining");
         }
@@ -127,6 +135,8 @@ impl Default for CodexConfig {
             web_search: "default".to_string(),
             status_line_model_with_reasoning: false,
             status_line_fast_mode: false,
+            status_line_five_hour_limit: false,
+            status_line_weekly_limit: false,
             status_line_context_remaining: false,
             status_line_current_dir: false,
             jailbreak_prompt_file: false,

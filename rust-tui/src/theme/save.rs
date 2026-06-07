@@ -50,6 +50,14 @@ impl Config {
             self.codex.status_line_fast_mode
         ));
         content.push_str(&format!(
+            "status_line_five_hour_limit = {}\n",
+            self.codex.status_line_five_hour_limit
+        ));
+        content.push_str(&format!(
+            "status_line_weekly_limit = {}\n",
+            self.codex.status_line_weekly_limit
+        ));
+        content.push_str(&format!(
             "status_line_context_remaining = {}\n",
             self.codex.status_line_context_remaining
         ));

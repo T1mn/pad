@@ -49,6 +49,8 @@ fn status_prompt_and_preview_categories_preserve_original_toggles() {
         let mut app = codex_settings_app();
         app.config.codex.status_line_model_with_reasoning = false;
         app.config.codex.status_line_fast_mode = false;
+        app.config.codex.status_line_five_hour_limit = false;
+        app.config.codex.status_line_weekly_limit = false;
         app.config.codex.status_line_context_remaining = false;
         app.config.codex.status_line_current_dir = false;
         app.config.codex.jailbreak_prompt_file = false;
@@ -65,6 +67,12 @@ fn status_prompt_and_preview_categories_preserve_original_toggles() {
         handle_settings_mode(&mut app, KeyCode::Down);
         handle_settings_mode(&mut app, KeyCode::Enter);
         assert!(app.config.codex.status_line_fast_mode);
+        handle_settings_mode(&mut app, KeyCode::Down);
+        handle_settings_mode(&mut app, KeyCode::Enter);
+        assert!(app.config.codex.status_line_five_hour_limit);
+        handle_settings_mode(&mut app, KeyCode::Down);
+        handle_settings_mode(&mut app, KeyCode::Enter);
+        assert!(app.config.codex.status_line_weekly_limit);
         handle_settings_mode(&mut app, KeyCode::Down);
         handle_settings_mode(&mut app, KeyCode::Enter);
         assert!(app.config.codex.status_line_context_remaining);

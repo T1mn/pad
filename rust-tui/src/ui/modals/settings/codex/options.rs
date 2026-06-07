@@ -57,6 +57,18 @@ pub(super) fn status_line_items(app: &App) -> Vec<SelectionItem> {
         ),
         switch_item(
             app,
+            "settings.codex_status_five_hour_limit",
+            app.config.codex.status_line_five_hour_limit,
+            "settings.codex_status_five_hour_limit_desc",
+        ),
+        switch_item(
+            app,
+            "settings.codex_status_weekly_limit",
+            app.config.codex.status_line_weekly_limit,
+            "settings.codex_status_weekly_limit_desc",
+        ),
+        switch_item(
+            app,
             "settings.codex_status_context",
             app.config.codex.status_line_context_remaining,
             "settings.codex_status_context_desc",

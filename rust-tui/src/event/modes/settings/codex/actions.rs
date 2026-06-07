@@ -61,10 +61,17 @@ fn apply_status_line_action(app: &mut App) {
             app.config.codex.status_line_fast_mode = !app.config.codex.status_line_fast_mode;
         }
         2 => {
+            app.config.codex.status_line_five_hour_limit =
+                !app.config.codex.status_line_five_hour_limit;
+        }
+        3 => {
+            app.config.codex.status_line_weekly_limit = !app.config.codex.status_line_weekly_limit;
+        }
+        4 => {
             app.config.codex.status_line_context_remaining =
                 !app.config.codex.status_line_context_remaining;
         }
-        3 => {
+        5 => {
             app.config.codex.status_line_current_dir = !app.config.codex.status_line_current_dir;
         }
         _ => return,

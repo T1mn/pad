@@ -90,7 +90,7 @@ impl CodexSettingsView {
         match self {
             Self::Categories => Self::CATEGORY_COUNT,
             Self::Runtime => 5,
-            Self::StatusLine => 4,
+            Self::StatusLine => 6,
             Self::Prompts => 2,
             Self::Preview => 2,
             Self::Cli => 1,
