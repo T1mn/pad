@@ -1,6 +1,6 @@
 [package]
 name = "pad"
-version = "0.6.50"
+version = "0.6.51"
 edition = "2021"
 default-run = "pad"
 authors = ["T1mn <tinggofun@gmail.com>"]
