@@ -1,4 +1,5 @@
-use super::{display_scope_title_label, metrics, special_view_title_label, thread_row};
+use super::labels::{display_scope_title_label, special_view_title_label};
+use super::{metrics, thread_subtitle};
 use crate::app::state::{PreferredPanelWidthCache, ThreadListView};
 use crate::app::App;
 use crate::sidebar::SidebarItem;
@@ -41,7 +42,7 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
                 2 + metrics::display_width(&metrics::truncate_to_width(&folder.label, 28))
             }
             SidebarItem::Thread(thread) => {
-                let subtitle = thread_row::thread_subtitle(thread);
+                let subtitle = thread_subtitle::thread_subtitle(thread);
                 let title_width =
                     metrics::display_width(&metrics::truncate_to_width(&thread.title, 38));
                 let subtitle_width =

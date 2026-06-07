@@ -5,6 +5,7 @@ use super::metrics::{display_width, truncate_to_width};
 use super::style::{
     badge_color, blend_color, maybe_bold, sidebar_card_bg, sidebar_subtitle_fg, sidebar_thread_fg,
 };
+use super::thread_subtitle::{build_thread_subtitle_spans, thread_subtitle};
 use crate::model::AgentState;
 use crate::sidebar::SidebarThread;
 use ratatui::{
@@ -158,146 +159,10 @@ pub(crate) fn build_thread_row(
         .style(Style::default().bg(theme.bg))
 }
 
-pub(crate) fn thread_subtitle(thread: &SidebarThread) -> String {
-    thread
-        .last_user_prompt
-        .as_deref()
-        .or(thread.subtitle.as_deref())
-        .or_else(|| {
-            thread
-                .cached_preview_turns
-                .first()
-                .map(|turn| turn.question.as_str())
-        })
-        .or(thread.last_assistant_message.as_deref())
-        .unwrap_or("")
-        .trim()
-        .to_string()
-}
-
-fn build_thread_subtitle_spans(
-    thread: &SidebarThread,
-    subtitle: &str,
-    color: ratatui::style::Color,
-    row_bg: ratatui::style::Color,
-    content_width: usize,
-) -> Vec<Span<'static>> {
-    let prefix = " ";
-    let prefix_width = display_width(prefix);
-    let tags_text = thread_tags_text(thread, content_width / 3);
-    let tags_width = display_width(&tags_text);
-    let tags_gap_width = if tags_width > 0 { 1 } else { 0 };
-    let available_width = content_width.saturating_sub(prefix_width);
-    let subtitle_max_width = available_width
-        .saturating_sub(tags_width + tags_gap_width)
-        .max(1);
-    let compact_subtitle = truncate_to_width(subtitle, subtitle_max_width);
-    let subtitle_width = display_width(&compact_subtitle);
-    let spacer_width =
-        content_width.saturating_sub(prefix_width + subtitle_width + tags_width + tags_gap_width);
-    let mut spans = vec![
-        Span::styled(prefix.to_string(), Style::default().bg(row_bg)),
-        Span::styled(compact_subtitle, Style::default().fg(color).bg(row_bg)),
-    ];
-    spans.push(Span::styled(
-        " ".repeat(spacer_width),
-        Style::default().bg(row_bg),
-    ));
-    if !tags_text.is_empty() {
-        spans.push(Span::styled(" ", Style::default().bg(row_bg)));
-        spans.push(Span::styled(
-            tags_text,
-            Style::default()
-                .fg(blend_color(color, row_bg, 0.84))
-                .bg(row_bg)
-                .add_modifier(Modifier::DIM),
-        ));
-    }
-    spans
-}
-
-fn thread_tags_text(thread: &SidebarThread, max_width: usize) -> String {
-    if thread.tags.is_empty() || max_width == 0 {
-        return String::new();
-    }
-
-    let mut rendered = String::new();
-    for tag in &thread.tags {
-        let candidate = if rendered.is_empty() {
-            format!("#{}", tag)
-        } else {
-            format!("{} #{}", rendered, tag)
-        };
-        if display_width(&candidate) > max_width {
-            break;
-        }
-        rendered = candidate;
-    }
-    rendered
-}
-
 pub(crate) fn format_jump_badge(jump_badge: Option<usize>, slot_width: usize) -> String {
     let content = jump_badge
         .filter(|number| (1..=9).contains(number))
         .map(|number| format!("#{}", number))
         .unwrap_or_default();
     format!("{content:<slot_width$}")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{format_jump_badge, thread_subtitle};
-    use crate::model::{AgentState, AgentType};
-    use crate::sidebar::SidebarThread;
-
-    #[test]
-    fn jump_badge_is_fixed_width_and_limited_to_nine() {
-        assert_eq!(format_jump_badge(Some(1), 4), "#1  ");
-        assert_eq!(format_jump_badge(Some(9), 4), "#9  ");
-        assert_eq!(format_jump_badge(Some(10), 4), "    ");
-        assert_eq!(format_jump_badge(None, 4), "    ");
-    }
-
-    #[test]
-    fn latest_prompt_wins_over_stale_subtitle() {
-        let thread = SidebarThread {
-            key: "thread:1".into(),
-            folder_key: "folder:/tmp".into(),
-            working_dir: "/tmp".into(),
-            folder_label: "tmp".into(),
-            agent_type: AgentType::Codex,
-            runtime_source: None,
-            session_id: Some("session-1".into()),
-            transcript_path: None,
-            session_provider_name: None,
-            title: "Test".into(),
-            upstream_title: None,
-            generated_title: None,
-            subtitle: Some("very old prompt".into()),
-            title_override: None,
-            note: None,
-            share_url: None,
-            cost: None,
-            token_summary: None,
-            tags: Vec::new(),
-            pinned: false,
-            updated_at: 0,
-            sort_updated_at: 0,
-            live_pane_id: None,
-            live_location: None,
-            pid: None,
-            git_info: None,
-            state: AgentState::Idle,
-            is_active: false,
-            cached_preview_turns: Default::default(),
-            session_cache_state: None,
-            last_user_prompt: Some("latest prompt".into()),
-            last_assistant_message: Some("latest answer".into()),
-            has_unread_stop: false,
-            archived: false,
-            deleted: false,
-        };
-
-        assert_eq!(thread_subtitle(&thread), "latest prompt");
-    }
 }
