@@ -338,6 +338,14 @@ impl FileTree {
         }
     }
 
+    /// Clear the search query while staying in search mode
+    pub fn clear_search_query(&mut self) {
+        if self.mode == TreeMode::Search {
+            self.search_query.clear();
+            self.refresh_entries();
+        }
+    }
+
     /// Filter entries based on search query
     fn filter_entries(&mut self) {
         let query = self.search_query.to_lowercase();

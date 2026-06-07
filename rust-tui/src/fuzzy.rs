@@ -71,18 +71,27 @@ impl FuzzyPicker {
         }
     }
 
+    pub fn clear_query(&mut self) {
+        self.query.clear();
+        self.update_filter();
+    }
+
     /// Handle keyboard input. Returns:
     /// - None: no action (continue)
     /// - Some(None): cancelled (Esc)
     /// - Some(Some(path)): selected a path
     pub fn handle_input(&mut self, key: crossterm::event::KeyEvent) -> Option<Option<String>> {
-        use crossterm::event::{KeyCode, KeyEventKind};
+        use crossterm::event::{KeyCode, KeyEventKind, KeyModifiers};
 
         if key.kind != KeyEventKind::Press {
             return None;
         }
 
         match key.code {
+            KeyCode::Delete if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.clear_query();
+                None
+            }
             KeyCode::Esc => {
                 self.active = false;
                 Some(None) // Cancelled
@@ -145,7 +154,7 @@ impl FuzzyPicker {
 
         // Query input
         let query_block = Block::default()
-            .title(" Filter ")
+            .title(" Filter · Shift+Delete clear ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Gray));
 
@@ -276,4 +285,23 @@ pub fn scan_directories(base: &str, max_depth: usize) -> Vec<String> {
     results.sort();
     results.dedup();
     results
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FuzzyPicker;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn shift_delete_clears_query() {
+        let mut picker = FuzzyPicker::new(vec!["alpha".into(), "beta".into()]);
+
+        picker.handle_input(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        assert_eq!(picker.query, "z");
+        assert!(picker.filtered.is_empty());
+
+        picker.handle_input(KeyEvent::new(KeyCode::Delete, KeyModifiers::SHIFT));
+        assert!(picker.query.is_empty());
+        assert_eq!(picker.filtered.len(), 2);
+    }
 }

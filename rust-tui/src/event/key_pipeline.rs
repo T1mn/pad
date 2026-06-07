@@ -15,6 +15,10 @@ pub(super) fn handle_key_event(
         return Ok(());
     }
 
+    if super::input_clear::handle_shift_delete(app, key) {
+        return Ok(());
+    }
+
     match app.mode {
         Mode::Normal => {
             super::normal::handle_normal_mode(terminal, app, key)?;

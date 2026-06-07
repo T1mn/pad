@@ -20,5 +20,6 @@
 - `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
 - `codex_runtime.rs`：pad 启动 Codex 时改走 `pad-codex` wrapper，并校验 relay token。
+- `tree.rs` / `fuzzy.rs`：内置文件 tree 与目录 fuzzy picker 状态和输入处理。
 - `scanner.rs` / `scanner/`：tmux pane 扫描、进程快照与 agent 识别。
 - `event.rs` / `event/`：键鼠事件分发。

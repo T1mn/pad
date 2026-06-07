@@ -136,9 +136,9 @@ pub(super) fn draw_telegram_settings_content(
             locale,
             crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW
         ) {
-            "输入编辑 | Enter: 保存 | Esc: 取消"
+            "输入编辑 | Enter: 保存 | Shift+Delete: 清空 | Esc: 取消"
         } else {
-            "Type to edit | Enter: save | Esc: cancel"
+            "Type to edit | Enter: save | Shift+Delete: clear | Esc: cancel"
         }
     } else if matches!(
         locale,

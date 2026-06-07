@@ -5,6 +5,7 @@ use std::io;
 #[cfg_attr(test, allow(dead_code))]
 mod attach;
 mod event_pipeline;
+mod input_clear;
 mod key_pipeline;
 mod loop_core;
 mod loop_state;

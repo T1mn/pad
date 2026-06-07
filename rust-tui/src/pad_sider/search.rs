@@ -1,6 +1,6 @@
 use super::fs::relative_path_label;
 use super::tree::scan_files;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Matcher, Utf32Str};
 use std::path::{Path, PathBuf};
@@ -62,6 +62,11 @@ impl FileSearch {
                 if self.selected + 1 < self.filtered.len() {
                     self.selected += 1;
                 }
+                SearchAction::None
+            }
+            KeyCode::Delete if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.query.clear();
+                self.update_filter();
                 SearchAction::None
             }
             KeyCode::Backspace => {
@@ -128,5 +133,41 @@ impl FileSearch {
         if self.selected >= self.filtered.len() {
             self.selected = self.filtered.len().saturating_sub(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileSearch;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_search_dir() -> std::path::PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("pad-sider-search-{unique}"));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("alpha.rs"), "fn alpha() {}").unwrap();
+        fs::write(dir.join("beta.rs"), "fn beta() {}").unwrap();
+        dir
+    }
+
+    #[test]
+    fn shift_delete_clears_query() {
+        let dir = temp_search_dir();
+        let mut search = FileSearch::new(&dir);
+
+        search.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        assert_eq!(search.query, "z");
+        assert!(search.filtered.is_empty());
+
+        search.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::SHIFT));
+        assert!(search.query.is_empty());
+        assert_eq!(search.filtered.len(), 2);
+
+        fs::remove_dir_all(dir).unwrap();
     }
 }

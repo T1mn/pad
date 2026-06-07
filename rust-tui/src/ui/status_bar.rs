@@ -40,24 +40,32 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
     let body_width = area.width.saturating_sub(mode_width as u16);
 
     let body = match app.mode {
-        crate::app::state::Mode::Search => format!(
-            "{}: {}  Enter {}  Esc {}",
-            crate::i18n::t(l, "status.search"),
-            app.search_query,
-            crate::i18n::t(l, "status.confirm"),
-            crate::i18n::t(l, "status.cancel")
-        ),
+        crate::app::state::Mode::Search => {
+            let clear_hint = if matches!(l, crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW) {
+                "Shift+Delete 清空"
+            } else {
+                "Shift+Delete clear"
+            };
+            format!(
+                "{}: {}  Enter {}  {}  Esc {}",
+                crate::i18n::t(l, "status.search"),
+                app.search_query,
+                crate::i18n::t(l, "status.confirm"),
+                clear_hint,
+                crate::i18n::t(l, "status.cancel")
+            )
+        }
         crate::app::state::Mode::Settings => {
             if app.settings_searching {
                 if matches!(l, crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW) {
                     format!(
-                        "{}: {}  ↑/↓ 移动  Enter 打开  Esc 返回",
+                        "{}: {}  ↑/↓ 移动  Enter 打开  Shift+Delete 清空  Esc 返回",
                         crate::i18n::t(l, "status.search"),
                         app.settings_search
                     )
                 } else {
                     format!(
-                        "{}: {}  ↑/↓ move  Enter open  Esc back",
+                        "{}: {}  ↑/↓ move  Enter open  Shift+Delete clear  Esc back",
                         crate::i18n::t(l, "status.search"),
                         app.settings_search
                     )

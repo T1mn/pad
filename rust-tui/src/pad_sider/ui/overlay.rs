@@ -138,6 +138,7 @@ pub fn draw_help(frame: &mut Frame) {
         Line::default(),
         Line::from("Search"),
         Line::from("  type          filter files"),
+        Line::from("  Shift+Delete  clear filter"),
         Line::from("  ↑/↓           move"),
         Line::from("  Enter         reveal file in tree"),
         Line::from("  Esc           cancel"),
