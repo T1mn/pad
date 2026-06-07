@@ -7,11 +7,11 @@ use super::pad_home_dir;
 pub(super) const PAD_CODEX_PROFILE: &str = "pad";
 
 /// PAD-private Codex home. Official Codex App continues to use `~/.codex`.
-pub(super) fn pad_codex_home_dir() -> PathBuf {
+pub(crate) fn pad_codex_home_dir() -> PathBuf {
     pad_home_dir().join("codex-home")
 }
 
-pub(super) fn canonical_codex_home_dir() -> PathBuf {
+pub(crate) fn canonical_codex_home_dir() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .or_else(dirs::home_dir)
@@ -19,21 +19,21 @@ pub(super) fn canonical_codex_home_dir() -> PathBuf {
         .join(".codex")
 }
 
-pub(super) fn pad_codex_config_path() -> PathBuf {
+pub(crate) fn pad_codex_config_path() -> PathBuf {
     pad_codex_home_dir().join(format!("{PAD_CODEX_PROFILE}.config.toml"))
 }
 
 /// PAD relay auth lives outside `~/.codex` so Codex App auth stays untouched.
-pub(super) fn pad_codex_auth_path() -> PathBuf {
+pub(crate) fn pad_codex_auth_path() -> PathBuf {
     pad_codex_home_dir().join("auth.json")
 }
 
 /// Hooks live in PAD's private Codex home; official Codex App hooks stay untouched.
-pub(super) fn pad_codex_hooks_path() -> PathBuf {
+pub(crate) fn pad_codex_hooks_path() -> PathBuf {
     pad_codex_home_dir().join("hooks.json")
 }
 
-pub(super) fn ensure_pad_codex_home_layout() -> io::Result<()> {
+pub(crate) fn ensure_pad_codex_home_layout() -> io::Result<()> {
     fs::create_dir_all(pad_codex_home_dir())?;
     unlink_legacy_shared_state_symlinks()?;
     seed_pad_profile_from_canonical()?;
