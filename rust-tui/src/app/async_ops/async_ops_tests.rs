@@ -1,4 +1,6 @@
-use super::*;
+use super::scan::should_preserve_hook_state;
+use crate::app::App;
+use crate::model::{AgentPanel, AgentState, AgentStateSource};
 
 fn panel_with_state(state: AgentState, source: AgentStateSource) -> AgentPanel {
     AgentPanel {
