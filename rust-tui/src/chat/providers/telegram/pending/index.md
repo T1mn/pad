@@ -1,6 +1,6 @@
 # Telegram Pending Modules
 
-- `pending.rs`: module entry and re-exports. Keep external call sites stable.
+- `../pending.rs`: module entry and re-exports. Keep external call sites stable.
 - `status.rs` / `status/`: pending state text, summaries, metadata lines and continuity formatting.
 - `feedback.rs`: draft feedback gate, typing updates, and status refresh/finalize flow.
 - `timeouts.rs`: hard timeout release for stuck Telegram requests.

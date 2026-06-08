@@ -10,7 +10,7 @@
 - `runtime_files.rs`：hook/API socket、状态文件和 Telegram runtime 文件路径。
 - `paths_tests.rs` / `paths_tests/`：按 bridge hooks、runtime layout、Codex home、prompts 分组的路径测试。
 - `~/.pad/notifications/inbox.json`：notification inbox 持久化文件。
-- `~/.pad/opencode-exports/` / `opencode-stats/` / `opencode-diagnostics/`：OpenCode 导出 JSON、stats 与诊断报告。
+- `~/.pad/opencode-exports/` / `~/.pad/opencode-stats/` / `~/.pad/opencode-diagnostics/`：OpenCode 导出 JSON、stats 与诊断报告。
 
 - `~/.pad/workspace-recipes.toml`：workspace recipe 配置文件。
 - `~/.pad/pad-api.sock`：socket API 监听地址。

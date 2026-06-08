@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import posixpath
+import re
 import subprocess
 import sys
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 MAX_INDEX_LINES = 50
+LOCAL_REF_SUFFIXES = (".rs", ".py", ".sh", ".md", ".yml", ".yaml")
 
 
 def tracked_files() -> set[str]:
@@ -36,11 +39,42 @@ def line_count(path: str) -> int:
         return sum(1 for _ in handle)
 
 
+def local_index_refs(index_file: str) -> list[str]:
+    text = Path(index_file).read_text(encoding="utf-8")
+    refs: list[str] = []
+    for match in re.finditer(r"`([^`]+)`", text):
+        ref = match.group(1).strip()
+        if not ref or ref.startswith(("~", "/")):
+            continue
+        if any(token in ref for token in ("*", "::", " ")):
+            continue
+        if ref.startswith(("./", "../")) or ref.endswith("/") or ref.endswith(LOCAL_REF_SUFFIXES):
+            refs.append(ref)
+    return refs
+
+
+def validate_index_refs(index_file: str, files: set[str], dirs: set[str]) -> list[str]:
+    base = PurePosixPath(index_file).parent
+    if str(base) == ".":
+        base = PurePosixPath("")
+    errors: list[str] = []
+    for ref in local_index_refs(index_file):
+        target = base / ref.rstrip("/")
+        target_text = posixpath.normpath(str(target))
+        if ref.endswith("/"):
+            if target_text not in dirs:
+                errors.append(f"stale index ref: {index_file} -> `{ref}`")
+        elif target_text not in files:
+            errors.append(f"stale index ref: {index_file} -> `{ref}`")
+    return errors
+
+
 def main() -> int:
     files = tracked_files()
+    dirs = tracked_dirs(files)
     errors: list[str] = []
 
-    for directory in sorted(tracked_dirs(files)):
+    for directory in sorted(dirs):
         expected = index_path(directory)
         if expected not in files:
             errors.append(f"missing index: {expected}")
@@ -49,6 +83,7 @@ def main() -> int:
         lines = line_count(file)
         if lines > MAX_INDEX_LINES:
             errors.append(f"index too long: {file} has {lines} lines > {MAX_INDEX_LINES}")
+        errors.extend(validate_index_refs(file, files, dirs))
 
     if errors:
         print("index check failed:", file=sys.stderr)

@@ -1,4 +1,6 @@
-`commands/` 负责 Telegram 文本命令入口。
+# telegram/commands
+
+负责 Telegram 文本命令入口。
 
 - `update.rs`：接收 Telegram update，区分 slash/plain text/callback。
 - `command.rs` / `command/`：slash 命令分发与 use/restart/stop/reset 子命令。
