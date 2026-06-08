@@ -42,26 +42,36 @@ impl AgentType {
     }
 
     pub fn from_processes(processes: &str) -> Self {
-        let p = processes.to_lowercase();
-        if p.contains("claude") {
+        if contains_ascii_ignore_case(processes, "claude") {
             AgentType::Claude
-        } else if p.contains("codex") {
+        } else if contains_ascii_ignore_case(processes, "codex") {
             AgentType::Codex
-        } else if p.contains("kimi") {
+        } else if contains_ascii_ignore_case(processes, "kimi") {
             AgentType::Kimi
-        } else if p.contains("gemini") {
+        } else if contains_ascii_ignore_case(processes, "gemini") {
             AgentType::Gemini
-        } else if p.contains("opencode") {
+        } else if contains_ascii_ignore_case(processes, "opencode") {
             AgentType::OpenCode
-        } else if p.contains("aider") {
+        } else if contains_ascii_ignore_case(processes, "aider") {
             AgentType::Aider
-        } else if p.contains("cursor") {
+        } else if contains_ascii_ignore_case(processes, "cursor") {
             AgentType::Cursor
         } else {
             AgentType::Unknown
         }
     }
 }
+
+fn contains_ascii_ignore_case(value: &str, needle: &str) -> bool {
+    value
+        .as_bytes()
+        .windows(needle.len())
+        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+}
+
+#[cfg(test)]
+#[path = "agent_tests.rs"]
+mod tests;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GitInfo {
