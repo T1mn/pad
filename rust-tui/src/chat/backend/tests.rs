@@ -1,4 +1,4 @@
-use super::{leaf_name, panel_display_title};
+use super::{leaf_name, panel_display_title, summarize_pane_capture};
 use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
 use std::path::Path;
 
@@ -52,4 +52,31 @@ fn panel_display_title_uses_thread_meta_title_override() {
 fn panel_display_title_falls_back_to_working_dir_leaf() {
     let panel = sample_panel(None);
     assert_eq!(panel_display_title(&panel), leaf_name(&panel.working_dir));
+}
+
+#[test]
+fn summarize_pane_capture_trims_outer_blank_lines_and_keeps_tail() {
+    let text = format!(
+        "\n  \n{}\n\n",
+        (1..=20)
+            .map(|idx| format!("line {idx}   "))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    assert_eq!(
+        summarize_pane_capture(&text),
+        (3..=20)
+            .map(|idx| format!("line {idx}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn summarize_pane_capture_preserves_inner_blank_lines() {
+    assert_eq!(
+        summarize_pane_capture("\nfirst  \n   \nsecond\n\n"),
+        "first\n\nsecond"
+    );
 }
