@@ -1,5 +1,6 @@
 use super::*;
-use crate::theme::ProviderConfig;
+use crate::app::state::RelayView;
+use crate::theme::{Config, ProviderConfig};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn with_temp_home<T>(name: &str, f: impl FnOnce() -> T) -> T {

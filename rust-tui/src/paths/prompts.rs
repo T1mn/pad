@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod state;
 
@@ -43,23 +43,39 @@ fn codex_index_prompt_state_path() -> PathBuf {
 pub fn ensure_codex_jailbreak_prompt_file_seeded() -> io::Result<()> {
     fs::create_dir_all(super::prompts_dir())?;
     let prompt_path = codex_jailbreak_prompt_file_path();
-    let state_path = codex_jailbreak_prompt_state_path();
-    let existing_prompt = match fs::read_to_string(&prompt_path) {
-        Ok(existing) => Some(existing),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            match fs::read_to_string(legacy_codex_prompt_file_path()) {
-                Ok(existing) => Some(existing),
-                Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-                Err(err) => return Err(err),
-            }
-        }
-        Err(err) => return Err(err),
-    };
+    seed_managed_prompt_file(
+        &prompt_path,
+        &codex_jailbreak_prompt_state_path(),
+        CODEX_JAILBREAK_PROMPT_VERSION,
+        DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
+        Some(&legacy_codex_prompt_file_path()),
+    )
+}
+
+pub fn ensure_codex_index_prompt_file_seeded() -> io::Result<()> {
+    fs::create_dir_all(super::prompts_dir())?;
+    seed_managed_prompt_file(
+        &codex_index_prompt_file_path(),
+        &codex_index_prompt_state_path(),
+        CODEX_INDEX_PROMPT_VERSION,
+        DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE,
+        None,
+    )
+}
+
+fn seed_managed_prompt_file(
+    prompt_path: &Path,
+    state_path: &Path,
+    version: &str,
+    default_template: &str,
+    legacy_prompt_path: Option<&Path>,
+) -> io::Result<()> {
+    let existing_prompt = read_prompt_with_legacy_fallback(prompt_path, legacy_prompt_path)?;
     let current_state = ManagedPromptState {
-        version: CODEX_JAILBREAK_PROMPT_VERSION.to_string(),
-        content_md5: prompt_md5(DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE),
+        version: version.to_string(),
+        content_md5: prompt_md5(default_template),
     };
-    let existing_state = read_managed_prompt_state(&state_path)?;
+    let existing_state = read_managed_prompt_state(state_path)?;
 
     let needs_seed = match existing_prompt.as_deref() {
         None => true,
@@ -70,8 +86,8 @@ pub fn ensure_codex_jailbreak_prompt_file_seeded() -> io::Result<()> {
     };
 
     if needs_seed {
-        fs::write(prompt_path, DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE)?;
-        write_managed_prompt_state(&state_path, &current_state)?;
+        fs::write(prompt_path, default_template)?;
+        write_managed_prompt_state(state_path, &current_state)?;
     } else if !prompt_path.exists() {
         if let Some(existing) = existing_prompt {
             fs::write(prompt_path, existing)?;
@@ -81,35 +97,22 @@ pub fn ensure_codex_jailbreak_prompt_file_seeded() -> io::Result<()> {
     Ok(())
 }
 
-pub fn ensure_codex_index_prompt_file_seeded() -> io::Result<()> {
-    fs::create_dir_all(super::prompts_dir())?;
-    let prompt_path = codex_index_prompt_file_path();
-    let state_path = codex_index_prompt_state_path();
-    let existing_prompt = match fs::read_to_string(&prompt_path) {
-        Ok(existing) => Some(existing),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(err) => return Err(err),
-    };
-    let current_state = ManagedPromptState {
-        version: CODEX_INDEX_PROMPT_VERSION.to_string(),
-        content_md5: prompt_md5(DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE),
-    };
-    let existing_state = read_managed_prompt_state(&state_path)?;
-
-    let needs_seed = match existing_prompt.as_deref() {
-        None => true,
-        Some(existing) if existing.trim().is_empty() => true,
-        Some(existing) => {
-            should_refresh_managed_prompt(existing, existing_state.as_ref(), &current_state)
-        }
-    };
-
-    if needs_seed {
-        fs::write(prompt_path, DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE)?;
-        write_managed_prompt_state(&state_path, &current_state)?;
+fn read_prompt_with_legacy_fallback(
+    prompt_path: &Path,
+    legacy_prompt_path: Option<&Path>,
+) -> io::Result<Option<String>> {
+    match fs::read_to_string(prompt_path) {
+        Ok(existing) => Ok(Some(existing)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => match legacy_prompt_path {
+            Some(legacy_path) => match fs::read_to_string(legacy_path) {
+                Ok(existing) => Ok(Some(existing)),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+                Err(err) => Err(err),
+            },
+            None => Ok(None),
+        },
+        Err(err) => Err(err),
     }
-
-    Ok(())
 }
 
 pub fn write_codex_selected_prompt_file(

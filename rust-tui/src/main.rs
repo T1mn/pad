@@ -24,6 +24,7 @@ mod model;
 mod notification_inbox;
 mod notify;
 mod opencode_history;
+mod opencode_text;
 mod pad_sider;
 mod paths;
 mod pipe;

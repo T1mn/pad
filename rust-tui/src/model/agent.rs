@@ -1,0 +1,106 @@
+use std::fmt;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentType {
+    Claude,
+    Codex,
+    Kimi,
+    Gemini,
+    OpenCode,
+    Aider,
+    Cursor,
+    Unknown,
+}
+
+impl fmt::Display for AgentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AgentType::Claude => write!(f, "claude"),
+            AgentType::Codex => write!(f, "codex"),
+            AgentType::Kimi => write!(f, "kimi"),
+            AgentType::Gemini => write!(f, "gemini"),
+            AgentType::OpenCode => write!(f, "opencode"),
+            AgentType::Aider => write!(f, "aider"),
+            AgentType::Cursor => write!(f, "cursor"),
+            AgentType::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+impl AgentType {
+    pub fn emoji(&self) -> &'static str {
+        match self {
+            AgentType::Claude => "🟣C",
+            AgentType::Codex => "🔵X",
+            AgentType::Kimi => "🟢K",
+            AgentType::Gemini => "🔷G",
+            AgentType::OpenCode => "🟠O",
+            AgentType::Aider => "🟡A",
+            AgentType::Cursor => "🟤R",
+            AgentType::Unknown => "⚪?",
+        }
+    }
+
+    pub fn from_processes(processes: &str) -> Self {
+        let p = processes.to_lowercase();
+        if p.contains("claude") {
+            AgentType::Claude
+        } else if p.contains("codex") {
+            AgentType::Codex
+        } else if p.contains("kimi") {
+            AgentType::Kimi
+        } else if p.contains("gemini") {
+            AgentType::Gemini
+        } else if p.contains("opencode") {
+            AgentType::OpenCode
+        } else if p.contains("aider") {
+            AgentType::Aider
+        } else if p.contains("cursor") {
+            AgentType::Cursor
+        } else {
+            AgentType::Unknown
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GitInfo {
+    pub branch: Option<String>,
+    pub commit: Option<String>,
+    pub changed_files: usize,
+}
+
+/// Agent state detected from pane content
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AgentState {
+    Idle,
+    Busy,
+    Waiting,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentStateSource {
+    Scanner,
+    Hook,
+}
+
+impl AgentState {
+    pub fn icon(&self, animation_frame: usize) -> &'static str {
+        match self {
+            AgentState::Idle => " ",
+            AgentState::Busy => match animation_frame % 10 {
+                0 => "⠋",
+                1 => "⠙",
+                2 => "⠹",
+                3 => "⠸",
+                4 => "⠼",
+                5 => "⠴",
+                6 => "⠦",
+                7 => "⠧",
+                8 => "⠇",
+                _ => "⠏",
+            },
+            AgentState::Waiting => "●",
+        }
+    }
+}

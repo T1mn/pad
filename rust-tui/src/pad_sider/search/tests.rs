@@ -1,0 +1,32 @@
+use super::FileSearch;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::fs;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn temp_search_dir() -> std::path::PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("pad-sider-search-{unique}"));
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("alpha.rs"), "fn alpha() {}").unwrap();
+    fs::write(dir.join("beta.rs"), "fn beta() {}").unwrap();
+    dir
+}
+
+#[test]
+fn shift_delete_clears_query() {
+    let dir = temp_search_dir();
+    let mut search = FileSearch::new(&dir);
+
+    search.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+    assert_eq!(search.query, "z");
+    assert!(search.filtered.is_empty());
+
+    search.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::SHIFT));
+    assert!(search.query.is_empty());
+    assert_eq!(search.filtered.len(), 2);
+
+    fs::remove_dir_all(dir).unwrap();
+}

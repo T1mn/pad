@@ -1,3 +1,6 @@
+mod poll;
+mod target;
+
 use super::*;
 
 pub(crate) async fn dispatch_codex_slash_command(
@@ -19,55 +22,10 @@ pub(crate) async fn dispatch_codex_slash_command(
         return Ok(());
     }
 
-    let Some(target) = state.selected_target.as_ref() else {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "target.none"),
-        )
-        .await?;
+    let Some(panel) = target::resolve_codex_slash_panel(config, state, chat_id, locale).await?
+    else {
         return Ok(());
     };
-
-    let panels = live_panels().map_err(telegram_error)?;
-    let Some(panel) = panels.iter().find(|panel| panel.pane_id == target.pane_id) else {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "pane.stale"),
-        )
-        .await?;
-        return Ok(());
-    };
-
-    if !matches!(&panel.agent_type, &AgentType::Codex) {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "target.not_codex"),
-        )
-        .await?;
-        return Ok(());
-    }
-
-    if panel.state == AgentState::Busy {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "agent.busy"),
-        )
-        .await?;
-        return Ok(());
-    }
-    if panel.state == AgentState::Waiting {
-        send_text(
-            &config.telegram.bot_token,
-            chat_id,
-            tg(locale, "agent.waiting"),
-        )
-        .await?;
-        return Ok(());
-    }
 
     let slash = build_slash_command_text(command, arg);
     let baseline = tmux_dispatch::capture_pane_tail(&panel.pane_id, 28)
@@ -81,21 +39,9 @@ pub(crate) async fn dispatch_codex_slash_command(
         slash
     );
 
-    let reply = match poll_slash_reply(&panel.pane_id, &slash, &baseline, deadline_ms).await {
-        Ok(Some(capture)) => {
-            if capture.is_empty() {
-                tg_fmt2(locale, "slash.sent", &slash, compact_target_label(panel))
-            } else {
-                tg_fmt3(
-                    locale,
-                    "slash.output",
-                    &slash,
-                    compact_target_label(panel),
-                    capture,
-                )
-            }
-        }
-        Ok(None) => tg_fmt2(locale, "slash.sent", &slash, compact_target_label(panel)),
+    let reply = match poll::poll_slash_reply(&panel.pane_id, &slash, &baseline, deadline_ms).await {
+        Ok(Some(capture)) => slash_reply_with_capture(locale, &slash, &panel, &capture),
+        Ok(None) => slash_sent_reply(locale, &slash, &panel),
         Err(err) => {
             log_debug!(
                 "telegram: capture after slash command failed pane={} command={} err={}",
@@ -103,53 +49,32 @@ pub(crate) async fn dispatch_codex_slash_command(
                 slash,
                 err
             );
-            tg_fmt2(locale, "slash.sent", &slash, compact_target_label(panel))
+            slash_sent_reply(locale, &slash, &panel)
         }
     };
     send_text(&config.telegram.bot_token, chat_id, &reply).await?;
     Ok(())
 }
 
-pub(crate) fn capture_looks_like_echo_only(capture: &str, slash: &str) -> bool {
-    let trimmed = capture.trim();
-    trimmed == slash.trim() || trimmed.ends_with(&format!("\n{}", slash.trim()))
+fn slash_reply_with_capture(
+    locale: crate::i18n::Locale,
+    slash: &str,
+    panel: &AgentPanel,
+    capture: &str,
+) -> String {
+    if capture.is_empty() {
+        slash_sent_reply(locale, slash, panel)
+    } else {
+        tg_fmt3(
+            locale,
+            "slash.output",
+            slash,
+            compact_target_label(panel),
+            capture,
+        )
+    }
 }
 
-pub(crate) async fn poll_slash_reply(
-    pane_id: &str,
-    slash: &str,
-    baseline: &str,
-    deadline_ms: u64,
-) -> TelegramResult<Option<String>> {
-    let started = Instant::now();
-    let deadline = Duration::from_millis(deadline_ms);
-    let mut candidate: Option<String> = None;
-    let mut stable_hits = 0usize;
-
-    loop {
-        let capture = tmux_dispatch::capture_pane_tail(pane_id, 28).map_err(telegram_error)?;
-        let capture = summarize_pane_capture(&capture);
-        if !capture.is_empty() && capture != baseline {
-            if !capture_looks_like_echo_only(&capture, slash) {
-                if candidate.as_deref() == Some(capture.as_str()) {
-                    stable_hits += 1;
-                } else {
-                    candidate = Some(capture.clone());
-                    stable_hits = 1;
-                }
-                if stable_hits >= 2 || started.elapsed() >= Duration::from_millis(250) {
-                    return Ok(Some(capture));
-                }
-            } else {
-                candidate = Some(capture);
-            }
-        }
-
-        if started.elapsed() >= deadline {
-            break;
-        }
-        sleep(Duration::from_millis(SLASH_POLL_INTERVAL_MS)).await;
-    }
-
-    Ok(candidate.filter(|capture| capture != baseline))
+fn slash_sent_reply(locale: crate::i18n::Locale, slash: &str, panel: &AgentPanel) -> String {
+    tg_fmt2(locale, "slash.sent", slash, compact_target_label(panel))
 }

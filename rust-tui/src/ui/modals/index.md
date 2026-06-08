@@ -4,5 +4,5 @@
 - `dialogs.rs` / `dialogs/`: confirm/help dialogs, thread action copy, and title/tag editor rendering.
 - `settings/`: settings modal screens.
 - `relay/`: relay/provider modals.
-- `telegram.rs`: Telegram settings modal.
+- `telegram.rs` / `telegram/`: Telegram settings modal, labels, values, and row styling.
 - `notification_inbox.rs`: notification inbox modal.

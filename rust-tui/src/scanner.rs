@@ -1,13 +1,16 @@
+mod detect;
 mod git;
+mod hydrate;
 mod pane_capture;
+mod panel;
 mod process_snapshot;
 mod scan_caches;
 mod tmux_panes;
 
-use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
-use git::get_git_info_for_paths;
-use pane_capture::{capture_pane_content, capture_panes_content};
-use process_snapshot::command_args_may_name_agent;
+use crate::model::{AgentPanel, AgentState, AgentType};
+use detect::detect_agent_type;
+use hydrate::hydrate_panel_runtime_state;
+use panel::panel_from_pane_line;
 use scan_caches::ScanCaches;
 use std::process::Command;
 use std::time::Instant;
@@ -16,7 +19,11 @@ use tmux_panes::{parse_pane_line, LIST_PANES_FORMAT};
 pub use pane_capture::strip_ansi;
 
 #[cfg(test)]
+use git::get_git_info_for_paths;
+#[cfg(test)]
 use git::parse_git_status_porcelain_v2;
+#[cfg(test)]
+use pane_capture::{capture_pane_content, capture_panes_content};
 
 pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send + Sync>> {
     let scan_started_at = Instant::now();
@@ -46,44 +53,15 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
             continue;
         };
 
-        let session = pane_line.session.to_string();
-        let window = pane_line.window.to_string();
-        let window_index = pane_line.window_index.to_string();
-        let pane = pane_line.pane.to_string();
-        let pane_id = pane_line.pane_id.to_string();
-        let pane_pid = pane_line.pane_pid.to_string();
-        let working_dir = pane_line.working_dir.to_string();
-
         let (agent_type, main_process, child_processes) =
-            detect_agent_type(pane_line.current_cmd, &pane_pid, &mut caches);
+            detect_agent_type(pane_line.current_cmd, pane_line.pane_pid, &mut caches);
 
         if matches!(agent_type, AgentType::Unknown) {
             continue;
         }
 
         process_logs.push((panels.len(), main_process, child_processes));
-        panels.push(AgentPanel {
-            session,
-            window,
-            window_index,
-            pane,
-            pane_id,
-            agent_type,
-            working_dir,
-            is_active: false,
-            state: AgentState::Idle,
-            state_source: AgentStateSource::Scanner,
-            transcript_path: None,
-            cached_preview_turns: Default::default(),
-            session_cache_state: None,
-            git_info: None,
-            pid: Some(pane_pid),
-            start_time: Some(std::time::Instant::now()),
-            agent_session_id: None,
-            last_user_prompt: None,
-            last_assistant_message: None,
-            has_unread_stop: false,
-        });
+        panels.push(panel_from_pane_line(pane_line, agent_type));
     }
 
     hydrate_panel_runtime_state(&mut panels, &mut caches);
@@ -123,74 +101,6 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     });
 
     Ok(panels)
-}
-
-fn hydrate_panel_runtime_state(panels: &mut [AgentPanel], caches: &mut ScanCaches) {
-    let pane_ids = panels
-        .iter()
-        .map(|panel| panel.pane_id.clone())
-        .collect::<Vec<_>>();
-    let working_dirs = panels
-        .iter()
-        .map(|panel| panel.working_dir.clone())
-        .collect::<Vec<_>>();
-    let (captures, git_infos) = std::thread::scope(|scope| {
-        let capture_handle =
-            scope.spawn(|| capture_panes_content(&pane_ids, 20).unwrap_or_default());
-        let git_handle = scope.spawn(|| get_git_info_for_paths(&working_dirs));
-        (
-            capture_handle.join().unwrap_or_default(),
-            git_handle.join().unwrap_or_default(),
-        )
-    });
-
-    for panel in panels {
-        let state = captures
-            .get(&panel.pane_id)
-            .map(|content| crate::detector::detect_state(content))
-            .or_else(|| {
-                capture_pane_content(&panel.pane_id, 20)
-                    .ok()
-                    .map(|content| crate::detector::detect_state(&content))
-            })
-            .unwrap_or(AgentState::Idle);
-        panel.is_active = state == AgentState::Busy;
-        panel.state = state;
-        panel.git_info = git_infos
-            .get(&panel.working_dir)
-            .cloned()
-            .unwrap_or_else(|| caches.cached_git_info(&panel.working_dir));
-    }
-}
-
-fn detect_agent_type(
-    current_cmd: &str,
-    pane_pid: &str,
-    caches: &mut ScanCaches,
-) -> (AgentType, String, String) {
-    let current_process = current_cmd.trim().to_string();
-    let mut agent_type = AgentType::from_processes(&current_process);
-    if !matches!(agent_type, AgentType::Unknown) {
-        return (agent_type, current_process, String::new());
-    }
-
-    let main_process = caches.cached_process_cmd(pane_pid).unwrap_or_default();
-    agent_type = AgentType::from_processes(&main_process);
-    if !matches!(agent_type, AgentType::Unknown) {
-        return (agent_type, main_process, String::new());
-    }
-
-    if command_args_may_name_agent(&main_process) {
-        let full_process = caches.cached_full_process_cmd(pane_pid).unwrap_or_default();
-        agent_type = AgentType::from_processes(&full_process);
-        if !matches!(agent_type, AgentType::Unknown) {
-            return (agent_type, full_process, String::new());
-        }
-    }
-
-    let child_processes = caches.cached_child_processes(pane_pid);
-    agent_type = AgentType::from_processes(&child_processes);
-    (agent_type, main_process, child_processes)
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ mod persist;
 mod preload;
 mod storage;
 mod tests;
+mod turns;
 mod util;
 
 pub use model::{SessionCacheSnapshot, SESSION_HISTORY_TURN_LIMIT};

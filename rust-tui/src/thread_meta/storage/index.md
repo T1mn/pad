@@ -1,4 +1,4 @@
 # storage
 
-- `read.rs`：批量读取 thread 元数据、删除列表和标签归一化。
-- `write.rs`：写入标题、生成标题、删除状态和标签。
+- `read.rs` / `read/`：批量读取 thread 元数据、删除列表、row 映射和标签归一化。
+- `write.rs` / `write/`：写入标题、生成标题、删除状态和标签。

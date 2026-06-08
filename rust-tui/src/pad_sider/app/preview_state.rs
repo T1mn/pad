@@ -1,0 +1,41 @@
+use super::{App, NavMode};
+use crate::pad_sider::preview::FilePreview;
+
+impl App {
+    pub(crate) fn refresh_file_preview(&mut self) {
+        let path = match self.nav_mode {
+            NavMode::Tree => self.selected_path().cloned(),
+            NavMode::IndexMap => self.selected_index_path().cloned(),
+            NavMode::CodexRuns => {
+                self.refresh_codex_diff_preview();
+                return;
+            }
+        };
+        self.codex_diff_preview_key = None;
+        let previous_title = self.file_preview.title.clone();
+        let previous_scroll = self.file_preview.scroll;
+        let mut preview = path
+            .as_deref()
+            .map(|path| self.file_preview_cache.preview_for(&self.cwd, path))
+            .unwrap_or_else(FilePreview::empty);
+        if preview.title == previous_title {
+            preview.scroll = previous_scroll;
+        }
+        self.set_file_preview(preview);
+    }
+
+    pub(crate) fn refresh_preview(&mut self) {
+        let Some(preview) = self.preview.as_mut() else {
+            return;
+        };
+        if preview.path.is_file() {
+            let scroll = preview.preview.scroll;
+            preview.preview = self
+                .file_preview_cache
+                .preview_for(&self.cwd, &preview.path);
+            preview.preview.scroll = scroll;
+        } else {
+            self.preview = None;
+        }
+    }
+}

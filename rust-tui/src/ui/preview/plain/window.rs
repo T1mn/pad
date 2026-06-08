@@ -1,4 +1,4 @@
-use super::display_width;
+use super::super::common::display_width;
 use ratatui::text::Line;
 
 pub(super) fn visible_plain_line_window(

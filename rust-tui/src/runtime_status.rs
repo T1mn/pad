@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod process;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessStatus {
@@ -69,47 +70,7 @@ pub fn read_status(path: &Path) -> Option<ProcessStatus> {
     serde_json::from_str(&body).ok()
 }
 
-pub fn process_alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    {
-        let alive = unsafe {
-            let rc = libc::kill(pid as i32, 0);
-            if rc == 0 {
-                true
-            } else {
-                io::Error::last_os_error()
-                    .raw_os_error()
-                    .is_some_and(|err| err == libc::EPERM)
-            }
-        };
-        alive && !process_is_zombie(pid)
-    }
-
-    #[cfg(not(unix))]
-    {
-        let _ = pid;
-        false
-    }
-}
-
-#[cfg(unix)]
-fn process_is_zombie(pid: u32) -> bool {
-    let output = Command::new("ps")
-        .args(["-o", "stat=", "-p", &pid.to_string()])
-        .output();
-    let Ok(output) = output else {
-        return false;
-    };
-    if !output.status.success() {
-        return false;
-    }
-    let stat = String::from_utf8_lossy(&output.stdout);
-    stat_indicates_zombie(&stat)
-}
-
-fn stat_indicates_zombie(stat: &str) -> bool {
-    stat.trim().chars().any(|ch| ch == 'Z')
-}
+pub use process::process_alive;
 
 pub fn describe_status(path: &Path) -> String {
     match read_status(path) {
@@ -135,46 +96,4 @@ fn write_status_body(path: &Path, status: &ProcessStatus) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        read_status, stat_indicates_zombie, write_status_body, ProcessStatus, StatusGuard,
-    };
-    use std::fs;
-
-    #[test]
-    fn status_guard_drop_preserves_newer_status_file() {
-        let path = std::env::temp_dir().join(format!(
-            "pad-status-guard-{}-{}.json",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-
-        let guard = StatusGuard::new(path.clone(), "telegram-bot").unwrap();
-        write_status_body(
-            &path,
-            &ProcessStatus {
-                pid: guard.pid.saturating_add(1),
-                started_at: guard.started_at.saturating_add(1),
-                mode: "telegram-bot".to_string(),
-            },
-        )
-        .unwrap();
-        drop(guard);
-
-        let status = read_status(&path).unwrap();
-        assert_eq!(status.pid, std::process::id().saturating_add(1));
-
-        let _ = fs::remove_file(path);
-    }
-
-    #[test]
-    fn stat_parser_treats_zombies_as_not_alive() {
-        assert!(stat_indicates_zombie("Z+"));
-        assert!(stat_indicates_zombie("SZ"));
-        assert!(!stat_indicates_zombie("S+"));
-        assert!(!stat_indicates_zombie("R"));
-    }
-}
+mod tests;

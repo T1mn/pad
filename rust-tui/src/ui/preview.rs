@@ -5,14 +5,14 @@ mod markdown;
 mod plain;
 mod session;
 mod session_list_cache;
+mod welcome;
 
 use crate::app::state::FocusTarget;
 use crate::app::App;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Paragraph, Wrap},
+    style::Style,
+    widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
 };
 
@@ -45,99 +45,7 @@ pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
         }));
 
     if app.panels.is_empty() {
-        let welcome = vec![
-            Line::from(""),
-            Line::from(""),
-            Line::from(Span::styled(
-                " PAD ",
-                Style::default()
-                    .bg(theme.accent)
-                    .fg(theme.bg)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "preview.welcome"),
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(Span::styled(
-                crate::i18n::t(l, "preview.subtitle"),
-                Style::default().fg(theme.comment),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                format!("─── {} ───", crate::i18n::t(l, "preview.keybindings")),
-                Style::default().fg(theme.border),
-            )),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(" J/K ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.nav_panels"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled(" Enter ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.attach"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled(" / ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.search"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled(" E ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.tree"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled(" C ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.create"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled(" D ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.delete"),
-                    Style::default().fg(theme.fg),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(" ? ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.help"),
-                    Style::default().fg(theme.comment),
-                ),
-                Span::styled("  S ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.settings"),
-                    Style::default().fg(theme.comment),
-                ),
-                Span::styled("  Q ", Style::default().fg(theme.keyword)),
-                Span::styled(
-                    crate::i18n::t(l, "preview.quit"),
-                    Style::default().fg(theme.comment),
-                ),
-            ]),
-        ];
-        let paragraph = Paragraph::new(welcome)
-            .block(block)
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: false });
-        f.render_widget(paragraph, area);
+        welcome::draw_welcome_preview(f, area, block, l, &theme);
         return;
     }
 

@@ -2,33 +2,42 @@
 
 - `main.rs`：入口与主循环；启动参数、tmux bootstrap、终端管理、启动服务和信号处理拆到邻近模块。
 - `cli.rs` / `bootstrap.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
+- `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
+- `model.rs` / `model/`：agent、pane、preview 等共享模型。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
 - `theme/`：配置模型、加载保存、主题。
+- `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
 - `pad_sider/`：Codex pane 左侧全屏辅助栏，负责 tree、文件/代码预览、`/` fuzzy 搜索与 Codex diff 审阅。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
+- `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
 - `codex_provider_sync.rs` / `codex_provider_sync/`：同步 PAD 私有 Codex home 内的 provider 元数据，避免改动官方 `~/.codex`。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
 - `relay/`：各 agent relay/native 配置与运行时覆盖。
 - `preview_source/`：Claude/Codex/Gemini/OpenCode 会话预览解析。
 - `chat/`：聊天后端与 Telegram 集成。
+- `notify.rs` / `notify/`：桌面通知入口、平台命令选择与通知子进程 helper。
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
 - `opencode_history/`：读取 OpenCode 官方 SQLite 历史。
+- `opencode_text.rs`：OpenCode message/part JSON role 与文本抽取共享工具。
 - `session_cache/`：会话快照缓存与持久化。
 - `thread_meta.rs` / `thread_meta/`：thread 标题、删除状态、标签等本地元数据。
 - `title_summary.rs` / `title_summary/`：Codex 会话自动标题摘要的窗口选择、请求、响应解析与清理。
 - `session_continuity.rs` / `session_continuity/`：agent session continuity ledger、预览 fallback 健康判断与诊断日志。
+- `runtime_status.rs` / `runtime_status/`：PAD/Telegram 运行状态文件、进程存活探测与 stale pid 描述。
 - `agent_resume/`：从缓存记录列出并恢复 agent 会话。
 - `workspace_recipe/`：工作区 recipe 解析、dry-run 与 tmux 启动。
 - `browser_remote/`：浏览器打开与远程 SSH 命令联动。
 - `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
-- `codex_runtime.rs`：pad 启动 Codex 时改走 `pad-codex` wrapper，并校验 relay token。
+- `codex_runtime.rs` / `codex_runtime/`：pad 启动 Codex 时改走 `pad-codex` wrapper，并校验 relay token。
 - `tmux_capabilities.rs` / `tmux_capabilities/`：tmux 版本解析、能力探测和报告摘要。
 - `tmux_bindings.rs`：PAD 临时 root binding 保存、恢复和 sider toggle 命令 helpers。
+- `pipe.rs` / `pipe/`：tmux control mode 监听、事件解析与重连。
+- `pty.rs` / `pty/`：tmux pane PTY attach、detach/F12 按键识别和 pane capture。
 - `tmux_dispatch.rs` / `tmux_dispatch/`：tmux prompt 投递、pane/session 操作与查询。
-- `tree.rs` / `tree/` / `fuzzy.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
+- `tree.rs` / `tree/` / `fuzzy.rs` / `fuzzy/`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
 - `scanner.rs` / `scanner/`：tmux pane 扫描、进程快照与 agent 识别。
 - `event.rs` / `event/`：键鼠事件分发。

@@ -1,8 +1,15 @@
-use super::*;
-use std::ffi::OsString;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod export;
+mod mode;
+mod path;
+mod text;
+
+use super::{opencode_cli, App};
+use crate::model::AgentType;
+use mode::ExportMode;
+use text::{
+    export_failed_title, export_saved_title, missing_session_message, no_thread_message,
+    opencode_only_message,
+};
 
 impl App {
     pub fn export_selected_opencode_thread(&mut self) -> bool {
@@ -40,7 +47,7 @@ impl App {
             return false;
         };
 
-        match export_opencode_session(
+        match export::export_opencode_session(
             session_id,
             &opencode_cli::opencode_command(&self.config),
             mode,
@@ -60,100 +67,8 @@ impl App {
     }
 }
 
-#[derive(Clone, Copy)]
-enum ExportMode {
-    Raw,
-    Sanitized,
-}
-
-fn export_opencode_session(
-    session_id: &str,
-    command: &OsString,
-    mode: ExportMode,
-) -> io::Result<PathBuf> {
-    let mut args = vec!["export", session_id];
-    if matches!(mode, ExportMode::Sanitized) {
-        args.push("--sanitize");
-    }
-    let output = Command::new(command).args(args).output()?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(io::Error::other(if stderr.is_empty() {
-            format!("opencode export exited with {}", output.status)
-        } else {
-            stderr
-        }));
-    }
-
-    let body = String::from_utf8_lossy(&output.stdout);
-    if body.trim().is_empty() {
-        return Err(io::Error::other("opencode export returned empty output"));
-    }
-
-    let path = opencode_export_path(
-        session_id,
-        crate::paths::opencode_exports_dir().as_path(),
-        mode,
-    );
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, body.as_bytes())?;
-    Ok(path)
-}
-
-fn opencode_export_path(session_id: &str, dir: &Path, mode: ExportMode) -> PathBuf {
-    let suffix = match mode {
-        ExportMode::Raw => "json",
-        ExportMode::Sanitized => "sanitized.json",
-    };
-    dir.join(format!(
-        "{}.{}",
-        opencode_cli::safe_filename(session_id),
-        suffix
-    ))
-}
-
-fn is_cjk_locale(locale: Locale) -> bool {
-    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
-}
-
-fn localized(locale: Locale, zh: &'static str, en: &'static str) -> &'static str {
-    if is_cjk_locale(locale) {
-        zh
-    } else {
-        en
-    }
-}
-
-fn export_saved_title(locale: Locale, mode: ExportMode) -> &'static str {
-    match (is_cjk_locale(locale), mode) {
-        (true, ExportMode::Raw) => "OpenCode 已导出",
-        (true, ExportMode::Sanitized) => "OpenCode 已脱敏导出",
-        (false, ExportMode::Raw) => "OpenCode Exported",
-        (false, ExportMode::Sanitized) => "OpenCode Sanitized Exported",
-    }
-}
-
-fn export_failed_title(locale: Locale) -> &'static str {
-    localized(locale, "OpenCode 导出失败", "OpenCode Export Failed")
-}
-
-fn no_thread_message(locale: Locale) -> &'static str {
-    localized(locale, "没有选中的线程", "No selected thread")
-}
-
-fn opencode_only_message(locale: Locale) -> &'static str {
-    localized(locale, "只支持 OpenCode 会话", "Only OpenCode sessions")
-}
-
-fn missing_session_message(locale: Locale) -> &'static str {
-    localized(
-        locale,
-        "选中的 OpenCode 线程缺少 session id",
-        "Missing OpenCode session id",
-    )
-}
+#[cfg(test)]
+use path::opencode_export_path;
 
 #[cfg(test)]
 #[path = "opencode_export_tests.rs"]

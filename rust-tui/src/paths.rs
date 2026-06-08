@@ -2,8 +2,8 @@ use std::fs;
 use std::io;
 #[cfg(test)]
 use std::path::Path;
-use std::path::PathBuf;
 
+mod base;
 mod codex_home;
 mod codex_hooks;
 mod codex_wrapper;
@@ -37,112 +37,14 @@ use prompts::{
     CODEX_JAILBREAK_PROMPT_VERSION,
 };
 
-pub fn pad_home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".pad")
-}
-
-pub fn config_path() -> PathBuf {
-    pad_home_dir().join("config.toml")
-}
-
-pub fn relay_export_path() -> PathBuf {
-    pad_home_dir().join("relay.yaml")
-}
-
-pub fn opencode_exports_dir() -> PathBuf {
-    pad_home_dir().join("opencode-exports")
-}
-
-pub fn opencode_stats_dir() -> PathBuf {
-    pad_home_dir().join("opencode-stats")
-}
-
-pub fn opencode_diagnostics_dir() -> PathBuf {
-    pad_home_dir().join("opencode-diagnostics")
-}
-
-pub fn workspace_recipes_path() -> PathBuf {
-    pad_home_dir().join("workspace-recipes.toml")
-}
-
-pub fn pad_db_path() -> PathBuf {
-    pad_home_dir().join("pad.db")
-}
-
-pub fn legacy_config_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
-        })
-        .join("pad")
-        .join("config.toml")
-}
-
-pub fn logs_dir() -> PathBuf {
-    pad_home_dir().join("logs")
-}
-
-pub fn log_path() -> PathBuf {
-    logs_dir().join("pad.log")
-}
-
-pub fn telegram_bot_log_path() -> PathBuf {
-    logs_dir().join("telegram-bot.log")
-}
-
-pub fn hook_events_path() -> PathBuf {
-    logs_dir().join("hook-events.jsonl")
-}
-
-pub fn notifications_dir() -> PathBuf {
-    pad_home_dir().join("notifications")
-}
-
-pub fn notification_inbox_path() -> PathBuf {
-    notifications_dir().join("inbox.json")
-}
-
-pub fn session_continuity_log_path() -> PathBuf {
-    logs_dir().join("session-continuity.jsonl")
-}
-
-pub fn scripts_dir() -> PathBuf {
-    pad_home_dir().join("scripts")
-}
-
-pub fn prompts_dir() -> PathBuf {
-    pad_home_dir().join("prompt")
-}
-
-pub fn sessions_dir() -> PathBuf {
-    pad_home_dir().join("sessions")
-}
-
-pub fn sessions_index_path() -> PathBuf {
-    sessions_dir().join("index.json")
-}
-
-pub fn session_continuity_state_path() -> PathBuf {
-    sessions_dir().join("continuity.json")
-}
-
-pub fn claude_hook_bridge_path() -> PathBuf {
-    scripts_dir().join("claude_hook_bridge.py")
-}
-
-pub fn codex_hook_bridge_path() -> PathBuf {
-    scripts_dir().join("codex_hook_bridge.py")
-}
-
-pub fn pad_codex_wrapper_path() -> PathBuf {
-    scripts_dir().join("pad-codex")
-}
+pub use base::{
+    claude_hook_bridge_path, codex_hook_bridge_path, config_path, hook_events_path,
+    legacy_config_path, log_path, logs_dir, notification_inbox_path, notifications_dir,
+    opencode_diagnostics_dir, opencode_exports_dir, opencode_stats_dir, pad_codex_wrapper_path,
+    pad_db_path, pad_home_dir, prompts_dir, relay_export_path, scripts_dir,
+    session_continuity_log_path, session_continuity_state_path, sessions_dir, sessions_index_path,
+    telegram_bot_log_path, workspace_recipes_path,
+};
 
 pub fn ensure_pad_codex_wrapper() -> io::Result<()> {
     fs::create_dir_all(scripts_dir())?;

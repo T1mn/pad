@@ -1,9 +1,9 @@
 # relay
 
 - `claude.rs`：Claude 原生配置写入。
-- `codex.rs`：Codex relay 配置导入导出，并写入 `pad` profile 与 PAD 私有 auth。
+- `codex.rs` / `codex/`：Codex relay 应用入口，拆分配置写入、auth 更新、provider sync 与 export/import YAML。
 - `gemini.rs`：Gemini 原生配置写入。
-- `opencode.rs`：OpenCode 原生配置写入。
+- `opencode.rs` / `opencode/`：OpenCode 原生 provider、model 与托管状态写入。
 - `permissions.rs` / `permissions/`：运行时权限、状态栏、prompt 覆盖。
-- `common.rs`：relay 配置通用工具。
+- `common.rs` / `common/`：relay 配置通用路径、文件备份与格式解析工具。
 - `tests.rs` / `tests/`：relay 与 runtime overlay 测试。

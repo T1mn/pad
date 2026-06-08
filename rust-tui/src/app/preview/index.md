@@ -1,7 +1,7 @@
 # app/preview
 
 - `cache.rs`：预览渲染缓存失效、导航 debounce 与 thread cache 裁剪。
-- `detail_cache.rs`：Session detail 渲染缓存命中、LRU 提升与 turn allocation 快速匹配。
+- `detail_cache.rs` / `detail_cache/`：Session detail 渲染 request、缓存命中、LRU 提升与 turn allocation 快速匹配。
 - `focus.rs`：预览/面板焦点切换，以及 Tab 返回时间窗口记录。
 - `turns.rs`：Session turn 状态判断、打开详情与恢复列表。
 - `turn_selection.rs`：Session turn 上下选择、折叠与返回逻辑。

@@ -1,27 +1,15 @@
+#[path = "items/values.rs"]
+mod values;
+
 use super::super::helpers::settings_item_search_blob;
 use super::super::*;
+use values::{codex_summary, display_mode_label, preview_mode_label, sound_summary, toggle_label};
+
+type SettingsItem = (&'static str, String, &'static str, &'static str, bool);
 
 impl App {
-    pub fn settings_items(&self) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
+    pub fn settings_items(&self) -> Vec<SettingsItem> {
         let l = self.locale;
-        let preview_mode = match self.config.preview.mode.as_str() {
-            "tmux" => crate::i18n::t(l, "settings.preview_mode_tmux"),
-            "session" => crate::i18n::t(l, "settings.preview_mode_session"),
-            _ => crate::i18n::t(l, "settings.preview_mode_auto"),
-        };
-        let display_mode = match self.config.display.session_scope.as_str() {
-            "all" => crate::i18n::t(l, "settings.display_mode_all"),
-            _ => crate::i18n::t(l, "settings.display_mode_live"),
-        };
-        let enabled_sound_events = [
-            self.config.sound.completion.enabled,
-            self.config.sound.approval.enabled,
-            self.config.sound.timeout.enabled,
-            self.config.sound.failure.enabled,
-        ]
-        .into_iter()
-        .filter(|enabled| *enabled)
-        .count();
         let trash_count = crate::thread_meta::deleted_thread_count().unwrap_or_default();
         vec![
             (
@@ -33,80 +21,28 @@ impl App {
             ),
             (
                 "auto_refresh",
-                if self.config.auto_refresh {
-                    crate::i18n::t(l, "settings.on").to_string()
-                } else {
-                    crate::i18n::t(l, "settings.off").to_string()
-                },
+                toggle_label(l, self.config.auto_refresh),
                 "settings.auto_refresh",
                 "settings.auto_refresh",
                 true,
             ),
             (
                 "codex_settings",
-                format!(
-                    "YOLO {}  ·  Fast {}  ·  Goal {}  ·  MA {}  ·  Web {}  ·  SL {}/3  ·  Sum {}",
-                    if self.config.agent_permissions.codex_auto_full_access {
-                        crate::i18n::t(l, "settings.on")
-                    } else {
-                        crate::i18n::t(l, "settings.off")
-                    },
-                    if self.config.codex.fast_mode {
-                        crate::i18n::t(l, "settings.on")
-                    } else {
-                        crate::i18n::t(l, "settings.off")
-                    },
-                    if self.config.codex.goals {
-                        crate::i18n::t(l, "settings.on")
-                    } else {
-                        crate::i18n::t(l, "settings.off")
-                    },
-                    if self.config.codex.multi_agent {
-                        crate::i18n::t(l, "settings.on")
-                    } else {
-                        crate::i18n::t(l, "settings.off")
-                    },
-                    crate::i18n::t(
-                        l,
-                        match self.config.codex.web_search.as_str() {
-                            "cached" => "settings.codex_web_search_cached",
-                            "live" => "settings.codex_web_search_live",
-                            "disabled" => "settings.codex_web_search_disabled",
-                            _ => "settings.codex_web_search_default",
-                        }
-                    ),
-                    self.config.codex.status_line_items().len(),
-                    if self.config.codex.title_summary {
-                        crate::i18n::t(l, "settings.on")
-                    } else {
-                        crate::i18n::t(l, "settings.off")
-                    }
-                ),
+                codex_summary(&self.config, l),
                 "settings.codex_settings",
                 "settings.codex_settings",
                 true,
             ),
             (
                 "claude_full_access",
-                if self.config.agent_permissions.claude_auto_full_access {
-                    crate::i18n::t(l, "settings.on").to_string()
-                } else {
-                    crate::i18n::t(l, "settings.off").to_string()
-                },
+                toggle_label(l, self.config.agent_permissions.claude_auto_full_access),
                 "settings.claude_full_access",
                 "settings.claude_full_access",
                 true,
             ),
             (
                 "sound",
-                if self.config.sound.enabled {
-                    format!(
-                        "{} · {enabled_sound_events}/4",
-                        crate::i18n::t(l, "settings.on")
-                    )
-                } else {
-                    crate::i18n::t(l, "settings.off").to_string()
-                },
+                sound_summary(&self.config, l),
                 "settings.sound",
                 "settings.sound_desc",
                 true,
@@ -120,11 +56,7 @@ impl App {
             ),
             (
                 "telegram",
-                if self.config.telegram.enabled {
-                    crate::i18n::t(l, "settings.on").to_string()
-                } else {
-                    crate::i18n::t(l, "settings.off").to_string()
-                },
+                toggle_label(l, self.config.telegram.enabled),
                 "settings.telegram",
                 "settings.telegram",
                 true,
@@ -138,14 +70,14 @@ impl App {
             ),
             (
                 "preview_mode",
-                preview_mode.to_string(),
+                preview_mode_label(&self.config, l),
                 "settings.preview_mode",
                 "settings.preview_mode",
                 true,
             ),
             (
                 "display_mode",
-                display_mode.to_string(),
+                display_mode_label(&self.config, l),
                 "settings.display_mode",
                 "settings.display_mode",
                 true,
@@ -174,9 +106,7 @@ impl App {
         ]
     }
 
-    pub fn filtered_settings_items(
-        &self,
-    ) -> Vec<(&'static str, String, &'static str, &'static str, bool)> {
+    pub fn filtered_settings_items(&self) -> Vec<SettingsItem> {
         let items = self.settings_items();
         if self.settings_search.is_empty() {
             return items;

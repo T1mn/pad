@@ -5,10 +5,10 @@ mod cases {
         snapshot_from_record, CachedPaneBinding, CachedSessionRecord, SessionCacheIndex,
         SessionCacheSnapshot,
     };
-    use super::super::persist::merge_recent_turns;
     use super::super::preload::{
         apply_snapshot_to_panel, latest_turn_missing_answer, panel_needs_preload,
     };
+    use super::super::turns::merge_recent_turns;
     use super::super::util::now_ts;
     use crate::model::{
         AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn, SessionCacheState,

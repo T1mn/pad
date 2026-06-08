@@ -1,5 +1,4 @@
-use super::super::app::{Focus, NavMode};
-use super::App;
+use super::super::app::{App, Focus, NavMode};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};

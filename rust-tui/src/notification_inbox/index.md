@@ -1,5 +1,5 @@
 # notification_inbox
 
 - `mod.rs`: notification inbox public API.
-- `model.rs`: persisted inbox and entry data model.
+- `model.rs` / `model/`: persisted inbox data model, entry shape, mutation helpers, and display time helpers.
 - `storage.rs`: JSON load/save/mutation helpers for `~/.pad/notifications/inbox.json`.

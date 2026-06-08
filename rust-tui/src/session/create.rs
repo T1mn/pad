@@ -1,14 +1,17 @@
+mod logging;
+mod status;
+
 use crate::app::App;
 use std::error::Error;
 
 use super::launch::{launch_agent_after_attach, should_launch_after_attach};
 use super::pad_context::resolve_pad_context;
 use super::return_bindings::{install_return_bindings, save_current_return_bindings};
-use super::status::{apply_desired_status, tmux_status_value};
 use super::target::{
     create_tmux_target, parse_target_info, select_target_window, switch_client_to_target,
 };
-use super::tmux::current_tmux_client_snapshot;
+use logging::log_client_context;
+use status::apply_agent_status_style;
 
 /// Create a new tmux session in the given path with an agent command.
 /// After creation, switches the tmux client to the new session and installs
@@ -94,37 +97,4 @@ pub fn create_session_with_agent(
     }
 
     Ok(())
-}
-
-fn log_client_context(trace_id: &str) {
-    log_debug!(
-        "handoff trace={} stage=create.client_context snapshot={}",
-        trace_id,
-        current_tmux_client_snapshot().as_deref().unwrap_or("-")
-    );
-}
-
-fn apply_agent_status_style(
-    app: &mut App,
-    session_name: &str,
-    pad_session: Option<&str>,
-) -> Option<String> {
-    let current_status = tmux_status_value(session_name);
-    let desired_status = app.config.desired_agent_style.status.as_str();
-    let keep_source_status = if desired_status == "keep" {
-        pad_session.map(tmux_status_value)
-    } else {
-        None
-    };
-    let status_restore_value = apply_desired_status(
-        desired_status,
-        &current_status,
-        keep_source_status.as_deref(),
-        session_name,
-    );
-    app.saved_tmux_status = status_restore_value.clone();
-    app.saved_tmux_status_target = status_restore_value
-        .as_ref()
-        .map(|_| session_name.to_string());
-    status_restore_value
 }
