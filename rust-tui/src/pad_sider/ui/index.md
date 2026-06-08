@@ -8,7 +8,7 @@
 - `diff.rs` / `diff/`：Codex 单轮 patch 的结构化 diff 解析与 side-by-side / unified 配色渲染。
 - `split.rs`：固定左侧可读宽度，把额外宽度优先留给 preview。
 - `overlay.rs` / `overlay/`：全屏文件预览、搜索弹层与快捷键帮助，按弹层类型拆分。
-- `line_numbers.rs`：按 `n` 给右侧预览与全屏预览补行号，默认隐藏。
+- `line_numbers.rs` / `line_numbers_tests.rs`：按 `n` 给右侧预览与全屏预览补行号，默认隐藏。
 - `text_zoom.rs`：预览内容紧凑 / 放大显示密度处理。
 - `syntax.rs` / `syntax/`：VS Code Dark+ 风格多语言代码高亮。
 - `file_icons.rs`：文件树语言短标签与强调色。
