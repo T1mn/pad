@@ -43,6 +43,9 @@ jobs:
       - name: Check index files
         run: python3 ./scripts/ci/check_index.py
 
+      - name: Check Rust file size
+        run: python3 ./scripts/ci/check_rust_file_size.py
+
   installer-sync:
     name: Installer sync
     runs-on: ubuntu-24.04
