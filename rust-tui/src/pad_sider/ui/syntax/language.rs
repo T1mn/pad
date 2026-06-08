@@ -29,47 +29,65 @@ pub(super) enum CodeLanguage {
 }
 
 pub(in crate::pad_sider::ui::syntax) fn language_for_title(title: &str) -> Option<CodeLanguage> {
-    let file_name = title
-        .rsplit('/')
-        .next()
-        .unwrap_or(title)
-        .to_ascii_lowercase();
-    match file_name.as_str() {
-        "dockerfile" | "makefile" | "justfile" | "bashrc" | "zshrc" => {
-            return Some(CodeLanguage::Shell);
-        }
-        "cargo.toml" => return Some(CodeLanguage::Toml),
-        "package.json" | "tsconfig.json" | "deno.json" => return Some(CodeLanguage::Json),
-        _ => {}
-    }
+    let file_name = title.rsplit('/').next().unwrap_or(title);
+    language_for_exact_file_name(file_name).or_else(|| language_for_extension(file_name))
+}
 
+fn language_for_exact_file_name(file_name: &str) -> Option<CodeLanguage> {
+    const EXACT_NAMES: &[(&[&str], CodeLanguage)] = &[
+        (
+            &["dockerfile", "makefile", "justfile", "bashrc", "zshrc"],
+            CodeLanguage::Shell,
+        ),
+        (&["cargo.toml"], CodeLanguage::Toml),
+        (
+            &["package.json", "tsconfig.json", "deno.json"],
+            CodeLanguage::Json,
+        ),
+    ];
+    language_from_table(file_name, EXACT_NAMES)
+}
+
+fn language_for_extension(file_name: &str) -> Option<CodeLanguage> {
     let ext = file_name.rsplit_once('.').map(|(_, ext)| ext)?;
-    match ext {
-        "rs" => Some(CodeLanguage::Rust),
-        "ts" | "tsx" | "mts" | "cts" => Some(CodeLanguage::TypeScript),
-        "js" | "jsx" | "mjs" | "cjs" => Some(CodeLanguage::JavaScript),
-        "py" | "pyw" => Some(CodeLanguage::Python),
-        "go" => Some(CodeLanguage::Go),
-        "java" => Some(CodeLanguage::Java),
-        "kt" | "kts" => Some(CodeLanguage::Kotlin),
-        "swift" => Some(CodeLanguage::Swift),
-        "c" | "h" => Some(CodeLanguage::C),
-        "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx" => Some(CodeLanguage::Cpp),
-        "cs" => Some(CodeLanguage::CSharp),
-        "rb" => Some(CodeLanguage::Ruby),
-        "php" => Some(CodeLanguage::Php),
-        "sh" | "bash" | "zsh" | "fish" => Some(CodeLanguage::Shell),
-        "json" | "jsonc" => Some(CodeLanguage::Json),
-        "toml" => Some(CodeLanguage::Toml),
-        "yaml" | "yml" => Some(CodeLanguage::Yaml),
-        "html" | "htm" | "xml" | "svg" => Some(CodeLanguage::Html),
-        "css" | "scss" | "sass" | "less" => Some(CodeLanguage::Css),
-        "sql" => Some(CodeLanguage::Sql),
-        "lua" => Some(CodeLanguage::Lua),
-        "dart" => Some(CodeLanguage::Dart),
-        "scala" | "sc" => Some(CodeLanguage::Scala),
-        _ => None,
-    }
+    const EXTENSIONS: &[(&[&str], CodeLanguage)] = &[
+        (&["rs"], CodeLanguage::Rust),
+        (&["ts", "tsx", "mts", "cts"], CodeLanguage::TypeScript),
+        (&["js", "jsx", "mjs", "cjs"], CodeLanguage::JavaScript),
+        (&["py", "pyw"], CodeLanguage::Python),
+        (&["go"], CodeLanguage::Go),
+        (&["java"], CodeLanguage::Java),
+        (&["kt", "kts"], CodeLanguage::Kotlin),
+        (&["swift"], CodeLanguage::Swift),
+        (&["c", "h"], CodeLanguage::C),
+        (&["cc", "cpp", "cxx", "hpp", "hh", "hxx"], CodeLanguage::Cpp),
+        (&["cs"], CodeLanguage::CSharp),
+        (&["rb"], CodeLanguage::Ruby),
+        (&["php"], CodeLanguage::Php),
+        (&["sh", "bash", "zsh", "fish"], CodeLanguage::Shell),
+        (&["json", "jsonc"], CodeLanguage::Json),
+        (&["toml"], CodeLanguage::Toml),
+        (&["yaml", "yml"], CodeLanguage::Yaml),
+        (&["html", "htm", "xml", "svg"], CodeLanguage::Html),
+        (&["css", "scss", "sass", "less"], CodeLanguage::Css),
+        (&["sql"], CodeLanguage::Sql),
+        (&["lua"], CodeLanguage::Lua),
+        (&["dart"], CodeLanguage::Dart),
+        (&["scala", "sc"], CodeLanguage::Scala),
+    ];
+    language_from_table(ext, EXTENSIONS)
+}
+
+fn language_from_table(value: &str, table: &[(&[&str], CodeLanguage)]) -> Option<CodeLanguage> {
+    table.iter().find_map(|(values, language)| {
+        matches_any_ignore_ascii_case(value, values).then_some(*language)
+    })
+}
+
+fn matches_any_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
+    candidates
+        .iter()
+        .any(|candidate| value.eq_ignore_ascii_case(candidate))
 }
 
 pub(in crate::pad_sider::ui) fn language_label_for_title(title: &str) -> Option<&'static str> {

@@ -33,3 +33,11 @@ fn unknown_files_fall_back_to_plain_text() {
     assert_eq!(text.lines[0].spans[0].content.as_ref(), "hello");
     assert_eq!(text.lines[0].spans[0].style.fg, None);
 }
+
+#[test]
+fn uppercase_extensions_are_highlighted_without_filename_lowercase_copy() {
+    let text = render_code("SRC/MAIN.RS", "fn main() { println!(\"hi\"); }");
+    let colors = colors(text);
+    assert!(colors.contains(&KEYWORD));
+    assert!(colors.contains(&FUNCTION));
+}
