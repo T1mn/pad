@@ -18,7 +18,6 @@ fn build_opencode_history_thread(
         working_dir: thread.cwd.to_string_lossy().to_string(),
         folder_label: folder_display_label(&thread.cwd.to_string_lossy()),
         agent_type: AgentType::OpenCode,
-        runtime_source: None,
         session_id: Some(thread.session_id.clone()),
         transcript_path: Some(thread.db_path.to_string_lossy().to_string()),
         session_provider_name: thread.provider_name.clone(),

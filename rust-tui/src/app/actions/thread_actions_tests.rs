@@ -10,7 +10,6 @@ fn opencode_thread_can_open_archive_confirm() {
         working_dir: "/repo".into(),
         folder_label: "repo".into(),
         agent_type: AgentType::OpenCode,
-        runtime_source: None,
         session_id: Some("ses_1".into()),
         transcript_path: None,
         session_provider_name: None,

@@ -27,7 +27,6 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
         working_dir: panel.working_dir.clone(),
         folder_label: folder_display_label(&panel.working_dir),
         agent_type: panel.agent_type.clone(),
-        runtime_source: None,
         session_id: panel.agent_session_id.clone(),
         transcript_path: panel.transcript_path.clone(),
         session_provider_name: resolve_live_panel_session_provider_name(panel),

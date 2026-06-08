@@ -3,13 +3,6 @@ use crate::model::{
     AgentState, AgentType, GitInfo, PreviewSessionOrigin, SessionCacheState, SharedPreviewTurns,
 };
 
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ThreadRuntimeSource {
-    Cli,
-    App,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SidebarThread {
     pub key: String,
@@ -17,7 +10,6 @@ pub struct SidebarThread {
     pub working_dir: String,
     pub folder_label: String,
     pub agent_type: AgentType,
-    pub runtime_source: Option<ThreadRuntimeSource>,
     pub session_id: Option<String>,
     pub transcript_path: Option<String>,
     pub session_provider_name: Option<String>,
@@ -63,11 +55,7 @@ impl SidebarThread {
             });
         }
 
-        match self.runtime_source {
-            Some(ThreadRuntimeSource::Cli) => Some(PreviewSessionOrigin::Pane),
-            Some(ThreadRuntimeSource::App) => Some(PreviewSessionOrigin::App),
-            None => None,
-        }
+        None
     }
 
     pub fn is_live(&self) -> bool {

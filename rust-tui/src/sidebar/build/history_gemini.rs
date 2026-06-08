@@ -34,7 +34,6 @@ pub(super) fn merge_gemini_threads(
             working_dir: folder.path.clone(),
             folder_label: folder.label.clone(),
             agent_type: AgentType::Gemini,
-            runtime_source: None,
             session_id: Some(thread.session_id.clone()),
             transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
             session_provider_name: None,

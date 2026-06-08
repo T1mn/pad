@@ -12,7 +12,7 @@ pub use display::{best_thread_title, clean_title, folder_display_label};
 #[allow(unused_imports)]
 pub use model::{
     thread_sort_activity_keys, SidebarFolder, SidebarFolderSummary, SidebarItem, SidebarThread,
-    ThreadActivityOverride, ThreadRuntimeSource,
+    ThreadActivityOverride,
 };
 #[allow(unused_imports)]
 pub use search::build_visible_sidebar_items;

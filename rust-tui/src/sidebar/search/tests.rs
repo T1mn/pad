@@ -1,4 +1,3 @@
-use super::super::model::ThreadRuntimeSource;
 use super::*;
 use crate::model::{AgentState, AgentType};
 use std::sync::Arc;
@@ -10,7 +9,6 @@ fn sample_thread(key: &str, title: &str) -> super::super::model::SidebarThread {
         working_dir: "/tmp/demo".into(),
         folder_label: "demo · tmp".into(),
         agent_type: AgentType::Codex,
-        runtime_source: Some(ThreadRuntimeSource::Cli),
         session_id: Some(key.into()),
         transcript_path: None,
         session_provider_name: None,

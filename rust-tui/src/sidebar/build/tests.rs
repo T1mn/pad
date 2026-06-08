@@ -66,7 +66,6 @@ fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         working_dir: "/repo".into(),
         folder_label: "repo".into(),
         agent_type: AgentType::Codex,
-        runtime_source: None,
         session_id: Some("sid-1".into()),
         transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
         session_provider_name: None,

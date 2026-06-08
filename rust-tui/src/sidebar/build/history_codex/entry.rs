@@ -19,7 +19,6 @@ pub(in crate::sidebar::build) fn build_codex_history_entry(
         working_dir: folder.path.clone(),
         folder_label: folder.label.clone(),
         agent_type: AgentType::Codex,
-        runtime_source: None,
         session_id: Some(thread.thread_id.clone()),
         transcript_path: Some(thread.rollout_path.to_string_lossy().to_string()),
         session_provider_name: crate::sidebar::provider::resolve_session_provider_name(

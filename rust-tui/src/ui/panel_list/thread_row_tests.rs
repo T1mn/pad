@@ -19,7 +19,6 @@ fn latest_prompt_wins_over_stale_subtitle() {
         working_dir: "/tmp".into(),
         folder_label: "tmp".into(),
         agent_type: AgentType::Codex,
-        runtime_source: None,
         session_id: Some("session-1".into()),
         transcript_path: None,
         session_provider_name: None,

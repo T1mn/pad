@@ -86,9 +86,6 @@ fn merge_history_into_existing(existing: &mut SidebarThread, history_entry: Side
     existing.pinned |= history_entry.pinned;
     existing.updated_at = existing.updated_at.max(history_entry.updated_at);
     existing.sort_updated_at = existing.sort_updated_at.max(history_entry.sort_updated_at);
-    if existing.runtime_source.is_none() {
-        existing.runtime_source = history_entry.runtime_source;
-    }
     if existing.cached_preview_turns.is_empty() {
         existing.cached_preview_turns = history_entry.cached_preview_turns.clone();
     }

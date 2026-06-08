@@ -18,7 +18,6 @@ fn build_gemini_history_thread(thread: crate::gemini_history::GeminiThreadRef) -
         working_dir: folder_key.clone(),
         folder_label: folder_display_label(&folder_key),
         agent_type: AgentType::Gemini,
-        runtime_source: None,
         session_id: Some(thread.session_id.clone()),
         transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
         session_provider_name: None,
