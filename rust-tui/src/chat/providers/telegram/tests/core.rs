@@ -15,6 +15,24 @@ fn summarize_pane_capture_trims_blank_edges_and_keeps_tail() {
     let capture = "\n\none\n\ntwo\nthree\n\n";
     assert_eq!(summarize_pane_capture(capture), "one\n\ntwo\nthree");
 }
+
+#[test]
+fn summarize_pane_capture_keeps_last_eighteen_non_edge_lines() {
+    let capture = format!(
+        "\n{}\n\n",
+        (1..=20)
+            .map(|idx| format!("line {idx}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let expected = (3..=20)
+        .map(|idx| format!("line {idx}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(summarize_pane_capture(&capture), expected);
+}
+
 #[test]
 fn agent_keyboard_uses_clickable_use_callbacks() {
     let panel = sample_panel_with_turns(Vec::new());

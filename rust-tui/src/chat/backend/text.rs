@@ -11,17 +11,18 @@ pub(crate) fn build_slash_command_text(command: &str, arg: &str) -> String {
 }
 
 pub(crate) fn summarize_pane_capture(text: &str) -> String {
-    let mut lines = text.lines().map(str::trim_end).collect::<Vec<_>>();
-    while matches!(lines.first(), Some(line) if line.trim().is_empty()) {
-        lines.remove(0);
-    }
-    while matches!(lines.last(), Some(line) if line.trim().is_empty()) {
-        lines.pop();
-    }
-    if lines.len() > 18 {
-        lines = lines[lines.len().saturating_sub(18)..].to_vec();
-    }
-    lines.join("\n")
+    let lines = text.lines().map(str::trim_end).collect::<Vec<_>>();
+    let start = lines
+        .iter()
+        .position(|line| !line.trim().is_empty())
+        .unwrap_or(lines.len());
+    let end = lines
+        .iter()
+        .rposition(|line| !line.trim().is_empty())
+        .map_or(start, |idx| idx + 1);
+    let lines = &lines[start..end];
+    let tail_start = lines.len().saturating_sub(18);
+    lines[tail_start..].join("\n")
 }
 
 pub(crate) fn leaf_name(path: &str) -> String {
