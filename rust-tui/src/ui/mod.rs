@@ -68,8 +68,6 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     if app.settings_open {
         modals::draw_settings_modal(f, app);
-    } else if app.theme_selector_open {
-        modals::draw_theme_selector(f, app);
     }
 
     if let Some(ref launcher) = app.sidebar.agent_launcher {
@@ -104,10 +102,6 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         if app.relay_view == crate::app::state::RelayView::DetailPane {
             modals::draw_relay_detail(f, app);
         }
-    }
-
-    if !app.settings_open && app.mode == Mode::LanguageSelector {
-        modals::draw_language_selector(f, app);
     }
 
     if !app.settings_open && app.mode == Mode::AgentStyleSettings {

@@ -16,7 +16,6 @@ pub(super) fn mode_span(app: &App) -> Span<'static> {
         Mode::Search => mode_badge(t(l, "mode.search"), theme.mode_search_bg),
         Mode::Settings => mode_badge(t(l, "mode.settings"), theme.accent),
         Mode::TelegramSettings => mode_badge(t(l, "mode.settings"), theme.accent),
-        Mode::ThemeSelector => mode_badge(t(l, "mode.theme"), theme.keyword),
         Mode::Help => mode_badge(t(l, "mode.help"), theme.accent),
         Mode::NotificationInbox => mode_badge("INBOX", theme.accent),
         Mode::FilePreview => mode_badge(t(l, "mode.preview"), theme.mode_tree_bg),
@@ -37,7 +36,6 @@ pub(super) fn status_body(app: &App, body_width: u16) -> String {
             }
         }
         Mode::TelegramSettings => String::from(t(l, "status.settings_nav")),
-        Mode::ThemeSelector => String::from(t(l, "status.theme_nav")),
         Mode::Help => String::from(t(l, "status.help_close")),
         Mode::NotificationInbox => {
             "j/k move | Enter/m read | a all read | d delete | Esc close".to_string()

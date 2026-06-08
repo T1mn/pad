@@ -30,14 +30,6 @@ pub fn draw_settings_modal(f: &mut Frame, app: &App) {
     }
 }
 
-pub fn draw_theme_selector(f: &mut Frame, app: &App) {
-    draw_settings_modal(f, app);
-}
-
-pub fn draw_language_selector(f: &mut Frame, app: &App) {
-    draw_settings_modal(f, app);
-}
-
 pub fn draw_agent_style_modal(f: &mut Frame, app: &App) {
     draw_settings_modal(f, app);
 }

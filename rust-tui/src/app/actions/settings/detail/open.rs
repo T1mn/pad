@@ -23,7 +23,6 @@ impl App {
     pub fn close_settings(&mut self) {
         self.restore_settings_detail_preview_state();
         self.settings_open = false;
-        self.theme_selector_open = false;
         self.settings_focus = SettingsFocus::List;
         self.active_settings_detail = None;
         self.settings_searching = false;
@@ -33,7 +32,6 @@ impl App {
     }
 
     fn reset_settings_list_state(&mut self, searching: bool) {
-        self.theme_selector_open = false;
         self.settings_selected = 0;
         self.settings_focus = SettingsFocus::List;
         self.active_settings_detail = None;

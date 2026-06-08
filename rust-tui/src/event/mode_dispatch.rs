@@ -29,14 +29,6 @@ pub(super) fn handle_settings_mode(app: &mut App, key: KeyCode) {
     modes::handle_settings_mode(app, key);
 }
 
-pub(super) fn handle_theme_selector_mode(app: &mut App, key: KeyCode) {
-    modes::handle_theme_selector_mode(app, key);
-}
-
-pub(super) fn handle_language_selector_mode(app: &mut App, key: KeyCode) {
-    modes::handle_language_selector_mode(app, key);
-}
-
 pub(super) fn handle_tree_mode(app: &mut App, key: KeyCode) {
     modes::handle_tree_mode(app, key);
 }

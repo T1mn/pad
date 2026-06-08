@@ -25,10 +25,6 @@ pub(super) fn handle_key_event(
         }
         Mode::Search => super::mode_dispatch::handle_search_mode(app, key.code),
         Mode::Settings => super::mode_dispatch::handle_settings_mode(app, key.code),
-        Mode::ThemeSelector => super::mode_dispatch::handle_theme_selector_mode(app, key.code),
-        Mode::LanguageSelector => {
-            super::mode_dispatch::handle_language_selector_mode(app, key.code)
-        }
         Mode::Tree => super::mode_dispatch::handle_tree_mode(app, key.code),
         Mode::TreeSearch => super::mode_dispatch::handle_tree_search_mode(app, key.code),
         Mode::AgentLauncher => super::mode_dispatch::handle_agent_launcher_mode(app, key.code),
