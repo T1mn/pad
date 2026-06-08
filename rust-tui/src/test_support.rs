@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 pub fn home_env_lock() -> &'static Mutex<()> {
@@ -6,8 +7,10 @@ pub fn home_env_lock() -> &'static Mutex<()> {
 }
 
 pub fn temp_path(prefix: &str, name: &str) -> std::path::PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let unique = crate::time::unix_now_nanos();
-    std::env::temp_dir().join(format!("{prefix}-{name}-{unique}"))
+    let sequence = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("{prefix}-{name}-{unique}-{sequence}"))
 }
 
 pub fn with_temp_home<T>(prefix: &str, name: &str, f: impl FnOnce(&std::path::Path) -> T) -> T {

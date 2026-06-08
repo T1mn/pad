@@ -8,4 +8,4 @@
 - `pathing.rs`：路径定位。
 - `model.rs`：状态模型。
 - `util.rs`：辅助函数。
-- `tests.rs`：测试。
+- `tests.rs` / `tests/`：按 query、selection、archive、migration 分组的测试。
