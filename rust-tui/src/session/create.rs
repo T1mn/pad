@@ -6,7 +6,9 @@ use std::error::Error;
 
 use super::launch::{launch_agent_after_attach, should_launch_after_attach};
 use super::pad_context::resolve_pad_context;
-use super::return_bindings::{install_return_bindings, save_current_return_bindings};
+use super::return_bindings::{
+    install_return_bindings, save_current_return_bindings, ReturnBindingContext,
+};
 use super::target::{
     create_tmux_target, parse_target_info, select_target_window, switch_client_to_target,
 };
@@ -70,16 +72,16 @@ pub fn create_session_with_agent(
         pad.window.as_deref(),
         pad.session.as_deref(),
     ) {
-        install_return_bindings(
-            app,
-            &trace_id,
-            &session_name,
-            &target.window,
-            pane,
-            window,
-            session,
-            status_restore_value.as_deref(),
-        );
+        let return_ctx = ReturnBindingContext {
+            trace_id: &trace_id,
+            target_session: &session_name,
+            target_window: &target.window,
+            pad_pane: pane,
+            pad_window: window,
+            pad_session: session,
+            status_restore_value: status_restore_value.as_deref(),
+        };
+        install_return_bindings(app, &return_ctx);
     } else {
         log_debug!(
             "handoff trace={} stage=create.skip_return_binding reason=tmux_pane_missing",
