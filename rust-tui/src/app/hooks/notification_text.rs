@@ -1,4 +1,5 @@
 use crate::model::AgentType;
+use crate::text_normalize::collapse_whitespace;
 use std::path::Path;
 
 pub(super) fn notification_agent_label(agent_type: &AgentType) -> &'static str {
@@ -56,14 +57,7 @@ fn lookup_notification_title(agent_type: &AgentType, session_id: Option<&str>) -
 }
 
 fn normalize_notification_text(text: impl AsRef<str>) -> String {
-    truncate_notification_text(
-        &text
-            .as_ref()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" "),
-        72,
-    )
+    truncate_notification_text(&collapse_whitespace(text.as_ref()), 72)
 }
 
 fn truncate_notification_text(text: &str, max_chars: usize) -> String {

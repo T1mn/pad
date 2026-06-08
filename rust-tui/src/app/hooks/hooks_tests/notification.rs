@@ -53,6 +53,18 @@ fn completion_notification_truncates_long_text() {
 }
 
 #[test]
+fn completion_notification_collapses_prompt_whitespace() {
+    let body = super::super::notification_text::completion_notification_body(
+        &AgentType::Unknown,
+        None,
+        Some("ship\tthis\nprompt   now"),
+        None,
+    );
+
+    assert_eq!(body, "ship this prompt now");
+}
+
+#[test]
 fn completion_notification_prefers_latest_prompt_over_persisted_codex_title() {
     with_temp_home("notify-latest-prompt", |home| {
         let codex_dir = home.join(".codex");
