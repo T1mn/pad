@@ -1,6 +1,6 @@
 # opencode_history
 
-- `mod.rs`：OpenCode 历史入口，读取官方 SQLite 数据库。
+- `mod.rs` / `mod_tests.rs`：OpenCode 历史入口，读取官方 SQLite 数据库。
 - `model.rs`：OpenCode session 展示模型。
 - `query.rs`：session 查询入口、归档过滤与 thread 组装。
 - `query/`：message 摘要抽取与 model 字段解析。

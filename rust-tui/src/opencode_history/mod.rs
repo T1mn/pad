@@ -34,12 +34,5 @@ pub fn unarchive_thread(session_id: &str) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn missing_thread_archive_returns_not_found() {
-        let err = archive_thread("missing-session").unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
-    }
-}
+#[path = "mod_tests.rs"]
+mod tests;
