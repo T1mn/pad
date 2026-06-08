@@ -46,9 +46,6 @@ impl NotificationEntry {
 }
 
 fn new_entry_id(ts: i64) -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
+    let nanos = crate::time::unix_now_nanos();
     format!("n-{ts}-{nanos}-{}", std::process::id())
 }
