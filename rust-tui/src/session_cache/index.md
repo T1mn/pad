@@ -6,6 +6,6 @@
 - `turns.rs` / `turns/`：最近对话合并、裁剪与 Codex prompt 归一化规则。
 - `preload.rs`：启动/扫描预热；已具备 session 信息的 panel 会跳过索引读取。
 - `util.rs`：缓存辅助函数。
-- `tests.rs`：缓存测试。
+- `tests.rs` / `tests/`：按 turns、bindings、preload 分组的缓存测试。
 
 - `list_cached_sessions()`：为 agent resume/socket API 暴露缓存会话摘要。
