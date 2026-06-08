@@ -191,7 +191,9 @@ fn pending_failure_reply_includes_continuity_details() {
         &failure,
         Some(&snapshot),
     );
+    assert!(reply.contains("Error kind: other"));
     assert!(reply.contains("Health: frozen"));
     assert!(reply.contains("Lag: 41s"));
     assert!(reply.contains("Transcript: /tmp/demo.jsonl"));
+    assert!(reply.ends_with("unexpected status 502 Bad Gateway"));
 }
