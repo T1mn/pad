@@ -4,6 +4,8 @@ mod pane;
 
 use std::process::Command;
 
+use crate::text_match::contains_ascii_ignore_case;
+
 use helper::{create_helper, focus_and_zoom_helper, hide_helper, show_helper};
 use options::{
     helper_pane_for_target, remember_helper_for_target, remember_target_for_helper,
@@ -60,10 +62,7 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
 }
 
 fn is_codex_command(command: &str) -> bool {
-    command
-        .as_bytes()
-        .windows("codex".len())
-        .any(|window| window.eq_ignore_ascii_case(b"codex"))
+    contains_ascii_ignore_case(command, "codex")
 }
 
 #[cfg(test)]

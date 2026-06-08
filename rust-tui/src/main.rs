@@ -46,6 +46,7 @@ mod telegram;
 mod terminal;
 #[cfg(test)]
 mod test_support;
+mod text_match;
 mod theme;
 mod thread_meta;
 mod time;

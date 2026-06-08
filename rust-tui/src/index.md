@@ -5,7 +5,7 @@
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
-- `time.rs` / `logger.rs`：crate 内共享时间戳 helper 与 debug log。
+- `time.rs` / `logger.rs` / `text_match.rs`：crate 内共享时间戳、debug log 与文本匹配 helper。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。

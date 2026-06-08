@@ -1,3 +1,4 @@
+use crate::text_match::contains_ascii_ignore_case;
 use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,13 +61,6 @@ impl AgentType {
             AgentType::Unknown
         }
     }
-}
-
-fn contains_ascii_ignore_case(value: &str, needle: &str) -> bool {
-    value
-        .as_bytes()
-        .windows(needle.len())
-        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
 }
 
 #[cfg(test)]
