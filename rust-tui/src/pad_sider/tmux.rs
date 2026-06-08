@@ -60,11 +60,5 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::super::sizing::default_width;
-
-    #[test]
-    fn helper_uses_half_width() {
-        assert_eq!(default_width(), "50%");
-    }
-}
+#[path = "tmux_tests.rs"]
+mod tests;
