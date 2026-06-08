@@ -8,4 +8,4 @@
 - `db/`：schema/open、查询、写入/归档实现。
 - `model.rs`：历史数据模型。
 - `util.rs`：公共辅助。
-- `tests.rs`：测试。
+- `tests.rs` / `tests/`：按 parse、sync、archive 分组的测试。
