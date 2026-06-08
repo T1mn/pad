@@ -62,3 +62,7 @@ impl FileTree {
         tree
     }
 }
+
+#[cfg(test)]
+#[path = "tree_tests.rs"]
+mod tests;

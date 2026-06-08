@@ -1,4 +1,5 @@
 use super::{FileTree, TreeMode};
+use crate::text_match::contains_ignore_case;
 
 impl FileTree {
     /// Activate search mode
@@ -44,7 +45,6 @@ impl FileTree {
 
     /// Filter entries based on search query
     fn filter_entries(&mut self) {
-        let query = self.search_query.to_lowercase();
         let all_entries = self.scan_directory(&self.current_path);
 
         self.entries = all_entries
@@ -54,7 +54,7 @@ impl FileTree {
                 if e.name == ".." {
                     return true;
                 }
-                e.name.to_lowercase().contains(&query)
+                contains_ignore_case(&e.name, &self.search_query)
             })
             .collect();
 

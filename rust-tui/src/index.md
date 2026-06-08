@@ -40,6 +40,6 @@
 - `pipe.rs` / `pipe/`：tmux control mode 监听、事件解析与重连。
 - `pty.rs` / `pty/`：tmux pane PTY attach、detach/F12 按键识别和 pane capture。
 - `tmux_dispatch.rs` / `tmux_dispatch/`：tmux prompt 投递、pane/session 操作与查询。
-- `tree.rs` / `tree/` / `fuzzy.rs` / `fuzzy/` / `fuzzy_tests.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
+- `tree.rs` / `tree/` / `tree_tests.rs` / `fuzzy.rs` / `fuzzy/` / `fuzzy_tests.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
 - `scanner.rs` / `scanner/` / `detector.rs` / `detector_tests.rs`：tmux pane 扫描、进程快照与 agent 状态识别。
 - `event.rs` / `event/`：键鼠事件分发。
