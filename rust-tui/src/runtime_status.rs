@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 mod process;
 
@@ -71,10 +70,7 @@ pub fn describe_status(path: &Path) -> String {
 }
 
 fn now_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    crate::time::unix_now_ts()
 }
 
 fn write_status_body(path: &Path, status: &ProcessStatus) -> io::Result<()> {

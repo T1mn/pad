@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 pub(super) fn prefer_non_empty(
     first: Option<&String>,
     second: Option<&String>,
@@ -19,8 +17,5 @@ pub(super) fn clean_text(value: Option<&str>) -> Option<String> {
 }
 
 pub(super) fn now_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or(0)
+    crate::time::unix_now_ts()
 }

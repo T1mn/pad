@@ -1,7 +1,7 @@
 use super::model::SessionContinuityRecord;
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 pub(super) fn observe_transcript(
     record: &mut SessionContinuityRecord,
@@ -48,8 +48,5 @@ pub(super) fn lag_seconds(
 }
 
 pub(super) fn now_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or(0)
+    crate::time::unix_now_ts()
 }
