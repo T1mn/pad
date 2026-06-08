@@ -1,3 +1,4 @@
+use super::append_spaced_command;
 use std::process::Command;
 
 pub(super) fn get_child_processes<F>(pid: &str, mut process_cmd_lookup: F) -> String
@@ -9,7 +10,7 @@ where
     if let Some(output) = output {
         if output.status.success() {
             let child_pids = String::from_utf8_lossy(&output.stdout);
-            let mut processes = Vec::new();
+            let mut processes = String::new();
 
             for child_pid in child_pids.lines() {
                 let child_pid = child_pid.trim();
@@ -17,11 +18,11 @@ where
                     continue;
                 }
                 if let Some(cmd) = process_cmd_lookup(child_pid) {
-                    processes.push(cmd);
+                    append_spaced_command(&mut processes, &cmd);
                 }
             }
 
-            return processes.join(" ");
+            return processes;
         }
     }
 

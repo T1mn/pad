@@ -56,11 +56,13 @@ impl ProcessSnapshot {
         self.ensure_loaded();
         if let Some(child_pids) = self.child_pids.get(pid) {
             let child_pids = child_pids.clone();
-            return child_pids
-                .iter()
-                .filter_map(|child_pid| self.command_with_expanded_args(child_pid))
-                .collect::<Vec<_>>()
-                .join(" ");
+            let mut processes = String::new();
+            for child_pid in child_pids {
+                if let Some(command) = self.command_with_expanded_args(&child_pid) {
+                    append_spaced_command(&mut processes, &command);
+                }
+            }
+            return processes;
         }
 
         if self.snapshot_available {
@@ -118,3 +120,14 @@ impl ProcessSnapshot {
         Some(command)
     }
 }
+
+fn append_spaced_command(processes: &mut String, command: &str) {
+    if !processes.is_empty() {
+        processes.push(' ');
+    }
+    processes.push_str(command);
+}
+
+#[cfg(test)]
+#[path = "process_snapshot_tests.rs"]
+mod tests;
