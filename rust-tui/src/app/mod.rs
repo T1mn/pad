@@ -22,7 +22,7 @@ pub use state::{
     PreviewMouseSelection, PreviewPlainCache, PreviewSessionListCache, PreviewSessionListItemCache,
     ThreadActionKind, ThreadMetaEditKind, ThreadPreviewCacheEntry,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -39,8 +39,6 @@ pub struct App {
     pub is_searching: bool,
     pub sidebar: SidebarState,
     pub preview: PreviewState,
-    #[allow(dead_code)]
-    pub content_hashes: HashMap<String, String>,
     pub settings_open: bool,
     pub config: Config,
     pub locale: crate::i18n::Locale,
@@ -59,8 +57,6 @@ pub struct App {
     pub dirty: bool,
     pub same_session_attached: bool,
     pub same_session_trace_id: Option<String>,
-    #[allow(dead_code)]
-    pub pending_status_restore: bool,
     pub saved_tmux_bindings: Vec<String>,
     pub saved_tmux_status: Option<String>,
     pub saved_tmux_status_target: Option<String>,
@@ -140,7 +136,6 @@ impl App {
             is_searching: false,
             sidebar: SidebarState::new(display_session_scope),
             preview: PreviewState::new(),
-            content_hashes: HashMap::new(),
             settings_open: false,
             config,
             locale,
@@ -159,7 +154,6 @@ impl App {
             dirty: true,
             same_session_attached: false,
             same_session_trace_id: None,
-            pending_status_restore: false,
             saved_tmux_bindings: Vec::new(),
             saved_tmux_status: None,
             saved_tmux_status_target: None,
