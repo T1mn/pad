@@ -11,4 +11,4 @@
 - `config.rs`: `Config` 主结构和默认值。
 - `load.rs` / `load/`: 配置读取入口、TOML section 解析与 agent/provider 解析。
 - `save.rs`: 配置保存。
-- `tests.rs`: `theme` 相关回归测试。
+- `tests.rs` / `tests/`: 按 config、sound、provider、palette 分组的主题回归测试。
