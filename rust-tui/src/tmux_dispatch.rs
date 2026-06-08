@@ -24,8 +24,23 @@ pub(super) fn run_tmux_with_output<const N: usize>(args: [&str; N]) -> Result<()
 
     Err(format!(
         "tmux {} failed: {}",
-        args.join(" "),
+        format_tmux_args(&args),
         String::from_utf8_lossy(&output.stderr).trim()
     )
     .into())
 }
+
+fn format_tmux_args(args: &[&str]) -> String {
+    let mut formatted = String::new();
+    for arg in args {
+        if !formatted.is_empty() {
+            formatted.push(' ');
+        }
+        formatted.push_str(arg);
+    }
+    formatted
+}
+
+#[cfg(test)]
+#[path = "tmux_dispatch_tests.rs"]
+mod tests;
