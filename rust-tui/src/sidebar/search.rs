@@ -32,7 +32,7 @@ pub fn build_visible_sidebar_items(
             continue;
         }
 
-        items.push(SidebarItem::Folder(folder.summary()));
+        items.push(SidebarItem::folder(folder.summary()));
 
         let is_expanded = searching || expanded_folders.contains(&folder.key);
         if is_expanded {

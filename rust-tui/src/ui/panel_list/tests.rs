@@ -76,7 +76,7 @@ fn visible_thread_count_ignores_folder_rows() {
         deleted: false,
     };
     let items = vec![
-        SidebarItem::Folder(folder.summary()),
+        SidebarItem::folder(folder.summary()),
         SidebarItem::Thread(Arc::new(thread)),
     ];
 
@@ -131,7 +131,7 @@ fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
         archived: false,
         deleted: false,
     };
-    let mut items = vec![SidebarItem::Folder(folder.summary())];
+    let mut items = vec![SidebarItem::folder(folder.summary())];
     for index in 1..=10 {
         items.push(SidebarItem::Thread(Arc::new(thread(index))));
     }

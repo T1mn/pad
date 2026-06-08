@@ -2,14 +2,17 @@ use super::folder::SidebarFolderSummary;
 use super::thread::SidebarThread;
 use std::sync::Arc;
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SidebarItem {
-    Folder(SidebarFolderSummary),
+    Folder(Box<SidebarFolderSummary>),
     Thread(Arc<SidebarThread>),
 }
 
 impl SidebarItem {
+    pub fn folder(folder: SidebarFolderSummary) -> Self {
+        SidebarItem::Folder(Box::new(folder))
+    }
+
     pub fn key(&self) -> &str {
         match self {
             SidebarItem::Folder(folder) => &folder.key,
@@ -26,7 +29,7 @@ impl SidebarItem {
 
     pub fn as_folder(&self) -> Option<&SidebarFolderSummary> {
         match self {
-            SidebarItem::Folder(folder) => Some(folder),
+            SidebarItem::Folder(folder) => Some(folder.as_ref()),
             _ => None,
         }
     }
