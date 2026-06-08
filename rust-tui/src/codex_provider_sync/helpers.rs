@@ -1,46 +1,15 @@
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(super) fn temp_codex_home(name: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "pad-codex-provider-sync-{name}-{}",
-        std::process::id()
-    ));
+    let path = crate::test_support::temp_path("pad-codex-provider-sync", name);
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).expect("create temp codex home");
     path
 }
 
-fn temp_home(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-codex-provider-sync-home-{name}-{stamp}"))
-}
-
 pub(super) fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-    let _guard = crate::test_support::home_env_lock()
-        .lock()
-        .expect("lock provider sync tests");
-    let home = temp_home(name);
-    let _ = std::fs::remove_dir_all(&home);
-    std::fs::create_dir_all(&home).expect("create temp home");
-
-    let prev_home = std::env::var_os("HOME");
-    std::env::set_var("HOME", &home);
-
-    let result = f(&home);
-
-    if let Some(prev) = prev_home {
-        std::env::set_var("HOME", prev);
-    } else {
-        std::env::remove_var("HOME");
-    }
-    let _ = std::fs::remove_dir_all(&home);
-
-    result
+    crate::test_support::with_temp_home("pad-codex-provider-sync-home", name, f)
 }
 
 pub(super) fn write_rollout(path: &Path, thread_id: &str, provider: &str) {

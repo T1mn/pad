@@ -12,8 +12,7 @@ use crate::paths::{
     DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
 };
 use crate::theme::{AgentConfig, AgentPermissionsConfig, CodexConfig, ProviderConfig};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
 fn sample_provider(base_url: &str, api_key: &str) -> ProviderConfig {
     ProviderConfig {
@@ -46,35 +45,8 @@ fn sample_codex_config() -> CodexConfig {
     }
 }
 
-fn temp_home(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-relay-{name}-{stamp}"))
-}
-
 fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-    let _guard = crate::test_support::home_env_lock()
-        .lock()
-        .expect("lock relay tests");
-    let home = temp_home(name);
-    let _ = std::fs::remove_dir_all(&home);
-    std::fs::create_dir_all(&home).expect("create temp home");
-
-    let prev_home = std::env::var_os("HOME");
-    std::env::set_var("HOME", &home);
-
-    let result = f(&home);
-
-    if let Some(prev) = prev_home {
-        std::env::set_var("HOME", prev);
-    } else {
-        std::env::remove_var("HOME");
-    }
-    let _ = std::fs::remove_dir_all(&home);
-
-    result
+    crate::test_support::with_temp_home("pad-relay", name, f)
 }
 
 mod provider_configs {
