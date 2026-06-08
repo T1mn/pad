@@ -5,20 +5,20 @@
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
-- `time.rs`：crate 内共享 Unix 秒/毫秒时间戳 helper。
+- `time.rs` / `logger.rs`：crate 内共享时间戳 helper 与 debug log。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
-- `theme/`：配置模型、加载保存、主题。
+- `theme.rs` / `theme/`：配置模型、加载保存、主题。
 - `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
 - `pad_sider/`：Codex pane 左侧全屏辅助栏，负责 tree、文件/代码预览、`/` fuzzy 搜索与 Codex diff 审阅。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
-- `codex_provider_sync.rs` / `codex_provider_sync/`：同步 PAD 私有 Codex home 内的 provider 元数据，避免改动官方 `~/.codex`。
+- `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/`：同步 PAD 私有 Codex home provider 元数据，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
-- `relay/`：各 agent relay/native 配置与运行时覆盖。
-- `preview_source/`：Claude/Codex/Gemini/OpenCode 会话预览解析。
-- `chat/`：聊天后端与 Telegram 集成。
+- `relay.rs` / `relay/`：各 agent relay/native 配置与运行时覆盖。
+- `preview_source/` / `claude_history.rs` / `claude_history/` / `gemini_history/`：Claude/Codex/Gemini/OpenCode 会话预览与历史解析。
+- `chat/` / `telegram.rs`：聊天后端与 Telegram 集成。
 - `notify.rs` / `notify/`：桌面通知入口、平台命令选择与通知子进程 helper。
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
@@ -41,5 +41,5 @@
 - `pty.rs` / `pty/`：tmux pane PTY attach、detach/F12 按键识别和 pane capture。
 - `tmux_dispatch.rs` / `tmux_dispatch/`：tmux prompt 投递、pane/session 操作与查询。
 - `tree.rs` / `tree/` / `fuzzy.rs` / `fuzzy/` / `fuzzy_tests.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
-- `scanner.rs` / `scanner/`：tmux pane 扫描、进程快照与 agent 识别。
+- `scanner.rs` / `scanner/` / `detector.rs`：tmux pane 扫描、进程快照与 agent 状态识别。
 - `event.rs` / `event/`：键鼠事件分发。
