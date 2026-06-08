@@ -1,6 +1,6 @@
 # ui/panel_list
 
-- `mod.rs`: facade，导出面板列表、文件树与状态栏绘制入口。
+- `../panel_list.rs`: facade，导出面板列表、文件树与状态栏绘制入口。
 - `draw.rs` / `draw/`: 左侧会话列表入口，拆分 block、content/window、row 分发与 scrollbar。
 - `empty.rs` / `labels.rs`: 空列表文案与特殊视图标题。
 - `file_tree.rs` / `status.rs`: 文件树 fallback 与 agent 数量状态栏。

@@ -1,6 +1,6 @@
 # theme
 
-- `theme.rs`: 主题模块总入口，对外保持原来的 `crate::theme::*` 路径。
+- `../theme.rs`: 主题模块总入口，对外保持原来的 `crate::theme::*` 路径。
 - `palette_core.rs`: `Theme` 结构和主题选择入口。
 - `palette_dark.rs`: 默认和偏暗主题预设。
 - `palette_light.rs`: 其余主题预设。
