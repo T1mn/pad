@@ -16,33 +16,41 @@ pub fn build_visible_sidebar_items(
     let mut items = Vec::new();
 
     for folder in folders {
-        let folder_matches = searching && folder_matches_search(folder, query);
-        let matching_threads = if searching {
-            folder
-                .threads
-                .iter()
-                .filter(|thread| thread_matches_search(thread.as_ref(), query))
-                .cloned()
-                .collect::<Vec<_>>()
+        if searching {
+            push_search_results(&mut items, folder, query);
         } else {
-            folder.threads.clone()
-        };
-
-        if searching && !folder_matches && matching_threads.is_empty() {
-            continue;
-        }
-
-        items.push(SidebarItem::folder(folder.summary()));
-
-        let is_expanded = searching || expanded_folders.contains(&folder.key);
-        if is_expanded {
-            for thread in matching_threads {
-                items.push(SidebarItem::Thread(thread));
-            }
+            push_folder_items(&mut items, folder, expanded_folders.contains(&folder.key));
         }
     }
 
     items
+}
+
+fn push_search_results(items: &mut Vec<SidebarItem>, folder: &SidebarFolder, query: &str) {
+    let folder_matches = folder_matches_search(folder, query);
+    let folder_index = items.len();
+    items.push(SidebarItem::folder(folder.summary()));
+
+    let thread_start = items.len();
+    items.extend(
+        folder
+            .threads
+            .iter()
+            .filter(|thread| thread_matches_search(thread.as_ref(), query))
+            .cloned()
+            .map(SidebarItem::Thread),
+    );
+
+    if !folder_matches && items.len() == thread_start {
+        items.remove(folder_index);
+    }
+}
+
+fn push_folder_items(items: &mut Vec<SidebarItem>, folder: &SidebarFolder, is_expanded: bool) {
+    items.push(SidebarItem::folder(folder.summary()));
+    if is_expanded {
+        items.extend(folder.threads.iter().cloned().map(SidebarItem::Thread));
+    }
 }
 
 #[cfg(test)]

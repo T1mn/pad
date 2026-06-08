@@ -88,6 +88,22 @@ fn visible_items_reuse_thread_allocation_when_folder_is_expanded() {
 }
 
 #[test]
+fn visible_items_keep_collapsed_folder_without_threads() {
+    let folder = SidebarFolder {
+        key: "/tmp/demo".into(),
+        path: "/tmp/demo".into(),
+        label: "demo · tmp".into(),
+        updated_at: 1,
+        threads: vec![Arc::new(sample_thread("a", "hello world"))],
+    };
+
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "");
+
+    assert_eq!(items.len(), 1);
+    assert!(matches!(items[0], SidebarItem::Folder(_)));
+}
+
+#[test]
 fn source_json_detects_subagent_thread() {
     let thread_spawn_source = r#"{"subagent":{"thread_spawn":{"parent_thread_id":"019d28e6-0bc0-79c3-b529-a718f803d3c2","depth":1,"agent_path":"/root/audit_event_rs","agent_nickname":"Socrates","agent_role":"explorer"}}}"#;
     let review_source = r#"{"subagent":"review"}"#;
