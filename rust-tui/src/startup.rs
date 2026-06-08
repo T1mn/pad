@@ -1,6 +1,28 @@
 use crate::app::App;
 use std::error::Error;
 
+pub fn prepare_runtime_environment(
+    telegram_daemon: bool,
+    debug: bool,
+) -> Result<(), Box<dyn Error>> {
+    crate::paths::ensure_runtime_layout()?;
+    if telegram_daemon {
+        crate::logger::init_with_path(crate::paths::telegram_bot_log_path())?;
+    } else {
+        crate::logger::init()?;
+    }
+
+    if debug {
+        crate::logger::log("pad 启动 (debug mode)");
+    } else if telegram_daemon {
+        crate::logger::log("telegram-bot 启动");
+    } else {
+        crate::logger::log("pad 启动");
+    }
+    crate::paths::log_runtime_layout_status();
+    Ok(())
+}
+
 pub fn start_runtime_services(app: &mut App) -> Result<(), Box<dyn Error>> {
     crate::relay::apply_runtime_configs(
         &app.config.agents,

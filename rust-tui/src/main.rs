@@ -102,20 +102,7 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         let _ = system_check::ensure_tmux_available()?;
         return bootstrap::bootstrap_into_tmux(&args);
     }
-    paths::ensure_runtime_layout()?;
-    if telegram_daemon {
-        logger::init_with_path(paths::telegram_bot_log_path())?;
-    } else {
-        logger::init()?;
-    }
-    if debug {
-        logger::log("pad 启动 (debug mode)");
-    } else if telegram_daemon {
-        logger::log("telegram-bot 启动");
-    } else {
-        logger::log("pad 启动");
-    }
-    paths::log_runtime_layout_status();
+    startup::prepare_runtime_environment(telegram_daemon, debug)?;
 
     if telegram_daemon {
         return telegram::run_daemon()
