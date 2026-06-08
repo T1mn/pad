@@ -108,16 +108,28 @@ pub fn safe_session_name(name: &str) -> String {
 }
 
 fn agent_command(agent: &str) -> String {
-    match agent.trim().to_lowercase().as_str() {
-        "claude" | "claude-code" => "claude".to_string(),
-        "codex" => "codex".to_string(),
-        "gemini" | "gemini-cli" => "gemini".to_string(),
-        "opencode" => "opencode".to_string(),
-        "aider" => "aider".to_string(),
-        "cursor" => "cursor".to_string(),
-        other if !other.is_empty() => other.to_string(),
-        _ => default_shell_command(),
+    let agent = agent.trim();
+    if matches_agent(agent, &["claude", "claude-code"]) {
+        "claude".to_string()
+    } else if matches_agent(agent, &["codex"]) {
+        "codex".to_string()
+    } else if matches_agent(agent, &["gemini", "gemini-cli"]) {
+        "gemini".to_string()
+    } else if matches_agent(agent, &["opencode"]) {
+        "opencode".to_string()
+    } else if matches_agent(agent, &["aider"]) {
+        "aider".to_string()
+    } else if matches_agent(agent, &["cursor"]) {
+        "cursor".to_string()
+    } else if !agent.is_empty() {
+        agent.to_lowercase()
+    } else {
+        default_shell_command()
     }
+}
+
+fn matches_agent(agent: &str, names: &[&str]) -> bool {
+    names.iter().any(|name| agent.eq_ignore_ascii_case(name))
 }
 
 fn default_shell_command() -> String {
