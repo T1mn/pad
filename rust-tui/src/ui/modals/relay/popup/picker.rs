@@ -44,7 +44,6 @@ fn picker_items(app: &App) -> Vec<SelectionItem> {
                     value: None,
                     subtitle: Some(value),
                     keyword: None,
-                    detail: None,
                     disabled: false,
                 })
                 .collect()

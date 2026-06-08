@@ -91,7 +91,6 @@ pub(in crate::ui::modals::settings) fn draw_sound_detail(f: &mut Frame, app: &Ap
         value: None,
         subtitle: Some(format!("{value}  ·  {desc}")),
         keyword: Some(format!("{name} {value} {desc}")),
-        detail: None,
         disabled: false,
     })
     .collect();

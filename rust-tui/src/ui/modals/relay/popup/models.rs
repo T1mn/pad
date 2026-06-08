@@ -76,7 +76,6 @@ fn model_items(app: &App) -> Vec<SelectionItem> {
                         model.name.clone()
                     }),
                     keyword: Some(format!("{} {}", model.id, model.name)),
-                    detail: None,
                     disabled: false,
                 })
                 .collect()

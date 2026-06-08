@@ -70,7 +70,6 @@ pub(super) fn value_item(
             value,
             t(app.locale, desc_key)
         )),
-        detail: None,
         disabled: false,
     }
 }

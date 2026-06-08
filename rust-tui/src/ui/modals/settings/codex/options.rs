@@ -126,7 +126,6 @@ pub(super) fn cli_items(app: &App) -> Vec<SelectionItem> {
             t(app.locale, "settings.codex_cli_version"),
             version::codex_cli_version_summary(app)
         )),
-        detail: None,
         disabled: false,
     }]
 }

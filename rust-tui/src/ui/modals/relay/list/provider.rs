@@ -14,7 +14,6 @@ pub(super) fn provider_items(agent: Option<&AgentConfig>, locale: Locale) -> Vec
             value: None,
             subtitle: None,
             keyword: None,
-            detail: None,
             disabled: true,
         }];
     }
@@ -39,7 +38,6 @@ fn provider_item(agent: &AgentConfig, idx: usize, provider: &ProviderConfig) -> 
             provider.base_url,
             provider.test_result.clone().unwrap_or_default()
         )),
-        detail: None,
         disabled: false,
     }
 }

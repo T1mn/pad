@@ -18,7 +18,6 @@ pub(super) fn category_items(app: &App) -> Vec<SelectionItem> {
                 category_title(app, index),
                 category_summary(app, index)
             )),
-            detail: None,
             disabled: false,
         })
         .collect()

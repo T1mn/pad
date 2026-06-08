@@ -20,7 +20,6 @@ fn agent_item(agent: &AgentConfig) -> SelectionItem {
         value: None,
         subtitle: Some(agent_subtitle(agent, &active_label)),
         keyword: Some(format!("{} {}", agent.name, active_label)),
-        detail: None,
         disabled: false,
     }
 }

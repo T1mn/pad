@@ -21,7 +21,6 @@ pub(in crate::ui::modals::settings) fn draw_language_detail(f: &mut Frame, app: 
                 value: None,
                 subtitle: Some(entry.as_str().to_string()),
                 keyword: Some(format!("{} {}", entry.display_name(), entry.as_str())),
-                detail: None,
                 disabled: false,
             }
         })

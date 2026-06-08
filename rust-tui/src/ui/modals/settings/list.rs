@@ -19,7 +19,6 @@ pub(super) fn draw_settings_list(f: &mut Frame, app: &App, area: Rect) {
             keyword: Some(crate::app::actions::settings_item_search_blob(
                 locale, id, value, name_key, desc_key,
             )),
-            detail: None,
             disabled: false,
         })
         .collect();

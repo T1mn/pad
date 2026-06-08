@@ -57,7 +57,6 @@ fn notification_item(entry: &NotificationEntry) -> SelectionItem {
             entry.working_dir,
             entry.session_id
         )),
-        detail: None,
         disabled: false,
     }
 }

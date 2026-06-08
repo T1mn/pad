@@ -52,7 +52,6 @@ pub(in crate::ui::modals::settings) fn draw_agent_style_detail(
                 val_display,
                 t(locale, desc_key)
             )),
-            detail: None,
             disabled: false,
         }
     })

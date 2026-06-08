@@ -24,7 +24,6 @@ pub(in crate::ui::modals::settings) fn draw_theme_detail(f: &mut Frame, app: &Ap
                     (*desc).to_string()
                 }),
                 keyword: Some(format!("{} {}", name, desc)),
-                detail: None,
                 disabled: false,
             }
         })
