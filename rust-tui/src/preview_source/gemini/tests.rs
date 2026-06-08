@@ -56,3 +56,26 @@ fn extract_session_id_from_transcript_reads_root_metadata() {
 
     assert_eq!(session_id.as_deref(), Some("sess-meta-1"));
 }
+
+#[test]
+fn parse_gemini_transcript_joins_nested_non_empty_text_parts() {
+    let path = temp_json_path("gemini-nested-parts");
+    fs::write(
+        &path,
+        concat!(
+            "{",
+            "\"messages\":[",
+            "{\"type\":\"user\",\"content\":[{\"text\":\"hello\"},{\"text\":\"   \"},{\"content\":{\"text\":\"world\"}}]},",
+            "{\"type\":\"gemini\",\"content\":[{\"text\":\"answer\"},{\"parts\":[{\"text\":\"more\"}]}]}",
+            "]}"
+        ),
+    )
+    .unwrap();
+
+    let turns = parse_transcript(&path, SessionReadMode::FullBackfill).unwrap();
+    fs::remove_file(&path).ok();
+
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0].question, "hello\nworld");
+    assert_eq!(turns[0].answer.as_deref(), Some("answer\nmore"));
+}

@@ -10,19 +10,19 @@ pub(super) fn extract_message_text(value: &Value) -> String {
 }
 
 fn extract_array_text(items: &[Value]) -> String {
-    items
-        .iter()
-        .filter_map(|item| {
-            let text = extract_message_text(item);
-            let text = text.trim();
-            if text.is_empty() {
-                None
-            } else {
-                Some(text.to_string())
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut joined = String::new();
+    for item in items {
+        let text = extract_message_text(item);
+        let text = text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if !joined.is_empty() {
+            joined.push('\n');
+        }
+        joined.push_str(text);
+    }
+    joined
 }
 
 fn extract_object_text(map: &serde_json::Map<String, Value>) -> String {
