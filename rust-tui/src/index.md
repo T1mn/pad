@@ -23,7 +23,7 @@
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
 - `opencode_history/`：读取 OpenCode 官方 SQLite 历史。
-- `opencode_text.rs`：OpenCode message/part JSON role 与文本抽取共享工具。
+- `opencode_text.rs` / `opencode_text_tests.rs`：OpenCode message/part JSON role 与文本抽取共享工具。
 - `session_cache/`：会话快照缓存与持久化。
 - `thread_meta.rs` / `thread_meta/`：thread 标题、删除状态、标签等本地元数据。
 - `title_summary.rs` / `title_summary/`：Codex 会话自动标题摘要的窗口选择、请求、响应解析与清理。

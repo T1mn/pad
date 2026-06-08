@@ -45,7 +45,13 @@ fn extract_text_value(value: &Value) -> Option<String> {
 }
 
 fn join_text(items: impl Iterator<Item = String>) -> Option<String> {
-    let text = items.collect::<Vec<_>>().join("\n");
+    let mut text = String::new();
+    for item in items {
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        text.push_str(&item);
+    }
     non_empty(&text)
 }
 
@@ -53,3 +59,7 @@ fn non_empty(text: &str) -> Option<String> {
     let text = text.trim();
     (!text.is_empty()).then(|| text.to_string())
 }
+
+#[cfg(test)]
+#[path = "opencode_text_tests.rs"]
+mod tests;
