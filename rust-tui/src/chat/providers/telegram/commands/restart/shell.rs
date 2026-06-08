@@ -25,14 +25,13 @@ fn build_command(current_exe: &std::path::Path) -> String {
 }
 
 fn exec_command(current_exe: &std::path::Path, current_args: &[String]) -> String {
-    let mut parts = vec![
-        "exec".to_string(),
-        shell_single_quote(&current_exe.to_string_lossy()),
-    ];
+    let mut command = String::from("exec ");
+    command.push_str(&shell_single_quote(&current_exe.to_string_lossy()));
     for arg in pad_restart_args(current_args) {
-        parts.push(shell_single_quote(&arg));
+        command.push(' ');
+        command.push_str(&shell_single_quote(&arg));
     }
-    parts.join(" ")
+    command
 }
 
 fn restart_uses_release_profile(current_exe: &std::path::Path) -> bool {
