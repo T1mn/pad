@@ -52,9 +52,8 @@ pub fn read_file_stats(path: &Path) -> FileStats {
 #[cfg(test)]
 mod tests {
     use super::read_text_file;
+    use crate::test_support;
     use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn read_text_file_returns_full_file_without_preview_truncation() {
@@ -69,11 +68,7 @@ mod tests {
         fs::remove_file(path).unwrap();
     }
 
-    fn temp_file(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad_sider_fs_{name}_{unique}"))
+    fn temp_file(name: &str) -> std::path::PathBuf {
+        test_support::temp_path("pad_sider_fs", name)
     }
 }

@@ -60,9 +60,8 @@ fn skip_dir_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::build_index_map;
+    use crate::test_support;
     use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn builds_nested_index_map_and_skips_ignored_dirs() {
@@ -88,11 +87,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
-    fn temp_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad_sider_index_map_{name}_{unique}"))
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        test_support::temp_path("pad_sider_index_map", name)
     }
 }

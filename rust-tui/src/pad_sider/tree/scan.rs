@@ -35,9 +35,8 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::scan_files;
+    use crate::test_support;
     use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn scan_files_skips_ignored_directories() {
@@ -54,11 +53,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
-    fn temp_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad_sider_{name}_{unique}"))
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        test_support::temp_path("pad_sider", name)
     }
 }
