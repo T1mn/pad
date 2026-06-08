@@ -11,6 +11,7 @@ use crate::i18n::{self, Locale};
 use crate::model::SessionCacheState;
 use crate::preview_source::session_target::{self, SessionTarget};
 use crate::preview_source::PreviewRequest;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 pub(super) fn load_resolved_session_preview(
@@ -30,16 +31,22 @@ pub(super) fn load_resolved_session_preview(
     );
     let parse_elapsed = parse_started_at.elapsed();
 
+    let timing = LoadTiming {
+        resolve_elapsed,
+        parse_elapsed,
+        started_at,
+    };
+
     match turns {
         Ok(turns) if !turns.is_empty() => load_non_empty_turns(
             request,
-            target,
-            transcript_path,
-            transcript_updated_at,
-            turns,
-            resolve_elapsed,
-            parse_elapsed,
-            started_at,
+            ParsedSession {
+                target,
+                transcript_path,
+                transcript_updated_at,
+                turns,
+            },
+            timing,
         ),
         Ok(_) => handle_empty_parse(request, locale, resolve_elapsed, parse_elapsed, started_at),
         Err(err) => handle_parse_error(
@@ -53,52 +60,65 @@ pub(super) fn load_resolved_session_preview(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn load_non_empty_turns(
-    request: &PreviewRequest,
+struct ParsedSession {
     target: SessionTarget,
-    transcript_path: std::path::PathBuf,
+    transcript_path: PathBuf,
     transcript_updated_at: Option<i64>,
     turns: Vec<crate::model::PreviewTurn>,
+}
+
+#[derive(Clone, Copy)]
+struct LoadTiming {
     resolve_elapsed: Duration,
     parse_elapsed: Duration,
     started_at: Instant,
+}
+
+fn load_non_empty_turns(
+    request: &PreviewRequest,
+    parsed: ParsedSession,
+    timing: LoadTiming,
 ) -> Result<SessionPreviewData, String> {
     if let Some(decision) = should_prefer_cached_preview(
         request,
-        &target,
-        &transcript_path,
-        transcript_updated_at,
-        turns.len(),
+        &parsed.target,
+        &parsed.transcript_path,
+        parsed.transcript_updated_at,
+        parsed.turns.len(),
     ) {
         if decision.prefer_cache {
             log_prefer_cache(request, decision.reason, decision.lag_seconds);
             return Ok(cached_session_preview_with_metadata(
                 request,
-                Some(target.origin),
-                target.session_id.clone(),
-                Some(transcript_path.to_string_lossy().to_string()),
-                max_i64(target.updated_at, request.known_updated_at),
+                Some(parsed.target.origin),
+                parsed.target.session_id.clone(),
+                Some(parsed.transcript_path.to_string_lossy().to_string()),
+                max_i64(parsed.target.updated_at, request.known_updated_at),
             ));
         }
     }
 
-    let transcript_string = transcript_path.to_string_lossy().to_string();
-    persist_resolved_session_if_needed(request, &target, &transcript_path, &turns);
+    let transcript_string = parsed.transcript_path.to_string_lossy().to_string();
+    persist_resolved_session_if_needed(
+        request,
+        &parsed.target,
+        &parsed.transcript_path,
+        &parsed.turns,
+    );
     log_parse_success_if_slow(
         request,
-        resolve_elapsed,
-        parse_elapsed,
-        started_at.elapsed(),
-        turns.len(),
+        timing.resolve_elapsed,
+        timing.parse_elapsed,
+        timing.started_at.elapsed(),
+        parsed.turns.len(),
     );
     Ok(SessionPreviewData {
-        turns: turns.into(),
-        session_origin: target.origin,
-        session_id: target.session_id,
+        turns: parsed.turns.into(),
+        session_origin: parsed.target.origin,
+        session_id: parsed.target.session_id,
         transcript_path: Some(transcript_string),
         cache_state: SessionCacheState::Confirmed,
-        updated_at: target.updated_at,
+        updated_at: parsed.target.updated_at,
     })
 }
 
