@@ -1,6 +1,7 @@
 # app
 
-- `mod.rs`：`App` 状态与初始化。
+- `mod.rs`：`App` 状态与通用方法。
+- `lifecycle.rs`：`App::new` 初始化。
 - `state/`：UI 与运行态结构。
 - `actions.rs` / `actions/`：用户动作封装。
 - `async_ops.rs`：扫描、预览、provider 测试异步入口。
