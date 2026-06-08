@@ -2,7 +2,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GitTreeSnapshot {
@@ -93,10 +92,7 @@ fn command_output(output: std::process::Output, args: &[&str]) -> io::Result<Str
 }
 
 fn temp_index_path() -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_nanos())
-        .unwrap_or_default();
+    let stamp = crate::time::unix_now_nanos();
     std::env::temp_dir().join(format!(
         "pad-codex-turn-diff-{}-{stamp}.index",
         std::process::id()

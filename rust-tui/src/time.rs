@@ -12,6 +12,14 @@ pub(crate) fn unix_now_millis() -> u128 {
         .unwrap_or_default()
 }
 
+pub(crate) fn unix_now_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default()
+}
+
 pub(crate) fn unix_now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

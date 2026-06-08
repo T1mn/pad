@@ -1,6 +1,5 @@
 use crate::hook::HookEvent;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const STORE_DIR: &str = "codex-turn-diffs";
 
@@ -66,10 +65,7 @@ pub fn event_key(event: &HookEvent) -> Option<String> {
 }
 
 pub fn now_stamp() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_secs().to_string())
-        .unwrap_or_else(|_| "0".into())
+    crate::time::unix_now_secs().to_string()
 }
 
 fn safe_name(value: &str) -> String {
@@ -85,8 +81,5 @@ fn safe_name(value: &str) -> String {
 }
 
 fn now_nanos() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_nanos())
-        .unwrap_or_default()
+    crate::time::unix_now_nanos()
 }
