@@ -64,11 +64,7 @@ pub(crate) async fn send_agent_list(
         return Ok(());
     }
 
-    let body = snapshot
-        .iter()
-        .map(|entry| entry.label.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body = agent_list_body(&snapshot);
     let keyboard = build_agent_keyboard(&panels, locale);
     send_message(
         &config.telegram.bot_token,
@@ -82,4 +78,15 @@ pub(crate) async fn send_agent_list(
     )
     .await?;
     Ok(())
+}
+
+fn agent_list_body(snapshot: &[AgentSnapshotEntry]) -> String {
+    let mut body = String::new();
+    for (idx, entry) in snapshot.iter().enumerate() {
+        if idx > 0 {
+            body.push('\n');
+        }
+        body.push_str(&entry.label);
+    }
+    body
 }
