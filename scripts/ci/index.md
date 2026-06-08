@@ -5,4 +5,4 @@
 - `mock_agent.sh`：CI 用 mock agent。
 - `power_smoke.py`：pad / pad-sider 空闲 CPU 预算测试，作为耗电量代理指标。
 - `check_index.py`：检查每个已跟踪目录都有短小的 `index.md`。
-- `check_rust_file_size.py`：检查普通 Rust 源码文件不超过 200 行，i18n 静态文案表例外。
+- `check_rust_file_size.py`：检查普通 Rust 源码文件不超过 200 行，并防止普通源码重新内嵌 `mod tests {}`。
