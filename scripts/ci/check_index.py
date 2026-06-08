@@ -8,9 +8,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from fnmatch import fnmatch
 
 MAX_INDEX_LINES = 50
 LOCAL_REF_SUFFIXES = (".rs", ".py", ".sh", ".md", ".yml", ".yaml")
+LOCAL_GLOB_SUFFIXES = LOCAL_REF_SUFFIXES
 
 
 def tracked_files() -> set[str]:
@@ -39,18 +41,23 @@ def line_count(path: str) -> int:
         return sum(1 for _ in handle)
 
 
-def local_index_refs(index_file: str) -> list[str]:
+def local_index_refs(index_file: str) -> tuple[list[str], list[str]]:
     text = Path(index_file).read_text(encoding="utf-8")
     refs: list[str] = []
+    globs: list[str] = []
     for match in re.finditer(r"`([^`]+)`", text):
         ref = match.group(1).strip()
         if not ref or ref.startswith(("~", "/")):
             continue
-        if any(token in ref for token in ("*", "::", " ")):
+        if any(token in ref for token in ("::", " ")):
+            continue
+        if "*" in ref:
+            if ref.endswith(LOCAL_GLOB_SUFFIXES) and not ref.startswith("/"):
+                globs.append(ref)
             continue
         if ref.startswith(("./", "../")) or ref.endswith("/") or ref.endswith(LOCAL_REF_SUFFIXES):
             refs.append(ref)
-    return refs
+    return refs, globs
 
 
 def validate_index_refs(index_file: str, files: set[str], dirs: set[str]) -> list[str]:
@@ -58,7 +65,8 @@ def validate_index_refs(index_file: str, files: set[str], dirs: set[str]) -> lis
     if str(base) == ".":
         base = PurePosixPath("")
     errors: list[str] = []
-    for ref in local_index_refs(index_file):
+    refs, globs = local_index_refs(index_file)
+    for ref in refs:
         target = base / ref.rstrip("/")
         target_text = posixpath.normpath(str(target))
         if ref.endswith("/"):
@@ -66,6 +74,10 @@ def validate_index_refs(index_file: str, files: set[str], dirs: set[str]) -> lis
                 errors.append(f"stale index ref: {index_file} -> `{ref}`")
         elif target_text not in files:
             errors.append(f"stale index ref: {index_file} -> `{ref}`")
+    for pattern in globs:
+        target_pattern = posixpath.normpath(str(base / pattern))
+        if not any(fnmatch(file, target_pattern) for file in files):
+            errors.append(f"stale index glob: {index_file} -> `{pattern}`")
     return errors
 
 
