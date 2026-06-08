@@ -1,7 +1,5 @@
 use std::fs;
 use std::io;
-#[cfg(test)]
-use std::path::Path;
 
 mod base;
 mod codex_home;

@@ -8,7 +8,7 @@
 - `prompts.rs` / `prompts/`：Codex jailbreak/index prompt 路径、种子刷新、组合 prompt 生成与版本状态。
 - `sounds.rs`：声音资源目录和 preset WAV 文件路径。
 - `runtime_files.rs`：hook/API socket、状态文件和 Telegram runtime 文件路径。
-- `paths_tests.rs`：runtime layout、prompt seed、hook bridge 模板测试。
+- `paths_tests.rs` / `paths_tests/`：按 bridge hooks、runtime layout、Codex home、prompts 分组的路径测试。
 - `~/.pad/notifications/inbox.json`：notification inbox 持久化文件。
 - `~/.pad/opencode-exports/` / `opencode-stats/` / `opencode-diagnostics/`：OpenCode 导出 JSON、stats 与诊断报告。
 
