@@ -95,3 +95,50 @@ fn source_json_detects_subagent_thread() {
     assert!(is_subagent_source(Some(review_source)));
     assert!(!is_subagent_source(Some("vscode")));
 }
+
+#[test]
+fn search_matches_ascii_case_insensitively_without_lowercase_copy() {
+    let mut thread = sample_thread("a", "Release Notes");
+    thread.tags = vec!["HotFix".into()];
+    let folder = SidebarFolder {
+        key: "/tmp/demo".into(),
+        path: "/tmp/demo".into(),
+        label: "Demo Folder".into(),
+        updated_at: 1,
+        threads: vec![Arc::new(thread)],
+    };
+
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "hotfix");
+    assert_eq!(items.len(), 2);
+    assert!(matches!(items[1], SidebarItem::Thread(_)));
+}
+
+#[test]
+fn search_keeps_unicode_case_fold_behavior() {
+    let folder = SidebarFolder {
+        key: "/tmp/demo".into(),
+        path: "/tmp/demo".into(),
+        label: "Demo Folder".into(),
+        updated_at: 1,
+        threads: vec![Arc::new(sample_thread("a", "Éclair Notes"))],
+    };
+
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "éclair");
+    assert_eq!(items.len(), 2);
+    assert!(matches!(items[1], SidebarItem::Thread(_)));
+}
+
+#[test]
+fn search_matches_agent_type_without_string_allocation() {
+    let folder = SidebarFolder {
+        key: "/tmp/demo".into(),
+        path: "/tmp/demo".into(),
+        label: "Demo Folder".into(),
+        updated_at: 1,
+        threads: vec![Arc::new(sample_thread("a", "other"))],
+    };
+
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "codex");
+    assert_eq!(items.len(), 2);
+    assert!(matches!(items[1], SidebarItem::Thread(_)));
+}
