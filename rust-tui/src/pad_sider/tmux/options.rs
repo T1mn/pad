@@ -76,13 +76,5 @@ fn unset_option(target: &str, key: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::should_restore_target_zoom;
-
-    #[test]
-    fn zoom_restore_option_only_restores_explicit_zoomed_targets() {
-        assert!(should_restore_target_zoom(Some("1".into())));
-        assert!(!should_restore_target_zoom(Some("0".into())));
-        assert!(!should_restore_target_zoom(None));
-    }
-}
+#[path = "options_tests.rs"]
+mod tests;
