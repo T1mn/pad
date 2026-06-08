@@ -70,3 +70,11 @@ fn title_normalization_trims_wrappers_and_prefixes() {
         Some("修复会话标题自动摘要")
     );
 }
+
+#[test]
+fn title_normalization_collapses_internal_whitespace() {
+    assert_eq!(
+        normalize_generated_title("Title:   Fix\tpreview\nignored").as_deref(),
+        Some("Fix preview")
+    );
+}

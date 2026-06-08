@@ -6,7 +6,7 @@ pub fn normalize_generated_title(raw: &str) -> Option<String> {
         return None;
     }
 
-    let mut normalized = single_line.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut normalized = collapse_whitespace(single_line);
     normalized = strip_known_prefix(&normalized).to_string();
 
     while let Some(stripped) = strip_matching_wrappers(&normalized) {
@@ -31,6 +31,17 @@ pub fn normalize_generated_title(raw: &str) -> Option<String> {
     } else {
         Some(clipped.to_string())
     }
+}
+
+fn collapse_whitespace(value: &str) -> String {
+    let mut collapsed = String::new();
+    for part in value.split_whitespace() {
+        if !collapsed.is_empty() {
+            collapsed.push(' ');
+        }
+        collapsed.push_str(part);
+    }
+    collapsed
 }
 
 fn strip_known_prefix(value: &str) -> &str {
