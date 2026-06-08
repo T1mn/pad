@@ -2,7 +2,7 @@
 
 - `mod.rs`：嵌入式入口分发，供 `pad __internal pad-sider ...` 调用。
 - `cli.rs`：解析 `toggle` / `ui` 命令。
-- `tmux.rs` / `tmux/`：F10 全屏 overlay 辅助栏、隐藏、恢复与 zoom 状态处理。
+- `tmux.rs` / `tmux/` / `tmux_codex_tests.rs`：F10 全屏 overlay 辅助栏、隐藏、恢复与 zoom 状态处理。
 - `codex_runs.rs` / `codex_runs_tests.rs`：Codex 单轮问答 diff 的右侧预览构建与测试。
 - `app.rs` / `app/` / `actions.rs` / `actions/`：辅助栏状态、刷新/选择/预览状态、左侧导航模式、Codex runs diff 预览、全屏文件预览、`index.md` 跳转与快捷键动作。
 - `index_map.rs` / `index_map_tests.rs`：递归扫描项目内所有 `index.md`，用缩进和短目录名生成结构化索引地图及测试。

@@ -16,7 +16,7 @@ const PANE_INFO_SEP: &str = "\x1f";
 pub fn toggle(target_pane: &str) -> Result<(), String> {
     let target_pane = resolve_target_pane(target_pane);
     let target = pane_info(&target_pane)?;
-    if !target.command.to_lowercase().contains("codex") {
+    if !is_codex_command(&target.command) {
         return Ok(());
     }
 
@@ -58,3 +58,14 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
         ))
     }
 }
+
+fn is_codex_command(command: &str) -> bool {
+    command
+        .as_bytes()
+        .windows("codex".len())
+        .any(|window| window.eq_ignore_ascii_case(b"codex"))
+}
+
+#[cfg(test)]
+#[path = "tmux_codex_tests.rs"]
+mod tests;
