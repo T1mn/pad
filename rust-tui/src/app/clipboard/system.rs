@@ -2,30 +2,46 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
 pub fn read_text_from_clipboard() -> io::Result<String> {
-    let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
+    let mut last_error = None;
 
     if cfg!(target_os = "macos") {
-        candidates.push(("pbpaste", Vec::new()));
+        if let Some(text) =
+            remember_clipboard_result(read_clipboard_command("pbpaste", &[]), &mut last_error)
+        {
+            return Ok(text);
+        }
     }
 
     if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        candidates.push(("wl-paste", vec!["--no-newline"]));
+        if let Some(text) = remember_clipboard_result(
+            read_clipboard_command("wl-paste", &["--no-newline"]),
+            &mut last_error,
+        ) {
+            return Ok(text);
+        }
     }
 
     if std::env::var_os("DISPLAY").is_some() {
-        candidates.push(("xclip", vec!["-selection", "clipboard", "-out"]));
-        candidates.push(("xsel", vec!["--clipboard", "--output"]));
+        if let Some(text) = remember_clipboard_result(
+            read_clipboard_command("xclip", &["-selection", "clipboard", "-out"]),
+            &mut last_error,
+        ) {
+            return Ok(text);
+        }
+        if let Some(text) = remember_clipboard_result(
+            read_clipboard_command("xsel", &["--clipboard", "--output"]),
+            &mut last_error,
+        ) {
+            return Ok(text);
+        }
     }
 
     if std::env::var_os("TMUX").is_some() {
-        candidates.push(("tmux", vec!["save-buffer", "-"]));
-    }
-
-    let mut last_error = None;
-    for (program, args) in candidates {
-        match read_clipboard_command(program, &args) {
-            Ok(text) => return Ok(text),
-            Err(err) => last_error = Some(err),
+        if let Some(text) = remember_clipboard_result(
+            read_clipboard_command("tmux", &["save-buffer", "-"]),
+            &mut last_error,
+        ) {
+            return Ok(text);
         }
     }
 
@@ -38,31 +54,55 @@ pub fn read_text_from_clipboard() -> io::Result<String> {
 }
 
 pub(super) fn copy_text_to_clipboard(text: &str) -> io::Result<()> {
-    let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
+    let mut last_error = None;
 
-    if cfg!(target_os = "macos") {
-        candidates.push(("pbcopy", Vec::new()));
+    if cfg!(target_os = "macos")
+        && remember_clipboard_result(
+            write_clipboard_command("pbcopy", &[], text),
+            &mut last_error,
+        )
+        .is_some()
+    {
+        return Ok(());
     }
 
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        candidates.push(("wl-copy", Vec::new()));
+    if std::env::var_os("WAYLAND_DISPLAY").is_some()
+        && remember_clipboard_result(
+            write_clipboard_command("wl-copy", &[], text),
+            &mut last_error,
+        )
+        .is_some()
+    {
+        return Ok(());
     }
 
     if std::env::var_os("DISPLAY").is_some() {
-        candidates.push(("xclip", vec!["-selection", "clipboard"]));
-        candidates.push(("xsel", vec!["--clipboard", "--input"]));
-    }
-
-    if std::env::var_os("TMUX").is_some() {
-        candidates.push(("tmux", vec!["load-buffer", "-w", "-"]));
-    }
-
-    let mut last_error = None;
-    for (program, args) in candidates {
-        match write_clipboard_command(program, &args, text) {
-            Ok(()) => return Ok(()),
-            Err(err) => last_error = Some(err),
+        if remember_clipboard_result(
+            write_clipboard_command("xclip", &["-selection", "clipboard"], text),
+            &mut last_error,
+        )
+        .is_some()
+        {
+            return Ok(());
         }
+        if remember_clipboard_result(
+            write_clipboard_command("xsel", &["--clipboard", "--input"], text),
+            &mut last_error,
+        )
+        .is_some()
+        {
+            return Ok(());
+        }
+    }
+
+    if std::env::var_os("TMUX").is_some()
+        && remember_clipboard_result(
+            write_clipboard_command("tmux", &["load-buffer", "-w", "-"], text),
+            &mut last_error,
+        )
+        .is_some()
+    {
+        return Ok(());
     }
 
     Err(last_error.unwrap_or_else(|| {
@@ -71,6 +111,19 @@ pub(super) fn copy_text_to_clipboard(text: &str) -> io::Result<()> {
             "no supported clipboard command is available",
         )
     }))
+}
+
+fn remember_clipboard_result<T>(
+    result: io::Result<T>,
+    last_error: &mut Option<io::Error>,
+) -> Option<T> {
+    match result {
+        Ok(value) => Some(value),
+        Err(err) => {
+            *last_error = Some(err);
+            None
+        }
+    }
 }
 
 fn read_clipboard_command(program: &str, args: &[&str]) -> io::Result<String> {
