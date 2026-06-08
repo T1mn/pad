@@ -51,8 +51,19 @@ fn compact_subagent_detail(text: &str) -> String {
         return String::new();
     }
 
-    let compact = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    let compact = compact_whitespace(line);
     truncate_chars_with_ellipsis(&compact, 220)
+}
+
+fn compact_whitespace(line: &str) -> String {
+    let mut compact = String::with_capacity(line.len());
+    for word in line.split_whitespace() {
+        if !compact.is_empty() {
+            compact.push(' ');
+        }
+        compact.push_str(word);
+    }
+    compact
 }
 
 fn truncate_chars_with_ellipsis(text: &str, max_chars: usize) -> String {
@@ -67,3 +78,7 @@ fn truncate_chars_with_ellipsis(text: &str, max_chars: usize) -> String {
     out.push('…');
     out
 }
+
+#[cfg(test)]
+#[path = "subagent_tests.rs"]
+mod tests;
