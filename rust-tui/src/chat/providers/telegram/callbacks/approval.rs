@@ -36,24 +36,7 @@ pub(in crate::chat::providers::telegram) async fn send_codex_approval_prompt(
     request: &CodexApprovalRequest,
 ) -> TelegramResult<()> {
     let locale = telegram_locale(config);
-    let mut lines = vec![
-        tg(locale, "approval.prompt").to_string(),
-        format!(
-            "{}: {}",
-            tg(locale, "approval.target"),
-            pending.target_label
-        ),
-        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
-        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
-    ];
-    if let Some(session_id) = pending
-        .session_id
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
-    }
-    let body = format!("{}\n\n{}", lines.join("\n"), request.justification);
+    let body = approval_prompt_text(locale, pending, request);
     send_message(
         &config.telegram.bot_token,
         &json!({
@@ -82,6 +65,51 @@ pub(in crate::chat::providers::telegram) async fn send_codex_approval_prompt(
     Ok(())
 }
 
+fn approval_prompt_text(
+    locale: crate::i18n::Locale,
+    pending: &PendingRequest,
+    request: &CodexApprovalRequest,
+) -> String {
+    let mut body = String::new();
+    push_approval_prompt_line(&mut body, tg(locale, "approval.prompt"));
+    push_approval_prompt_line(
+        &mut body,
+        &format!(
+            "{}: {}",
+            tg(locale, "approval.target"),
+            pending.target_label
+        ),
+    );
+    push_approval_prompt_line(
+        &mut body,
+        &format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+    );
+    push_approval_prompt_line(
+        &mut body,
+        &format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    );
+    if let Some(session_id) = pending
+        .session_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        push_approval_prompt_line(
+            &mut body,
+            &format!("{}: {}", tg(locale, "meta.session"), session_id),
+        );
+    }
+    body.push_str("\n\n");
+    body.push_str(&request.justification);
+    body
+}
+
+fn push_approval_prompt_line(out: &mut String, line: &str) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(line);
+}
+
 pub(in crate::chat::providers::telegram) fn approval_sent_text(
     locale: crate::i18n::Locale,
     choice: &str,
@@ -93,3 +121,7 @@ pub(in crate::chat::providers::telegram) fn approval_sent_text(
         _ => tg(locale, "callback.unknown"),
     }
 }
+
+#[cfg(test)]
+#[path = "approval_tests.rs"]
+mod tests;
