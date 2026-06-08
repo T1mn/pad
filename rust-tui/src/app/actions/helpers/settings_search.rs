@@ -10,11 +10,11 @@ pub(crate) fn settings_item_search_blob(
 ) -> String {
     let mut blob = String::new();
     push_search_term(&mut blob, id);
-    push_owned_search_term(&mut blob, id.replace('_', " "));
+    push_normalized_search_term(&mut blob, id, &['_']);
     push_search_term(&mut blob, name_key);
-    push_owned_search_term(&mut blob, name_key.replace(['.', '_'], " "));
+    push_normalized_search_term(&mut blob, name_key, &['.', '_']);
     push_search_term(&mut blob, desc_key);
-    push_owned_search_term(&mut blob, desc_key.replace(['.', '_'], " "));
+    push_normalized_search_term(&mut blob, desc_key, &['.', '_']);
     push_search_term(&mut blob, value);
     push_search_term(&mut blob, crate::i18n::t(locale, name_key));
     push_search_term(&mut blob, crate::i18n::t(locale, desc_key));
@@ -68,8 +68,17 @@ fn push_search_term(blob: &mut String, term: &str) {
     blob.push_str(term);
 }
 
-fn push_owned_search_term(blob: &mut String, term: String) {
-    push_search_term(blob, &term);
+fn push_normalized_search_term(blob: &mut String, term: &str, separators: &[char]) {
+    if !blob.is_empty() {
+        blob.push(' ');
+    }
+    for ch in term.chars() {
+        if separators.contains(&ch) {
+            blob.push(' ');
+        } else {
+            blob.push(ch);
+        }
+    }
 }
 
 fn settings_item_aliases(id: &str) -> &'static [&'static str] {
