@@ -1,4 +1,5 @@
 use super::*;
+use std::fmt::Write;
 
 pub(crate) async fn send_recent_history(
     config: &Config,
@@ -93,26 +94,24 @@ pub(crate) fn format_recent_history_message(
     target_label: &str,
     turns: &[crate::model::PreviewTurn],
 ) -> String {
-    let mut lines = vec![
-        tg(locale, "history.title").to_string(),
-        target_label.to_string(),
-    ];
+    let mut body = String::new();
+    body.push_str(tg(locale, "history.title"));
+    body.push('\n');
+    body.push_str(target_label);
 
     for (idx, turn) in turns.iter().enumerate() {
-        lines.push(String::new());
-        lines.push(format!("{}. Q:", idx + 1));
-        lines.push(turn.question.trim().to_string());
-        lines.push(String::new());
-        lines.push("A:".to_string());
-        lines.push(
+        body.push_str("\n\n");
+        let _ = writeln!(body, "{}. Q:", idx + 1);
+        body.push_str(turn.question.trim());
+        body.push_str("\n\nA:\n");
+        body.push_str(
             turn.answer
                 .as_deref()
                 .map(str::trim)
                 .filter(|text| !text.is_empty())
-                .unwrap_or(tg(locale, "history.answer_missing"))
-                .to_string(),
+                .unwrap_or(tg(locale, "history.answer_missing")),
         );
     }
 
-    lines.join("\n")
+    body
 }
