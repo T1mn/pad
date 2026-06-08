@@ -6,24 +6,17 @@ use super::ThreadArchiveFilter;
 use rusqlite::Connection;
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-fn temp_stamp() -> u128 {
-    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        + NEXT_ID.fetch_add(1, Ordering::Relaxed) as u128
-}
 
 fn temp_db_path() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("pad-codex-state-{}.sqlite", temp_stamp()))
+    crate::test_support::temp_path("pad-codex-state", "db")
 }
 
 fn temp_codex_home() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("pad-codex-home-{}", temp_stamp()))
+    crate::test_support::temp_path("pad-codex-home", "root")
+}
+
+fn temp_rollout_path(name: &str) -> std::path::PathBuf {
+    crate::test_support::temp_path("pad-codex-rollout", name)
 }
 
 fn sample_rollout_name(thread_id: &str) -> String {
@@ -122,7 +115,7 @@ fn thread_archive_state(connection: &Connection, thread_id: &str) -> (bool, Opti
 fn loads_threads_from_state_db() {
     let path = temp_db_path();
     create_threads_db(&path);
-    let rollout_path = std::env::temp_dir().join(format!("pad-rollout-{}.jsonl", temp_stamp()));
+    let rollout_path = temp_rollout_path("new");
     write_rollout(&rollout_path);
     let connection = Connection::open(&path).unwrap();
     insert_thread(
@@ -148,7 +141,7 @@ fn loads_threads_from_state_db() {
 fn old_threads_without_recent_updated_at_are_filtered_out() {
     let path = temp_db_path();
     create_threads_db(&path);
-    let rollout_path = std::env::temp_dir().join(format!("pad-old-rollout-{}.jsonl", temp_stamp()));
+    let rollout_path = temp_rollout_path("old");
     write_rollout(&rollout_path);
     let connection = Connection::open(&path).unwrap();
     insert_thread(
@@ -180,7 +173,7 @@ fn old_threads_without_recent_updated_at_are_filtered_out() {
 fn archived_threads_are_loaded_without_recent_filter() {
     let path = temp_db_path();
     create_threads_db(&path);
-    let rollout_path = std::env::temp_dir().join(format!("pad-archived-{}.jsonl", temp_stamp()));
+    let rollout_path = temp_rollout_path("archived");
     write_rollout(&rollout_path);
     let connection = Connection::open(&path).unwrap();
     insert_thread(
@@ -204,7 +197,7 @@ fn archived_threads_are_loaded_without_recent_filter() {
 fn thread_for_id_reads_single_row_without_recent_filter() {
     let path = temp_db_path();
     create_threads_db(&path);
-    let rollout_path = std::env::temp_dir().join(format!("pad-thread-id-{}.jsonl", temp_stamp()));
+    let rollout_path = temp_rollout_path("thread-id");
     write_rollout(&rollout_path);
     let connection = Connection::open(&path).unwrap();
     insert_thread(

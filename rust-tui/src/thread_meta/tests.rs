@@ -7,10 +7,7 @@ use super::ThreadMetaKey;
 use rusqlite::params;
 
 fn temp_db_path(name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "pad-thread-meta-{name}-{}.sqlite",
-        std::process::id()
-    ))
+    crate::test_support::temp_path("pad-thread-meta", name)
 }
 
 #[test]

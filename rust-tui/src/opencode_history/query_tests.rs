@@ -1,14 +1,9 @@
 use super::query_threads_at;
 use rusqlite::{params, Connection};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
-fn temp_db_path(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-opencode-{name}-{stamp}.db"))
+fn temp_db_path(name: &str) -> std::path::PathBuf {
+    crate::test_support::temp_path("pad-opencode-history", name)
 }
 
 fn seed_db(path: &Path) {
