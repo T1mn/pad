@@ -2,7 +2,7 @@
 
 - `key_pipeline.rs`: key event routing by mode.
 - `input_clear.rs`: Shift+Delete bulk-clear handling for active text inputs.
-- `normal.rs`: normal mode key handling and preview Tab behavior.
+- `normal.rs` / `normal/`: normal mode routing plus global, preview, sidebar, and Tab key helpers.
 - `mode_dispatch.rs`: thin forwarding layer for non-normal modes.
 - `modes/`: per-mode key handlers, including notification inbox navigation.
 - `mouse.rs` / `mouse/` / `mouse_pipeline.rs`: mouse dispatch facade, hit testing, click/selection/hover/scroll handling.
