@@ -1,4 +1,5 @@
 use super::style::inline_code_style;
+use crate::text_match::contains_ignore_case;
 use crate::theme::Theme;
 use ratatui::{
     style::{Modifier, Style},
@@ -96,14 +97,20 @@ pub(crate) fn format_line(line: &str, theme: &Theme) -> Vec<Span<'static>> {
         }
     }
 
-    let lower = stripped.to_lowercase();
-    if lower.contains("error") || lower.contains("failed") {
+    if contains_ignore_case(stripped, "error") || contains_ignore_case(stripped, "failed") {
         return tokenize_inline_code(line, Style::default().fg(theme.error), theme);
     }
 
-    if lower.contains("success") || lower.contains("done") || stripped.contains("✓") {
+    if contains_ignore_case(stripped, "success")
+        || contains_ignore_case(stripped, "done")
+        || stripped.contains("✓")
+    {
         return tokenize_inline_code(line, Style::default().fg(theme.success), theme);
     }
 
     tokenize_inline_code(line, Style::default(), theme)
 }
+
+#[cfg(test)]
+#[path = "inline_tests.rs"]
+mod tests;
