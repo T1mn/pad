@@ -12,7 +12,7 @@
 - `preview_cache.rs`：右侧预览按路径、mtime 和大小缓存文件内容，记录慢加载日志。
 - `preview_render_cache.rs` / `preview_render_cache_tests.rs`：缓存右侧预览已渲染行，滚动时只取可见窗口及缓存失效测试。
 - `sizing.rs`：sider 45%-65% 小步宽度档位与 tmux resize。
-- `fs.rs`：文件统计、相对路径与完整文本读取。
+- `fs.rs` / `fs_tests.rs`：文件统计、相对路径与完整文本读取。
 - `ui/mod.rs`：ratatui 主循环，启用键盘与鼠标事件。
 - `ui/markdown.rs`：pad sider 的 Markdown 样式表与渲染入口。
 - `ui/render.rs` / `ui/overlay.rs` / `ui/diff.rs`：IDE 风格左右分栏、右侧文件/diff 预览、全屏预览与搜索弹层渲染。
