@@ -13,12 +13,14 @@ pub(crate) fn build_pad_status_body(
     let pending = if state.pending_requests.is_empty() {
         tg(locale, "status.pending_none").to_string()
     } else {
-        state
-            .pending_requests
-            .iter()
-            .map(|pending| pending_status_summary_line(locale, pending))
-            .collect::<Vec<_>>()
-            .join("\n")
+        let mut lines = String::new();
+        for pending in &state.pending_requests {
+            if !lines.is_empty() {
+                lines.push('\n');
+            }
+            lines.push_str(&pending_status_summary_line(locale, pending));
+        }
+        lines
     };
     format!(
         "{}: {}\n{}: {}\n{}:\n{}",
