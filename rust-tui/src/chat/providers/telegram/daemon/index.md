@@ -5,4 +5,4 @@
 - `maintenance.rs`：pending timeout/result、hook journal、rollout failure、approval 与 feedback 刷新。
 - `updates.rs`：getUpdates 拉取、重复 update 过滤与 command/callback 分发。
 - `process.rs` / `process/`：standalone/embedded daemon 启停、进程探活与 socket 清理。
-- `state_io.rs`：TelegramState 序列化与变更落盘 helper。
+- `state_io.rs` / `state_io_tests.rs`：TelegramState 序列化与变更落盘 helper。
