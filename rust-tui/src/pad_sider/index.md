@@ -10,7 +10,7 @@
 - `search.rs` / `search/`：`/` 文件 fuzzy 搜索状态、键盘输入与匹配。
 - `preview.rs`：右侧文件预览模型，区分 Markdown、文本、diff、目录与缺失文件。
 - `preview_cache.rs`：右侧预览按路径、mtime 和大小缓存文件内容，记录慢加载日志。
-- `preview_render_cache.rs`：缓存右侧预览已渲染行，滚动时只取可见窗口。
+- `preview_render_cache.rs` / `preview_render_cache_tests.rs`：缓存右侧预览已渲染行，滚动时只取可见窗口及缓存失效测试。
 - `sizing.rs`：sider 45%-65% 小步宽度档位与 tmux resize。
 - `fs.rs`：文件统计、相对路径与完整文本读取。
 - `ui/mod.rs`：ratatui 主循环，启用键盘与鼠标事件。
