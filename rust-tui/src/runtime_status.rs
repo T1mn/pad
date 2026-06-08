@@ -55,16 +55,6 @@ impl Drop for StatusGuard {
     }
 }
 
-#[allow(dead_code)]
-pub fn write_status(path: &Path, mode: &str) -> io::Result<()> {
-    let status = ProcessStatus {
-        pid: std::process::id(),
-        started_at: now_ts(),
-        mode: mode.to_string(),
-    };
-    write_status_body(path, &status)
-}
-
 pub fn read_status(path: &Path) -> Option<ProcessStatus> {
     let body = fs::read_to_string(path).ok()?;
     serde_json::from_str(&body).ok()
