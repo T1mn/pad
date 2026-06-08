@@ -5,4 +5,4 @@
 - `notification.rs` / `notification/` / `notification_text.rs`：生成完成通知、收件箱草稿、桌面通知与提示音。
 - `title_summary.rs`：Codex stop 后生成标题摘要请求。
 - `claude_history.rs`：Claude hook session upsert 参数整理。
-- `hooks_tests.rs`：hook 事件、线程活跃度、完成通知测试。
+- `hooks_tests.rs` / `hooks_tests/`：按 unread、activity、notification 分组的 hook 回归测试。
