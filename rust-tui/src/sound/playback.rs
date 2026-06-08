@@ -1,7 +1,7 @@
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(all(any(target_os = "linux", target_os = "macos"), not(test)))]
 use std::io;
 use std::path::Path;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(all(any(target_os = "linux", target_os = "macos"), not(test)))]
 use std::process::{Command, Stdio};
 
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
@@ -58,8 +58,7 @@ pub(super) fn macos_command_spec(
     })
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(all(any(target_os = "linux", target_os = "macos"), not(test)))]
 pub(super) fn spawn_audio(program: &str, args: &[String]) -> io::Result<()> {
     let mut child = Command::new(program)
         .args(args)
@@ -75,8 +74,7 @@ pub(super) fn spawn_audio(program: &str, args: &[String]) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(all(any(target_os = "linux", target_os = "macos"), not(test)))]
 pub(super) fn command_exists(program: &str) -> bool {
     let Some(paths) = std::env::var_os("PATH") else {
         return false;
@@ -85,8 +83,7 @@ pub(super) fn command_exists(program: &str) -> bool {
     std::env::split_paths(&paths).any(|dir| executable_exists(&dir.join(program)))
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(all(any(target_os = "linux", target_os = "macos"), not(test)))]
 fn executable_exists(path: &Path) -> bool {
     std::fs::metadata(path)
         .map(|meta| {
