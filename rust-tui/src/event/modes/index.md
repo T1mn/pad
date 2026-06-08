@@ -7,4 +7,5 @@
 - `tree.rs` / `file_preview.rs`: tree and file preview modes.
 - `fuzzy_picker.rs`: fuzzy picker input.
 - `agent_launcher.rs`: launch agent panes, with Codex `--profile pad` runtime wiring.
+- `notification_inbox.rs` / `notification_inbox_tests.rs`: notification inbox navigation and action keys.
 - Other files map one UI mode to one key handler.

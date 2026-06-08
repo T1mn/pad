@@ -22,21 +22,5 @@ pub(crate) fn handle_notification_inbox_mode(app: &mut App, key: KeyCode) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::app::state::Mode;
-    use crate::notification_inbox::NotificationEntry;
-
-    #[test]
-    fn escape_closes_inbox() {
-        let mut app = App::new();
-        app.mode = Mode::NotificationInbox;
-        app.notification_inbox
-            .entries
-            .push(NotificationEntry::default());
-
-        handle_notification_inbox_mode(&mut app, KeyCode::Esc);
-
-        assert!(matches!(app.mode, Mode::Normal));
-    }
-}
+#[path = "notification_inbox_tests.rs"]
+mod tests;
