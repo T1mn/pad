@@ -34,6 +34,15 @@ env:
   CROSS_VERSION: "0.2.5"
 
 jobs:
+  repository-structure:
+    name: Repository structure
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check index files
+        run: python3 ./scripts/ci/check_index.py
+
   installer-sync:
     name: Installer sync
     runs-on: ubuntu-24.04
