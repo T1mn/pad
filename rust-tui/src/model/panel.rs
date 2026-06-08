@@ -28,11 +28,6 @@ pub struct AgentPanel {
 }
 
 impl AgentPanel {
-    #[allow(dead_code)]
-    pub fn full_id(&self) -> String {
-        format!("{}:{}.{}", self.session, self.window, self.pane)
-    }
-
     pub fn status_icon(&self, animation_frame: usize) -> &'static str {
         self.state.icon(animation_frame)
     }

@@ -42,16 +42,4 @@ impl Locale {
             Locale::Fr => "Français",
         }
     }
-
-    #[allow(dead_code)]
-    pub fn next(&self) -> Self {
-        match self {
-            Locale::ZhCN => Locale::ZhTW,
-            Locale::ZhTW => Locale::En,
-            Locale::En => Locale::Ja,
-            Locale::Ja => Locale::De,
-            Locale::De => Locale::Fr,
-            Locale::Fr => Locale::ZhCN,
-        }
-    }
 }
