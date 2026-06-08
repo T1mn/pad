@@ -5,10 +5,11 @@ pub(crate) async fn process_pending_timeout(
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
     let locale = telegram_locale(config);
+    let now = now_ts();
     let timed_out = state
         .pending_requests
         .iter()
-        .filter(|pending| now_ts().saturating_sub(pending.sent_at) >= PENDING_TIMEOUT_SECS)
+        .filter(|pending| now.saturating_sub(pending.sent_at) >= PENDING_TIMEOUT_SECS)
         .cloned()
         .collect::<Vec<_>>();
 
