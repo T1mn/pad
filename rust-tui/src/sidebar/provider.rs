@@ -37,36 +37,5 @@ fn read_codex_session_provider_name(path: &Path) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::resolve_session_provider_name;
-    use crate::model::AgentType;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_rollout_path(name: &str) -> PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock before unix epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!("pad-sidebar-provider-{name}-{stamp}.jsonl"))
-    }
-
-    #[test]
-    fn resolve_session_provider_name_reads_codex_session_meta() {
-        let path = temp_rollout_path("codex");
-        fs::write(
-            &path,
-            concat!(
-                "{\"type\":\"session_meta\",\"payload\":{\"model_provider\":\"relay_a\"}}\n",
-                "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}\n"
-            ),
-        )
-        .expect("write rollout");
-
-        let resolved = resolve_session_provider_name(&AgentType::Codex, Some(&path));
-        assert_eq!(resolved.as_deref(), Some("relay_a"));
-
-        let _ = fs::remove_file(path);
-    }
-}
+#[path = "provider_tests.rs"]
+mod tests;
