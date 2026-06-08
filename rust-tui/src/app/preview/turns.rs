@@ -11,11 +11,6 @@ impl App {
         false
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn preview_uses_list_scroll(&self) -> bool {
-        self.has_session_preview_turns() && self.preview.view == PreviewView::SessionList
-    }
-
     pub(crate) fn preview_uses_detail_scroll(&self) -> bool {
         self.has_session_preview_turns() && self.preview.view == PreviewView::SessionDetail
     }
