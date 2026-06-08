@@ -108,7 +108,7 @@ fn search_matches_ascii_case_insensitively_without_lowercase_copy() {
         threads: vec![Arc::new(thread)],
     };
 
-    let items = build_visible_sidebar_items(&[folder], &Default::default(), "hotfix");
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "HOTFIX");
     assert_eq!(items.len(), 2);
     assert!(matches!(items[1], SidebarItem::Thread(_)));
 }
@@ -138,7 +138,7 @@ fn search_matches_agent_type_without_string_allocation() {
         threads: vec![Arc::new(sample_thread("a", "other"))],
     };
 
-    let items = build_visible_sidebar_items(&[folder], &Default::default(), "codex");
+    let items = build_visible_sidebar_items(&[folder], &Default::default(), "CODEX");
     assert_eq!(items.len(), 2);
     assert!(matches!(items[1], SidebarItem::Thread(_)));
 }

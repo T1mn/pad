@@ -11,17 +11,17 @@ pub fn build_visible_sidebar_items(
     expanded_folders: &std::collections::HashSet<String>,
     search_query: &str,
 ) -> Vec<SidebarItem> {
-    let query = search_query.trim().to_lowercase();
+    let query = search_query.trim();
     let searching = !query.is_empty();
     let mut items = Vec::new();
 
     for folder in folders {
-        let folder_matches = searching && folder_matches_search(folder, &query);
+        let folder_matches = searching && folder_matches_search(folder, query);
         let matching_threads = if searching {
             folder
                 .threads
                 .iter()
-                .filter(|thread| thread_matches_search(thread.as_ref(), &query))
+                .filter(|thread| thread_matches_search(thread.as_ref(), query))
                 .cloned()
                 .collect::<Vec<_>>()
         } else {

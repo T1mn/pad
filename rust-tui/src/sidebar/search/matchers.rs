@@ -29,7 +29,7 @@ pub(super) fn thread_matches_search(thread: &SidebarThread, query: &str) -> bool
             .cost
             .as_deref()
             .is_some_and(|value| contains_ignore_case(value, query))
-        || agent_type_label(&thread.agent_type).contains(query)
+        || contains_ignore_case(agent_type_label(&thread.agent_type), query)
         || thread
             .tags
             .iter()
