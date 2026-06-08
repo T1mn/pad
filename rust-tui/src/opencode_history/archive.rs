@@ -1,7 +1,6 @@
 use super::query::db_path_for_session;
 use super::util::{open_write, to_io_error};
 use std::io;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn set_archived(session_id: &str, archived: bool) -> io::Result<()> {
     let Some(db_path) = db_path_for_session(session_id)? else {
@@ -28,8 +27,5 @@ pub(crate) fn set_archived(session_id: &str, archived: bool) -> io::Result<()> {
 }
 
 fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as i64)
-        .unwrap_or_default()
+    crate::time::unix_now_millis() as i64
 }

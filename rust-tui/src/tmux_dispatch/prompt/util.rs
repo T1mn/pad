@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 pub(super) fn is_multiline(prompt: &str) -> bool {
     prompt.contains('\n') || prompt.contains('\r')
@@ -40,10 +40,7 @@ pub(super) fn submit_delay_for(prompt: &str, pasted: bool) -> Duration {
 }
 
 pub(super) fn now_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0)
+    crate::time::unix_now_millis()
 }
 
 #[cfg(test)]
