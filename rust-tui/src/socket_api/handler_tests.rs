@@ -1,4 +1,5 @@
-use super::*;
+use super::super::model::ApiRequest;
+use super::handle_request;
 
 #[test]
 fn rejects_unknown_action() {
