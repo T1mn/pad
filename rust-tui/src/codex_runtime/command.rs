@@ -19,7 +19,7 @@ fn codex_args_without_profile(agent_cmd: &str) -> String {
 }
 
 fn strip_profile_args(command: &str) -> String {
-    let mut out = Vec::new();
+    let mut out = String::new();
     let mut skip_next = false;
     for token in command.split_whitespace() {
         if skip_next {
@@ -33,9 +33,12 @@ fn strip_profile_args(command: &str) -> String {
         if token.starts_with("--profile=") {
             continue;
         }
-        out.push(token);
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(token);
     }
-    out.join(" ")
+    out
 }
 
 fn split_first_token(command: &str) -> Option<(&str, &str)> {

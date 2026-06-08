@@ -37,6 +37,19 @@ fn codex_agent_command_replaces_existing_profile_with_pad() {
 }
 
 #[test]
+fn codex_agent_command_strips_profile_variants() {
+    with_temp_home("strip-profile-variants", |_home| {
+        let short = with_pad_codex_runtime("codex -p work --model gpt-5");
+        let equals = with_pad_codex_runtime("codex --profile=work --model gpt-5");
+
+        assert!(short.contains("/.pad/scripts/pad-codex' --model gpt-5"));
+        assert!(equals.contains("/.pad/scripts/pad-codex' --model gpt-5"));
+        assert!(!short.contains("-p work"));
+        assert!(!equals.contains("--profile=work"));
+    });
+}
+
+#[test]
 fn codex_agent_command_uses_wrapper_instead_of_inlining_auth() {
     with_temp_home("auth", |_home| {
         let auth_path = crate::paths::pad_codex_auth_path();
