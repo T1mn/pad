@@ -5,7 +5,7 @@
 - `tmux.rs` / `tmux/`：F10 全屏 overlay 辅助栏、隐藏、恢复与 zoom 状态处理。
 - `codex_runs.rs` / `codex_runs_tests.rs`：Codex 单轮问答 diff 的右侧预览构建与测试。
 - `app.rs` / `app/` / `actions.rs` / `actions/`：辅助栏状态、刷新/选择/预览状态、左侧导航模式、Codex runs diff 预览、全屏文件预览、`index.md` 跳转与快捷键动作。
-- `index_map.rs`：递归扫描项目内所有 `index.md`，用缩进和短目录名生成结构化索引地图。
+- `index_map.rs` / `index_map_tests.rs`：递归扫描项目内所有 `index.md`，用缩进和短目录名生成结构化索引地图及测试。
 - `tree.rs` / `tree/`：tree 可见行模型、展开树构建、递归文件扫描与忽略目录规则。
 - `search.rs` / `search/`：`/` 文件 fuzzy 搜索状态、键盘输入与匹配。
 - `preview.rs`：右侧文件预览模型，区分 Markdown、文本、diff、目录与缺失文件。
