@@ -1,7 +1,7 @@
 #[path = "items/values.rs"]
 mod values;
 
-use super::super::helpers::settings_item_search_blob;
+use super::super::helpers::settings_item_matches_search;
 use super::super::*;
 use values::{codex_summary, display_mode_label, preview_mode_label, sound_summary, toggle_label};
 
@@ -111,12 +111,18 @@ impl App {
         if self.settings_search.is_empty() {
             return items;
         }
-        let query = self.settings_search.to_lowercase();
         let l = self.locale;
         items
             .into_iter()
             .filter(|(id, value, name_key, desc_key, _)| {
-                settings_item_search_blob(l, id, value, name_key, desc_key).contains(&query)
+                settings_item_matches_search(
+                    l,
+                    id,
+                    value,
+                    name_key,
+                    desc_key,
+                    &self.settings_search,
+                )
             })
             .collect()
     }

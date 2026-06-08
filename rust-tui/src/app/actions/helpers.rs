@@ -4,7 +4,7 @@ mod settings_search;
 mod thread_meta;
 mod toast;
 
-pub(crate) use settings_search::settings_item_search_blob;
+pub(crate) use settings_search::{settings_item_matches_search, settings_item_search_blob};
 pub(super) use thread_meta::{parse_thread_tags, thread_meta_save_failed_title, thread_meta_toast};
 pub(super) use toast::{
     delete_failed_title, delete_hide_failed_title, failure_toast_title, success_toast_title,
