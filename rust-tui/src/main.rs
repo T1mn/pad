@@ -48,6 +48,7 @@ mod test_support;
 mod theme;
 mod thread_meta;
 mod title_summary;
+mod tmux_bindings;
 mod tmux_capabilities;
 mod tmux_dispatch;
 mod tree;
