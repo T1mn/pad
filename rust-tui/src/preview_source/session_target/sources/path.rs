@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {
     if left == right {
@@ -17,10 +16,8 @@ pub(crate) fn transcript_updated_at(path: &Path) -> Option<i64> {
     std::fs::metadata(path)
         .ok()?
         .modified()
-        .ok()?
-        .duration_since(UNIX_EPOCH)
         .ok()
-        .map(|duration| duration.as_secs() as i64)
+        .and_then(crate::time::system_time_unix_secs)
 }
 
 pub(in crate::preview_source::session_target) fn find_matching_jsonl<F>(

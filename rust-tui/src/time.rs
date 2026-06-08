@@ -27,3 +27,9 @@ pub(crate) fn unix_now_secs() -> u64 {
         .map(|duration| duration.as_secs())
         .unwrap_or_default()
 }
+
+pub(crate) fn system_time_unix_secs(time: SystemTime) -> Option<i64> {
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs() as i64)
+}

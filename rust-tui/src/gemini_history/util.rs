@@ -1,7 +1,6 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 mod timestamp;
 
@@ -40,8 +39,7 @@ pub(crate) fn file_mtime_secs(path: &Path) -> Option<i64> {
     path.metadata()
         .ok()
         .and_then(|metadata| metadata.modified().ok())
-        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs() as i64)
+        .and_then(crate::time::system_time_unix_secs)
 }
 
 pub(crate) fn read_text(path: &Path) -> io::Result<String> {

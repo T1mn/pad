@@ -1,7 +1,6 @@
 use super::model::SessionContinuityRecord;
 use std::fs;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
 
 pub(super) fn observe_transcript(
     record: &mut SessionContinuityRecord,
@@ -21,8 +20,7 @@ pub(super) fn observe_transcript(
     record.last_rollout_mtime = metadata
         .modified()
         .ok()
-        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs() as i64);
+        .and_then(crate::time::system_time_unix_secs);
 }
 
 pub(super) fn clean_text(value: Option<&str>) -> Option<&str> {

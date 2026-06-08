@@ -1,14 +1,12 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 pub(crate) fn file_mtime_secs(path: &Path) -> io::Result<i64> {
     fs::metadata(path)?
         .modified()
         .ok()
-        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs() as i64)
+        .and_then(crate::time::system_time_unix_secs)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "failed to read file mtime"))
 }
 
