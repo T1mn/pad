@@ -7,7 +7,7 @@
 - `folder_row.rs`: folder/group row rendering。
 - `thread_row.rs` / `thread_row/` / `thread_subtitle.rs`: thread row rendering、subtitle/tags 与 jump badges。
 - `viewport.rs`: only build rows around the visible sidebar selection to keep redraws cheap。
-- `width.rs`: cache preferred sidebar width so layout does not rescan visible rows every frame。
+- `width.rs` / `width_tests.rs`: cache preferred sidebar width so layout does not rescan visible rows every frame，并覆盖缓存失效测试。
 - `style.rs`: sidebar colors and shared style helpers。
 - `animation.rs`: busy/waiting badge animation。
 - `metrics.rs`: display width and truncation helpers。
