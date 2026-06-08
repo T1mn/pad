@@ -30,5 +30,5 @@ impl Renderer {
 }
 
 pub(super) fn code_block_style_for(renderer: &Renderer) -> Style {
-    code_block_style(renderer.code_language.as_deref())
+    code_block_style(renderer.code_language)
 }

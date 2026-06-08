@@ -3,6 +3,17 @@ use ratatui::{
     text::{Line, Span},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::pad_sider::ui::markdown) enum CodeBlockLanguage {
+    Shell,
+    Rust,
+    JavaScript,
+    TypeScript,
+    Python,
+    Data,
+    Markdown,
+}
+
 pub(in crate::pad_sider::ui::markdown) struct Renderer {
     pub(in crate::pad_sider::ui::markdown) lines: Vec<Line<'static>>,
     pub(in crate::pad_sider::ui::markdown) current: Vec<Span<'static>>,
@@ -15,7 +26,7 @@ pub(in crate::pad_sider::ui::markdown) struct Renderer {
     pub(in crate::pad_sider::ui::markdown) strong_depth: usize,
     pub(in crate::pad_sider::ui::markdown) strike_depth: usize,
     pub(in crate::pad_sider::ui::markdown) code_block: bool,
-    pub(in crate::pad_sider::ui::markdown) code_language: Option<String>,
+    pub(in crate::pad_sider::ui::markdown) code_language: Option<CodeBlockLanguage>,
 }
 
 pub(in crate::pad_sider::ui::markdown) struct ListState {

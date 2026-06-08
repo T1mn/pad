@@ -93,3 +93,19 @@ fn code_block_language_changes_color() {
     assert_eq!(bash_span.style.fg, Some(Color::Rgb(158, 206, 106)));
     assert_eq!(python_span.style.fg, Some(Color::Rgb(122, 162, 247)));
 }
+
+#[test]
+fn code_block_language_is_case_insensitive_without_allocating_label() {
+    let text = render_markdown(
+        "```PYTHON
+print('ok')
+```",
+    );
+    let span = text.lines[0]
+        .spans
+        .iter()
+        .find(|span| span.content.contains("print"))
+        .unwrap();
+
+    assert_eq!(span.style.fg, Some(Color::Rgb(122, 162, 247)));
+}

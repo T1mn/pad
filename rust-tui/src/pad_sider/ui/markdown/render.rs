@@ -5,7 +5,7 @@ mod lines;
 mod state;
 mod styles;
 
-pub(super) use state::{ItemPrefix, ListState, Renderer};
+pub(super) use state::{CodeBlockLanguage, ItemPrefix, ListState, Renderer};
 
 pub fn render_markdown(input: &str) -> Text<'static> {
     Renderer::new().render(input)

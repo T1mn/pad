@@ -1,4 +1,4 @@
-use super::render::{ItemPrefix, ListState, Renderer};
+use super::render::{CodeBlockLanguage, ItemPrefix, ListState, Renderer};
 use super::style::heading_level;
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use ratatui::{
@@ -130,9 +130,29 @@ impl Renderer {
     }
 }
 
-fn first_code_language(info: &str) -> Option<String> {
-    info.split_whitespace()
-        .next()
-        .map(|lang| lang.trim_start_matches('.').to_ascii_lowercase())
-        .filter(|lang| !lang.is_empty())
+fn first_code_language(info: &str) -> Option<CodeBlockLanguage> {
+    let lang = info.split_whitespace().next()?.trim_start_matches('.');
+    if matches_any_ignore_ascii_case(lang, &["bash", "sh", "shell", "zsh"]) {
+        Some(CodeBlockLanguage::Shell)
+    } else if matches_any_ignore_ascii_case(lang, &["rust", "rs"]) {
+        Some(CodeBlockLanguage::Rust)
+    } else if matches_any_ignore_ascii_case(lang, &["js", "javascript", "jsx"]) {
+        Some(CodeBlockLanguage::JavaScript)
+    } else if matches_any_ignore_ascii_case(lang, &["ts", "typescript", "tsx"]) {
+        Some(CodeBlockLanguage::TypeScript)
+    } else if matches_any_ignore_ascii_case(lang, &["py", "python"]) {
+        Some(CodeBlockLanguage::Python)
+    } else if matches_any_ignore_ascii_case(lang, &["json", "toml", "yaml", "yml"]) {
+        Some(CodeBlockLanguage::Data)
+    } else if matches_any_ignore_ascii_case(lang, &["md", "markdown"]) {
+        Some(CodeBlockLanguage::Markdown)
+    } else {
+        None
+    }
+}
+
+fn matches_any_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
+    candidates
+        .iter()
+        .any(|candidate| value.eq_ignore_ascii_case(candidate))
 }

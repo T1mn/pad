@@ -1,3 +1,4 @@
+use super::render::CodeBlockLanguage;
 use pulldown_cmark::HeadingLevel;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
@@ -36,13 +37,13 @@ pub fn heading_level(level: HeadingLevel) -> u8 {
     }
 }
 
-pub fn code_block_style(language: Option<&str>) -> Style {
+pub fn code_block_style(language: Option<CodeBlockLanguage>) -> Style {
     Style::default()
         .fg(code_language_color(language))
         .bg(CODE_BG)
 }
 
-pub fn code_block_prefix_style(language: Option<&str>) -> Style {
+pub fn code_block_prefix_style(language: Option<CodeBlockLanguage>) -> Style {
     let fg = if language.is_some() {
         code_language_color(language)
     } else {
@@ -51,16 +52,16 @@ pub fn code_block_prefix_style(language: Option<&str>) -> Style {
     Style::default().fg(fg).bg(CODE_BG)
 }
 
-fn code_language_color(language: Option<&str>) -> Color {
-    match language.unwrap_or_default() {
-        "bash" | "sh" | "shell" | "zsh" => Color::Rgb(158, 206, 106),
-        "rust" | "rs" => Color::Rgb(255, 158, 100),
-        "js" | "javascript" | "jsx" => Color::Rgb(224, 175, 104),
-        "ts" | "typescript" | "tsx" => Color::Rgb(125, 207, 255),
-        "py" | "python" => Color::Rgb(122, 162, 247),
-        "json" | "toml" | "yaml" | "yml" => Color::Rgb(187, 154, 247),
-        "md" | "markdown" => Color::Rgb(115, 218, 202),
-        _ => CODE_FG,
+fn code_language_color(language: Option<CodeBlockLanguage>) -> Color {
+    match language {
+        Some(CodeBlockLanguage::Shell) => Color::Rgb(158, 206, 106),
+        Some(CodeBlockLanguage::Rust) => Color::Rgb(255, 158, 100),
+        Some(CodeBlockLanguage::JavaScript) => Color::Rgb(224, 175, 104),
+        Some(CodeBlockLanguage::TypeScript) => Color::Rgb(125, 207, 255),
+        Some(CodeBlockLanguage::Python) => Color::Rgb(122, 162, 247),
+        Some(CodeBlockLanguage::Data) => Color::Rgb(187, 154, 247),
+        Some(CodeBlockLanguage::Markdown) => Color::Rgb(115, 218, 202),
+        None => CODE_FG,
     }
 }
 

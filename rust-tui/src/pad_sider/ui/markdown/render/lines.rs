@@ -47,7 +47,7 @@ impl Renderer {
 
         if !prefix.is_empty() {
             let style = if self.code_block {
-                code_block_prefix_style(self.code_language.as_deref())
+                code_block_prefix_style(self.code_language)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
