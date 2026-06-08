@@ -1,17 +1,6 @@
+use super::modes;
 use crate::app::App;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io;
-
-use super::{attach, modes};
-
-#[cfg_attr(test, allow(dead_code))]
-pub(super) fn handle_attach(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut App,
-) -> io::Result<()> {
-    attach::handle_attach(terminal, app)
-}
 
 pub(super) fn handle_fuzzy_picker_mode(app: &mut App, key: crossterm::event::KeyEvent) {
     modes::handle_fuzzy_picker_mode(app, key);

@@ -12,7 +12,7 @@ use ratatui::{backend::Backend, Terminal};
 use std::io;
 
 #[cfg(not(test))]
-use super::mode_dispatch::handle_attach;
+use super::attach::handle_attach;
 
 #[cfg(not(test))]
 pub(super) fn handle_normal_mode(
