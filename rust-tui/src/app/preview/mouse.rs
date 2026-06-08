@@ -26,11 +26,6 @@ impl App {
         true
     }
 
-    #[allow(dead_code)]
-    pub fn preview_mouse_selection(&self) -> Option<&PreviewMouseSelection> {
-        self.preview.mouse_selection.as_ref()
-    }
-
     pub fn clear_preview_mouse_selection(&mut self) -> bool {
         if self.preview.mouse_selection.take().is_some() {
             self.dirty = true;
