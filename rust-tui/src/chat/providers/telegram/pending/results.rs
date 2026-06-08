@@ -4,12 +4,11 @@ pub(crate) async fn process_pending_result_delivery(
     config: &Config,
     state: &mut TelegramState,
 ) -> TelegramResult<()> {
+    let now = now_ts();
     let request_ids = state
         .pending_requests
         .iter()
-        .filter(|pending| {
-            pending.phase == "delivering_result" && pending.delivery_retry_at <= now_ts()
-        })
+        .filter(|pending| pending.phase == "delivering_result" && pending.delivery_retry_at <= now)
         .map(|pending| pending.request_id.clone())
         .collect::<Vec<_>>();
 
