@@ -8,4 +8,4 @@
 - `history_claude.rs` / `history_codex.rs` / `history_codex/` / `history_gemini.rs` / `history_opencode.rs`：历史会话构建；Codex 拆分 merge、entry 与 session cache snapshot。
 - `activity.rs` / `activity/` / `meta.rs`：活跃度合并、排序覆盖与元信息补全。
 - `trash.rs` / `trash/`：回收区 folder 聚合与各 agent deleted thread 转换。
-- `tests.rs`：构建流程测试。
+- `tests.rs` / `tests/`：构建流程、history entry、activity merge 与 meta 覆盖测试。

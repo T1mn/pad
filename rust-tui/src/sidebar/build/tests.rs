@@ -10,207 +10,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-fn folder() -> SidebarFolder {
-    SidebarFolder {
-        key: "/repo".into(),
-        path: "/repo".into(),
-        label: "repo".into(),
-        updated_at: 0,
-        threads: Vec::new(),
-    }
+mod activity {
+    use super::*;
+    include!("tests/activity.rs");
 }
 
-fn codex_thread() -> CodexThreadRef {
-    CodexThreadRef {
-        thread_id: "sid-1".into(),
-        cwd: PathBuf::from("/repo"),
-        updated_at: 42,
-        rollout_path: PathBuf::from("/repo/.codex/sid-1.jsonl"),
-        title: Some("upstream title".into()),
-        first_user_message: Some("old first prompt".into()),
-        source: None,
-        archived: false,
-    }
+mod history {
+    use super::*;
+    include!("tests/history.rs");
 }
 
-#[test]
-fn codex_history_prefers_session_cache_prompt_for_subtitle() {
-    let thread = build_codex_history_entry(
-        &folder(),
-        &codex_thread(),
-        Some(&SessionCacheSnapshot {
-            agent_session_id: "sid-1".into(),
-            transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
-            recent_turns: vec![PreviewTurn {
-                question: "newest prompt".into(),
-                answer: Some("answer".into()),
-            }]
-            .into(),
-            last_user_prompt: Some("newest prompt".into()),
-            last_assistant_message: Some("answer".into()),
-            state: SessionCacheState::Cached,
-        }),
-        false,
-    );
-
-    assert_eq!(thread.subtitle.as_deref(), Some("newest prompt"));
-    assert_eq!(thread.last_user_prompt.as_deref(), Some("newest prompt"));
-    assert_eq!(thread.cached_preview_turns.len(), 1);
+mod meta {
+    use super::*;
+    include!("tests/meta.rs");
 }
 
-#[test]
-fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
-    let mut threads = vec![Arc::new(SidebarThread {
-        key: "live:%1".into(),
-        folder_key: "/repo".into(),
-        working_dir: "/repo".into(),
-        folder_label: "repo".into(),
-        agent_type: AgentType::Codex,
-        session_id: Some("sid-1".into()),
-        transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
-        session_provider_name: None,
-        title: "live".into(),
-        upstream_title: None,
-        generated_title: None,
-        subtitle: None,
-        title_override: None,
-        note: None,
-        share_url: None,
-        cost: None,
-        token_summary: None,
-        tags: Vec::new(),
-        pinned: false,
-        updated_at: 1,
-        sort_updated_at: 1,
-        live_pane_id: Some("%1".into()),
-        live_location: None,
-        pid: None,
-        git_info: None,
-        state: AgentState::Idle,
-        is_active: false,
-        cached_preview_turns: Default::default(),
-        session_cache_state: None,
-        last_user_prompt: None,
-        last_assistant_message: None,
-        has_unread_stop: false,
-        archived: false,
-        deleted: false,
-    })];
-
-    let history = build_codex_history_entry(
-        &folder(),
-        &codex_thread(),
-        Some(&SessionCacheSnapshot {
-            agent_session_id: "sid-1".into(),
-            transcript_path: Some("/repo/.codex/sid-1.jsonl".into()),
-            recent_turns: vec![PreviewTurn {
-                question: "newest prompt".into(),
-                answer: None,
-            }]
-            .into(),
-            last_user_prompt: Some("newest prompt".into()),
-            last_assistant_message: None,
-            state: SessionCacheState::Cached,
-        }),
-        false,
-    );
-
-    merge_or_insert_thread(&mut threads, history, &[], &HashMap::new(), &HashMap::new());
-
-    assert_eq!(threads.len(), 1);
-    assert_eq!(threads[0].subtitle.as_deref(), Some("newest prompt"));
-    assert_eq!(
-        threads[0].last_user_prompt.as_deref(),
-        Some("newest prompt")
-    );
-    assert_eq!(threads[0].cached_preview_turns.len(), 1);
-    assert_eq!(
-        threads[0].session_cache_state,
-        Some(SessionCacheState::Cached)
-    );
-}
-
-#[test]
-fn active_view_history_entries_do_not_sort_by_updated_at_without_explicit_activity() {
-    let thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
-    assert_eq!(thread.updated_at, 42);
-    assert_eq!(thread.sort_updated_at, 0);
-}
-
-#[test]
-fn archived_view_history_entries_keep_updated_at_sorting() {
-    let thread = build_codex_history_entry(&folder(), &codex_thread(), None, true);
-    assert_eq!(thread.updated_at, 42);
-    assert_eq!(thread.sort_updated_at, 42);
-}
-
-#[test]
-fn startup_sort_seed_applies_when_runtime_activity_is_missing() {
-    let mut threads = Vec::new();
-    let history = build_codex_history_entry(&folder(), &codex_thread(), None, false);
-    let startup = HashMap::from([(String::from("codex:sid:sid-1"), 99)]);
-
-    merge_or_insert_thread(&mut threads, history, &[], &HashMap::new(), &startup);
-
-    assert_eq!(threads.len(), 1);
-    assert_eq!(threads[0].sort_updated_at, 99);
-}
-
-#[test]
-fn runtime_sort_activity_overrides_startup_seed() {
-    let mut threads = Vec::new();
-    let history = build_codex_history_entry(&folder(), &codex_thread(), None, false);
-    let runtime = HashMap::from([(String::from("codex:path:/repo/.codex/sid-1.jsonl"), 120)]);
-    let startup = HashMap::from([(String::from("codex:sid:sid-1"), 99)]);
-
-    merge_or_insert_thread(&mut threads, history, &[], &runtime, &startup);
-
-    assert_eq!(threads.len(), 1);
-    assert_eq!(threads[0].sort_updated_at, 120);
-}
-
-#[test]
-fn manual_title_override_wins_over_generated_summary_for_title() {
-    let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
-    apply_thread_meta(
-        &mut thread,
-        &ThreadMeta {
-            title_override: Some("Manual title".into()),
-            generated_title: Some("Generated title".into()),
-            generated_turn_count: Some(9),
-            generated_updated_at: Some(123),
-            deleted: false,
-            deleted_at: None,
-            note: None,
-            pinned: false,
-            tags: Vec::new(),
-            updated_at: 123,
-        },
-    );
-
-    assert_eq!(thread.title, "Manual title");
-    assert_eq!(thread.generated_title.as_deref(), Some("Generated title"));
-}
-
-#[test]
-fn generated_summary_does_not_replace_session_title() {
-    let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
-    apply_thread_meta(
-        &mut thread,
-        &ThreadMeta {
-            title_override: None,
-            generated_title: Some("Generated title".into()),
-            generated_turn_count: Some(9),
-            generated_updated_at: Some(123),
-            deleted: false,
-            deleted_at: None,
-            note: None,
-            pinned: false,
-            tags: Vec::new(),
-            updated_at: 123,
-        },
-    );
-
-    assert_eq!(thread.title, "upstream title");
-    assert_eq!(thread.generated_title.as_deref(), Some("Generated title"));
+mod support {
+    use super::*;
+    include!("tests/support.rs");
 }
