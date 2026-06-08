@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 pub(crate) fn file_mtime_secs(path: &Path) -> io::Result<i64> {
     fs::metadata(path)?
@@ -13,11 +13,7 @@ pub(crate) fn file_mtime_secs(path: &Path) -> io::Result<i64> {
 }
 
 pub(crate) fn now_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
+    crate::time::unix_now_ts()
 }
 
 pub(crate) fn normalize_path(path: &Path) -> PathBuf {

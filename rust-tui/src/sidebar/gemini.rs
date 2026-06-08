@@ -1,6 +1,5 @@
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const ACTIVE_THREAD_MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60;
 
@@ -92,12 +91,7 @@ fn is_recent_thread(thread: &crate::gemini_history::GeminiThreadRef) -> bool {
 }
 
 fn active_cutoff_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
-        .saturating_sub(ACTIVE_THREAD_MAX_AGE_SECS)
+    crate::time::unix_now_ts().saturating_sub(ACTIVE_THREAD_MAX_AGE_SECS)
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
