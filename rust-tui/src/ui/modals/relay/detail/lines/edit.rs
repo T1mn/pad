@@ -2,10 +2,10 @@ use crate::app::App;
 use crate::theme::Theme;
 use ratatui::style::{Modifier, Style};
 
-pub(super) struct RelayEditState<'a> {
-    pub(super) editing: bool,
-    pub(super) field: usize,
-    pub(super) buffer: &'a str,
+pub(in crate::ui::modals::relay::detail) struct RelayEditState<'a> {
+    pub(in crate::ui::modals::relay::detail) editing: bool,
+    pub(in crate::ui::modals::relay::detail) field: usize,
+    pub(in crate::ui::modals::relay::detail) buffer: &'a str,
     theme: &'a Theme,
 }
 

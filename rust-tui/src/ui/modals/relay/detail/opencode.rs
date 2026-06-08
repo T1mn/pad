@@ -1,4 +1,4 @@
-use super::lines::detail_line;
+use super::lines::{detail_line, RelayEditState};
 use crate::i18n::Locale;
 use crate::theme::{AgentConfig, ProviderConfig, Theme};
 use ratatui::{
@@ -6,62 +6,74 @@ use ratatui::{
     text::{Line, Span},
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn opencode_detail_lines(
-    agent: &AgentConfig,
-    provider: &ProviderConfig,
-    theme: &Theme,
-    locale: Locale,
-    make_val: &impl Fn(usize, &str) -> String,
-    field_style: &impl Fn(usize) -> Style,
-    masked_api_key: String,
-    editing: bool,
-    field: usize,
-    edit_buffer: &str,
-) -> Vec<Line<'static>> {
-    let models_summary = opencode_models_summary(provider);
+pub(super) struct OpencodeDetailContext<'a, MakeVal, FieldStyle>
+where
+    MakeVal: Fn(usize, &str) -> String,
+    FieldStyle: Fn(usize) -> Style,
+{
+    pub(super) agent: &'a AgentConfig,
+    pub(super) provider: &'a ProviderConfig,
+    pub(super) theme: &'a Theme,
+    pub(super) locale: Locale,
+    pub(super) make_val: &'a MakeVal,
+    pub(super) field_style: &'a FieldStyle,
+    pub(super) masked_api_key: String,
+    pub(super) edit: &'a RelayEditState<'a>,
+}
+
+pub(super) fn opencode_detail_lines<MakeVal, FieldStyle>(
+    ctx: OpencodeDetailContext<'_, MakeVal, FieldStyle>,
+) -> Vec<Line<'static>>
+where
+    MakeVal: Fn(usize, &str) -> String,
+    FieldStyle: Fn(usize) -> Style,
+{
+    let models_summary = opencode_models_summary(ctx.provider);
     vec![
-        detail_line(theme, locale, "relay.label"),
-        Line::from(Span::styled(make_val(0, &provider.label), field_style(0))),
-        Line::from(""),
-        detail_line(theme, locale, "relay.provider_key"),
+        detail_line(ctx.theme, ctx.locale, "relay.label"),
         Line::from(Span::styled(
-            make_val(1, provider.opencode_provider_key()),
-            field_style(1),
+            (ctx.make_val)(0, &ctx.provider.label),
+            (ctx.field_style)(0),
         )),
         Line::from(""),
-        detail_line(theme, locale, "relay.npm_package"),
+        detail_line(ctx.theme, ctx.locale, "relay.provider_key"),
         Line::from(Span::styled(
-            make_val(2, provider.opencode_npm_package()),
-            field_style(2),
+            (ctx.make_val)(1, ctx.provider.opencode_provider_key()),
+            (ctx.field_style)(1),
         )),
         Line::from(""),
-        detail_line(theme, locale, "relay.base_url"),
+        detail_line(ctx.theme, ctx.locale, "relay.npm_package"),
         Line::from(Span::styled(
-            make_val(3, &provider.base_url),
-            field_style(3),
+            (ctx.make_val)(2, ctx.provider.opencode_npm_package()),
+            (ctx.field_style)(2),
         )),
         Line::from(""),
-        detail_line(theme, locale, "relay.api_key"),
+        detail_line(ctx.theme, ctx.locale, "relay.base_url"),
         Line::from(Span::styled(
-            if editing && field == 4 {
-                format!("{}|", edit_buffer)
+            (ctx.make_val)(3, &ctx.provider.base_url),
+            (ctx.field_style)(3),
+        )),
+        Line::from(""),
+        detail_line(ctx.theme, ctx.locale, "relay.api_key"),
+        Line::from(Span::styled(
+            if ctx.edit.editing && ctx.edit.field == 4 {
+                format!("{}|", ctx.edit.buffer)
             } else {
-                masked_api_key
+                ctx.masked_api_key
             },
-            field_style(4),
+            (ctx.field_style)(4),
         )),
         Line::from(""),
-        detail_line(theme, locale, "relay.models"),
-        Line::from(Span::styled(models_summary, field_style(5))),
+        detail_line(ctx.theme, ctx.locale, "relay.models"),
+        Line::from(Span::styled(models_summary, (ctx.field_style)(5))),
         Line::from(""),
         Line::from(Span::styled(
             format!(
                 "model: {}  ·  small: {}",
-                dash_if_empty(&agent.default_model),
-                dash_if_empty(&agent.small_model)
+                dash_if_empty(&ctx.agent.default_model),
+                dash_if_empty(&ctx.agent.small_model)
             ),
-            Style::default().fg(theme.comment),
+            Style::default().fg(ctx.theme.comment),
         )),
     ]
 }

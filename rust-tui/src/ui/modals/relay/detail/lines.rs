@@ -3,12 +3,12 @@ mod default;
 mod edit;
 mod secret;
 
-use super::opencode::opencode_detail_lines;
-use super::test_status::append_provider_test_lines;
+use super::opencode::{opencode_detail_lines, OpencodeDetailContext};
+use super::test_status::{append_provider_test_lines, ProviderTestStatus};
 use crate::app::App;
 use crate::i18n::Locale;
 use crate::theme::{AgentConfig, ProviderConfig, Theme};
-use edit::RelayEditState;
+pub(in crate::ui::modals::relay::detail) use edit::RelayEditState;
 use ratatui::{
     style::{Modifier, Style},
     text::{Line, Span},
@@ -28,18 +28,16 @@ pub(super) fn relay_detail_lines(
     let masked_api_key = masked_api_key(app, agent, provider);
 
     let mut detail_lines = if agent.name == "opencode" {
-        opencode_detail_lines(
+        opencode_detail_lines(OpencodeDetailContext {
             agent,
             provider,
             theme,
             locale,
-            &make_val,
-            &field_style,
+            make_val: &make_val,
+            field_style: &field_style,
             masked_api_key,
-            edit.editing,
-            edit.field,
-            edit.buffer,
-        )
+            edit: &edit,
+        })
     } else {
         default::default_detail_lines(
             provider,
@@ -55,13 +53,15 @@ pub(super) fn relay_detail_lines(
 
     append_provider_test_lines(
         &mut detail_lines,
-        app.provider_test_in_progress,
-        provider.test_status,
-        provider.test_http_status,
-        provider.test_latency_ms,
-        provider.test_result.as_deref(),
-        theme,
-        locale,
+        ProviderTestStatus {
+            in_progress: app.provider_test_in_progress,
+            status: provider.test_status,
+            http_status: provider.test_http_status,
+            latency_ms: provider.test_latency_ms,
+            result: provider.test_result.as_deref(),
+            theme,
+            locale,
+        },
     );
 
     detail_lines
