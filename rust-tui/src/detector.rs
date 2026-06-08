@@ -1,4 +1,5 @@
 use crate::scanner::strip_ansi;
+use crate::text_match::contains_ascii_ignore_case;
 
 const TAIL_LINES_FOR_STATE: usize = 5;
 const BRAILLE_SPINNERS: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -38,25 +39,18 @@ pub fn detect_state(raw_content: &str) -> super::model::AgentState {
     use super::model::AgentState;
 
     let content = strip_ansi(raw_content);
-    let tail = tail_for_state_detection(&content);
-    let tail_lower = tail.to_lowercase();
 
     // --- Busy detection (highest priority) ---
     // Braille spinner characters (U+2800-28FF subset used by CLI spinners)
-    if BRAILLE_SPINNERS.iter().any(|ch| tail.contains(*ch))
-        || STAR_SPINNERS.iter().any(|ch| tail.contains(*ch))
-        || BUSY_KEYWORDS
-            .iter()
-            .any(|keyword| tail_lower.contains(keyword))
+    if tail_contains_char(&content, &BRAILLE_SPINNERS)
+        || tail_contains_char(&content, &STAR_SPINNERS)
+        || tail_contains_ascii_pattern(&content, &BUSY_KEYWORDS)
     {
         return AgentState::Busy;
     }
 
     // --- Waiting detection ---
-    if WAITING_PATTERNS
-        .iter()
-        .any(|pattern| tail_lower.contains(pattern))
-    {
+    if tail_contains_ascii_pattern(&content, &WAITING_PATTERNS) {
         return AgentState::Waiting;
     }
     // Prompt characters at end of last non-empty line
@@ -78,13 +72,20 @@ pub fn detect_state(raw_content: &str) -> super::model::AgentState {
     AgentState::Idle
 }
 
-fn tail_for_state_detection(content: &str) -> String {
-    content
-        .lines()
-        .rev()
-        .take(TAIL_LINES_FOR_STATE)
-        .collect::<Vec<_>>()
-        .join("\n")
+fn tail_lines_for_state_detection(content: &str) -> impl Iterator<Item = &str> {
+    content.lines().rev().take(TAIL_LINES_FOR_STATE)
+}
+
+fn tail_contains_char(content: &str, chars: &[char]) -> bool {
+    tail_lines_for_state_detection(content).any(|line| chars.iter().any(|ch| line.contains(*ch)))
+}
+
+fn tail_contains_ascii_pattern(content: &str, patterns: &[&str]) -> bool {
+    tail_lines_for_state_detection(content).any(|line| {
+        patterns
+            .iter()
+            .any(|pattern| contains_ascii_ignore_case(line, pattern))
+    })
 }
 
 #[cfg(test)]

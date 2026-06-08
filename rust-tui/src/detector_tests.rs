@@ -11,6 +11,16 @@ fn busy_keywords_take_priority() {
 }
 
 #[test]
+fn busy_keywords_match_case_insensitively_without_tail_copy() {
+    assert_eq!(detect_state("THINKING\n>"), AgentState::Busy);
+}
+
+#[test]
+fn waiting_patterns_match_case_insensitively_without_tail_copy() {
+    assert_eq!(detect_state("YES, ALLOW ONCE"), AgentState::Waiting);
+}
+
+#[test]
 fn waiting_prompt_is_detected_from_last_non_empty_line() {
     assert_eq!(detect_state("done\n\n$"), AgentState::Waiting);
 }
