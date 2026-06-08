@@ -30,11 +30,6 @@ impl FuzzyPicker {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn is_active(&self) -> bool {
-        self.active
-    }
-
     /// Update filter based on current query
     fn update_filter(&mut self) {
         self.filtered = search::filter_items(&self.items, &self.query);
