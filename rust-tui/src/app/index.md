@@ -2,6 +2,7 @@
 
 - `mod.rs`：`App` 状态与通用方法。
 - `lifecycle.rs`：`App::new` 初始化。
+- `time.rs`：app 级时间戳与 handoff trace id helper。
 - `state/`：UI 与运行态结构。
 - `actions.rs` / `actions/`：用户动作封装。
 - `async_ops.rs`：扫描、预览、provider 测试异步入口。

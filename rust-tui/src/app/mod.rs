@@ -6,6 +6,7 @@ mod lifecycle;
 pub mod navigation;
 pub mod preview;
 pub mod state;
+mod time;
 
 use crate::fuzzy::FuzzyPicker;
 use crate::hook::HookEvent;
@@ -25,7 +26,8 @@ pub use state::{
 };
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
+pub(crate) use time::{new_handoff_trace, unix_now_ts};
 use tokio::sync::mpsc;
 
 const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
@@ -196,21 +198,4 @@ impl App {
         };
         self.apply_display_session_scope(next_scope, false)
     }
-}
-
-pub(crate) fn unix_now_ts() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
-}
-
-pub(crate) fn new_handoff_trace(prefix: &str) -> String {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_millis())
-        .unwrap_or_default();
-    format!("{prefix}-{stamp}-{}", std::process::id())
 }
