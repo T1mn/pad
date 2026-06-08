@@ -11,5 +11,5 @@
 - `preview.rs`：预览焦点、滚动、缓存控制。
 - `navigation/`：面板、sidebar 列表、folder 与 tree 选择同步。
 - `hooks.rs` / `hooks/`：hook 事件分发、pane/app-thread 状态应用、通知与历史同步。
-- `clipboard.rs` / `clipboard/`：系统剪贴板读写与 toast。
+- `clipboard.rs` / `clipboard/` / `clipboard_tests.rs`：系统剪贴板读写与 toast。
 - `preview/`、`hooks/`、`async_ops/*_tests.rs`：对应模块测试。

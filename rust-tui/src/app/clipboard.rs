@@ -5,8 +5,6 @@ use super::App;
 use crate::log_debug;
 use system::copy_text_to_clipboard;
 pub use system::read_text_from_clipboard;
-#[cfg(test)]
-use toast::summarize_copy_preview;
 
 impl App {
     pub fn show_copy_toast(&mut self, label: &str, content: &str) {
@@ -48,14 +46,5 @@ impl App {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::summarize_copy_preview;
-
-    #[test]
-    fn copy_preview_summary_truncates_with_ascii_ellipsis() {
-        assert_eq!(
-            summarize_copy_preview("hello brave new world", 5),
-            "hello..."
-        );
-    }
-}
+#[path = "clipboard_tests.rs"]
+mod tests;
