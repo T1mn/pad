@@ -1,7 +1,7 @@
 # src
 
 - `main.rs`：入口与主循环；启动参数、tmux bootstrap、终端管理、启动服务和信号处理拆到邻近模块。
-- `cli.rs` / `bootstrap.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
+- `cli.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
