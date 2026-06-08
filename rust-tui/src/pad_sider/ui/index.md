@@ -3,7 +3,7 @@
 - `mod.rs`：pad sider TUI 主循环，启用键盘与鼠标事件。
 - `input.rs` / `input/`：快捷键、鼠标滚动与当前焦点动作分发。
 - `render.rs` / `render/`：IDE 风格左右分栏渲染；左侧 header/tree/index map/Codex runs，右侧交给文件预览模块。
-- `nav_window.rs`：左侧 tree/index/Codex runs 只构建可见行，避免大目录每帧全量 ListItem。
+- `nav_window.rs` / `nav_window_tests.rs`：左侧 tree/index/Codex runs 只构建可见行，避免大目录每帧全量 ListItem。
 - `file_preview.rs` / `file_preview/` / `render_window.rs` / `render_window_tests.rs`：右侧文件/diff/代码预览渲染缓存与可见行窗口。
 - `diff.rs` / `diff/`：Codex 单轮 patch 的结构化 diff 解析与 side-by-side / unified 配色渲染。
 - `split.rs`：固定左侧可读宽度，把额外宽度优先留给 preview。
