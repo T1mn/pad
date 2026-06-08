@@ -32,15 +32,15 @@ fn shell_single_quote(value: &str) -> String {
 }
 
 fn bootstrap_command(args: &[String], executable: &std::path::Path) -> String {
-    let mut parts = vec![
-        "env".to_string(),
-        format!("{PAD_BOOTSTRAP_ENV}=1"),
-        shell_single_quote(&executable.to_string_lossy()),
-    ];
+    let mut command = format!(
+        "env {PAD_BOOTSTRAP_ENV}=1 {}",
+        shell_single_quote(&executable.to_string_lossy())
+    );
     for arg in args.iter().skip(1) {
-        parts.push(shell_single_quote(arg));
+        command.push(' ');
+        command.push_str(&shell_single_quote(arg));
     }
-    parts.join(" ")
+    command
 }
 
 pub fn bootstrap_into_tmux(args: &[String]) -> Result<(), Box<dyn Error>> {
