@@ -36,15 +36,16 @@ pub(crate) fn pending_status_text(
     now: i64,
 ) -> String {
     if pending.approval_call_id.is_some() {
-        let mut lines = vec![
-            tg(locale, "phase.awaiting_confirm").to_string(),
-            pending.target_label.clone(),
-        ];
-        lines.extend(pending_metadata_lines(locale, pending, false));
-        if let Some(justification) = pending.approval_justification.as_deref() {
-            lines.push(truncate_chars(justification, 220));
+        let mut text = String::new();
+        push_status_line(&mut text, tg(locale, "phase.awaiting_confirm"));
+        push_status_line(&mut text, &pending.target_label);
+        for line in pending_metadata_lines(locale, pending, false) {
+            push_status_line(&mut text, &line);
         }
-        return lines.join("\n");
+        if let Some(justification) = pending.approval_justification.as_deref() {
+            push_status_line(&mut text, &truncate_chars(justification, 220));
+        }
+        return text;
     }
 
     let headline = match pending.phase.as_str() {
@@ -59,17 +60,28 @@ pub(crate) fn pending_status_text(
         _ => tg(locale, "phase.completed").to_string(),
     };
 
-    let mut lines = vec![headline, pending.target_label.clone()];
-    lines.extend(pending_metadata_lines(locale, pending, false));
+    let mut text = String::new();
+    push_status_line(&mut text, &headline);
+    push_status_line(&mut text, &pending.target_label);
+    for line in pending_metadata_lines(locale, pending, false) {
+        push_status_line(&mut text, &line);
+    }
     if let Some(snapshot) = pending_continuity_snapshot(pending) {
         if snapshot.health != crate::session_continuity::ContinuityHealth::Healthy
             || snapshot.attempt_classification
                 != crate::session_continuity::ContinuityAttemptClassification::Normal
         {
-            lines.push(continuity_status_line(locale, &snapshot));
+            push_status_line(&mut text, &continuity_status_line(locale, &snapshot));
         }
     }
-    lines.join("\n")
+    text
+}
+
+fn push_status_line(out: &mut String, line: &str) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(line);
 }
 
 fn pending_continuity_snapshot(
