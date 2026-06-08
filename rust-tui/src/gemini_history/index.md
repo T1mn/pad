@@ -6,4 +6,4 @@
 - `storage/`：schema/open、查询、写入/归档实现。
 - `model.rs`：数据模型。
 - `util.rs` / `util/`：路径、文件、哈希、mtime 与 timestamp 解析辅助。
-- `tests.rs`：测试。
+- `tests.rs` / `tests/`：Gemini 历史扫描、查询和归档测试。
