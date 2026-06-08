@@ -1,5 +1,3 @@
-use std::path::Path;
-
 pub(crate) fn display_width(s: &str) -> usize {
     s.chars().map(char_display_width).sum()
 }
@@ -58,14 +56,4 @@ pub(crate) fn truncate_to_width(text: &str, max_width: usize) -> String {
 
     result.push_str(ellipsis);
     result
-}
-
-#[allow(dead_code)]
-pub(crate) fn leaf_dir_name(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string())
-        .unwrap_or_else(|| path.to_string())
 }
