@@ -8,5 +8,5 @@
 - `mouse.rs` / `mouse/` / `mouse_pipeline.rs`: mouse dispatch facade, hit testing, click/selection/hover/scroll handling.
 - `loop_core.rs` / `loop_state.rs`: main event loop state.
 - `refresh_pipeline.rs` / `refresh_pipeline/`: periodic refresh, async result checks, pipe/hook drain, and draw cycle.
-- `attach.rs` / `attach/`: tmux attach handoff、return bindings 与 focus helpers.
+- `attach.rs` / `attach/` / `attach_tests.rs`: tmux attach handoff、return bindings 与 focus helpers.
 - `tests/`: event behavior regression tests.
