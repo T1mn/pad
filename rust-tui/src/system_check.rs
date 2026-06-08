@@ -65,5 +65,6 @@ pub fn tmux_doctor() -> io::Result<TmuxProbeReport> {
 }
 
 fn is_yes_answer(input: &str) -> bool {
-    matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+    let input = input.trim();
+    input.eq_ignore_ascii_case("y") || input.eq_ignore_ascii_case("yes")
 }

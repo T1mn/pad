@@ -23,6 +23,7 @@ fn detect_install_plan_uses_brew_on_macos() {
 fn yes_answer_accepts_short_and_long_form() {
     assert!(is_yes_answer("y"));
     assert!(is_yes_answer("YES"));
+    assert!(is_yes_answer(" Yes\n"));
     assert!(!is_yes_answer("n"));
     assert!(!is_yes_answer(""));
 }
