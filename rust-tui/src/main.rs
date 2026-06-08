@@ -47,6 +47,7 @@ mod terminal;
 #[cfg(test)]
 mod test_support;
 mod text_match;
+mod text_normalize;
 mod theme;
 mod thread_meta;
 mod time;

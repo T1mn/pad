@@ -1,3 +1,5 @@
+use crate::text_normalize::collapse_whitespace;
+
 const MAX_TITLE_CHARS: usize = 60;
 
 pub fn normalize_generated_title(raw: &str) -> Option<String> {
@@ -31,17 +33,6 @@ pub fn normalize_generated_title(raw: &str) -> Option<String> {
     } else {
         Some(clipped.to_string())
     }
-}
-
-fn collapse_whitespace(value: &str) -> String {
-    let mut collapsed = String::new();
-    for part in value.split_whitespace() {
-        if !collapsed.is_empty() {
-            collapsed.push(' ');
-        }
-        collapsed.push_str(part);
-    }
-    collapsed
 }
 
 fn strip_known_prefix(value: &str) -> &str {

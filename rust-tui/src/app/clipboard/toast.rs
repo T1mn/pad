@@ -1,4 +1,5 @@
 use crate::app::CopyToast;
+use crate::text_normalize::collapse_whitespace;
 use std::time::{Duration, Instant};
 
 pub(super) fn show_action_toast(slot: &mut Option<CopyToast>, title: &str, content: &str) {
@@ -29,15 +30,4 @@ pub(super) fn summarize_copy_preview(text: &str, max_chars: usize) -> String {
         preview.push(ch);
     }
     preview
-}
-
-fn collapse_whitespace(text: &str) -> String {
-    let mut condensed = String::new();
-    for part in text.split_whitespace() {
-        if !condensed.is_empty() {
-            condensed.push(' ');
-        }
-        condensed.push_str(part);
-    }
-    condensed
 }
