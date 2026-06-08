@@ -3,18 +3,17 @@ pub(crate) fn build_pad_restart_shell_command(
     current_args: &[String],
     cargo_target_dir: Option<&str>,
 ) -> String {
-    let mut steps = Vec::new();
+    let mut command = String::new();
     if let Some(cargo_target_dir) = cargo_target_dir.filter(|value| !value.trim().is_empty()) {
-        steps.push(format!(
-            "export CARGO_TARGET_DIR={}",
-            shell_single_quote(cargo_target_dir)
-        ));
+        command.push_str("export CARGO_TARGET_DIR=");
+        command.push_str(&shell_single_quote(cargo_target_dir));
+        command.push_str(" && ");
     }
 
-    steps.push(build_command(current_exe));
-    steps.push(exec_command(current_exe, current_args));
-
-    steps.join(" && ")
+    command.push_str(&build_command(current_exe));
+    command.push_str(" && ");
+    command.push_str(&exec_command(current_exe, current_args));
+    command
 }
 
 fn build_command(current_exe: &std::path::Path) -> String {
