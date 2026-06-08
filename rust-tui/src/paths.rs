@@ -17,12 +17,13 @@ pub(crate) use codex_home::{
     pad_codex_config_path, pad_codex_home_dir, pad_codex_hooks_path,
 };
 
-#[allow(unused_imports)]
+pub(crate) use prompts::write_codex_selected_prompt_file;
+
+#[cfg(test)]
 pub(crate) use prompts::{
     codex_index_prompt_file_path, codex_jailbreak_prompt_file_path,
-    codex_selected_prompt_file_path, ensure_codex_index_prompt_file_seeded,
-    ensure_codex_jailbreak_prompt_file_seeded, write_codex_selected_prompt_file,
-    DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE, DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
+    codex_selected_prompt_file_path, DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE,
+    DEFAULT_CODEX_JAILBREAK_PROMPT_TEMPLATE,
 };
 pub(crate) use runtime_files::{
     api_socket_path, hook_socket_path, pad_status_path, telegram_bot_status_path,
@@ -58,8 +59,8 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     fs::create_dir_all(scripts_dir())?;
     fs::create_dir_all(prompts_dir())?;
     fs::create_dir_all(sessions_dir())?;
-    ensure_codex_jailbreak_prompt_file_seeded()?;
-    ensure_codex_index_prompt_file_seeded()?;
+    prompts::ensure_codex_jailbreak_prompt_file_seeded()?;
+    prompts::ensure_codex_index_prompt_file_seeded()?;
     ensure_pad_codex_home_layout()?;
     if !hook_events_path().exists() {
         fs::write(hook_events_path(), "")?;
