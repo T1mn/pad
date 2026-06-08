@@ -1,4 +1,4 @@
-use crate::tmux_bindings::{restore_binding_cmd, PAD_RETURN_BINDING_MARKER};
+use crate::tmux_bindings::{restore_binding_cmd, return_binding_command};
 
 use super::super::super::tmux::{shell_log_cmd, wait_for_zoom_flag_cmd, wrap_tmux_run_shell};
 use super::context::InstallContext;
@@ -34,7 +34,7 @@ pub(super) fn build_return_run_shell_cmd(
     }
     push_pad_return(&mut restore_parts, ctx, target_session);
 
-    let return_cmd = format!("{} {}", PAD_RETURN_BINDING_MARKER, restore_parts.join("; "));
+    let return_cmd = return_binding_command(&restore_parts);
     wrap_tmux_run_shell(&return_cmd)
 }
 

@@ -1,13 +1,13 @@
 use crate::app::App;
 
-use super::super::bindings::{PAD_RETURN_BINDING_MARKER, PAD_SIDER_TOGGLE_KEYS};
+use super::super::bindings::{return_binding_command, PAD_SIDER_TOGGLE_KEYS};
 use super::super::shell::{shell_trace_log_cmd, wrap_tmux_run_shell};
 use super::context::ReturnBindingContext;
 use super::saved::saved_binding_restore_cmd;
 
 pub(super) fn build_return_run_shell_cmd(app: &App, ctx: &ReturnBindingContext<'_>) -> String {
     let restore_parts = return_binding_parts(app, ctx);
-    let return_cmd = format!("{} {}", PAD_RETURN_BINDING_MARKER, restore_parts.join("; "));
+    let return_cmd = return_binding_command(&restore_parts);
     wrap_tmux_run_shell(&return_cmd)
 }
 

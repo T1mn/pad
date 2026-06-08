@@ -36,6 +36,18 @@ pub(crate) fn restore_binding_cmd(saved_binding: Option<&str>, key: &str) -> Str
         .unwrap_or_else(|| format!("tmux unbind-key -T root {}", key))
 }
 
+pub(crate) fn return_binding_command(parts: &[String]) -> String {
+    let mut command = String::from(PAD_RETURN_BINDING_MARKER);
+    command.push(' ');
+    for (idx, part) in parts.iter().enumerate() {
+        if idx > 0 {
+            command.push_str("; ");
+        }
+        command.push_str(part);
+    }
+    command
+}
+
 pub(crate) fn pad_sider_toggle_command() -> String {
     let path = std::env::current_exe().unwrap_or_else(|_| "pad".into());
     format!(
