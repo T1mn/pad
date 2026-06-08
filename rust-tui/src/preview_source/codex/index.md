@@ -5,4 +5,4 @@
 - `status_probe.rs`：通过 `/status` 探测 live Codex session id，并用短 TTL 缓存避免频繁打扰 pane。
 - `normalize.rs` / `normalize/`：清理 Codex 用户消息里的环境块、shell 包装与图片引用，输出适合预览/标题的文本。
 - `subagent.rs`：压缩 Codex subagent notification，合并到主 turn 预览。
-- `tests.rs`：Codex transcript、图片、上下文过滤和 status probe 单元测试。
+- `tests.rs` / `tests/`：Codex transcript、normalize、status probe 和 ignored 解析基准测试。
