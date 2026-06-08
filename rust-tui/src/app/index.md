@@ -1,7 +1,8 @@
 # app
 
-- `mod.rs`：`App` 状态与通用方法。
+- `mod.rs`：`App` 状态与少量通用方法。
 - `lifecycle.rs`：`App::new` 初始化。
+- `display_scope.rs`：侧边栏缓存失效、live/all session scope 与 thread list view helper。
 - `time.rs`：app 级时间戳与 handoff trace id helper。
 - `state/`：UI 与运行态结构。
 - `actions.rs` / `actions/`：用户动作封装。
