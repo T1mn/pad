@@ -48,6 +48,7 @@ mod terminal;
 mod test_support;
 mod theme;
 mod thread_meta;
+mod time;
 mod title_summary;
 mod tmux_bindings;
 mod tmux_capabilities;
