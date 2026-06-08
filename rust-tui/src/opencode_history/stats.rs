@@ -23,15 +23,18 @@ pub(crate) fn session_stats_select(connection: &rusqlite::Connection) -> io::Res
         ("tokens_cache_read", "0"),
         ("tokens_cache_write", "0"),
     ];
-    let mut parts = Vec::with_capacity(columns.len());
+    let mut select = String::new();
     for (column, fallback) in columns {
+        if !select.is_empty() {
+            select.push_str(", ");
+        }
         if has_column(connection, "session", column)? {
-            parts.push(column.to_string());
+            select.push_str(column);
         } else {
-            parts.push(format!("{fallback} AS {column}"));
+            select.push_str(&format!("{fallback} AS {column}"));
         }
     }
-    Ok(parts.join(", "))
+    Ok(select)
 }
 
 pub(crate) fn read_session_stats(row: &Row<'_>, offset: usize) -> rusqlite::Result<SessionStats> {
@@ -64,24 +67,41 @@ pub(crate) fn format_token_summary(stats: &SessionStats) -> Option<String> {
         return None;
     }
 
-    let mut parts = vec![format!("tok {}", compact_number(total))];
+    let mut summary = format!("tok {}", compact_number(total));
     if stats.tokens_input > 0 {
-        parts.push(format!("in {}", compact_number(stats.tokens_input)));
+        push_token_part(
+            &mut summary,
+            format!("in {}", compact_number(stats.tokens_input)),
+        );
     }
     if stats.tokens_output > 0 {
-        parts.push(format!("out {}", compact_number(stats.tokens_output)));
+        push_token_part(
+            &mut summary,
+            format!("out {}", compact_number(stats.tokens_output)),
+        );
     }
     if stats.tokens_reasoning > 0 {
-        parts.push(format!("reason {}", compact_number(stats.tokens_reasoning)));
+        push_token_part(
+            &mut summary,
+            format!("reason {}", compact_number(stats.tokens_reasoning)),
+        );
     }
     if stats.tokens_cache_read > 0 || stats.tokens_cache_write > 0 {
-        parts.push(format!(
-            "cache {}/{}",
-            compact_number(stats.tokens_cache_read),
-            compact_number(stats.tokens_cache_write)
-        ));
+        push_token_part(
+            &mut summary,
+            format!(
+                "cache {}/{}",
+                compact_number(stats.tokens_cache_read),
+                compact_number(stats.tokens_cache_write)
+            ),
+        );
     }
-    Some(parts.join(" · "))
+    Some(summary)
+}
+
+fn push_token_part(summary: &mut String, part: String) {
+    summary.push_str(" · ");
+    summary.push_str(&part);
 }
 
 fn compact_number(value: i64) -> String {
@@ -108,3 +128,7 @@ fn has_column(connection: &rusqlite::Connection, table: &str, column: &str) -> i
     }
     Ok(false)
 }
+
+#[cfg(test)]
+#[path = "stats_tests.rs"]
+mod tests;
