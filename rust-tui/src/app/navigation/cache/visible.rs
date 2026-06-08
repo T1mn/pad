@@ -39,14 +39,4 @@ impl App {
         self.ensure_visible_sidebar_items_cache();
         &self.sidebar.visible_sidebar_items_cache
     }
-
-    #[allow(dead_code)]
-    pub fn sidebar_folders(&mut self) -> Vec<SidebarFolder> {
-        self.sidebar_folders_ref().to_vec()
-    }
-
-    #[allow(dead_code)]
-    pub fn visible_sidebar_items(&mut self) -> Vec<SidebarItem> {
-        self.visible_sidebar_items_ref().to_vec()
-    }
 }
