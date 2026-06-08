@@ -27,19 +27,15 @@ fn extract_user_text(message: &Value) -> String {
 
     match message.get("content") {
         Some(Value::String(text)) => sanitize_user_string(text),
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(|item| {
-                if item.get("type").and_then(Value::as_str) != Some("text") {
-                    return None;
-                }
-                item.get("text")
-                    .and_then(Value::as_str)
-                    .map(sanitize_user_string)
-                    .filter(|text| !text.is_empty())
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
+        Some(Value::Array(items)) => join_non_empty_text(items.iter().filter_map(|item| {
+            if item.get("type").and_then(Value::as_str) != Some("text") {
+                return None;
+            }
+            item.get("text")
+                .and_then(Value::as_str)
+                .map(sanitize_user_string)
+                .filter(|text| !text.is_empty())
+        })),
         _ => String::new(),
     }
 }
@@ -63,19 +59,26 @@ fn extract_assistant_text(message: &Value) -> String {
 
     match message.get("content") {
         Some(Value::String(text)) => text.trim().to_string(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(|item| {
-                if item.get("type").and_then(Value::as_str) != Some("text") {
-                    return None;
-                }
-                item.get("text")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|text| !text.is_empty())
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
+        Some(Value::Array(items)) => join_non_empty_text(items.iter().filter_map(|item| {
+            if item.get("type").and_then(Value::as_str) != Some("text") {
+                return None;
+            }
+            item.get("text")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+        })),
         _ => String::new(),
     }
+}
+
+fn join_non_empty_text<'a>(items: impl Iterator<Item = impl AsRef<str> + 'a>) -> String {
+    let mut joined = String::new();
+    for item in items {
+        if !joined.is_empty() {
+            joined.push('\n');
+        }
+        joined.push_str(item.as_ref());
+    }
+    joined
 }

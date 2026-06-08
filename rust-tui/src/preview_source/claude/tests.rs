@@ -28,3 +28,23 @@ fn parse_claude_transcript_skips_meta_thinking_and_tools() {
     assert_eq!(turns[0].question, "real user");
     assert_eq!(turns[0].answer.as_deref(), Some("real assistant"));
 }
+
+#[test]
+fn parse_claude_transcript_joins_text_array_parts() {
+    let path = temp_jsonl_path("claude-multipart");
+    fs::write(
+        &path,
+        concat!(
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"first\"},{\"type\":\"tool_result\",\"content\":\"skip\"},{\"type\":\"text\",\"text\":\" second \"}]}}\n",
+            "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"answer\"},{\"type\":\"thinking\",\"thinking\":\"skip\"},{\"type\":\"text\",\"text\":\"more\"}]}}\n"
+        ),
+    )
+    .unwrap();
+
+    let turns = parse_transcript(&path, SessionReadMode::FullBackfill).unwrap();
+    fs::remove_file(&path).ok();
+
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0].question, "first\nsecond");
+    assert_eq!(turns[0].answer.as_deref(), Some("answer\nmore"));
+}
