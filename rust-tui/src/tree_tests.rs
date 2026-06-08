@@ -1,4 +1,4 @@
-use super::FileTree;
+use super::{FileTree, PreviewType};
 use std::fs;
 
 #[test]
@@ -23,4 +23,24 @@ fn search_filters_entries_case_insensitively() {
 
     assert_eq!(names, vec!["Alpha.md"]);
     let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn preview_type_detects_known_suffixes_case_insensitively() {
+    assert_eq!(
+        PreviewType::from_path(std::path::Path::new("README.MD")),
+        PreviewType::Markdown
+    );
+    assert_eq!(
+        PreviewType::from_path(std::path::Path::new("diagram.PNG")),
+        PreviewType::Image
+    );
+    assert_eq!(
+        PreviewType::from_path(std::path::Path::new("archive.BIN")),
+        PreviewType::Binary
+    );
+    assert_eq!(
+        PreviewType::from_path(std::path::Path::new(".GITIGNORE")),
+        PreviewType::Text
+    );
 }
