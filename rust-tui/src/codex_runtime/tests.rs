@@ -1,43 +1,18 @@
 use super::*;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-fn temp_home(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("time")
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-codex-runtime-{name}-{stamp}"))
-}
+use std::path::Path;
 
 fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-    let _guard = crate::test_support::home_env_lock()
-        .lock()
-        .expect("lock codex runtime tests");
-    let home = temp_home(name);
-    let _ = std::fs::remove_dir_all(&home);
-    std::fs::create_dir_all(&home).expect("create temp home");
-
-    let prev_home = std::env::var_os("HOME");
-    let prev_openai_api_key = std::env::var_os(auth::TEST_OPENAI_API_KEY_ENV);
-    std::env::set_var("HOME", &home);
-    std::env::remove_var(auth::TEST_OPENAI_API_KEY_ENV);
-
-    let result = f(&home);
-
-    if let Some(prev) = prev_home {
-        std::env::set_var("HOME", prev);
-    } else {
-        std::env::remove_var("HOME");
-    }
-    if let Some(prev) = prev_openai_api_key {
-        std::env::set_var(auth::TEST_OPENAI_API_KEY_ENV, prev);
-    } else {
+    crate::test_support::with_temp_home("pad-codex-runtime", name, |home| {
+        let prev_openai_api_key = std::env::var_os(auth::TEST_OPENAI_API_KEY_ENV);
         std::env::remove_var(auth::TEST_OPENAI_API_KEY_ENV);
-    }
-    let _ = std::fs::remove_dir_all(&home);
-
-    result
+        let result = f(home);
+        if let Some(prev) = prev_openai_api_key {
+            std::env::set_var(auth::TEST_OPENAI_API_KEY_ENV, prev);
+        } else {
+            std::env::remove_var(auth::TEST_OPENAI_API_KEY_ENV);
+        }
+        result
+    })
 }
 
 #[test]

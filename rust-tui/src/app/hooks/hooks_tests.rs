@@ -6,34 +6,9 @@ use crate::notify::NotificationRequest;
 use crate::sidebar::ThreadActivityOverride;
 use rusqlite::Connection;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-fn temp_stamp() -> u128 {
-    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-        + NEXT_ID.fetch_add(1, Ordering::Relaxed) as u128
-}
 
 fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
-    let _guard = crate::test_support::home_env_lock()
-        .lock()
-        .expect("home env lock");
-    let home = std::env::temp_dir().join(format!("pad-hooks-{name}-{}", temp_stamp()));
-    std::fs::create_dir_all(&home).expect("create temp home");
-    let prev_home = std::env::var_os("HOME");
-    std::env::set_var("HOME", &home);
-    let result = f(&home);
-    if let Some(prev) = prev_home {
-        std::env::set_var("HOME", prev);
-    } else {
-        std::env::remove_var("HOME");
-    }
-    std::fs::remove_dir_all(&home).ok();
-    result
+    crate::test_support::with_temp_home("pad-hooks", name, f)
 }
 
 fn create_codex_threads_db(path: &Path) {
