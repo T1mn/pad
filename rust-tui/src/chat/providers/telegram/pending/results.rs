@@ -33,30 +33,52 @@ pub(crate) fn completed_reply_text(
     pending: &PendingRequest,
     result_text: &str,
 ) -> String {
-    let mut lines = vec![
-        tg(locale, "result.title").to_string(),
-        format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
-        format!("{}: {}", tg(locale, "meta.target"), pending.target_label),
-        format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
-    ];
+    let mut reply = String::new();
+    push_reply_line(&mut reply, tg(locale, "result.title"));
+    push_reply_line(
+        &mut reply,
+        &format!("{}: {}", tg(locale, "meta.request"), pending.request_id),
+    );
+    push_reply_line(
+        &mut reply,
+        &format!("{}: {}", tg(locale, "meta.target"), pending.target_label),
+    );
+    push_reply_line(
+        &mut reply,
+        &format!("{}: {}", tg(locale, "meta.pane"), pending.pane_id),
+    );
     if let Some(session_id) = pending
         .session_id
         .as_deref()
         .filter(|value| !value.is_empty())
     {
-        lines.push(format!("{}: {}", tg(locale, "meta.session"), session_id));
+        push_reply_line(
+            &mut reply,
+            &format!("{}: {}", tg(locale, "meta.session"), session_id),
+        );
     }
     if let Some(turn_id) = pending.turn_id.as_deref().filter(|value| !value.is_empty()) {
-        lines.push(format!("{}: {}", tg(locale, "meta.turn"), turn_id));
+        push_reply_line(
+            &mut reply,
+            &format!("{}: {}", tg(locale, "meta.turn"), turn_id),
+        );
     }
     if !pending.working_dir.trim().is_empty() {
-        lines.push(format!(
-            "{}: {}",
-            tg(locale, "meta.dir"),
-            pending.working_dir
-        ));
+        push_reply_line(
+            &mut reply,
+            &format!("{}: {}", tg(locale, "meta.dir"), pending.working_dir),
+        );
     }
-    format!("{}\n\n{}", lines.join("\n"), result_text)
+    reply.push_str("\n\n");
+    reply.push_str(result_text);
+    reply
+}
+
+fn push_reply_line(out: &mut String, line: &str) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(line);
 }
 
 pub(crate) async fn deliver_pending_result(
