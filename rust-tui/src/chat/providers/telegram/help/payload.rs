@@ -88,7 +88,19 @@ pub(in crate::chat::providers::telegram) fn help_page_html(
 }
 
 fn html_escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    let Some(first_escape) = text.find(['&', '<', '>']) else {
+        return text.to_string();
+    };
+
+    let mut escaped = String::with_capacity(text.len() + 8);
+    escaped.push_str(&text[..first_escape]);
+    for ch in text[first_escape..].chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
