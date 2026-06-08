@@ -1,15 +1,9 @@
 use super::parse_transcript;
 use crate::preview_source::SessionReadMode;
 use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-fn temp_json_path(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-preview-{}-{}.json", name, stamp))
+fn temp_json_path(name: &str) -> std::path::PathBuf {
+    crate::test_support::temp_path("pad-preview-json", name)
 }
 
 #[test]

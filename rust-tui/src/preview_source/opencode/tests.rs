@@ -1,14 +1,8 @@
 use super::*;
 use rusqlite::{params, Connection};
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-fn temp_db_path() -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-opencode-preview-{stamp}.db"))
+fn temp_db_path() -> std::path::PathBuf {
+    crate::test_support::temp_path("pad-opencode-preview", "db")
 }
 
 #[test]

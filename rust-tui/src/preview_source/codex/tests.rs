@@ -3,16 +3,10 @@ use super::{normalize_codex_user_text, parse_transcript};
 use crate::preview_source::SessionReadMode;
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 use std::time::Instant;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-fn temp_jsonl_path(name: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    std::env::temp_dir().join(format!("pad-preview-{}-{}.jsonl", name, stamp))
+fn temp_jsonl_path(name: &str) -> std::path::PathBuf {
+    crate::test_support::temp_path("pad-preview-jsonl", name)
 }
 
 #[test]
