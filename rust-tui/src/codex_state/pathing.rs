@@ -5,7 +5,6 @@ pub(crate) fn normalize_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-#[allow(dead_code)]
 pub(crate) fn select_latest_thread_for_cwd<'a>(
     cwd: &Path,
     threads: &'a [CodexThreadRef],
@@ -28,7 +27,6 @@ pub(crate) fn select_latest_thread_for_cwd<'a>(
         })
 }
 
-#[allow(dead_code)]
 pub(crate) fn relation_score(lhs: &Path, rhs: &Path) -> Option<usize> {
     if is_component_prefix(lhs, rhs) || is_component_prefix(rhs, lhs) {
         Some(common_component_count(lhs, rhs))
@@ -37,7 +35,6 @@ pub(crate) fn relation_score(lhs: &Path, rhs: &Path) -> Option<usize> {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn common_component_count(lhs: &Path, rhs: &Path) -> usize {
     lhs.components()
         .zip(rhs.components())
@@ -45,7 +42,6 @@ pub(crate) fn common_component_count(lhs: &Path, rhs: &Path) -> usize {
         .count()
 }
 
-#[allow(dead_code)]
 pub(crate) fn is_component_prefix(prefix: &Path, candidate: &Path) -> bool {
     let prefix_components = prefix.components().collect::<Vec<_>>();
     let candidate_components = candidate.components().collect::<Vec<_>>();

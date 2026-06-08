@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 
 pub(crate) use db::{read_thread_for_id, read_threads_from_db};
 
-#[allow(dead_code)]
 pub fn latest_thread_for_cwd(cwd: &Path) -> io::Result<Option<CodexThreadRef>> {
     let threads = load_threads(default_db_path()?, ThreadArchiveFilter::ActiveOnly)?;
     Ok(select_latest_thread_for_cwd(cwd, &threads).cloned())

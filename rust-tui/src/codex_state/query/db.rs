@@ -23,9 +23,7 @@ pub(crate) fn read_threads_from_db(
     let mut statement = connection.prepare(sql).map_err(to_io_error)?;
     let rows = match filter {
         ThreadArchiveFilter::ActiveOnly => statement.query_map([min_updated_at], map_thread_row),
-        ThreadArchiveFilter::ArchivedOnly | ThreadArchiveFilter::All => {
-            statement.query_map([], map_thread_row)
-        }
+        ThreadArchiveFilter::ArchivedOnly => statement.query_map([], map_thread_row),
     }
     .map_err(to_io_error)?;
 
@@ -77,13 +75,6 @@ fn threads_query_sql(filter: ThreadArchiveFilter) -> &'static str {
              WHERE rollout_path IS NOT NULL
                AND TRIM(rollout_path) <> ''
                AND archived = 1
-             ORDER BY updated_at DESC, id DESC"
-        }
-        ThreadArchiveFilter::All => {
-            "SELECT id, cwd, updated_at, rollout_path, title, first_user_message, source, archived
-             FROM threads
-             WHERE rollout_path IS NOT NULL
-               AND TRIM(rollout_path) <> ''
              ORDER BY updated_at DESC, id DESC"
         }
     }

@@ -18,12 +18,10 @@ pub struct CodexThreadRef {
     pub archived: bool,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ThreadArchiveFilter {
     ActiveOnly,
     ArchivedOnly,
-    All,
 }
 
 #[derive(Clone)]
