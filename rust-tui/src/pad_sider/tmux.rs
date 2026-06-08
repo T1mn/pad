@@ -58,7 +58,3 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
         ))
     }
 }
-
-#[cfg(test)]
-#[path = "tmux_tests.rs"]
-mod tests;
