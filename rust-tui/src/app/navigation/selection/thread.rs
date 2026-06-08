@@ -62,23 +62,6 @@ impl App {
         Some(thread)
     }
 
-    #[allow(dead_code)]
-    pub fn filtered_panels(&self) -> Vec<&AgentPanel> {
-        if self.search_query.is_empty() {
-            self.panels.iter().collect()
-        } else {
-            let query = self.search_query.to_lowercase();
-            self.panels
-                .iter()
-                .filter(|p| {
-                    p.session.to_lowercase().contains(&query)
-                        || p.window.to_lowercase().contains(&query)
-                        || p.working_dir.to_lowercase().contains(&query)
-                })
-                .collect()
-        }
-    }
-
     pub fn selected_panel(&mut self) -> Option<&AgentPanel> {
         let pane_id = self
             .selected_preview_thread()
