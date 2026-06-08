@@ -74,22 +74,30 @@ fn codex_final_answer_line(value: &Value) -> Option<String> {
     if payload.get("phase").and_then(Value::as_str) != Some("final_answer") {
         return None;
     }
-    let content = payload.get("content")?.as_array()?;
-    let parts = content
-        .iter()
-        .filter_map(|item| {
-            if item.get("type").and_then(Value::as_str) != Some("output_text") {
-                return None;
-            }
-            item.get("text")
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|text| !text.is_empty())
-        })
-        .collect::<Vec<_>>();
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join("\n"))
+    let mut answer = String::new();
+    for item in payload.get("content")?.as_array()? {
+        if item.get("type").and_then(Value::as_str) != Some("output_text") {
+            continue;
+        }
+        let Some(text) = item
+            .get("text")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+        else {
+            continue;
+        };
+        if !answer.is_empty() {
+            answer.push('\n');
+        }
+        answer.push_str(text);
     }
+    if answer.is_empty() {
+        return None;
+    }
+    Some(answer)
 }
+
+#[cfg(test)]
+#[path = "answers_tests.rs"]
+mod tests;
