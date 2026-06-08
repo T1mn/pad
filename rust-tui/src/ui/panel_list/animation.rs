@@ -1,22 +1,25 @@
-#![allow(dead_code)]
-
 use crate::model::AgentState;
-use ratatui::style::{Color, Modifier, Style};
+#[cfg(test)]
+use ratatui::style::Modifier;
+use ratatui::style::{Color, Style};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
 const SHIMMER_SWEEP_SECONDS: f32 = 2.0;
+#[cfg(test)]
 const SHIMMER_PADDING: f32 = 10.0;
+#[cfg(test)]
 const SHIMMER_BAND_HALF_WIDTH: f32 = 5.0;
 const BADGE_PULSE_CYCLE_SECONDS: f32 = 1.8;
 const BREATHING_MIN_VISIBLE_BLEND: f32 = 0.12;
 const BREATHING_BLEND_RANGE: f32 = 0.82;
 
-pub(crate) fn thread_badge_breathes(state: &AgentState) -> bool {
+pub(super) fn thread_badge_breathes(state: &AgentState) -> bool {
     matches!(state, AgentState::Busy)
 }
 
-pub(crate) fn breathing_badge_style(base_color: Color, surface_bg: Color, bg: Color) -> Style {
+pub(super) fn breathing_badge_style(base_color: Color, surface_bg: Color, bg: Color) -> Style {
     let intensity = breathing_intensity();
     Style::default()
         .fg(super::style::blend_color(
@@ -27,11 +30,12 @@ pub(crate) fn breathing_badge_style(base_color: Color, surface_bg: Color, bg: Co
         .bg(bg)
 }
 
-pub(crate) fn breathing_badge_text() -> &'static str {
+pub(super) fn breathing_badge_text() -> &'static str {
     "• "
 }
 
-pub(crate) fn shimmer_spans(
+#[cfg(test)]
+pub(super) fn shimmer_spans(
     text: &str,
     base_color: Color,
     highlight_color: Color,
@@ -88,6 +92,7 @@ fn elapsed_since_start() -> Duration {
     PROCESS_START.get_or_init(Instant::now).elapsed()
 }
 
+#[cfg(test)]
 fn has_true_color() -> bool {
     static HAS_TRUE_COLOR: OnceLock<bool> = OnceLock::new();
     *HAS_TRUE_COLOR.get_or_init(|| {
@@ -103,6 +108,7 @@ fn has_true_color() -> bool {
     })
 }
 
+#[cfg(test)]
 fn fallback_style(base_color: Color, bg: Color, _intensity: f32) -> Style {
     Style::default().fg(base_color).bg(bg)
 }
