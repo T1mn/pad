@@ -7,8 +7,6 @@ fn incomplete_codex_provider_restores_native_config() {
         active_provider: Some(0),
         default_model: String::new(),
         small_model: String::new(),
-        base_url: None,
-        api_key: None,
     };
 
     assert!(should_restore_native_codex_config(&agent));
@@ -23,8 +21,6 @@ fn complete_codex_provider_keeps_relay_config() {
         active_provider: Some(0),
         default_model: String::new(),
         small_model: String::new(),
-        base_url: None,
-        api_key: None,
     };
 
     assert!(!should_restore_native_codex_config(&agent));
@@ -40,8 +36,6 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         apply_relay_configs(&[agent]);
@@ -105,8 +99,6 @@ fn codex_export_writes_pad_yaml_without_wire_api() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let path = write_codex_relay_export(&agent).expect("write export");
@@ -136,8 +128,6 @@ fn codex_import_restores_exported_pad_yaml() {
             active_provider: Some(1),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let _ = write_codex_relay_export(&agent).expect("write export");
@@ -166,8 +156,6 @@ fn codex_relay_preserves_explicit_v1_base_url() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         apply_relay_configs(&[agent]);
@@ -208,8 +196,6 @@ fn claude_provider_writes_cc_switch_style_env_settings() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
         apply_relay_configs(&[agent]);
 
@@ -255,8 +241,6 @@ fn gemini_provider_writes_env_and_preserves_settings_json() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
         apply_relay_configs(&[agent]);
 
@@ -307,8 +291,6 @@ fn incomplete_gemini_provider_restores_original_files() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
         apply_relay_configs(&[complete]);
 
@@ -319,8 +301,6 @@ fn incomplete_gemini_provider_restores_original_files() {
             active_provider: Some(0),
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
         apply_relay_configs(&[incomplete]);
 
@@ -379,8 +359,6 @@ fn opencode_provider_prefers_existing_jsonc_and_preserves_urls_in_strings() {
             active_provider: Some(0),
             default_model: "relay-a/gpt-4o".into(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         apply_relay_configs(&[agent]);
@@ -436,8 +414,6 @@ fn opencode_provider_writes_additive_live_config_and_models() {
             active_provider: Some(0),
             default_model: "relay-a/gpt-4o".into(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         apply_relay_configs(&[agent]);
@@ -499,8 +475,6 @@ fn opencode_sync_removes_previously_managed_provider_keys() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         apply_relay_configs(&[agent]);

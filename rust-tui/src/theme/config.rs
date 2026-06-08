@@ -70,7 +70,5 @@ pub(super) fn default_agent(name: &str) -> AgentConfig {
         active_provider: None,
         default_model: String::new(),
         small_model: String::new(),
-        base_url: None,
-        api_key: None,
     }
 }

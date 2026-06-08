@@ -4,8 +4,6 @@ pub(super) fn relay_agent_matches(left: &AgentConfig, right: &AgentConfig) -> bo
     left.active_provider == right.active_provider
         && left.default_model == right.default_model
         && left.small_model == right.small_model
-        && left.base_url == right.base_url
-        && left.api_key == right.api_key
         && left.providers.len() == right.providers.len()
         && left
             .providers

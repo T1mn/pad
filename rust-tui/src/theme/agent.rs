@@ -14,10 +14,6 @@ pub struct AgentConfig {
     pub active_provider: Option<usize>,
     pub default_model: String,
     pub small_model: String,
-    #[allow(dead_code)]
-    pub base_url: Option<String>,
-    #[allow(dead_code)]
-    pub api_key: Option<String>,
 }
 
 impl AgentConfig {

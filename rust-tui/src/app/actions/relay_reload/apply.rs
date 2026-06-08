@@ -30,8 +30,6 @@ impl App {
             current.active_provider = source.active_provider;
             current.default_model = source.default_model.clone();
             current.small_model = source.small_model.clone();
-            current.base_url = source.base_url.clone();
-            current.api_key = source.api_key.clone();
 
             if current.name == "opencode" {
                 current.repair_opencode_model_refs();

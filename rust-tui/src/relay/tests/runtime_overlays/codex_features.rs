@@ -13,8 +13,6 @@ fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -47,8 +45,6 @@ fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -79,8 +75,6 @@ fn runtime_configs_apply_codex_goals_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -109,8 +103,6 @@ fn runtime_configs_restore_previous_codex_goals_when_disabled() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -140,8 +132,6 @@ fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -173,8 +163,6 @@ fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -204,8 +192,6 @@ fn runtime_configs_apply_codex_web_search_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -234,8 +220,6 @@ fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();

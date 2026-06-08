@@ -13,8 +13,6 @@ fn runtime_configs_apply_codex_jailbreak_prompt_file_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -50,8 +48,6 @@ fn runtime_configs_apply_codex_index_prompt_file_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -84,8 +80,6 @@ fn runtime_configs_apply_combined_codex_prompt_candidates_without_relay_provider
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -124,8 +118,6 @@ fn runtime_configs_restore_previous_codex_jailbreak_prompt_file_when_disabled() 
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();

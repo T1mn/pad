@@ -42,8 +42,6 @@ fn parse_agent(agent: &toml::Value) -> Option<AgentConfig> {
         active_provider: parse_active_provider(t),
         default_model: string_field(t, "default_model").unwrap_or_default(),
         small_model: string_field(t, "small_model").unwrap_or_default(),
-        base_url: legacy_url.clone(),
-        api_key: legacy_key.clone(),
     };
 
     if parsed_agent.providers.is_empty() && (legacy_url.is_some() || legacy_key.is_some()) {

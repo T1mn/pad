@@ -27,8 +27,6 @@ pub(super) fn import_selected_codex_provider(app: &mut App) {
             if let Some(agent) = app.config.agents.get_mut(agent_idx) {
                 agent.providers = providers;
                 agent.active_provider = active_provider;
-                agent.base_url = None;
-                agent.api_key = None;
             }
             normalize_codex_relay_selection(app);
             persist_relay_config(app, agent_idx);

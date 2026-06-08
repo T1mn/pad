@@ -17,8 +17,6 @@ fn runtime_configs_apply_combined_codex_overlays_together() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -66,8 +64,6 @@ fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();

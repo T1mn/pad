@@ -13,8 +13,6 @@ fn runtime_configs_apply_codex_status_line_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -50,8 +48,6 @@ fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
@@ -83,8 +79,6 @@ fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
             active_provider: None,
             default_model: String::new(),
             small_model: String::new(),
-            base_url: None,
-            api_key: None,
         };
 
         let mut codex = sample_codex_config();
