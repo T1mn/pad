@@ -78,3 +78,45 @@ fn title_normalization_collapses_internal_whitespace() {
         Some("Fix preview")
     );
 }
+
+#[test]
+fn title_response_text_joins_response_output_blocks() {
+    let payload = serde_json::json!({
+        "output": [
+            {"content": [{"text": " first "}, {"text": "second"}]}
+        ]
+    });
+
+    assert_eq!(
+        super::response::extract_response_text(&payload).as_deref(),
+        Some("first\nsecond")
+    );
+}
+
+#[test]
+fn title_response_text_joins_chat_content_array_blocks() {
+    let payload = serde_json::json!({
+        "choices": [{
+            "message": {
+                "content": [{"text": " one "}, {"text": "two"}]
+            }
+        }]
+    });
+
+    assert_eq!(
+        super::response::extract_response_text(&payload).as_deref(),
+        Some("one\ntwo")
+    );
+}
+
+#[test]
+fn title_response_text_preserves_empty_text_block_semantics() {
+    let payload = serde_json::json!({
+        "output": [{"content": [{"text": "   "}]}]
+    });
+
+    assert_eq!(
+        super::response::extract_response_text(&payload).as_deref(),
+        Some("")
+    );
+}

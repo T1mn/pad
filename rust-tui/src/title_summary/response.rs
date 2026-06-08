@@ -16,20 +16,21 @@ pub(super) fn extract_response_text(payload: &Value) -> Option<String> {
         .get("output")
         .and_then(Value::as_array)
         .and_then(|items| {
-            let mut collected = Vec::new();
+            let mut collected = String::new();
+            let mut has_text = false;
             for item in items {
                 if let Some(content) = item.get("content").and_then(Value::as_array) {
                     for block in content {
                         if let Some(text) = block.get("text").and_then(Value::as_str) {
-                            collected.push(text.trim());
+                            push_response_text(&mut collected, &mut has_text, text.trim());
                         }
                     }
                 }
             }
-            if collected.is_empty() {
-                None
+            if has_text {
+                Some(collected)
             } else {
-                Some(collected.join("\n"))
+                None
             }
         })
 }
@@ -52,15 +53,24 @@ fn extract_content_text(value: &Value) -> Option<String> {
         return Some(text.to_string());
     }
     if let Some(items) = value.as_array() {
-        let mut collected = Vec::new();
+        let mut collected = String::new();
+        let mut has_text = false;
         for item in items {
             if let Some(text) = item.get("text").and_then(Value::as_str) {
-                collected.push(text.trim());
+                push_response_text(&mut collected, &mut has_text, text.trim());
             }
         }
-        if !collected.is_empty() {
-            return Some(collected.join("\n"));
+        if has_text {
+            return Some(collected);
         }
     }
     None
+}
+
+fn push_response_text(out: &mut String, has_text: &mut bool, text: &str) {
+    if *has_text {
+        out.push('\n');
+    }
+    out.push_str(text);
+    *has_text = true;
 }
