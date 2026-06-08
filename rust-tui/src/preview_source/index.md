@@ -5,4 +5,4 @@
 - `claude.rs` / `claude/` / `codex.rs` / `codex/` / `gemini.rs` / `gemini/` / `opencode.rs` / `opencode/`：各 provider 会话解析；Codex 预览用尾部读取和借用解析处理超大 JSONL，OpenCode 读取官方 SQLite。
 - `turns.rs`：turn 级内容抽取。
 - `session_target.rs` / `session_target/`：会话目标定位。
-- `tests.rs`：预览源入口与性能拆分基准测试。
+- `tests.rs` / `tests/`：预览源入口回归测试与 ignored 性能拆分基准。
