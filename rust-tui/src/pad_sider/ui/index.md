@@ -12,4 +12,4 @@
 - `text_zoom.rs`：预览内容紧凑 / 放大显示密度处理。
 - `syntax.rs` / `syntax/`：VS Code Dark+ 风格多语言代码高亮。
 - `file_icons.rs`：文件树语言短标签与强调色。
-- `markdown.rs` / `markdown/`：紧凑 Markdown 渲染，子目录内有独立索引。
+- `markdown.rs` / `markdown/` / `markdown_tests.rs`：紧凑 Markdown 渲染、样式模块与回归测试。
