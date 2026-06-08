@@ -24,6 +24,54 @@ fn invalid_snapshot_does_not_break_sync() {
 }
 
 #[test]
+fn scan_joins_nested_message_parts_without_empty_entries() {
+    let root = temp_root("joined-message-parts");
+    let db = temp_db("joined-message-parts");
+    write_project_session(
+        &root,
+        "parts",
+        "session-main.json",
+        r#"{
+          "sessionId": "session-parts",
+          "projectHash": "hash",
+          "kind": "main",
+          "startTime": "2026-03-28T04:00:00.000Z",
+          "lastUpdated": "2026-03-28T04:00:02.000Z",
+          "messages": [
+            {
+              "type": "user",
+              "content": [
+                {"text": "hello"},
+                {"text": "   "},
+                {"content": {"text": "world"}}
+              ]
+            },
+            {
+              "type": "gemini",
+              "content": [
+                {"text": "answer"},
+                {"parts": [{"text": "more"}]}
+              ]
+            }
+          ]
+        }"#,
+    );
+
+    sync_index_at(&root, &db).unwrap();
+    let threads = all_threads_at(&root, &db).unwrap();
+
+    assert_eq!(threads.len(), 1);
+    assert_eq!(
+        threads[0].first_user_message.as_deref(),
+        Some("hello\nworld")
+    );
+    assert_eq!(
+        threads[0].last_assistant_message.as_deref(),
+        Some("answer\nmore")
+    );
+}
+
+#[test]
 fn indexed_rows_survive_when_source_snapshots_disappear() {
     let root = temp_root("source-snapshots-disappear");
     let db = temp_db("source-snapshots-disappear");

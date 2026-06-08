@@ -10,15 +10,20 @@ pub(super) fn parse_message_text(value: &Value) -> Option<String> {
 }
 
 fn parse_message_text_array(values: &[Value]) -> Option<String> {
-    let parts = values
-        .iter()
-        .filter_map(parse_message_text)
-        .filter(|part| !part.trim().is_empty())
-        .collect::<Vec<_>>();
-    if parts.is_empty() {
+    let mut joined = String::new();
+    for part in values.iter().filter_map(parse_message_text) {
+        if part.trim().is_empty() {
+            continue;
+        }
+        if !joined.is_empty() {
+            joined.push('\n');
+        }
+        joined.push_str(&part);
+    }
+    if joined.is_empty() {
         None
     } else {
-        Some(parts.join("\n"))
+        Some(joined)
     }
 }
 
