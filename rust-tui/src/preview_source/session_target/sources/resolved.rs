@@ -1,5 +1,4 @@
 use super::codex::codex_thread_for_working_dir;
-use super::gemini;
 use super::opencode::opencode_thread_for_working_dir;
 use crate::model::{AgentState, AgentType};
 use crate::preview_source::PreviewRequest;
@@ -46,9 +45,4 @@ pub(crate) fn resolved_session_id_for_request(
                 None
             }
         })
-}
-
-#[allow(dead_code)]
-fn _keep_gemini_module_reachable() {
-    let _ = gemini::gemini_thread_for_session_id;
 }
