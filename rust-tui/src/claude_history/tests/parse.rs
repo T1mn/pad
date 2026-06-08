@@ -81,6 +81,25 @@ fn local_command_scaffold_is_not_used_as_title() {
 }
 
 #[test]
+fn local_command_scaffold_filter_is_case_insensitive() {
+    let dir = temp_dir("local-command-case");
+    let file = dir.join("main.jsonl");
+    fs::write(
+        &file,
+        concat!(
+            "{\"type\":\"user\",\"sessionId\":\"main\",\"cwd\":\"/tmp/project\",\"message\":{\"role\":\"user\",\"content\":\"<COMMAND-NAME>/clear</COMMAND-NAME>\"}}\n",
+            "{\"type\":\"user\",\"sessionId\":\"main\",\"cwd\":\"/tmp/project\",\"message\":{\"role\":\"user\",\"content\":\"real prompt\"}}\n"
+        ),
+    )
+    .unwrap();
+
+    let parsed = parse_claude_thread_file(&file).unwrap().unwrap();
+    fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(parsed.title.as_deref(), Some("real prompt"));
+}
+
+#[test]
 fn read_threads_ignores_subagents_directory() {
     let root = temp_dir("subagents-dir");
     let main_file = root.join("main.jsonl");

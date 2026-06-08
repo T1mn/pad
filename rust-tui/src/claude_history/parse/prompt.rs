@@ -1,3 +1,4 @@
+use crate::text_match::contains_ascii_ignore_case;
 use serde_json::Value;
 
 pub(super) fn extract_first_user_prompt(value: &Value) -> Option<String> {
@@ -34,13 +35,18 @@ fn clean_text(text: &str) -> Option<String> {
 }
 
 fn is_local_command_scaffold(text: &str) -> bool {
-    let lowered = text.to_ascii_lowercase();
-    lowered.contains("<local-command-caveat>")
-        || lowered.contains("</local-command-caveat>")
-        || lowered.contains("<command-name>")
-        || lowered.contains("</command-name>")
-        || lowered.contains("<command-message>")
-        || lowered.contains("</command-message>")
-        || lowered.contains("<command-args>")
-        || lowered.contains("</command-args>")
+    LOCAL_COMMAND_SCAFFOLD_TAGS
+        .iter()
+        .any(|tag| contains_ascii_ignore_case(text, tag))
 }
+
+const LOCAL_COMMAND_SCAFFOLD_TAGS: &[&str] = &[
+    "<local-command-caveat>",
+    "</local-command-caveat>",
+    "<command-name>",
+    "</command-name>",
+    "<command-message>",
+    "</command-message>",
+    "<command-args>",
+    "</command-args>",
+];
