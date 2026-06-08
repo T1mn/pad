@@ -18,18 +18,9 @@ pub(super) fn normalize_image_refs(
         return None;
     }
 
-    let without_wrappers = trimmed
-        .lines()
-        .filter(|line| !is_image_wrapper_line(line.trim()))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let without_wrappers = remove_image_wrapper_lines(trimmed);
     let stripped = strip_all_image_refs(&without_wrappers);
-    let body = stripped
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body = collect_image_body(&stripped);
 
     if image_count == 0 {
         return Some(trimmed.to_string());
@@ -40,6 +31,35 @@ pub(super) fn normalize_image_refs(
     } else {
         format!("[Image x{}] {}", image_count, body)
     })
+}
+
+fn remove_image_wrapper_lines(text: &str) -> String {
+    let mut out = String::new();
+    let mut has_line = false;
+    for line in text.lines() {
+        if is_image_wrapper_line(line.trim()) {
+            continue;
+        }
+        if has_line {
+            out.push('\n');
+        }
+        out.push_str(line);
+        has_line = true;
+    }
+    out
+}
+
+fn collect_image_body(text: &str) -> String {
+    let mut body = String::new();
+    let mut has_line = false;
+    for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if has_line {
+            body.push('\n');
+        }
+        body.push_str(line);
+        has_line = true;
+    }
+    body
 }
 
 fn count_image_open_tags(text: &str) -> usize {

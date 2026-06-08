@@ -7,6 +7,15 @@ fn normalize_codex_user_text_handles_image_only_message() {
 }
 
 #[test]
+fn normalize_codex_user_text_keeps_image_body_lines() {
+    let text = "<image name=[Image #1]>\n</image>\n[Image #1]\n first line \n\nsecond line";
+    assert_eq!(
+        normalize_codex_user_text(text, Some(1)),
+        "[Image x1] first line\nsecond line"
+    );
+}
+
+#[test]
 fn normalize_codex_user_text_does_not_touch_plain_text_without_images() {
     let text = "literal [Image #1] text";
     assert_eq!(normalize_codex_user_text(text, None), text);
