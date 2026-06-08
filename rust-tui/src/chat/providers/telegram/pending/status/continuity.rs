@@ -4,16 +4,25 @@ pub(in crate::chat::providers::telegram::pending) fn continuity_status_line(
     locale: crate::i18n::Locale,
     snapshot: &crate::session_continuity::ContinuitySnapshot,
 ) -> String {
-    let mut parts = vec![continuity_health_text(locale, snapshot.health).to_string()];
+    let mut line = format!(
+        "{}: {}",
+        tg(locale, "diag.summary"),
+        continuity_health_text(locale, snapshot.health)
+    );
     if let Some(lag_seconds) = snapshot.lag_seconds.filter(|lag| *lag > 0) {
-        parts.push(tg_fmt(locale, "diag.lag_short", lag_seconds));
+        line.push_str(" · ");
+        line.push_str(&tg_fmt(locale, "diag.lag_short", lag_seconds));
     }
     if snapshot.attempt_classification
         != crate::session_continuity::ContinuityAttemptClassification::Normal
     {
-        parts.push(continuity_attempt_text(locale, snapshot.attempt_classification).to_string());
+        line.push_str(" · ");
+        line.push_str(continuity_attempt_text(
+            locale,
+            snapshot.attempt_classification,
+        ));
     }
-    format!("{}: {}", tg(locale, "diag.summary"), parts.join(" · "))
+    line
 }
 
 pub(crate) fn continuity_detail_lines(
