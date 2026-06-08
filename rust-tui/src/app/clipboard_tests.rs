@@ -7,3 +7,11 @@ fn copy_preview_summary_truncates_with_ascii_ellipsis() {
         "hello..."
     );
 }
+
+#[test]
+fn copy_preview_summary_collapses_whitespace() {
+    assert_eq!(
+        summarize_copy_preview(" hello\tbrave\nnew   world ", 24),
+        "hello brave new world"
+    );
+}

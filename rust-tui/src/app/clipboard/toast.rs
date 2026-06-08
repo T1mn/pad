@@ -15,7 +15,7 @@ pub(super) fn copy_toast_expired(slot: &Option<CopyToast>) -> bool {
 }
 
 pub(super) fn summarize_copy_preview(text: &str, max_chars: usize) -> String {
-    let condensed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let condensed = collapse_whitespace(text);
     if condensed.is_empty() {
         return String::from("-");
     }
@@ -29,4 +29,15 @@ pub(super) fn summarize_copy_preview(text: &str, max_chars: usize) -> String {
         preview.push(ch);
     }
     preview
+}
+
+fn collapse_whitespace(text: &str) -> String {
+    let mut condensed = String::new();
+    for part in text.split_whitespace() {
+        if !condensed.is_empty() {
+            condensed.push(' ');
+        }
+        condensed.push_str(part);
+    }
+    condensed
 }
