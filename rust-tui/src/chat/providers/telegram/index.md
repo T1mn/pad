@@ -1,5 +1,6 @@
 # telegram
 
+- `mod.rs`：Telegram provider facade，外露 daemon 启动/同步/重启和内部命令回调依赖。
 - `daemon.rs` / `daemon/`：bot 主轮询循环、配置鉴权、pending 维护、update 分发、进程管理与状态落盘。
 - `api.rs` / `api/`：Telegram API 调用、DTO 与长文本分片。
 - `commands.rs` / `commands/`：命令入口与子命令实现。

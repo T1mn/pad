@@ -70,11 +70,7 @@ fn play_sound_event(config: &Config, event: SoundEvent) {
 
 use self::callbacks::{handle_callback_query, send_codex_approval_prompt};
 use self::commands::{edit_help_message, handle_update, send_agent_list, send_pad_status_report};
-#[allow(unused_imports)]
-pub use self::daemon::{
-    daemon_is_running, ensure_daemon_running, ensure_embedded_daemon_running, restart_daemon,
-    run_daemon, stop_daemon, sync_daemon,
-};
+pub use self::daemon::{ensure_embedded_daemon_running, restart_daemon, run_daemon, sync_daemon};
 #[cfg(test)]
 use self::hooks::should_probe_hook_journal_inner;
 use self::hooks::{
