@@ -18,10 +18,25 @@ pub fn launch_resume_target(target: &ResumeTarget, dry_run: bool) -> io::Result<
         if !output.status.success() {
             return Err(io::Error::other(format!(
                 "tmux {} failed: {}",
-                args.join(" "),
+                format_tmux_args(args),
                 String::from_utf8_lossy(&output.stderr).trim()
             )));
         }
     }
     Ok(plan)
 }
+
+fn format_tmux_args(args: &[String]) -> String {
+    let mut formatted = String::new();
+    for arg in args {
+        if !formatted.is_empty() {
+            formatted.push(' ');
+        }
+        formatted.push_str(arg);
+    }
+    formatted
+}
+
+#[cfg(test)]
+#[path = "execute_tests.rs"]
+mod tests;
