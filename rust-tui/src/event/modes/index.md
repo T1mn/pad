@@ -1,6 +1,6 @@
 # event/modes
 
-- `thread_action_confirm.rs`: thread actions plus title/tag editor keys.
+- `thread_action_confirm.rs` / `thread_action_confirm_tests.rs`: thread actions plus title/tag editor keys and editor clear tests.
 - `settings/`: settings modal key handling.
 - `relay_settings/`: relay/provider editor key handling.
 - `search.rs` / `tree_search.rs`: search modes.
