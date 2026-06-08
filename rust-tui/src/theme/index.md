@@ -9,6 +9,6 @@
 - `agent.rs`: agent / model 配置结构。
 - `settings.rs`: 预览、声音、Telegram、Codex 等配置结构。
 - `config.rs`: `Config` 主结构和默认值。
-- `load.rs`: 配置读取和 TOML 解析。
+- `load.rs` / `load/`: 配置读取入口、TOML section 解析与 agent/provider 解析。
 - `save.rs`: 配置保存。
 - `tests.rs`: `theme` 相关回归测试。
