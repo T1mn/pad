@@ -8,25 +8,22 @@ pub(crate) fn settings_item_search_blob(
     name_key: &str,
     desc_key: &str,
 ) -> String {
-    let mut terms = vec![
-        id.to_lowercase(),
-        id.replace('_', " ").to_lowercase(),
-        name_key.to_lowercase(),
-        name_key.replace(['.', '_'], " ").to_lowercase(),
-        desc_key.to_lowercase(),
-        desc_key.replace(['.', '_'], " ").to_lowercase(),
-        value.to_lowercase(),
-        crate::i18n::t(locale, name_key).to_lowercase(),
-        crate::i18n::t(locale, desc_key).to_lowercase(),
-        crate::i18n::t(Locale::En, name_key).to_lowercase(),
-        crate::i18n::t(Locale::En, desc_key).to_lowercase(),
-    ];
-    terms.extend(
-        settings_item_aliases(id)
-            .iter()
-            .map(|alias| alias.to_string()),
-    );
-    terms.join(" ")
+    let mut blob = String::new();
+    push_search_term(&mut blob, id);
+    push_owned_search_term(&mut blob, id.replace('_', " "));
+    push_search_term(&mut blob, name_key);
+    push_owned_search_term(&mut blob, name_key.replace(['.', '_'], " "));
+    push_search_term(&mut blob, desc_key);
+    push_owned_search_term(&mut blob, desc_key.replace(['.', '_'], " "));
+    push_search_term(&mut blob, value);
+    push_search_term(&mut blob, crate::i18n::t(locale, name_key));
+    push_search_term(&mut blob, crate::i18n::t(locale, desc_key));
+    push_search_term(&mut blob, crate::i18n::t(Locale::En, name_key));
+    push_search_term(&mut blob, crate::i18n::t(Locale::En, desc_key));
+    for alias in settings_item_aliases(id) {
+        push_search_term(&mut blob, alias);
+    }
+    blob
 }
 
 pub(crate) fn settings_item_matches_search(
@@ -62,6 +59,17 @@ fn term_matches(term: &str, query: &str) -> bool {
 fn normalized_term_matches(term: &str, query: &str, separators: &[char]) -> bool {
     let normalized = term.replace(separators, " ");
     term_matches(&normalized, query)
+}
+
+fn push_search_term(blob: &mut String, term: &str) {
+    if !blob.is_empty() {
+        blob.push(' ');
+    }
+    blob.push_str(term);
+}
+
+fn push_owned_search_term(blob: &mut String, term: String) {
+    push_search_term(blob, &term);
 }
 
 fn settings_item_aliases(id: &str) -> &'static [&'static str] {
