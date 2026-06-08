@@ -10,7 +10,8 @@ use crate::fuzzy::FuzzyPicker;
 use crate::hook::HookEvent;
 use crate::model::AgentPanel;
 use crate::theme::{Config, Theme};
-use async_ops::ScanResult;
+pub use async_ops::CodexCliVersionInfo;
+use async_ops::{CodexCliUpdateResult, CodexCliVersionCheckResult, ProviderTestResult, ScanResult};
 use ratatui::widgets::TableState;
 use state::{
     CodexSettingsView, Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind,
@@ -29,17 +30,6 @@ use tokio::sync::mpsc;
 const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_TTL_SECS: i64 = 12 * 60 * 60;
-type ProviderTestResult = (usize, usize, bool, Option<u16>, Option<u64>, String);
-type CodexCliVersionCheckResult = CodexCliVersionInfo;
-type CodexCliUpdateResult = Result<CodexCliVersionInfo, String>;
-
-#[derive(Clone, Debug, Default)]
-pub struct CodexCliVersionInfo {
-    pub binary_path: Option<String>,
-    pub local_version: Option<String>,
-    pub latest_version: Option<String>,
-}
-
 pub struct App {
     pub panels: Vec<AgentPanel>,
     pub table_state: TableState,

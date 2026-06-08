@@ -2,9 +2,13 @@
 mod commands;
 #[path = "codex_cli/toast.rs"]
 mod toast;
+#[path = "codex_cli/types.rs"]
+mod types;
 
 use self::commands::{detect_codex_cli_version_info, update_codex_cli};
 use self::toast::{show_codex_update_failure_toast, show_codex_update_success_toast};
+pub use self::types::CodexCliVersionInfo;
+pub(crate) use self::types::{CodexCliUpdateResult, CodexCliVersionCheckResult};
 use crate::app::App;
 use std::thread;
 use tokio::sync::mpsc;

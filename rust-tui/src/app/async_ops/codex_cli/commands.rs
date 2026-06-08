@@ -1,4 +1,4 @@
-use crate::app::CodexCliVersionInfo;
+use super::types::CodexCliVersionInfo;
 use std::process::Command;
 
 pub(super) fn detect_codex_cli_version_info() -> CodexCliVersionInfo {

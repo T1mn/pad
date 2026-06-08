@@ -1,4 +1,5 @@
-use crate::app::{App, CodexCliVersionInfo};
+use super::types::CodexCliVersionInfo;
+use crate::app::App;
 
 pub(super) fn show_codex_update_success_toast(app: &mut App, info: &CodexCliVersionInfo) {
     let local = info

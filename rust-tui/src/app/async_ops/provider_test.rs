@@ -9,6 +9,7 @@ use crate::app::App;
 use probe::{provider_test_credential, run_provider_test_probe};
 use result::{apply_empty_base_url_result, apply_provider_test_result, clear_provider_test_state};
 use tokio::sync::mpsc;
+pub(crate) use types::ProviderTestResult;
 
 impl App {
     pub fn trigger_provider_test(&mut self, agent_idx: usize, provider_idx: usize) {
