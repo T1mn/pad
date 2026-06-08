@@ -24,7 +24,6 @@ pub struct RecipeRunReport {
 }
 
 pub use execute::run_recipe;
-pub use plan::build_launch_plan;
 
 #[cfg(test)]
 #[path = "runner_tests.rs"]

@@ -1,4 +1,5 @@
-use super::{build_launch_plan, RecipeCommand, RecipeRunReport};
+use super::plan::build_launch_plan;
+use super::{RecipeCommand, RecipeRunReport};
 use crate::workspace_recipe::display::display_command;
 use crate::workspace_recipe::model::WorkspaceRecipe;
 use std::io;
