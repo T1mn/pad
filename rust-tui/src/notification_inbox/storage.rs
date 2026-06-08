@@ -83,36 +83,5 @@ fn tmp_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::notification_inbox::model::NotificationEntry;
-
-    #[test]
-    fn save_and_load_round_trips_entries() {
-        let dir = std::env::temp_dir().join(format!(
-            "pad-inbox-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let path = dir.join("inbox.json");
-        let inbox = NotificationInbox {
-            version: INBOX_VERSION,
-            entries: vec![NotificationEntry {
-                id: "one".into(),
-                ts: 10,
-                title: "done".into(),
-                body: "body".into(),
-                ..NotificationEntry::default()
-            }],
-        };
-
-        save_to_path(&path, &inbox).unwrap();
-        let loaded = load_from_path(&path);
-
-        assert_eq!(loaded.entries.len(), 1);
-        assert_eq!(loaded.entries[0].id, "one");
-        let _ = std::fs::remove_dir_all(dir);
-    }
-}
+#[path = "storage_tests.rs"]
+mod tests;
