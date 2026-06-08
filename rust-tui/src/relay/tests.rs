@@ -1,7 +1,7 @@
 use super::codex::should_restore_native_codex_config;
 use super::common::{
     claude_permission_state_path, codex_permission_state_path, opencode_managed_state_path,
-    parse_env_file,
+    parse_env_file, serialize_env_file,
 };
 use super::{
     apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
@@ -47,6 +47,15 @@ fn sample_codex_config() -> CodexConfig {
 
 fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
     crate::test_support::with_temp_home("pad-relay", name, f)
+}
+
+#[test]
+fn serialize_env_file_keeps_sorted_lines_and_trailing_newline() {
+    let mut env = std::collections::BTreeMap::new();
+    env.insert("ZED".to_string(), "last".to_string());
+    env.insert("ALPHA".to_string(), "first".to_string());
+
+    assert_eq!(serialize_env_file(&env), "ALPHA=first\nZED=last\n");
 }
 
 mod provider_configs {

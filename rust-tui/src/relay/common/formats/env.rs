@@ -19,11 +19,12 @@ pub(in crate::relay) fn serialize_env_file(map: &BTreeMap<String, String>) -> St
         return String::new();
     }
 
-    let mut serialized = map
-        .iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    serialized.push('\n');
+    let mut serialized = String::new();
+    for (key, value) in map {
+        serialized.push_str(key);
+        serialized.push('=');
+        serialized.push_str(value);
+        serialized.push('\n');
+    }
     serialized
 }
