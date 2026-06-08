@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(in crate::app::actions) fn opencode_stats_path(
     project: &str,
@@ -13,8 +12,5 @@ pub(in crate::app::actions) fn opencode_stats_path(
 }
 
 pub(super) fn current_unix_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    crate::time::unix_now_secs()
 }

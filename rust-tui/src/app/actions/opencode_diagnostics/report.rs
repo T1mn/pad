@@ -1,6 +1,5 @@
 use super::collect::DiagnosticsSection;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(in crate::app::actions) fn format_report(sections: &[DiagnosticsSection]) -> String {
     let mut report = String::from("# OpenCode diagnostics\n");
@@ -19,8 +18,5 @@ pub(in crate::app::actions) fn diagnostics_path(dir: &Path, timestamp: u64) -> P
 }
 
 pub(super) fn current_unix_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+    crate::time::unix_now_secs()
 }
