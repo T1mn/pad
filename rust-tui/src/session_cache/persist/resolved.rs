@@ -30,8 +30,8 @@ pub fn persist_resolved_session(
     let mut index = load_index();
     let _ = prune_index(&mut index);
     let now = now_ts();
-    let agent_type = panel.agent_type.to_string();
-    let record_idx = upsert_session_record(&mut index, agent_session_id, &agent_type, now);
+    let agent_type = panel.agent_type.as_str();
+    let record_idx = upsert_session_record(&mut index, agent_session_id, agent_type, now);
     let last_user_prompt = normalized_turns.first().map(|turn| turn.question.clone());
     let last_assistant_message = normalized_turns
         .first()
