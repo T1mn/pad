@@ -105,15 +105,28 @@ pub(super) fn truncate_modal_line_middle(input: &str, max_chars: usize) -> Strin
     let back = keep.saturating_sub(front);
 
     let prefix: String = input.chars().take(front).collect();
-    let suffix: String = input
-        .chars()
-        .rev()
-        .take(back)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect();
+    let suffix = trailing_chars(input, back);
     format!("{}...{}", prefix, suffix)
+}
+
+fn trailing_chars(input: &str, count: usize) -> String {
+    if count == 0 {
+        return String::new();
+    }
+
+    let mut tail = std::collections::VecDeque::with_capacity(count);
+    for ch in input.chars() {
+        if tail.len() == count {
+            tail.pop_front();
+        }
+        tail.push_back(ch);
+    }
+
+    let mut suffix = String::new();
+    for ch in tail {
+        suffix.push(ch);
+    }
+    suffix
 }
 
 pub(super) fn mask_secret_prefix(value: &str, prefix_len: usize) -> String {
@@ -125,3 +138,7 @@ pub(super) fn mask_secret_prefix(value: &str, prefix_len: usize) -> String {
     }
     format!("{}...", &value[..prefix_len])
 }
+
+#[cfg(test)]
+#[path = "common_tests.rs"]
+mod tests;
