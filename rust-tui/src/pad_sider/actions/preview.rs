@@ -1,24 +1,21 @@
 use super::super::app::App;
 use super::super::preview::FullscreenPreview;
-use std::path::Path;
+use std::path::PathBuf;
 
 impl App {
     pub fn open_preview(&mut self) {
         let Some(path) = self.selected_path().cloned() else {
             return;
         };
-        self.open_preview_path(&path);
+        self.open_preview_path(path);
     }
 
-    pub(crate) fn open_preview_path(&mut self, path: &Path) {
+    pub(crate) fn open_preview_path(&mut self, path: PathBuf) {
         if !path.is_file() {
             return;
         }
-        let preview = self.file_preview_cache.preview_for(&self.cwd, path);
-        self.preview = Some(FullscreenPreview {
-            path: path.to_path_buf(),
-            preview,
-        });
+        let preview = self.file_preview_cache.preview_for(&self.cwd, &path);
+        self.preview = Some(FullscreenPreview { path, preview });
     }
 
     pub fn close_preview(&mut self) {

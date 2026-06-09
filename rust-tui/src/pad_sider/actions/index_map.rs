@@ -7,14 +7,14 @@ impl App {
             return;
         };
         self.reveal_path(&path);
-        self.open_preview_path(&path);
+        self.open_preview_path(path);
     }
 
     pub fn open_selected_index_preview(&mut self) {
         let Some(path) = self.selected_index_path().cloned() else {
             return;
         };
-        self.open_preview_path(&path);
+        self.open_preview_path(path);
     }
 
     pub fn reveal_selected_index_in_tree(&mut self) {
