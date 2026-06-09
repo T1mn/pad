@@ -9,8 +9,10 @@ const SKILL_CLOSE: &str = "</skill>";
 const AGENTS_MD_INSTRUCTIONS_PREFIX: &str = "# AGENTS.md instructions for ";
 const AGENTS_MD_INSTRUCTIONS_SUFFIX: &str = "</INSTRUCTIONS>";
 
-pub(super) fn strip_non_preview_codex_fragments(text: &str) -> String {
-    let mut stripped = text.to_string();
+use std::borrow::Cow;
+
+pub(super) fn strip_non_preview_codex_fragments(text: &str) -> Cow<'_, str> {
+    let mut stripped = Cow::Borrowed(text);
     for (open, close) in [
         (ENVIRONMENT_CONTEXT_OPEN, ENVIRONMENT_CONTEXT_CLOSE),
         (TURN_ABORTED_OPEN, TURN_ABORTED_CLOSE),
@@ -18,7 +20,9 @@ pub(super) fn strip_non_preview_codex_fragments(text: &str) -> String {
         (SKILL_OPEN, SKILL_CLOSE),
         (AGENTS_MD_INSTRUCTIONS_PREFIX, AGENTS_MD_INSTRUCTIONS_SUFFIX),
     ] {
-        stripped = strip_wrapped_block(&stripped, open, close);
+        if let Some(next) = strip_wrapped_block(&stripped, open, close) {
+            stripped = Cow::Owned(next);
+        }
     }
     stripped
 }
@@ -35,22 +39,29 @@ pub(super) fn extract_user_shell_command_summary(text: &str) -> Option<String> {
     Some(format!("[shell] {}", command))
 }
 
-fn strip_wrapped_block(text: &str, open: &str, close: &str) -> String {
+fn strip_wrapped_block(text: &str, open: &str, close: &str) -> Option<String> {
+    let mut next_start = text.find(open)?;
+
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
 
-    while let Some(start) = rest.find(open) {
+    loop {
+        let start = next_start;
         out.push_str(&rest[..start]);
         let after_open = &rest[start + open.len()..];
         let Some(end) = after_open.find(close) else {
             out.push_str(&rest[start..]);
-            return out;
+            return Some(out);
         };
         rest = &after_open[end + close.len()..];
+        let Some(start) = rest.find(open) else {
+            break;
+        };
+        next_start = start;
     }
 
     out.push_str(rest);
-    out
+    Some(out)
 }
 
 fn exact_wrapped_fragment<'a>(text: &'a str, open: &str, close: &str) -> Option<&'a str> {
