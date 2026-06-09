@@ -6,7 +6,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, ListState},
+    widgets::{Block, List, ListItem, ListState},
     Frame,
 };
 
@@ -54,12 +54,7 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
             ]))
         })
         .collect::<Vec<_>>();
-    let mut state = ListState::default();
-    state.select(selected);
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-    frame.render_stateful_widget(list, area, &mut state);
+    render_nav_list(frame, area, block, items, selected);
 }
 
 fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
@@ -94,12 +89,7 @@ fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
             ListItem::new(label)
         })
         .collect::<Vec<_>>();
-    let mut state = ListState::default();
-    state.select(selected);
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-    frame.render_stateful_widget(list, area, &mut state);
+    render_nav_list(frame, area, block, items, selected);
 }
 
 fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
@@ -141,6 +131,16 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
             ]))
         })
         .collect::<Vec<_>>();
+    render_nav_list(frame, area, block, items, selected);
+}
+
+fn render_nav_list<'a>(
+    frame: &mut Frame,
+    area: Rect,
+    block: Block<'a>,
+    items: Vec<ListItem<'a>>,
+    selected: Option<usize>,
+) {
     let mut state = ListState::default();
     state.select(selected);
     let list = List::new(items)
