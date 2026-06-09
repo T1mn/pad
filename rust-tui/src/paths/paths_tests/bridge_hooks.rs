@@ -59,9 +59,15 @@ fn set_toml_bool_in_section_writes_new_hooks_key() {
         true,
     );
 
-    assert!(updated.contains("[features]\n"));
-    assert!(updated.contains("codex_hooks = true\n"));
-    assert!(updated.contains("hooks = true\n"));
+    assert_eq!(updated, "[features]\ncodex_hooks = true\n\nhooks = true\n");
+}
+
+#[test]
+fn set_toml_bool_in_section_preserves_leading_blank_line() {
+    let updated =
+        set_toml_bool_in_section("\n[features]\nhooks = false\n", "features", "hooks", true);
+
+    assert_eq!(updated, "\n[features]\nhooks = true\n");
 }
 
 #[test]
@@ -72,7 +78,5 @@ fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
         "codex_hooks",
     );
 
-    assert!(updated.contains("[features]\n"));
-    assert!(updated.contains("hooks = true\n"));
-    assert!(!updated.contains("codex_hooks = true\n"));
+    assert_eq!(updated, "[features]\nhooks = true\n");
 }
