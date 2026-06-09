@@ -36,12 +36,16 @@ impl App {
                 }
             }
             Focus::IndexMap => {
-                self.index_selected = self.index_selected.saturating_sub(1);
-                self.refresh_file_preview();
+                if self.index_selected > 0 {
+                    self.index_selected -= 1;
+                    self.refresh_file_preview();
+                }
             }
             Focus::CodexRuns => {
-                self.codex_diff_selected = self.codex_diff_selected.saturating_sub(1);
-                self.refresh_file_preview();
+                if self.codex_diff_selected > 0 {
+                    self.codex_diff_selected -= 1;
+                    self.refresh_file_preview();
+                }
             }
             Focus::Preview => self.file_preview_scroll_up(1),
         }
