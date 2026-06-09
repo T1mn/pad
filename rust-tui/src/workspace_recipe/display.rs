@@ -1,11 +1,12 @@
 use super::runner::RecipeCommand;
 
 pub fn display_command(command: &RecipeCommand) -> String {
-    std::iter::once(command.program.as_str())
-        .chain(command.args.iter().map(String::as_str))
-        .map(shell_quote)
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut display = shell_quote(&command.program);
+    for arg in &command.args {
+        display.push(' ');
+        display.push_str(&shell_quote(arg));
+    }
+    display
 }
 
 pub(super) fn shell_quote(value: &str) -> String {
@@ -18,3 +19,7 @@ pub(super) fn shell_quote(value: &str) -> String {
         format!("'{}'", value.replace('\'', r#"'\\''"#))
     }
 }
+
+#[cfg(test)]
+#[path = "display_tests.rs"]
+mod tests;
