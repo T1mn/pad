@@ -1,28 +1,9 @@
-use super::{
-    info_card::preview_info_value_text_at, provider::preview_provider_value,
-    selection::preview_visible_plain_text_rows,
-};
+use super::{info_card::preview_info_value_text_at, provider::preview_provider_value};
 use crate::app::App;
-use crate::model::{AgentState, AgentType, PreviewSource, PreviewView};
+use crate::model::{AgentState, AgentType};
 use crate::sidebar::SidebarThread;
 use crate::theme::ProviderConfig;
 use ratatui::layout::Rect;
-
-#[test]
-fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
-    let mut app = App::new();
-    app.preview.source = PreviewSource::Tmux;
-    app.preview.view = PreviewView::Plain;
-    app.preview.pane_id = Some("%1".into());
-    app.preview.content = "abcd\nefgh".into();
-    app.preview.follow_bottom = false;
-    app.preview.scroll = 1;
-
-    let rows = preview_visible_plain_text_rows(&mut app, Rect::new(0, 0, 2, 2));
-
-    assert_eq!(rows, vec!["cd".to_string(), "ef".to_string()]);
-    assert!(app.preview.plain_cache.is_some());
-}
 
 #[test]
 fn preview_info_value_hit_test_returns_full_truncated_value() {

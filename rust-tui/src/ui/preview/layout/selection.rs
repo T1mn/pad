@@ -29,26 +29,39 @@ pub fn extract_preview_selection_text(
 
     let start_row = start.1 as usize;
     let end_row = end.1 as usize;
-    let mut parts = Vec::new();
+    let mut selected = String::new();
+    let mut wrote_piece = false;
 
     for row_idx in start_row..=end_row.min(rows.len().saturating_sub(1)) {
         let text = rows.get(row_idx).map(String::as_str).unwrap_or("");
-        let piece = if start_row == end_row {
-            slice_text_by_width(text, start.0 as usize, end.0 as usize + 1)
+        if wrote_piece {
+            selected.push('\n');
         } else if row_idx == start_row {
-            slice_text_by_width(text, start.0 as usize, usize::MAX)
+            wrote_piece = true;
+        }
+
+        if start_row == end_row {
+            selected.push_str(&slice_text_by_width(
+                text,
+                start.0 as usize,
+                end.0 as usize + 1,
+            ));
+        } else if row_idx == start_row {
+            selected.push_str(&slice_text_by_width(text, start.0 as usize, usize::MAX));
         } else if row_idx == end_row {
-            slice_text_by_width(text, 0, end.0 as usize + 1)
+            selected.push_str(&slice_text_by_width(text, 0, end.0 as usize + 1));
         } else {
-            text.to_string()
-        };
-        parts.push(piece);
+            selected.push_str(text);
+        }
     }
 
-    let joined = parts.join("\n");
-    if joined.trim().is_empty() {
+    if selected.trim().is_empty() {
         None
     } else {
-        Some(joined)
+        Some(selected)
     }
 }
+
+#[cfg(test)]
+#[path = "selection_tests.rs"]
+mod tests;
