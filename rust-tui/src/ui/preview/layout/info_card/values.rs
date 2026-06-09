@@ -107,13 +107,8 @@ pub(super) fn shortened_thread_path(thread: &SidebarThread, max_len: usize) -> S
         return path;
     }
 
-    let parts: Vec<&str> = path.split('/').collect();
-    if parts.len() >= 2 {
-        let short = format!(
-            "~/.../{}/{}",
-            parts[parts.len() - 2],
-            parts[parts.len() - 1]
-        );
+    if let Some((parent, leaf)) = trailing_path_segments(&path) {
+        let short = format!("~/.../{parent}/{leaf}");
         if short.len() <= max_len {
             return short;
         }
@@ -127,3 +122,13 @@ pub(super) fn shortened_thread_path(thread: &SidebarThread, max_len: usize) -> S
         .unwrap_or(0);
     format!("...{}", &path[start..])
 }
+
+fn trailing_path_segments(path: &str) -> Option<(&str, &str)> {
+    let (prefix, leaf) = path.rsplit_once('/')?;
+    let parent = prefix.rsplit('/').next()?;
+    Some((parent, leaf))
+}
+
+#[cfg(test)]
+#[path = "values_tests.rs"]
+mod tests;
