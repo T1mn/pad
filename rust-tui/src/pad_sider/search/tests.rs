@@ -1,14 +1,9 @@
 use super::FileSearch;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn temp_search_dir() -> std::path::PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!("pad-sider-search-{unique}"));
+    let dir = crate::test_support::temp_path("pad-sider-search", "files");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("alpha.rs"), "fn alpha() {}").unwrap();
     fs::write(dir.join("beta.rs"), "fn beta() {}").unwrap();

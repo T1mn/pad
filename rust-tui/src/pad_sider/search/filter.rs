@@ -3,12 +3,14 @@ use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Matcher, Utf32Str};
 
 pub(super) fn initial_filter(items: &[SearchItem]) -> Vec<(usize, u32)> {
-    (0..items.len()).map(|index| (index, 0)).collect()
+    let mut filtered = Vec::with_capacity(items.len());
+    fill_initial_filter(&mut filtered, items.len());
+    filtered
 }
 
 pub(super) fn update_filter(search: &mut FileSearch) {
     if search.query.is_empty() {
-        search.filtered = initial_filter(&search.items);
+        fill_initial_filter(&mut search.filtered, search.items.len());
     } else {
         search.filtered = fuzzy_filter(&search.items, &search.query);
     }
@@ -16,6 +18,11 @@ pub(super) fn update_filter(search: &mut FileSearch) {
     if search.selected >= search.filtered.len() {
         search.selected = search.filtered.len().saturating_sub(1);
     }
+}
+
+fn fill_initial_filter(filtered: &mut Vec<(usize, u32)>, len: usize) {
+    filtered.clear();
+    filtered.extend((0..len).map(|index| (index, 0)));
 }
 
 fn fuzzy_filter(items: &[SearchItem], query: &str) -> Vec<(usize, u32)> {
