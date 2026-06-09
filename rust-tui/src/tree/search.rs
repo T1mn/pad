@@ -45,16 +45,15 @@ impl FileTree {
 
     /// Filter entries based on search query
     fn filter_entries(&mut self) {
-        let all_entries = self.scan_directory(&self.current_path);
-
-        self.entries = all_entries
+        self.entries = self
+            .scan_directory(&self.current_path)
             .into_iter()
-            .filter(|e| {
+            .filter(|entry| {
                 // Always keep ".."
-                if e.name == ".." {
+                if entry.name == ".." {
                     return true;
                 }
-                contains_ignore_case(&e.name, &self.search_query)
+                contains_ignore_case(&entry.name, &self.search_query)
             })
             .collect();
 
