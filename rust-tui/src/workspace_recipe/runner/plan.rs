@@ -11,17 +11,19 @@ pub fn build_launch_plan(recipe: &WorkspaceRecipe) -> RecipeLaunchPlan {
         ..Default::default()
     };
 
+    let default_step;
     let steps = if recipe.steps.is_empty() {
-        vec![WorkspaceRecipeStep {
+        default_step = WorkspaceRecipeStep {
             name: "shell".into(),
             command: None,
             cwd: None,
             agent: None,
             browser_url: None,
             remote: None,
-        }]
+        };
+        std::slice::from_ref(&default_step)
     } else {
-        recipe.steps.clone()
+        &recipe.steps
     };
 
     for (idx, step) in steps.iter().enumerate() {
