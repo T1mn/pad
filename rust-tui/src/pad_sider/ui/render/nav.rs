@@ -110,10 +110,12 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
             let accent = file_icons::accent(&row.label, row.is_dir);
             ListItem::new(Line::from(vec![
                 Span::styled(indent, Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{marker} "), Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{icon} "), Style::default().fg(accent)),
+                Span::styled(marker, Style::default().fg(Color::DarkGray)),
+                Span::styled(" ", Style::default().fg(Color::DarkGray)),
+                Span::styled(icon, Style::default().fg(accent)),
+                Span::styled(" ", Style::default().fg(accent)),
                 Span::styled(
-                    row.label.clone(),
+                    row.label.as_str(),
                     Style::default().fg(Color::Rgb(212, 212, 212)),
                 ),
             ]))
