@@ -22,25 +22,25 @@ pub(super) fn pane_info(target_pane: &str) -> Result<PaneInfo, String> {
 fn parse_pane_info(raw: &str) -> Result<PaneInfo, String> {
     let mut parts = raw.split(PANE_INFO_SEP);
     let Some(pane_id) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     let Some(_session_name) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     let Some(window_id) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     let Some(command) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     let Some(cwd) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     let Some(zoomed) = parts.next() else {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     };
     if parts.next().is_some() {
-        return Err(format!("unexpected pane info: {raw}"));
+        return Err(unexpected_pane_info(raw));
     }
 
     Ok(PaneInfo {
@@ -50,6 +50,9 @@ fn parse_pane_info(raw: &str) -> Result<PaneInfo, String> {
         cwd: PathBuf::from(cwd),
         zoomed: zoomed == "1",
     })
+}
+fn unexpected_pane_info(raw: &str) -> String {
+    format!("unexpected pane info: {raw}")
 }
 
 pub(super) fn panes_share_window(left: &str, right: &str) -> Result<bool, String> {
