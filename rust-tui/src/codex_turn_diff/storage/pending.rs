@@ -18,12 +18,10 @@ pub fn load_pending_for_stop(event: &HookEvent) -> io::Result<Option<PendingTurn
         }
     }
 
-    let mut candidates = list_pending_all()?
+    Ok(list_pending_all()?
         .into_iter()
         .filter(|pending| pending_matches_event(pending, event))
-        .collect::<Vec<_>>();
-    candidates.sort_by(|left, right| right.started_at.cmp(&left.started_at));
-    Ok(candidates.into_iter().next())
+        .max_by(|left, right| left.started_at.cmp(&right.started_at)))
 }
 
 pub fn remove_pending(id: &str) -> io::Result<()> {
