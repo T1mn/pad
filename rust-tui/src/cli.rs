@@ -52,16 +52,27 @@ pub fn handle_info_command(args: &[String]) -> Result<bool, Box<dyn Error>> {
         }
         let required = report.missing_required_capabilities();
         if !required.is_empty() {
-            println!("required missing: {}", required.join(", "));
+            println!("required missing: {}", format_list(&required, ", "));
         }
         let optional = report.missing_optional_capabilities();
         if !optional.is_empty() {
-            println!("optional missing: {}", optional.join(", "));
+            println!("optional missing: {}", format_list(&optional, ", "));
         }
         return Ok(true);
     }
 
     Ok(false)
+}
+
+fn format_list<T: AsRef<str>>(items: &[T], separator: &str) -> String {
+    let mut formatted = String::new();
+    for item in items {
+        if !formatted.is_empty() {
+            formatted.push_str(separator);
+        }
+        formatted.push_str(item.as_ref());
+    }
+    formatted
 }
 
 fn print_help() {
