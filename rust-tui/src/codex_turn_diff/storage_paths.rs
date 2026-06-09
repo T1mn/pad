@@ -73,13 +73,24 @@ fn safe_name(value: &str) -> String {
     for ch in value.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
             out.push(ch);
-        } else if !out.ends_with('_') {
+        } else if !out.is_empty() && !out.ends_with('_') {
             out.push('_');
         }
     }
-    out.trim_matches('_').chars().take(96).collect()
+    while out.starts_with('_') {
+        out.remove(0);
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    out.truncate(out.len().min(96));
+    out
 }
 
 fn now_nanos() -> u128 {
     crate::time::unix_now_nanos()
 }
+
+#[cfg(test)]
+#[path = "storage_paths_tests.rs"]
+mod tests;
