@@ -38,10 +38,19 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
             };
             let prompt = crate::codex_turn_diff::prompt_summary(entry.prompt.as_deref(), 44);
             let time = entry.ended_at.as_deref().unwrap_or(&entry.started_at);
-            ListItem::new(Line::from(format!(
-                "{status} {time}  {} files +{} -{}  {prompt}",
-                entry.stats.files_changed, entry.stats.insertions, entry.stats.deletions
-            )))
+            ListItem::new(Line::from(vec![
+                Span::raw(status),
+                Span::raw(" "),
+                Span::raw(time),
+                Span::raw("  "),
+                Span::raw(entry.stats.files_changed.to_string()),
+                Span::raw(" files +"),
+                Span::raw(entry.stats.insertions.to_string()),
+                Span::raw(" -"),
+                Span::raw(entry.stats.deletions.to_string()),
+                Span::raw("  "),
+                Span::raw(prompt),
+            ]))
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
