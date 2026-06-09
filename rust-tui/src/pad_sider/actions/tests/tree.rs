@@ -16,3 +16,28 @@ fn reveal_path_expands_parents_and_selects_file() {
 
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn toggle_selected_collapses_directory_and_keeps_preview_on_directory() {
+    let root = temp_dir("toggle_selected_collapses_directory_and_keeps_preview_on_directory");
+    let docs = root.join("docs");
+    let target = docs.join("guide.md");
+    fs::create_dir_all(&docs).unwrap();
+    fs::write(&target, "# guide").unwrap();
+
+    let mut app = App::new(root.clone(), None);
+    app.reveal_path(&docs);
+    assert_eq!(app.selected_path(), Some(&docs));
+
+    app.toggle_selected();
+    assert!(app.expanded.contains(&docs));
+
+    app.toggle_selected();
+
+    assert_eq!(app.selected_path(), Some(&docs));
+    assert!(!app.expanded.contains(&docs));
+    assert_eq!(app.file_preview.title, "docs");
+    assert!(app.file_preview.content.contains("Directory selected"));
+
+    fs::remove_dir_all(root).unwrap();
+}

@@ -17,9 +17,6 @@ impl App {
             self.expanded.remove(&path);
         }
         self.refresh();
-        self.set_selected_path(&path);
-        self.refresh_selected();
-        self.refresh_file_preview();
     }
 
     pub fn reveal_path(&mut self, path: &Path) {
