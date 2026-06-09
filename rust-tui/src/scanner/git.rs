@@ -56,7 +56,7 @@ fn unique_working_dirs<'a>(paths: impl IntoIterator<Item = &'a str>) -> Vec<Stri
     let mut out = Vec::new();
     for path in paths {
         let path = path.trim();
-        if !path.is_empty() && seen.insert(path.to_string()) {
+        if !path.is_empty() && seen.insert(path) {
             out.push(path.to_string());
         }
     }
