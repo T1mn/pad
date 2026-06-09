@@ -20,16 +20,35 @@ pub(super) fn pane_info(target_pane: &str) -> Result<PaneInfo, String> {
 }
 
 fn parse_pane_info(raw: &str) -> Result<PaneInfo, String> {
-    let parts: Vec<_> = raw.split(PANE_INFO_SEP).collect();
-    if parts.len() != 6 {
+    let mut parts = raw.split(PANE_INFO_SEP);
+    let Some(pane_id) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    let Some(_session_name) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    let Some(window_id) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    let Some(command) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    let Some(cwd) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    let Some(zoomed) = parts.next() else {
+        return Err(format!("unexpected pane info: {raw}"));
+    };
+    if parts.next().is_some() {
         return Err(format!("unexpected pane info: {raw}"));
     }
+
     Ok(PaneInfo {
-        pane_id: parts[0].to_string(),
-        window_id: parts[2].to_string(),
-        command: parts[3].to_string(),
-        cwd: PathBuf::from(parts[4]),
-        zoomed: parts[5] == "1",
+        pane_id: pane_id.to_string(),
+        window_id: window_id.to_string(),
+        command: command.to_string(),
+        cwd: PathBuf::from(cwd),
+        zoomed: zoomed == "1",
     })
 }
 
