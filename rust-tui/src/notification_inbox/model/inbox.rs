@@ -11,6 +11,13 @@ pub struct NotificationInbox {
 }
 
 impl NotificationInbox {
+    pub fn empty() -> Self {
+        Self {
+            version: INBOX_VERSION,
+            entries: Vec::new(),
+        }
+    }
+
     pub fn normalized(mut self) -> Self {
         if self.version == 0 {
             self.version = INBOX_VERSION;

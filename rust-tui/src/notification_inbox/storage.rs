@@ -1,4 +1,4 @@
-use super::model::{NotificationEntry, NotificationInbox, INBOX_VERSION};
+use super::model::{NotificationEntry, NotificationInbox};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -44,12 +44,7 @@ fn mutate(apply: impl FnOnce(&mut NotificationInbox)) -> io::Result<Notification
 pub(crate) fn load_from_path(path: &Path) -> NotificationInbox {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
-        Err(_) => {
-            return NotificationInbox {
-                version: INBOX_VERSION,
-                entries: Vec::new(),
-            }
-        }
+        Err(_) => return NotificationInbox::empty(),
     };
 
     serde_json::from_str::<NotificationInbox>(&content)
@@ -60,10 +55,7 @@ pub(crate) fn load_from_path(path: &Path) -> NotificationInbox {
                 path.display(),
                 err
             );
-            NotificationInbox {
-                version: INBOX_VERSION,
-                entries: Vec::new(),
-            }
+            NotificationInbox::empty()
         })
 }
 

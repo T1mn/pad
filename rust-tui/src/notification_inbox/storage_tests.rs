@@ -5,16 +5,14 @@ use crate::notification_inbox::model::NotificationEntry;
 fn save_and_load_round_trips_entries() {
     let dir = crate::test_support::temp_path("pad-inbox-test", "round-trip");
     let path = dir.join("inbox.json");
-    let inbox = NotificationInbox {
-        version: INBOX_VERSION,
-        entries: vec![NotificationEntry {
-            id: "one".into(),
-            ts: 10,
-            title: "done".into(),
-            body: "body".into(),
-            ..NotificationEntry::default()
-        }],
-    };
+    let mut inbox = NotificationInbox::empty();
+    inbox.entries = vec![NotificationEntry {
+        id: "one".into(),
+        ts: 10,
+        title: "done".into(),
+        body: "body".into(),
+        ..NotificationEntry::default()
+    }];
 
     save_to_path(&path, &inbox).unwrap();
     let loaded = load_from_path(&path);
