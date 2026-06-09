@@ -20,7 +20,7 @@ pub(super) fn draw_nav(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
     let title = format!(" codex runs ({}) ", app.codex_diffs.len());
-    let block = focus_block(&title, app.focus == Focus::CodexRuns);
+    let block = focus_block(title, app.focus == Focus::CodexRuns);
     let range = selected_window(
         app.codex_diffs.len(),
         app.codex_diff_selected,
@@ -63,7 +63,7 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
     let title = format!(" index map ({}) ", app.index_rows.len());
-    let block = focus_block(&title, app.focus == Focus::IndexMap);
+    let block = focus_block(title, app.focus == Focus::IndexMap);
     let range = selected_window(
         app.index_rows.len(),
         app.index_selected,

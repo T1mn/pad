@@ -36,10 +36,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
 }
 
-pub(super) fn focus_block(title: &str, focused: bool) -> Block<'static> {
-    let mut block = Block::default()
-        .title(title.to_string())
-        .borders(Borders::ALL);
+pub(super) fn focus_block(title: impl Into<String>, focused: bool) -> Block<'static> {
+    let mut block = Block::default().title(title.into()).borders(Borders::ALL);
     if focused {
         block = block.border_style(Style::default().add_modifier(Modifier::BOLD));
     }

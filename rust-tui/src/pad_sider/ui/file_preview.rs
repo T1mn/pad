@@ -21,8 +21,10 @@ use ratatui::{
 };
 
 pub(super) fn draw_file_preview(frame: &mut Frame, app: &mut App, area: Rect) {
-    let title = preview_title(&app.file_preview.title, app.file_preview.kind);
-    let block = focus_block(&title, app.focus == Focus::Preview);
+    let block = focus_block(
+        preview_title(&app.file_preview.title, app.file_preview.kind),
+        app.focus == Focus::Preview,
+    );
     let inner = block.inner(area);
     cache::ensure_rendered_file_preview(app, inner.width);
 
