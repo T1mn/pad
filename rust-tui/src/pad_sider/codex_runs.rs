@@ -9,31 +9,28 @@ impl App {
 
     pub(crate) fn refresh_codex_diff_preview(&mut self) {
         let previous_scroll = self.file_preview.scroll;
-        let selected = self.selected_codex_diff().cloned();
-        if let Some(entry) = selected.as_ref() {
-            if entry.status == TurnDiffStatus::Completed {
-                let key = codex_diff_preview_key(entry);
-                if self.codex_diff_preview_key.as_deref() == Some(key.as_str()) {
-                    return;
+        let (preview_key, preview) = match self.selected_codex_diff() {
+            Some(entry) => {
+                if entry.status == TurnDiffStatus::Completed {
+                    let key = codex_diff_preview_key(entry);
+                    if self.codex_diff_preview_key.as_deref() == Some(key.as_str()) {
+                        return;
+                    }
+                    (Some(key), codex_diff_preview(entry))
+                } else {
+                    (None, codex_diff_preview(entry))
                 }
-                self.codex_diff_preview_key = Some(key);
-            } else {
-                self.codex_diff_preview_key = None;
             }
-        } else {
-            self.codex_diff_preview_key = None;
-        }
-
-        let preview = selected
-            .as_ref()
-            .map(codex_diff_preview)
-            .unwrap_or_else(|| {
+            None => (
+                None,
                 FilePreview::new(
                     "codex runs".into(),
                     "No Codex turn diffs recorded for this repo yet.\n\nRun Codex through PAD hooks, then submit a prompt.".into(),
                     PreviewKind::Missing,
-                )
-        });
+                ),
+            ),
+        };
+        self.codex_diff_preview_key = preview_key;
         let mut preview = preview;
         if preview.title == self.file_preview.title {
             preview.scroll = previous_scroll;
