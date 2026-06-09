@@ -1,4 +1,4 @@
-use super::ignore::skip_dir_name;
+use super::super::ignore::skip_dir_name;
 use super::TreeRow;
 use std::collections::HashSet;
 use std::ffi::OsString;

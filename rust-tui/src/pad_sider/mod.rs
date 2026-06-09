@@ -3,6 +3,7 @@ mod app;
 mod cli;
 mod codex_runs;
 mod fs;
+mod ignore;
 mod index_map;
 mod preview;
 mod preview_cache;

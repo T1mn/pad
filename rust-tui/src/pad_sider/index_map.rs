@@ -1,3 +1,4 @@
+use super::ignore::skip_dir_name;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -48,13 +49,6 @@ fn dir_label(root: &Path, dir: &Path) -> String {
         .and_then(|name| name.to_str())
         .unwrap_or(".")
         .to_string()
-}
-
-fn skip_dir_name(name: &str) -> bool {
-    matches!(
-        name,
-        ".git" | "node_modules" | "target" | "dist" | "build" | "__pycache__"
-    )
 }
 
 #[cfg(test)]

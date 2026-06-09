@@ -1,5 +1,4 @@
 mod build;
-mod ignore;
 mod model;
 mod scan;
 
