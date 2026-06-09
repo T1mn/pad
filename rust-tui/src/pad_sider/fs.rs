@@ -36,7 +36,7 @@ pub fn read_file_stats(path: &Path) -> FileStats {
     let modified = metadata
         .and_then(|value| value.modified().ok())
         .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|value| format!("{}", value.as_secs()))
+        .map(|value| value.as_secs().to_string())
         .unwrap_or_else(|| "-".into());
     let lines = fs::read_to_string(path)
         .map(|text| text.lines().count())
