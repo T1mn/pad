@@ -90,19 +90,13 @@ fn opencode_models_summary(provider: &ProviderConfig) -> String {
     if provider.models.is_empty() {
         return "-".to_string();
     }
-    let preview = provider
-        .models
-        .iter()
-        .take(2)
-        .map(|model| {
-            if model.name.trim().is_empty() {
-                model.id.clone()
-            } else {
-                format!("{} ({})", model.name, model.id)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
+    let mut preview = String::new();
+    for model in provider.models.iter().take(2) {
+        if !preview.is_empty() {
+            preview.push_str(", ");
+        }
+        push_model_summary(&mut preview, model);
+    }
     if provider.models.len() > 2 {
         format!(
             "{}  ·  +{} more",
@@ -113,3 +107,18 @@ fn opencode_models_summary(provider: &ProviderConfig) -> String {
         super::super::super::common::truncate_modal_line(&preview, 48)
     }
 }
+
+fn push_model_summary(preview: &mut String, model: &crate::theme::OpenCodeModelConfig) {
+    if model.name.trim().is_empty() {
+        preview.push_str(&model.id);
+    } else {
+        preview.push_str(&model.name);
+        preview.push_str(" (");
+        preview.push_str(&model.id);
+        preview.push(')');
+    }
+}
+
+#[cfg(test)]
+#[path = "opencode_tests.rs"]
+mod tests;
