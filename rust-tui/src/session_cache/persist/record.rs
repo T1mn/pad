@@ -11,7 +11,9 @@ pub(in crate::session_cache) fn upsert_session_record(
         .iter()
         .position(|record| record.agent_session_id == agent_session_id)
     {
-        index.sessions[existing_idx].agent_type = agent_type.to_string();
+        if index.sessions[existing_idx].agent_type != agent_type {
+            index.sessions[existing_idx].agent_type = agent_type.to_string();
+        }
         index.sessions[existing_idx].last_seen_at = now;
         return existing_idx;
     }
