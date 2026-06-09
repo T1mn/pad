@@ -16,8 +16,8 @@ pub fn persist_hook_event(
 ) -> io::Result<Option<SessionCacheSnapshot>> {
     let Some(agent_session_id) = event
         .session_id
-        .clone()
-        .or_else(|| panel.agent_session_id.clone())
+        .as_deref()
+        .or(panel.agent_session_id.as_deref())
     else {
         return Ok(None);
     };
@@ -28,7 +28,7 @@ pub fn persist_hook_event(
     let agent_type = panel.agent_type.to_string();
     let normalize_codex = panel.agent_type == AgentType::Codex;
 
-    let record_idx = upsert_session_record(&mut index, &agent_session_id, &agent_type, now);
+    let record_idx = upsert_session_record(&mut index, agent_session_id, &agent_type, now);
     index.sessions[record_idx].transcript_path = prefer_non_empty(
         event.transcript_path.as_ref(),
         panel.transcript_path.as_ref(),
@@ -71,7 +71,7 @@ pub fn persist_hook_event(
     upsert_binding(
         &mut index,
         panel,
-        &agent_session_id,
+        agent_session_id,
         HookBindingContext::from_event(event),
         now,
     );
@@ -79,7 +79,7 @@ pub fn persist_hook_event(
 
     crate::session_continuity::record_cache_write(
         &panel.agent_type,
-        &agent_session_id,
+        agent_session_id,
         index.sessions[record_idx]
             .transcript_path
             .as_deref()
