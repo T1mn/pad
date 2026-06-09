@@ -20,7 +20,10 @@ pub(in crate::thread_meta) fn load_thread_meta_batch_at(
     }
     ensure_schema_at(db_path)?;
     let connection = open_db(db_path)?;
-    let wanted: HashSet<ThreadMetaKey> = keys.iter().cloned().collect();
+    let wanted = keys
+        .iter()
+        .map(|key| (key.agent_type.as_str(), key.thread_id.as_str()))
+        .collect::<HashSet<_>>();
     let mut records = load_wanted_meta_records(&connection, &wanted)?;
     load_tags_into_records(&connection, &wanted, &mut records)?;
 
@@ -69,7 +72,7 @@ pub(in crate::thread_meta) fn deleted_thread_count_at(db_path: &Path) -> io::Res
 
 fn load_wanted_meta_records(
     connection: &rusqlite::Connection,
-    wanted: &HashSet<ThreadMetaKey>,
+    wanted: &HashSet<(&str, &str)>,
 ) -> io::Result<HashMap<ThreadMetaKey, ThreadMeta>> {
     let sql = format!("SELECT {THREAD_META_COLUMNS} FROM thread_meta");
     let mut statement = connection.prepare(&sql).map_err(to_io_error)?;
@@ -80,7 +83,7 @@ fn load_wanted_meta_records(
 
     for row in rows {
         let (key, meta) = row.map_err(to_io_error)?;
-        if wanted.contains(&key) {
+        if wanted.contains(&(key.agent_type.as_str(), key.thread_id.as_str())) {
             records.insert(key, meta);
         }
     }

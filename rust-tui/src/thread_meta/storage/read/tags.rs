@@ -5,7 +5,7 @@ use std::io;
 
 pub(super) fn load_tags_into_records(
     connection: &rusqlite::Connection,
-    wanted: &HashSet<ThreadMetaKey>,
+    wanted: &HashSet<(&str, &str)>,
     records: &mut HashMap<ThreadMetaKey, ThreadMeta>,
 ) -> io::Result<()> {
     let mut statement = connection
@@ -18,16 +18,21 @@ pub(super) fn load_tags_into_records(
     let rows = statement
         .query_map([], |row| {
             Ok((
-                ThreadMetaKey::new(row.get::<_, String>(0)?, row.get::<_, String>(1)?),
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
             ))
         })
         .map_err(to_io_error)?;
 
     for row in rows {
-        let (key, tag) = row.map_err(to_io_error)?;
-        if wanted.contains(&key) {
-            records.entry(key).or_default().tags.push(tag);
+        let (agent_type, thread_id, tag) = row.map_err(to_io_error)?;
+        if wanted.contains(&(agent_type.as_str(), thread_id.as_str())) {
+            records
+                .entry(ThreadMetaKey::new(agent_type, thread_id))
+                .or_default()
+                .tags
+                .push(tag);
         }
     }
     Ok(())
@@ -39,7 +44,7 @@ pub(super) fn hydrate_deleted_tags(
 ) -> io::Result<()> {
     let wanted = deleted
         .iter()
-        .map(|(key, _)| key.clone())
+        .map(|(key, _)| (key.agent_type.as_str(), key.thread_id.as_str()))
         .collect::<HashSet<_>>();
     let mut records = HashMap::new();
     load_tags_into_records(connection, &wanted, &mut records)?;
