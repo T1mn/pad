@@ -13,7 +13,7 @@ pub(super) fn save_completed(
 
     let patch_path = patches_dir().join(format!("{}.patch", record.id));
     fs::write(&patch_path, patch)?;
-    record.patch_path = patch_path.to_string_lossy().to_string();
+    record.patch_path = patch_path.to_string_lossy().into_owned();
 
     write_json(&record_path(&record.id), &record)?;
     append_index(&record)?;
