@@ -25,10 +25,10 @@ pub fn persist_hook_event(
     let mut index = load_index();
     let _ = prune_index(&mut index);
     let now = now_ts();
-    let agent_type = panel.agent_type.to_string();
+    let agent_type = panel.agent_type.as_str();
     let normalize_codex = panel.agent_type == AgentType::Codex;
 
-    let record_idx = upsert_session_record(&mut index, agent_session_id, &agent_type, now);
+    let record_idx = upsert_session_record(&mut index, agent_session_id, agent_type, now);
     index.sessions[record_idx].transcript_path = prefer_non_empty(
         event.transcript_path.as_ref(),
         panel.transcript_path.as_ref(),
