@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use super::super::helpers::trim_wrapping_quotes;
+
 pub(in crate::app::actions) fn normalize_import_source(text: &str) -> Result<String, &'static str> {
     let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
     let Some(first) = lines.next() else {
@@ -15,18 +17,6 @@ pub(in crate::app::actions) fn normalize_import_source(text: &str) -> Result<Str
     } else {
         Err("Clipboard must contain a JSON path or OpenCode share URL")
     }
-}
-
-pub(in crate::app::actions) fn trim_wrapping_quotes(value: &str) -> &str {
-    value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-        .or_else(|| {
-            value
-                .strip_prefix('\'')
-                .and_then(|value| value.strip_suffix('\''))
-        })
-        .unwrap_or(value)
 }
 
 fn is_opencode_share_url(value: &str) -> bool {

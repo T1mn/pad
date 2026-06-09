@@ -1,3 +1,5 @@
+use super::super::helpers::trim_wrapping_quotes;
+
 pub(in crate::app::actions) fn normalize_pr_number(text: &str) -> Result<String, &'static str> {
     let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
     let Some(first) = lines.next() else {
@@ -31,16 +33,4 @@ fn number_after_pull_segment(value: &str) -> Option<&str> {
 
 fn is_positive_integer(value: &str) -> bool {
     !value.is_empty() && value != "0" && value.chars().all(|ch| ch.is_ascii_digit())
-}
-
-fn trim_wrapping_quotes(value: &str) -> &str {
-    value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-        .or_else(|| {
-            value
-                .strip_prefix('\'')
-                .and_then(|value| value.strip_suffix('\''))
-        })
-        .unwrap_or(value)
 }

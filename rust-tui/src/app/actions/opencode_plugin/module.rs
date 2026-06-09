@@ -1,3 +1,5 @@
+use super::super::helpers::trim_wrapping_quotes;
+
 pub(in crate::app::actions) fn normalize_plugin_module(text: &str) -> Result<String, &'static str> {
     let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
     let Some(first) = lines.next() else {
@@ -21,16 +23,4 @@ fn is_safe_module_name(value: &str) -> bool {
         && value
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '@' | '/' | '-' | '_' | '.' | '~'))
-}
-
-fn trim_wrapping_quotes(value: &str) -> &str {
-    value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
-        .or_else(|| {
-            value
-                .strip_prefix('\'')
-                .and_then(|value| value.strip_suffix('\''))
-        })
-        .unwrap_or(value)
 }
