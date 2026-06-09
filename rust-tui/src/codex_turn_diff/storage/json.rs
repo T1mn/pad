@@ -23,10 +23,11 @@ pub(super) fn read_json_dir<T: DeserializeOwned>(dir: &Path) -> io::Result<Vec<T
     };
     let mut out = Vec::new();
     for entry in entries.flatten() {
-        if entry.path().extension().and_then(|value| value.to_str()) != Some("json") {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("json") {
             continue;
         }
-        if let Ok(value) = read_json(&entry.path()) {
+        if let Ok(value) = read_json(&path) {
             out.push(value);
         }
     }
