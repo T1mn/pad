@@ -80,14 +80,18 @@ fn probe_live_session_id(pane_id: &str) -> Option<String> {
     None
 }
 
-fn normalize_probe_capture(capture: &str) -> String {
-    capture
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_string()
+pub(super) fn normalize_probe_capture(capture: &str) -> String {
+    let mut normalized = String::with_capacity(capture.len());
+    let mut wrote_line = false;
+    for line in capture.lines() {
+        if wrote_line {
+            normalized.push('\n');
+        } else {
+            wrote_line = true;
+        }
+        normalized.push_str(line.trim_end());
+    }
+    normalized.trim().to_string()
 }
 
 pub(super) fn extract_status_session_id(capture: &str) -> Option<String> {
