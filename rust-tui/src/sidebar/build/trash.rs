@@ -40,10 +40,7 @@ pub(super) fn build_trash_folders() -> Vec<SidebarFolder> {
         folder.threads.push(Arc::new(thread));
     }
 
-    let mut values = folders
-        .into_values()
-        .filter(|folder| !folder.threads.is_empty())
-        .collect::<Vec<_>>();
+    let mut values = folders.into_values().collect::<Vec<_>>();
     for folder in &mut values {
         folder.threads.sort_by(crate::sidebar::thread_sort_key);
         folder.updated_at = folder
