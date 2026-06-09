@@ -54,17 +54,23 @@ impl App {
     pub fn reset_position(&mut self) {
         match self.focus {
             Focus::Tree => {
-                self.selected = 0;
-                self.refresh_selected();
-                self.refresh_file_preview();
+                if self.selected != 0 {
+                    self.selected = 0;
+                    self.refresh_selected();
+                    self.refresh_file_preview();
+                }
             }
             Focus::IndexMap => {
-                self.index_selected = 0;
-                self.refresh_file_preview();
+                if self.index_selected != 0 {
+                    self.index_selected = 0;
+                    self.refresh_file_preview();
+                }
             }
             Focus::CodexRuns => {
-                self.codex_diff_selected = 0;
-                self.refresh_file_preview();
+                if self.codex_diff_selected != 0 {
+                    self.codex_diff_selected = 0;
+                    self.refresh_file_preview();
+                }
             }
             Focus::Preview => self.file_preview.scroll = 0,
         }
@@ -73,17 +79,26 @@ impl App {
     pub fn jump_bottom(&mut self) {
         match self.focus {
             Focus::Tree => {
-                self.selected = self.tree.len().saturating_sub(1);
-                self.refresh_selected();
-                self.refresh_file_preview();
+                let selected = self.tree.len().saturating_sub(1);
+                if self.selected != selected {
+                    self.selected = selected;
+                    self.refresh_selected();
+                    self.refresh_file_preview();
+                }
             }
             Focus::IndexMap => {
-                self.index_selected = self.index_rows.len().saturating_sub(1);
-                self.refresh_file_preview();
+                let selected = self.index_rows.len().saturating_sub(1);
+                if self.index_selected != selected {
+                    self.index_selected = selected;
+                    self.refresh_file_preview();
+                }
             }
             Focus::CodexRuns => {
-                self.codex_diff_selected = self.codex_diffs.len().saturating_sub(1);
-                self.refresh_file_preview();
+                let selected = self.codex_diffs.len().saturating_sub(1);
+                if self.codex_diff_selected != selected {
+                    self.codex_diff_selected = selected;
+                    self.refresh_file_preview();
+                }
             }
             Focus::Preview => self.file_preview.scroll = u16::MAX,
         }
