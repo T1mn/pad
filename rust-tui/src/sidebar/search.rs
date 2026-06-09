@@ -13,7 +13,8 @@ pub fn build_visible_sidebar_items(
 ) -> Vec<SidebarItem> {
     let query = search_query.trim();
     let searching = !query.is_empty();
-    let mut items = Vec::new();
+    let mut items =
+        Vec::with_capacity(visible_items_capacity(folders, expanded_folders, searching));
 
     for folder in folders {
         if searching {
@@ -24,6 +25,23 @@ pub fn build_visible_sidebar_items(
     }
 
     items
+}
+
+fn visible_items_capacity(
+    folders: &[SidebarFolder],
+    expanded_folders: &std::collections::HashSet<String>,
+    searching: bool,
+) -> usize {
+    folders
+        .iter()
+        .map(|folder| {
+            1 + if searching || expanded_folders.contains(&folder.key) {
+                folder.threads.len()
+            } else {
+                0
+            }
+        })
+        .sum()
 }
 
 fn push_search_results(items: &mut Vec<SidebarItem>, folder: &SidebarFolder, query: &str) {
