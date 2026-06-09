@@ -28,12 +28,17 @@ fn collect_index_rows(root: &Path, dir: &Path, depth: usize, rows: &mut Vec<Inde
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    let mut dirs = entries
-        .flatten()
-        .filter(|entry| entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false))
-        .filter(|entry| !skip_dir_name(&entry.file_name().to_string_lossy()))
-        .map(|entry| entry.path())
-        .collect::<Vec<_>>();
+    let mut dirs = Vec::new();
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name();
+        if skip_dir_name(&name.to_string_lossy()) {
+            continue;
+        }
+        dirs.push(entry.path());
+    }
     dirs.sort();
 
     for child in dirs {
