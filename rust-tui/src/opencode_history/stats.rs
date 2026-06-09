@@ -1,5 +1,6 @@
 use super::util::to_io_error;
 use rusqlite::Row;
+use std::fmt::Write as _;
 use std::io;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -23,7 +24,7 @@ pub(crate) fn session_stats_select(connection: &rusqlite::Connection) -> io::Res
         ("tokens_cache_read", "0"),
         ("tokens_cache_write", "0"),
     ];
-    let mut select = String::new();
+    let mut select = String::with_capacity(128);
     for (column, fallback) in columns {
         if !select.is_empty() {
             select.push_str(", ");
@@ -31,7 +32,9 @@ pub(crate) fn session_stats_select(connection: &rusqlite::Connection) -> io::Res
         if has_column(connection, "session", column)? {
             select.push_str(column);
         } else {
-            select.push_str(&format!("{fallback} AS {column}"));
+            select.push_str(fallback);
+            select.push_str(" AS ");
+            select.push_str(column);
         }
     }
     Ok(select)
@@ -67,51 +70,41 @@ pub(crate) fn format_token_summary(stats: &SessionStats) -> Option<String> {
         return None;
     }
 
-    let mut summary = format!("tok {}", compact_number(total));
+    let mut summary = String::with_capacity(80);
+    summary.push_str("tok ");
+    push_compact_number(&mut summary, total);
     if stats.tokens_input > 0 {
-        push_token_part(
-            &mut summary,
-            format!("in {}", compact_number(stats.tokens_input)),
-        );
+        push_token_number(&mut summary, "in ", stats.tokens_input);
     }
     if stats.tokens_output > 0 {
-        push_token_part(
-            &mut summary,
-            format!("out {}", compact_number(stats.tokens_output)),
-        );
+        push_token_number(&mut summary, "out ", stats.tokens_output);
     }
     if stats.tokens_reasoning > 0 {
-        push_token_part(
-            &mut summary,
-            format!("reason {}", compact_number(stats.tokens_reasoning)),
-        );
+        push_token_number(&mut summary, "reason ", stats.tokens_reasoning);
     }
     if stats.tokens_cache_read > 0 || stats.tokens_cache_write > 0 {
-        push_token_part(
-            &mut summary,
-            format!(
-                "cache {}/{}",
-                compact_number(stats.tokens_cache_read),
-                compact_number(stats.tokens_cache_write)
-            ),
-        );
+        summary.push_str(" · cache ");
+        push_compact_number(&mut summary, stats.tokens_cache_read);
+        summary.push('/');
+        push_compact_number(&mut summary, stats.tokens_cache_write);
     }
     Some(summary)
 }
 
-fn push_token_part(summary: &mut String, part: String) {
+fn push_token_number(summary: &mut String, label: &str, value: i64) {
     summary.push_str(" · ");
-    summary.push_str(&part);
+    summary.push_str(label);
+    push_compact_number(summary, value);
 }
 
-fn compact_number(value: i64) -> String {
+fn push_compact_number(summary: &mut String, value: i64) {
     let abs = value.abs();
     if abs >= 1_000_000 {
-        format!("{:.1}m", value as f64 / 1_000_000.0)
+        write!(summary, "{:.1}m", value as f64 / 1_000_000.0).expect("write to string");
     } else if abs >= 1_000 {
-        format!("{:.1}k", value as f64 / 1_000.0)
+        write!(summary, "{:.1}k", value as f64 / 1_000.0).expect("write to string");
     } else {
-        value.to_string()
+        write!(summary, "{value}").expect("write to string");
     }
 }
 
