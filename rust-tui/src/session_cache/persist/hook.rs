@@ -60,13 +60,14 @@ pub fn persist_hook_event(
         .as_deref(),
     );
 
-    if let Some(first) = index.sessions[record_idx].recent_turns.first().cloned() {
-        index.sessions[record_idx].last_user_prompt = Some(first.question);
-        index.sessions[record_idx].last_assistant_message = first.answer;
-    } else {
-        index.sessions[record_idx].last_user_prompt = prompt.clone();
-        index.sessions[record_idx].last_assistant_message = assistant.clone();
-    }
+    let (last_user_prompt, last_assistant_message) =
+        if let Some(first) = index.sessions[record_idx].recent_turns.first() {
+            (Some(first.question.clone()), first.answer.clone())
+        } else {
+            (prompt, assistant)
+        };
+    index.sessions[record_idx].last_user_prompt = last_user_prompt;
+    index.sessions[record_idx].last_assistant_message = last_assistant_message;
 
     upsert_binding(
         &mut index,
