@@ -38,8 +38,60 @@ fn claude_provider_writes_cc_switch_style_env_settings() {
                 .and_then(|v| v.as_str()),
             Some("sk-ant-test")
         );
+        assert_eq!(
+            value
+                .pointer("/env/CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")
+                .and_then(|v| v.as_str()),
+            Some("1")
+        );
+        assert_eq!(
+            value
+                .pointer("/env/CLAUDE_CODE_ATTRIBUTION_HEADER")
+                .and_then(|v| v.as_str()),
+            Some("0")
+        );
         assert!(value.get("mcpServers").is_some());
         assert!(value.get("apiUrl").is_none());
         assert!(value.get("apiKey").is_none());
     });
+}
+
+#[test]
+fn claude_provider_strips_trailing_v1_from_base_url() {
+    let updated = crate::relay::claude::update_claude_settings_config(
+        "{}",
+        "https://claude-relay.example/v1/",
+        "sk-ant-test",
+        "",
+    );
+    let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
+
+    assert_eq!(
+        value
+            .pointer("/env/ANTHROPIC_BASE_URL")
+            .and_then(|v| v.as_str()),
+        Some("https://claude-relay.example")
+    );
+}
+
+#[test]
+fn claude_provider_writes_default_model_env_when_configured() {
+    let updated = crate::relay::claude::update_claude_settings_config(
+        "{}",
+        "https://claude-relay.example",
+        "sk-ant-test",
+        "claude-sonnet-4-5",
+    );
+    let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
+
+    assert_eq!(
+        value.pointer("/env/ANTHROPIC_MODEL").and_then(|v| v.as_str()),
+        Some("claude-sonnet-4-5")
+    );
+    assert_eq!(
+        value
+            .pointer("/env/ANTHROPIC_CUSTOM_MODEL_OPTION")
+            .and_then(|v| v.as_str()),
+        Some("claude-sonnet-4-5")
+    );
 }

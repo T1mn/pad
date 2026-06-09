@@ -1,3 +1,4 @@
+use super::claude::probe_claude_provider;
 use super::client::provider_test_client;
 use super::codex::probe_codex_provider;
 use super::generic::probe_generic_provider;
@@ -38,10 +39,10 @@ pub(super) async fn run_provider_test_probe(
         }
     };
 
-    let (success, http_status, latency, message) = if agent_name == "codex" {
-        probe_codex_provider(&client, &base_url, credential.as_deref()).await
-    } else {
-        probe_generic_provider(&client, &base_url, credential.as_deref()).await
+    let (success, http_status, latency, message) = match agent_name.as_str() {
+        "codex" => probe_codex_provider(&client, &base_url, credential.as_deref()).await,
+        "claude" => probe_claude_provider(&client, &base_url, credential.as_deref()).await,
+        _ => probe_generic_provider(&client, &base_url, credential.as_deref()).await,
     };
 
     (

@@ -9,6 +9,10 @@ use crate::theme::CodexConfig;
 use crate::theme::{AgentConfig, AgentPermissionsConfig};
 use std::path::PathBuf;
 
+pub(crate) fn claude_base_url(raw: &str) -> String {
+    claude::claude_base_url(raw)
+}
+
 /// Apply the active provider's relay/proxy config to each agent's native config files.
 pub fn apply_relay_configs(agents: &[AgentConfig]) {
     for agent in agents {

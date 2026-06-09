@@ -1,3 +1,4 @@
+mod claude;
 mod client;
 mod codex;
 mod generic;

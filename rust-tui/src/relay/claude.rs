@@ -23,7 +23,12 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
         let _ = backup_file(&claude_backup_path(), &content);
     }
 
-    let updated = update_claude_settings_config(&content, &prov.base_url, &prov.api_key);
+    let updated = update_claude_settings_config(
+        &content,
+        &prov.base_url,
+        &prov.api_key,
+        &agent.default_model,
+    );
     write_text_file(&path, &updated);
 }
 
@@ -31,6 +36,7 @@ pub(super) fn update_claude_settings_config(
     content: &str,
     base_url: &str,
     api_key: &str,
+    default_model: &str,
 ) -> String {
     let mut obj = parse_json_object(content);
     obj.as_object_mut()
@@ -52,12 +58,35 @@ pub(super) fn update_claude_settings_config(
     let env_obj = env.as_object_mut().expect("claude env object");
     env_obj.insert(
         "ANTHROPIC_BASE_URL".to_string(),
-        serde_json::Value::String(base_url.to_string()),
+        serde_json::Value::String(claude_base_url(base_url)),
     );
     env_obj.insert(
         "ANTHROPIC_AUTH_TOKEN".to_string(),
         serde_json::Value::String(api_key.to_string()),
     );
+    env_obj.insert(
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC".to_string(),
+        serde_json::Value::String("1".to_string()),
+    );
+    env_obj.insert(
+        "CLAUDE_CODE_ATTRIBUTION_HEADER".to_string(),
+        serde_json::Value::String("0".to_string()),
+    );
+    if !default_model.trim().is_empty() {
+        env_obj.insert(
+            "ANTHROPIC_MODEL".to_string(),
+            serde_json::Value::String(default_model.trim().to_string()),
+        );
+        env_obj.insert(
+            "ANTHROPIC_CUSTOM_MODEL_OPTION".to_string(),
+            serde_json::Value::String(default_model.trim().to_string()),
+        );
+    }
 
     serialize_json_pretty(&obj)
+}
+
+pub(crate) fn claude_base_url(raw: &str) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
 }

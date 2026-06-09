@@ -34,7 +34,7 @@
 - `browser_remote/`：浏览器打开与远程 SSH 命令联动。
 - `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
-- `codex_runtime.rs` / `codex_runtime/`：pad 启动 Codex 时改走 `pad-codex` wrapper，并校验 relay token。
+- `codex_runtime.rs` / `codex_runtime/`：pad 启动 Codex 时改走 `pad-codex` wrapper、校验 relay token，并在启动 Claude 时避免继承环境覆盖 relay settings。
 - `tmux_capabilities.rs` / `tmux_capabilities/`：tmux 版本解析、能力探测和报告摘要。
 - `tmux_bindings.rs`：PAD 临时 root binding 保存、恢复和 sider toggle 命令 helpers。
 - `pipe.rs` / `pipe/`：tmux control mode 监听、事件解析与重连。

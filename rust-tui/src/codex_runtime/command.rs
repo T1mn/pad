@@ -8,6 +8,14 @@ pub fn with_pad_codex_runtime(agent_cmd: &str) -> String {
     }
 }
 
+pub fn with_pad_claude_runtime(agent_cmd: &str) -> String {
+    let cmd = agent_cmd.trim();
+    let cmd = if cmd.is_empty() { "claude" } else { cmd };
+    format!(
+        "env -u ANTHROPIC_BASE_URL -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_MODEL -u ANTHROPIC_CUSTOM_MODEL_OPTION {cmd}"
+    )
+}
+
 fn codex_args_without_profile(agent_cmd: &str) -> String {
     let cmd = agent_cmd.trim();
     let cmd = if cmd.is_empty() { "codex" } else { cmd };
@@ -54,6 +62,10 @@ fn split_first_token(command: &str) -> Option<(&str, &str)> {
 
 pub(super) fn is_codex_agent(agent_name: &str, agent_cmd: &str) -> bool {
     agent_name.trim() == "codex" || first_command_token(agent_cmd) == Some("codex")
+}
+
+pub(super) fn is_claude_agent(agent_name: &str, agent_cmd: &str) -> bool {
+    agent_name.trim() == "claude" || first_command_token(agent_cmd) == Some("claude")
 }
 
 pub(super) fn first_command_token(command: &str) -> Option<&str> {

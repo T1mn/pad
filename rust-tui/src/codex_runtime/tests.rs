@@ -128,3 +128,23 @@ fn first_command_token_accepts_absolute_codex_path() {
 fn non_codex_agent_is_not_wrapped() {
     assert!(!command::is_codex_agent("claude", "claude"));
 }
+
+#[test]
+fn claude_agent_command_unsets_inherited_anthropic_env() {
+    let command =
+        prepare_agent_command("claude", "claude --model opus[1m]").expect("claude command");
+
+    assert!(command.starts_with("env -u ANTHROPIC_BASE_URL"));
+    assert!(command.contains("-u ANTHROPIC_API_KEY"));
+    assert!(command.contains("-u ANTHROPIC_AUTH_TOKEN"));
+    assert!(command.contains("-u ANTHROPIC_MODEL"));
+    assert!(command.contains("-u ANTHROPIC_CUSTOM_MODEL_OPTION"));
+    assert!(command.ends_with(" claude --model opus[1m]"));
+}
+
+#[test]
+fn claude_agent_command_defaults_to_claude_when_empty() {
+    let command = command::with_pad_claude_runtime("");
+
+    assert!(command.ends_with(" claude"));
+}

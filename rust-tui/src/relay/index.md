@@ -1,6 +1,6 @@
 # relay
 
-- `claude.rs`：Claude 原生配置写入。
+- `claude.rs`：Claude 原生配置写入、base URL 规范化与模型 env。
 - `codex.rs` / `codex/`：Codex relay 应用入口，拆分配置写入、auth 更新、provider sync 与 export/import YAML。
 - `gemini.rs`：Gemini 原生配置写入。
 - `opencode.rs` / `opencode/`：OpenCode 原生 provider、model 与托管状态写入。
