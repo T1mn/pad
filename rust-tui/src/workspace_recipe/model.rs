@@ -91,7 +91,7 @@ impl WorkspaceRecipeStep {
 }
 
 pub fn safe_session_name(name: &str) -> String {
-    let mut out = String::new();
+    let mut out = String::with_capacity(name.len());
     for ch in name.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') {
             out.push(ch);
@@ -103,7 +103,10 @@ pub fn safe_session_name(name: &str) -> String {
     if out.is_empty() {
         "pad_workspace".to_string()
     } else {
-        format!("pad_{out}")
+        let mut session_name = String::with_capacity("pad_".len() + out.len());
+        session_name.push_str("pad_");
+        session_name.push_str(out);
+        session_name
     }
 }
 
