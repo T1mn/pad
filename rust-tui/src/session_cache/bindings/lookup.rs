@@ -11,7 +11,7 @@ pub(in crate::session_cache) fn find_snapshot_for_panel(
     index: &SessionCacheIndex,
     panel: &AgentPanel,
 ) -> Option<SessionCacheSnapshot> {
-    let agent_type = panel.agent_type.to_string();
+    let agent_type = panel.agent_type.as_str();
     let now = now_ts();
 
     let exact_match = unique::find_unique_session_id(

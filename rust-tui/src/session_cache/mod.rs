@@ -18,7 +18,7 @@ pub fn load_snapshots_by_agent_type(
     agent_type: &AgentType,
 ) -> HashMap<String, SessionCacheSnapshot> {
     let index = storage::load_index();
-    bindings::load_snapshots_for_agent_type(&index, &agent_type.to_string())
+    bindings::load_snapshots_for_agent_type(&index, agent_type.as_str())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

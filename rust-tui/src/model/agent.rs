@@ -15,20 +15,24 @@ pub enum AgentType {
 
 impl fmt::Display for AgentType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AgentType::Claude => write!(f, "claude"),
-            AgentType::Codex => write!(f, "codex"),
-            AgentType::Kimi => write!(f, "kimi"),
-            AgentType::Gemini => write!(f, "gemini"),
-            AgentType::OpenCode => write!(f, "opencode"),
-            AgentType::Aider => write!(f, "aider"),
-            AgentType::Cursor => write!(f, "cursor"),
-            AgentType::Unknown => write!(f, "unknown"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
 impl AgentType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AgentType::Claude => "claude",
+            AgentType::Codex => "codex",
+            AgentType::Kimi => "kimi",
+            AgentType::Gemini => "gemini",
+            AgentType::OpenCode => "opencode",
+            AgentType::Aider => "aider",
+            AgentType::Cursor => "cursor",
+            AgentType::Unknown => "unknown",
+        }
+    }
+
     pub fn emoji(&self) -> &'static str {
         match self {
             AgentType::Claude => "🟣C",
