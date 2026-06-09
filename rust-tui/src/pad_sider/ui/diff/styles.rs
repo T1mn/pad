@@ -35,10 +35,14 @@ pub(super) fn line_no(value: Option<usize>, width: usize) -> String {
 }
 
 pub(super) fn fit(value: &str, width: usize) -> String {
-    let mut out = value.chars().take(width).collect::<String>();
-    let len = out.chars().count();
+    let mut out = String::new();
+    let mut len = 0usize;
+    for ch in value.chars().take(width) {
+        out.push(ch);
+        len += 1;
+    }
     if len < width {
-        out.push_str(&" ".repeat(width - len));
+        out.extend(std::iter::repeat_n(' ', width - len));
     }
     out
 }

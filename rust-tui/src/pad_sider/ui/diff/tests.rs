@@ -1,6 +1,6 @@
 use super::parse::parse_diff_document;
 use super::render_diff_patch;
-use super::styles::{ADD_BG, DELETE_BG, SEPARATOR};
+use super::styles::{fit, ADD_BG, DELETE_BG, SEPARATOR};
 
 const PATCH: &str = concat!(
     "Codex turn diff\n\n",
@@ -50,6 +50,13 @@ fn narrow_preview_renders_enhanced_unified_rows() {
 
     assert!(joined.contains("-    2      │ old"));
     assert!(joined.contains("+         2 │ new"));
+}
+
+#[test]
+fn fit_truncates_and_pads_by_chars() {
+    assert_eq!(fit("abcdef", 4), "abcd");
+    assert_eq!(fit("ab", 4), "ab  ");
+    assert_eq!(fit("你好abc", 4), "你好ab");
 }
 
 fn joined_text(text: &ratatui::text::Text<'_>) -> String {
