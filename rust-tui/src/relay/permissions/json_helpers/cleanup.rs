@@ -5,16 +5,7 @@ pub(in crate::relay::permissions) fn cleanup_empty_json_objects(
         return false;
     };
 
-    let keys = map.keys().cloned().collect::<Vec<_>>();
-    for key in keys {
-        let remove_key = map
-            .get_mut(&key)
-            .map(cleanup_empty_json_objects)
-            .unwrap_or(false);
-        if remove_key {
-            map.remove(&key);
-        }
-    }
+    map.retain(|_, child| !cleanup_empty_json_objects(child));
 
     map.is_empty()
 }
