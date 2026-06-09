@@ -26,9 +26,10 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
         app.codex_diff_selected,
         list_viewport_height(area.height),
     );
+    let selected = relative_selection(app.codex_diff_selected, &range);
     let items = app
         .codex_diffs
-        .get(range.clone())
+        .get(range)
         .unwrap_or_default()
         .iter()
         .map(|entry| {
@@ -54,7 +55,7 @@ fn draw_codex_runs(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(relative_selection(app.codex_diff_selected, &range));
+    state.select(selected);
     let list = List::new(items)
         .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
@@ -69,9 +70,10 @@ fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
         app.index_selected,
         list_viewport_height(area.height),
     );
+    let selected = relative_selection(app.index_selected, &range);
     let items = app
         .index_rows
-        .get(range.clone())
+        .get(range)
         .unwrap_or_default()
         .iter()
         .map(|row| {
@@ -93,7 +95,7 @@ fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(relative_selection(app.index_selected, &range));
+    state.select(selected);
     let list = List::new(items)
         .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
@@ -107,9 +109,10 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
         app.selected,
         list_viewport_height(area.height),
     );
+    let selected = relative_selection(app.selected, &range);
     let items = app
         .tree
-        .get(range.clone())
+        .get(range)
         .unwrap_or_default()
         .iter()
         .map(|row| {
@@ -139,7 +142,7 @@ fn draw_tree(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
-    state.select(relative_selection(app.selected, &range));
+    state.select(selected);
     let list = List::new(items)
         .block(block)
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
