@@ -62,10 +62,8 @@ pub struct TurnDiffEntry {
 }
 
 impl TurnDiffEntry {
-    pub fn sort_key(&self) -> String {
-        self.ended_at
-            .clone()
-            .unwrap_or_else(|| self.started_at.clone())
+    pub fn sort_key(&self) -> &str {
+        self.ended_at.as_deref().unwrap_or(&self.started_at)
     }
 }
 

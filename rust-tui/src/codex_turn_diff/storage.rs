@@ -40,7 +40,7 @@ pub fn list_for_cwd(cwd: &Path, limit: usize) -> io::Result<Vec<TurnDiffEntry>> 
     entries.sort_by(|left, right| {
         right
             .sort_key()
-            .cmp(&left.sort_key())
+            .cmp(left.sort_key())
             .then_with(|| right.id.cmp(&left.id))
     });
     if entries.len() > limit {
