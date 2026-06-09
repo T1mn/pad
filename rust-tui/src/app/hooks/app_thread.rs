@@ -5,7 +5,6 @@ use super::{
 use crate::app::state::FocusTarget;
 use crate::hook::HookEvent;
 use crate::notification_inbox::NotificationEntry;
-use std::collections::HashSet;
 
 impl App {
     pub(super) fn apply_app_thread_hook_event(&mut self, event: HookEvent) {
@@ -71,14 +70,13 @@ impl App {
                 .collect::<Vec<_>>();
             keys_by_freshness
                 .sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
-            let keep = keys_by_freshness
-                .into_iter()
-                .take(APP_THREAD_ACTIVITY_MAX_ENTRIES)
-                .map(|item| item.0)
-                .collect::<HashSet<_>>();
-            self.sidebar
-                .app_thread_activity
-                .retain(|key, _| keep.contains(key));
+            for key in keys_by_freshness
+                .iter()
+                .skip(APP_THREAD_ACTIVITY_MAX_ENTRIES)
+                .map(|item| &item.0)
+            {
+                self.sidebar.app_thread_activity.remove(key);
+            }
         }
 
         self.sidebar.app_thread_activity.len() != before

@@ -1,5 +1,4 @@
 use super::super::{App, THREAD_PREVIEW_CACHE_MAX_ENTRIES};
-use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 impl App {
@@ -55,15 +54,14 @@ impl App {
                 .then_with(|| left.0.cmp(&right.0))
         });
 
-        let keep = keys_by_freshness
-            .into_iter()
-            .take(THREAD_PREVIEW_CACHE_MAX_ENTRIES)
-            .map(|item| item.0)
-            .collect::<HashSet<_>>();
         let before = self.preview.thread_preview_cache.len();
-        self.preview
-            .thread_preview_cache
-            .retain(|key, _| keep.contains(key));
+        for key in keys_by_freshness
+            .iter()
+            .skip(THREAD_PREVIEW_CACHE_MAX_ENTRIES)
+            .map(|item| &item.0)
+        {
+            self.preview.thread_preview_cache.remove(key);
+        }
         self.preview.thread_preview_cache.len() != before
     }
 }
