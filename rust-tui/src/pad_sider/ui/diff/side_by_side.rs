@@ -78,7 +78,7 @@ fn side_line(
 ) -> Line<'static> {
     Line::from(vec![
         Span::styled(fit(left, col_width), left_style),
-        Span::styled(SEPARATOR.to_string(), Style::default().fg(Color::DarkGray)),
+        Span::styled(SEPARATOR, Style::default().fg(Color::DarkGray)),
         Span::styled(fit(right, col_width), right_style),
     ])
 }
