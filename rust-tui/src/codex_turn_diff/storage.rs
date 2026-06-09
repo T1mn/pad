@@ -21,19 +21,19 @@ pub fn save_completed(
 
 pub fn list_for_cwd(cwd: &Path, limit: usize) -> io::Result<Vec<TurnDiffEntry>> {
     let root = repo_root_for_cwd(cwd).or_else(|_| fs::canonicalize(cwd))?;
-    let root_label = root.to_string_lossy().to_string();
+    let root_label = root.to_string_lossy();
 
     let mut entries = Vec::new();
     entries.extend(
         pending::list_pending_all()?
             .into_iter()
-            .filter(|pending| pending.repo_root == root_label)
+            .filter(|pending| pending.repo_root == root_label.as_ref())
             .map(TurnDiffEntry::from),
     );
     entries.extend(
         completed::list_completed_all()?
             .into_iter()
-            .filter(|record| record.repo_root == root_label)
+            .filter(|record| record.repo_root == root_label.as_ref())
             .map(TurnDiffEntry::from),
     );
 
