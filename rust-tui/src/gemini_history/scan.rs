@@ -52,25 +52,14 @@ fn build_record(
     _key: GeminiThreadKey,
     snapshots: Vec<GeminiSnapshot>,
 ) -> Option<GeminiThreadRecord> {
-    let preferred = choose_preferred_snapshot(&snapshots)?;
-    let updated_at = snapshots
-        .iter()
-        .map(|snapshot| snapshot.last_updated)
-        .max()
-        .unwrap_or(preferred.last_updated);
-    let start_time = snapshots
-        .iter()
-        .map(|snapshot| snapshot.start_time)
-        .min()
-        .unwrap_or(preferred.start_time);
-    let has_subagent = snapshots.iter().any(|snapshot| snapshot.kind == "subagent");
-    let payload_hash = snapshots
-        .iter()
-        .map(|snapshot| snapshot.payload_hash.as_str())
-        .collect::<Vec<_>>();
-    let mut payload_hash = payload_hash;
-    payload_hash.sort_unstable();
-    let payload_hash = payload_hash.join(":");
+    let mut stats = SnapshotGroupStats::new(snapshots.len());
+    for snapshot in &snapshots {
+        stats.observe(snapshot);
+    }
+    let preferred = stats.preferred()?;
+    let mut payload_hashes = stats.payload_hashes;
+    payload_hashes.sort_unstable();
+    let payload_hash = payload_hashes.join(":");
 
     Some(GeminiThreadRecord {
         session_id: preferred.session_id.clone(),
@@ -78,8 +67,8 @@ fn build_record(
         project_alias: preferred.project_alias.clone(),
         transcript_path: preferred.transcript_path.clone(),
         kind: preferred.kind.clone(),
-        start_time,
-        updated_at,
+        start_time: stats.start_time,
+        updated_at: stats.updated_at,
         title: preferred
             .summary
             .clone()
@@ -89,20 +78,57 @@ fn build_record(
         first_user_message: preferred.first_user_message.clone(),
         last_user_message: preferred.last_user_message.clone(),
         last_assistant_message: preferred.last_assistant_message.clone(),
-        has_subagent,
+        has_subagent: stats.has_subagent,
         payload_hash: md5_hex(&payload_hash),
         snapshot_count: snapshots.len() as i64,
     })
 }
 
-fn choose_preferred_snapshot(snapshots: &[GeminiSnapshot]) -> Option<&GeminiSnapshot> {
-    snapshots
-        .iter()
-        .filter(|snapshot| snapshot.kind == "main")
-        .max_by_key(|snapshot| (snapshot.last_updated, snapshot.start_time))
-        .or_else(|| {
-            snapshots
-                .iter()
-                .max_by_key(|snapshot| (snapshot.last_updated, snapshot.start_time))
+struct SnapshotGroupStats<'a> {
+    preferred_any: Option<&'a GeminiSnapshot>,
+    preferred_main: Option<&'a GeminiSnapshot>,
+    start_time: i64,
+    updated_at: i64,
+    has_subagent: bool,
+    payload_hashes: Vec<&'a str>,
+}
+
+impl<'a> SnapshotGroupStats<'a> {
+    fn new(snapshot_count: usize) -> Self {
+        Self {
+            preferred_any: None,
+            preferred_main: None,
+            start_time: i64::MAX,
+            updated_at: i64::MIN,
+            has_subagent: false,
+            payload_hashes: Vec::with_capacity(snapshot_count),
+        }
+    }
+
+    fn observe(&mut self, snapshot: &'a GeminiSnapshot) {
+        self.start_time = self.start_time.min(snapshot.start_time);
+        self.updated_at = self.updated_at.max(snapshot.last_updated);
+        self.has_subagent |= snapshot.kind == "subagent";
+        self.payload_hashes.push(snapshot.payload_hash.as_str());
+
+        if is_newer_snapshot(snapshot, self.preferred_any) {
+            self.preferred_any = Some(snapshot);
+        }
+        if snapshot.kind == "main" && is_newer_snapshot(snapshot, self.preferred_main) {
+            self.preferred_main = Some(snapshot);
+        }
+    }
+
+    fn preferred(&self) -> Option<&'a GeminiSnapshot> {
+        self.preferred_main.or(self.preferred_any)
+    }
+}
+
+fn is_newer_snapshot(snapshot: &GeminiSnapshot, current: Option<&GeminiSnapshot>) -> bool {
+    current
+        .map(|current| {
+            (snapshot.last_updated, snapshot.start_time)
+                >= (current.last_updated, current.start_time)
         })
+        .unwrap_or(true)
 }
