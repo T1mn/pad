@@ -37,7 +37,9 @@ pub fn persist_resolved_session(
         .first()
         .and_then(|turn| turn.answer.clone());
     let record = &mut index.sessions[record_idx];
-    record.transcript_path = Some(transcript.into_owned());
+    if record.transcript_path.as_deref() != Some(transcript.as_ref()) {
+        record.transcript_path = Some(transcript.into_owned());
+    }
     record.recent_turns = normalized_turns;
     record.last_user_prompt = last_user_prompt;
     record.last_assistant_message = last_assistant_message;
