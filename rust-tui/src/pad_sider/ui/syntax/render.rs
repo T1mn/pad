@@ -79,7 +79,8 @@ fn flush_word(language: CodeLanguage, current: &mut String, spans: &mut Vec<Span
         return;
     }
     let word = std::mem::take(current);
-    spans.push(Span::styled(word.clone(), token_style(language, &word)));
+    let style = token_style(language, &word);
+    spans.push(Span::styled(word, style));
 }
 
 fn token_style(language: CodeLanguage, token: &str) -> Style {
