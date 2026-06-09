@@ -54,21 +54,9 @@ pub(in crate::app::actions) fn failure_toast_title(
 }
 
 pub(in crate::app::actions) fn delete_failed_title(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "删除失败"
-    } else {
-        "Delete Failed"
-    }
+    localized(locale, "删除失败", "Delete Failed")
 }
 
 pub(in crate::app::actions) fn delete_hide_failed_title(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "已删除，但隐藏失败"
-    } else {
-        "Deleted, But Hide Failed"
-    }
-}
-
-fn is_cjk_locale(locale: Locale) -> bool {
-    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
+    localized(locale, "已删除，但隐藏失败", "Deleted, But Hide Failed")
 }

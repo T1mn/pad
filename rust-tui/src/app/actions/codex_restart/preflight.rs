@@ -1,4 +1,4 @@
-use super::messages::is_cjk_locale;
+use super::super::helpers::localized;
 use crate::i18n::Locale;
 use crate::model::AgentType;
 
@@ -14,17 +14,13 @@ pub(super) fn codex_restart_preflight_message(
 }
 
 pub(super) fn no_panel_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "没有选中的面板"
-    } else {
-        "No selected panel"
-    }
+    localized(locale, "没有选中的面板", "No selected panel")
 }
 
 fn codex_only_message(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "只支持 Codex 面板"
-    } else {
-        "Only Codex panels can be restarted"
-    }
+    localized(
+        locale,
+        "只支持 Codex 面板",
+        "Only Codex panels can be restarted",
+    )
 }

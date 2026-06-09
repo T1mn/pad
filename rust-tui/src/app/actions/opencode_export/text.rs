@@ -1,3 +1,4 @@
+use super::super::helpers::{is_cjk_locale, localized};
 use super::mode::ExportMode;
 use crate::i18n::Locale;
 
@@ -28,16 +29,4 @@ pub(super) fn missing_session_message(locale: Locale) -> &'static str {
         "选中的 OpenCode 线程缺少 session id",
         "Missing OpenCode session id",
     )
-}
-
-fn is_cjk_locale(locale: Locale) -> bool {
-    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
-}
-
-fn localized(locale: Locale, zh: &'static str, en: &'static str) -> &'static str {
-    if is_cjk_locale(locale) {
-        zh
-    } else {
-        en
-    }
 }

@@ -10,11 +10,7 @@ pub(in crate::app::actions) fn parse_thread_tags(input: &str) -> Vec<String> {
 }
 
 pub(in crate::app::actions) fn thread_meta_save_failed_title(locale: Locale) -> &'static str {
-    if is_cjk_locale(locale) {
-        "保存失败"
-    } else {
-        "Save failed"
-    }
+    localized(locale, "保存失败", "Save failed")
 }
 
 pub(in crate::app::actions) fn thread_meta_toast(
@@ -54,8 +50,4 @@ pub(in crate::app::actions) fn thread_meta_toast(
             }
         }
     }
-}
-
-fn is_cjk_locale(locale: Locale) -> bool {
-    matches!(locale, Locale::ZhCN | Locale::ZhTW | Locale::Ja)
 }

@@ -1,3 +1,4 @@
+use super::helpers::localized;
 use crate::theme::{AgentConfig, ProviderConfig};
 
 pub(super) fn relay_agent_matches(left: &AgentConfig, right: &AgentConfig) -> bool {
@@ -24,24 +25,14 @@ fn relay_provider_matches(left: &ProviderConfig, right: &ProviderConfig) -> bool
 }
 
 pub(super) fn relay_reload_applied_title(locale: crate::i18n::Locale) -> &'static str {
-    if matches!(
-        locale,
-        crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW | crate::i18n::Locale::Ja
-    ) {
-        "Relay 已更新"
-    } else {
-        "Relay reloaded"
-    }
+    localized(locale, "Relay 已更新", "Relay reloaded")
 }
 
 pub(super) fn relay_reload_applied_body(
     locale: crate::i18n::Locale,
     path: &std::path::Path,
 ) -> String {
-    if matches!(
-        locale,
-        crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW | crate::i18n::Locale::Ja
-    ) {
+    if super::helpers::is_cjk_locale(locale) {
         format!("已应用 {}", path.display())
     } else {
         format!("Applied {}", path.display())
@@ -49,24 +40,14 @@ pub(super) fn relay_reload_applied_body(
 }
 
 pub(super) fn relay_reload_deferred_title(locale: crate::i18n::Locale) -> &'static str {
-    if matches!(
-        locale,
-        crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW | crate::i18n::Locale::Ja
-    ) {
-        "Relay 变更已暂存"
-    } else {
-        "Relay reload deferred"
-    }
+    localized(locale, "Relay 变更已暂存", "Relay reload deferred")
 }
 
 pub(super) fn relay_reload_deferred_body(
     locale: crate::i18n::Locale,
     path: &std::path::Path,
 ) -> String {
-    if matches!(
-        locale,
-        crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW | crate::i18n::Locale::Ja
-    ) {
+    if super::helpers::is_cjk_locale(locale) {
         format!("结束编辑后应用 {}", path.display())
     } else {
         format!("Will apply after editing {}", path.display())
