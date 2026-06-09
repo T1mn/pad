@@ -51,12 +51,10 @@ fn merge_live_panel_threads(
     ctx: &FolderBuildContext<'_>,
     stats: &mut BuildLogStats,
 ) {
-    let live_panels = ctx
-        .panels
-        .iter()
-        .filter(|panel| panel.working_dir == folder.path)
-        .collect::<Vec<_>>();
-    for panel in live_panels {
+    for panel in ctx.panels {
+        if panel.working_dir != folder.path {
+            continue;
+        }
         if should_hide_live_panel(panel) {
             stats.hidden_live_panels += 1;
             continue;
