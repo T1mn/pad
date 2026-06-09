@@ -8,3 +8,7 @@ pub use preview::{
     PreviewSessionOrigin, PreviewSource, PreviewTurn, PreviewView, SessionCacheState,
     SharedPreviewTurns,
 };
+
+#[cfg(test)]
+#[path = "model/panel_tests.rs"]
+mod panel_tests;
