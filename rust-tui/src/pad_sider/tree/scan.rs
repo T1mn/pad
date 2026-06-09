@@ -16,12 +16,13 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
         let is_dir = entry
             .file_type()
             .map(|value| value.is_dir())
             .unwrap_or(false);
         if is_dir {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
             if skip_dir_name(&name) {
                 continue;
             }
