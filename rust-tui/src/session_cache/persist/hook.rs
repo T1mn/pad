@@ -34,7 +34,9 @@ pub fn persist_hook_event(
         panel.transcript_path.as_ref(),
         index.sessions[record_idx].transcript_path.as_ref(),
     );
-    index.sessions[record_idx].last_source = "hook".to_string();
+    if index.sessions[record_idx].last_source != "hook" {
+        index.sessions[record_idx].last_source = "hook".to_string();
+    }
     index.sessions[record_idx].last_seen_at = now;
     index.sessions[record_idx].updated_at = now;
 

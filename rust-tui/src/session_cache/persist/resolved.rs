@@ -41,7 +41,9 @@ pub fn persist_resolved_session(
     record.recent_turns = normalized_turns;
     record.last_user_prompt = last_user_prompt;
     record.last_assistant_message = last_assistant_message;
-    record.last_source = "resolver".to_string();
+    if record.last_source != "resolver" {
+        record.last_source = "resolver".to_string();
+    }
     record.last_seen_at = now;
     record.updated_at = now;
 
