@@ -40,7 +40,11 @@ fn run_opencode(command: &OsString, args: &[&str]) -> io::Result<String> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(if stderr.is_empty() {
-            format!("opencode {} exited with {}", args.join(" "), output.status)
+            format!(
+                "opencode {} exited with {}",
+                format_opencode_args(args),
+                output.status
+            )
         } else {
             stderr
         }));
@@ -49,9 +53,24 @@ fn run_opencode(command: &OsString, args: &[&str]) -> io::Result<String> {
     if stdout.trim().is_empty() {
         Err(io::Error::other(format!(
             "opencode {} returned empty output",
-            args.join(" ")
+            format_opencode_args(args)
         )))
     } else {
         Ok(stdout)
     }
 }
+
+fn format_opencode_args(args: &[&str]) -> String {
+    let mut formatted = String::new();
+    for arg in args {
+        if !formatted.is_empty() {
+            formatted.push(' ');
+        }
+        formatted.push_str(arg);
+    }
+    formatted
+}
+
+#[cfg(test)]
+#[path = "collect_tests.rs"]
+mod tests;
