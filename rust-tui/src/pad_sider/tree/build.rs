@@ -24,9 +24,6 @@ fn walk(
     }
 
     for entry in sorted_entries(dir) {
-        if entry.is_dir && skip_dir_name(&entry.name) {
-            continue;
-        }
         if entry.is_dir {
             walk(root, &entry.path, expanded, depth + 1, rows);
         } else {
@@ -98,10 +95,21 @@ fn read_tree_entry(entry: Result<DirEntry, std::io::Error>) -> Option<TreeEntry>
         .file_type()
         .map(|value| value.is_dir())
         .unwrap_or(false);
+    let name = {
+        let name = sort_name.to_string_lossy();
+        if is_dir && skip_dir_name(&name) {
+            return None;
+        }
+        name.into_owned()
+    };
     Some(TreeEntry {
         path: entry.path(),
-        name: sort_name.to_string_lossy().to_string(),
+        name,
         sort_name,
         is_dir,
     })
 }
+
+#[cfg(test)]
+#[path = "build_tests.rs"]
+mod tests;
