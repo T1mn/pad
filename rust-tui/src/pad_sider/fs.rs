@@ -27,7 +27,7 @@ pub fn is_markdown_file(path: &Path) -> bool {
 pub fn read_text_file(path: &Path) -> String {
     let bytes = fs::read(path)
         .unwrap_or_else(|err| format!("failed to read {}: {err}", path.display()).into_bytes());
-    String::from_utf8_lossy(&bytes).to_string()
+    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 pub fn read_file_stats(path: &Path) -> FileStats {
