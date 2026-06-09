@@ -86,7 +86,7 @@ fn command_output(output: std::process::Output, args: &[&str]) -> io::Result<Str
     }
     Err(io::Error::other(format!(
         "git {} failed: {}",
-        args.join(" "),
+        format_git_args(args),
         String::from_utf8_lossy(&output.stderr).trim()
     )))
 }
@@ -98,3 +98,18 @@ fn temp_index_path() -> PathBuf {
         std::process::id()
     ))
 }
+
+fn format_git_args(args: &[&str]) -> String {
+    let mut formatted = String::new();
+    for arg in args {
+        if !formatted.is_empty() {
+            formatted.push(' ');
+        }
+        formatted.push_str(arg);
+    }
+    formatted
+}
+
+#[cfg(test)]
+#[path = "git_tests.rs"]
+mod tests;
