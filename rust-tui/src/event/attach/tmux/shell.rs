@@ -1,10 +1,14 @@
 pub(in crate::event::attach) fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\"'\"'"))
+    crate::shell_quote::single_quote(value)
 }
 
 pub(in crate::event::attach) fn wrap_tmux_run_shell(script: &str) -> String {
     format!("sh -lc {}", shell_single_quote(script))
 }
+
+#[cfg(test)]
+#[path = "shell_tests.rs"]
+mod tests;
 
 pub(in crate::event::attach) fn shell_log_cmd(message: &str) -> String {
     let log_path = crate::paths::log_path().to_string_lossy().to_string();
