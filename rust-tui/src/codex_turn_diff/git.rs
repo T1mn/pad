@@ -82,7 +82,7 @@ fn git_output_with_index(cwd: &Path, index_path: &Path, args: &[&str]) -> io::Re
 
 fn command_output(output: std::process::Output, args: &[&str]) -> io::Result<String> {
     if output.status.success() {
-        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
     }
     Err(io::Error::other(format!(
         "git {} failed: {}",
