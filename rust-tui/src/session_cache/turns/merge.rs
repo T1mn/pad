@@ -53,7 +53,9 @@ fn merge_assistant_answer(
             .map(|hint| first.question.trim() == hint)
             .unwrap_or(true);
         if question_matches || first.answer.is_none() {
-            first.answer = Some(answer_text.to_string());
+            if first.answer.as_deref() != Some(answer_text) {
+                first.answer = Some(answer_text.to_string());
+            }
         } else if let Some(hint) = question_hint {
             turns.insert(
                 0,
