@@ -87,11 +87,8 @@ pub fn build_sidebar_folders(
         live_only,
         archived_threads_view,
     };
-    let folder_paths = folders.keys().cloned().collect::<Vec<_>>();
-    for folder_path in &folder_paths {
-        if let Some(folder) = folders.get_mut(folder_path) {
-            populate_folder_threads(folder, &folder_context, &mut stats);
-        }
+    for folder in folders.values_mut() {
+        populate_folder_threads(folder, &folder_context, &mut stats);
     }
 
     apply_thread_metadata(&mut folders);
