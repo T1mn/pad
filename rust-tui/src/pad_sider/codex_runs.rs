@@ -8,7 +8,6 @@ impl App {
     }
 
     pub(crate) fn refresh_codex_diff_preview(&mut self) {
-        let previous_title = self.file_preview.title.clone();
         let previous_scroll = self.file_preview.scroll;
         let selected = self.selected_codex_diff().cloned();
         if let Some(entry) = selected.as_ref() {
@@ -34,9 +33,9 @@ impl App {
                     "No Codex turn diffs recorded for this repo yet.\n\nRun Codex through PAD hooks, then submit a prompt.".into(),
                     PreviewKind::Missing,
                 )
-            });
+        });
         let mut preview = preview;
-        if preview.title == previous_title {
+        if preview.title == self.file_preview.title {
             preview.scroll = previous_scroll;
         }
         self.set_file_preview(preview);

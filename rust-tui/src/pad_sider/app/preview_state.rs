@@ -12,13 +12,12 @@ impl App {
             }
         };
         self.codex_diff_preview_key = None;
-        let previous_title = self.file_preview.title.clone();
         let previous_scroll = self.file_preview.scroll;
         let mut preview = path
             .as_deref()
             .map(|path| self.file_preview_cache.preview_for(&self.cwd, path))
             .unwrap_or_else(FilePreview::empty);
-        if preview.title == previous_title {
+        if preview.title == self.file_preview.title {
             preview.scroll = previous_scroll;
         }
         self.set_file_preview(preview);
