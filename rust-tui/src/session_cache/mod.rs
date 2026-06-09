@@ -39,23 +39,42 @@ pub fn list_cached_sessions() -> Vec<CachedSessionSummary> {
     index
         .sessions
         .iter()
-        .map(|record| {
-            let binding = index
-                .pane_bindings
-                .iter()
-                .filter(|binding| binding.agent_session_id == record.agent_session_id)
-                .max_by_key(|binding| binding.updated_at);
-            CachedSessionSummary {
-                agent_session_id: record.agent_session_id.clone(),
-                agent_type: record.agent_type.clone(),
-                transcript_path: record.transcript_path.clone(),
-                working_dir: binding.map(|binding| binding.path.clone()),
-                pane_id: binding.map(|binding| binding.pane_id.clone()),
-                last_user_prompt: record.last_user_prompt.clone(),
-                last_assistant_message: record.last_assistant_message.clone(),
-                updated_at: record.updated_at,
-                last_seen_at: record.last_seen_at,
-            }
-        })
+        .map(|record| cached_session_summary(&index, record))
         .collect()
+}
+
+pub fn find_cached_session(session_id: &str) -> Option<CachedSessionSummary> {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return None;
+    }
+
+    let index = storage::load_index();
+    index
+        .sessions
+        .iter()
+        .find(|record| record.agent_session_id == session_id)
+        .map(|record| cached_session_summary(&index, record))
+}
+
+fn cached_session_summary(
+    index: &model::SessionCacheIndex,
+    record: &model::CachedSessionRecord,
+) -> CachedSessionSummary {
+    let binding = index
+        .pane_bindings
+        .iter()
+        .filter(|binding| binding.agent_session_id == record.agent_session_id)
+        .max_by_key(|binding| binding.updated_at);
+    CachedSessionSummary {
+        agent_session_id: record.agent_session_id.clone(),
+        agent_type: record.agent_type.clone(),
+        transcript_path: record.transcript_path.clone(),
+        working_dir: binding.map(|binding| binding.path.clone()),
+        pane_id: binding.map(|binding| binding.pane_id.clone()),
+        last_user_prompt: record.last_user_prompt.clone(),
+        last_assistant_message: record.last_assistant_message.clone(),
+        updated_at: record.updated_at,
+        last_seen_at: record.last_seen_at,
+    }
 }
