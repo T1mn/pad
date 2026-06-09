@@ -1,4 +1,4 @@
-use super::visible_line_window;
+use super::{display_width, visible_line_window};
 use ratatui::text::Line;
 
 #[test]
@@ -26,4 +26,14 @@ fn visible_line_window_starts_inside_wrapped_line() {
 
     assert_eq!(range, 0..2);
     assert_eq!(local_scroll, 2);
+}
+
+#[test]
+fn display_width_uses_ascii_width() {
+    assert_eq!(display_width("src/main.rs"), 11);
+}
+
+#[test]
+fn display_width_handles_tabs_and_wide_chars() {
+    assert_eq!(display_width("\t好🙂"), 8);
 }

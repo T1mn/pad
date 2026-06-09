@@ -56,6 +56,9 @@ fn line_wrapped_rows(line: &Line<'_>, viewport_width: usize) -> usize {
 }
 
 fn display_width(text: &str) -> usize {
+    if text.bytes().all(|byte| (b' '..=b'~').contains(&byte)) {
+        return text.len();
+    }
     text.chars().map(char_display_width).sum()
 }
 
