@@ -61,12 +61,13 @@ pub(super) fn prune_index(index: &mut SessionCacheIndex) -> bool {
     let valid_session_ids = index
         .sessions
         .iter()
-        .map(|record| record.agent_session_id.clone())
+        .map(|record| record.agent_session_id.as_str())
         .collect::<HashSet<_>>();
 
     let before_bindings = index.pane_bindings.len();
     index.pane_bindings.retain(|binding| {
-        binding.updated_at >= min_ts && valid_session_ids.contains(&binding.agent_session_id)
+        binding.updated_at >= min_ts
+            && valid_session_ids.contains(binding.agent_session_id.as_str())
     });
 
     before_sessions != index.sessions.len() || before_bindings != index.pane_bindings.len()
