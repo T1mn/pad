@@ -43,11 +43,8 @@ pub(crate) fn common_component_count(lhs: &Path, rhs: &Path) -> usize {
 }
 
 pub(crate) fn is_component_prefix(prefix: &Path, candidate: &Path) -> bool {
-    let prefix_components = prefix.components().collect::<Vec<_>>();
-    let candidate_components = candidate.components().collect::<Vec<_>>();
-    prefix_components.len() <= candidate_components.len()
-        && prefix_components
-            .iter()
-            .zip(candidate_components.iter())
-            .all(|(left, right)| left == right)
+    let mut candidate_components = candidate.components();
+    prefix
+        .components()
+        .all(|prefix_component| candidate_components.next() == Some(prefix_component))
 }

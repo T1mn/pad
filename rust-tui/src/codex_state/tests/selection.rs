@@ -1,5 +1,17 @@
-use super::super::pathing::select_latest_thread_for_cwd;
+use super::super::pathing::{is_component_prefix, select_latest_thread_for_cwd};
 use std::path::Path;
+
+#[test]
+fn component_prefix_does_not_match_sibling_paths() {
+    assert!(is_component_prefix(
+        Path::new("/tmp/project"),
+        Path::new("/tmp/project/subdir")
+    ));
+    assert!(!is_component_prefix(
+        Path::new("/tmp/project"),
+        Path::new("/tmp/project-old")
+    ));
+}
 
 #[test]
 fn prefers_exact_cwd_match_before_related_threads() {
