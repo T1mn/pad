@@ -101,6 +101,16 @@ fn cli_hook_records_from_normalized_hook_json() {
     });
 }
 
+#[test]
+fn prompt_summary_collapses_whitespace_and_truncates() {
+    assert_eq!(prompt_summary(None, 44), "(no prompt)");
+    assert_eq!(
+        prompt_summary(Some("  fix\n\nthis\tfile  "), 44),
+        "fix this file"
+    );
+    assert_eq!(prompt_summary(Some("abcdef"), 3), "abc…");
+}
+
 fn with_isolated_store(name: &str, f: impl FnOnce(&Path)) {
     if !git_available() {
         eprintln!("git unavailable; skipping codex_turn_diff test");

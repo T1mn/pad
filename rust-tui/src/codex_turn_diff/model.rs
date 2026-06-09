@@ -140,5 +140,8 @@ pub fn prompt_summary(prompt: Option<&str>, max_chars: usize) -> String {
             out.push(ch);
         }
     }
-    out.trim().to_string()
+    while out.ends_with(' ') {
+        out.pop();
+    }
+    out
 }
