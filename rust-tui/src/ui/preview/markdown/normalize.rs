@@ -1,33 +1,40 @@
 pub(crate) fn normalize_session_detail_markdown(text: &str) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.len() <= 1 {
+    let mut lines = text.lines().peekable();
+    let Some(first_line) = lines.next() else {
+        return text.to_string();
+    };
+    if lines.peek().is_none() {
         return text.to_string();
     }
 
-    let mut out = String::with_capacity(text.len() + lines.len());
+    let mut out = String::with_capacity(text.len());
     let mut in_fenced_code = false;
+    let mut line = first_line;
+    let mut first = true;
 
-    for (idx, line) in lines.iter().enumerate() {
-        if idx > 0 {
+    loop {
+        if first {
+            first = false;
+        } else {
             out.push('\n');
         }
         out.push_str(line);
 
         let trimmed = line.trim();
-        if is_fence_marker(trimmed) {
+        let can_insert_gap = if is_fence_marker(trimmed) {
             in_fenced_code = !in_fenced_code;
-            continue;
-        }
-        if in_fenced_code {
-            continue;
-        }
-
-        let Some(next) = lines.get(idx + 1) else {
-            continue;
+            false
+        } else {
+            !in_fenced_code
         };
-        if should_insert_session_paragraph_gap(line, next) {
+
+        let Some(next) = lines.next() else {
+            break;
+        };
+        if can_insert_gap && should_insert_session_paragraph_gap(line, next) {
             out.push('\n');
         }
+        line = next;
     }
 
     out

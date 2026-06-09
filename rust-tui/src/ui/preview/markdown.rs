@@ -14,3 +14,7 @@ pub(crate) use style::markdown_options;
 pub(crate) use wrap::{
     flatten_lines_for_smooth_scrolling, total_span_count, wrap_styled_line, wrap_text_to_width,
 };
+
+#[cfg(test)]
+#[path = "markdown/normalize_tests.rs"]
+mod normalize_tests;
