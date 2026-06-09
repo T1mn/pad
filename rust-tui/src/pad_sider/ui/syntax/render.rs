@@ -30,7 +30,7 @@ fn highlight_line(language: CodeLanguage, line: &str) -> Line<'static> {
         return highlight_html_line(line);
     }
 
-    let mut spans = Vec::new();
+    let mut spans = Vec::with_capacity(line.len().min(32));
     let comment_at = comment_start(language, line);
     let code = comment_at.map(|idx| &line[..idx]).unwrap_or(line);
     push_code_segment(language, code, &mut spans);
@@ -41,7 +41,7 @@ fn highlight_line(language: CodeLanguage, line: &str) -> Line<'static> {
 }
 
 fn push_code_segment(language: CodeLanguage, segment: &str, spans: &mut Vec<Span<'static>>) {
-    let mut current = String::new();
+    let mut current = String::with_capacity(segment.len().min(32));
     let mut chars = segment.char_indices().peekable();
     while let Some((idx, ch)) = chars.next() {
         if is_quote(language, ch) {
@@ -106,7 +106,7 @@ fn token_style(language: CodeLanguage, token: &str) -> Style {
 }
 
 fn highlight_html_line(line: &str) -> Line<'static> {
-    let mut spans = Vec::new();
+    let mut spans = Vec::with_capacity(line.len().min(32));
     let mut remaining = line;
     while let Some(start) = remaining.find('<') {
         if start > 0 {
