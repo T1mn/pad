@@ -51,7 +51,8 @@ impl TmuxProbeReport {
 
     pub fn summary_lines(&self) -> Vec<String> {
         let version = self.version_raw.trim();
-        let mut lines = vec![format!("tmux version: {}", version)];
+        let mut lines = Vec::with_capacity(2 + self.notes.len().saturating_add(1));
+        lines.push(format!("tmux version: {}", version));
         let caps = &self.capabilities;
         lines.push(format!(
             "capabilities: pane-metadata={} display-message={} root-keys={} send-keys-l={} paste-p={} control-flags={} focus-events={}",

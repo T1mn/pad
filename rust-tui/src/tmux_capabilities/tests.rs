@@ -56,3 +56,31 @@ fn report_separates_required_and_optional_capabilities() {
         ]
     );
 }
+
+#[test]
+fn report_summary_lines_include_notes() {
+    let report = TmuxProbeReport {
+        version_raw: " tmux 3.5a ".to_string(),
+        version: None,
+        capabilities: TmuxCapabilities {
+            pane_metadata_formats: true,
+            display_message_formats: true,
+            root_key_table: true,
+            literal_send_keys: true,
+            bracketed_paste: false,
+            control_mode_flags: true,
+            focus_events: false,
+        },
+        notes: vec!["focus probe skipped".into()],
+    };
+
+    assert_eq!(
+        report.summary_lines(),
+        vec![
+            "tmux version: tmux 3.5a".to_string(),
+            "capabilities: pane-metadata=yes display-message=yes root-keys=yes send-keys-l=yes paste-p=no control-flags=yes focus-events=no".to_string(),
+            "notes:".to_string(),
+            "  - focus probe skipped".to_string(),
+        ]
+    );
+}
