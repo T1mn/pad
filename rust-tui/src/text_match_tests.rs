@@ -4,6 +4,7 @@ use super::{contains_ascii_ignore_case, contains_ignore_case};
 fn ascii_contains_ignores_case_without_unicode_fold() {
     assert!(contains_ascii_ignore_case("/usr/bin/CODEX", "codex"));
     assert!(!contains_ascii_ignore_case("claude", "codex"));
+    assert!(!contains_ascii_ignore_case("ai", "assistant"));
 }
 
 #[test]

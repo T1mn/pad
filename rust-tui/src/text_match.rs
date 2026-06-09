@@ -2,6 +2,9 @@ pub(crate) fn contains_ascii_ignore_case(value: &str, needle: &str) -> bool {
     if needle.is_empty() {
         return true;
     }
+    if needle.len() > value.len() {
+        return false;
+    }
 
     value
         .as_bytes()
