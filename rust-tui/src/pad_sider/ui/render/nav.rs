@@ -68,11 +68,19 @@ fn draw_index_map(frame: &mut Frame, app: &App, area: Rect) {
         .map(|row| {
             let indent = "  ".repeat(row.depth);
             let label = if row.dir_label == "." {
-                "index.md".to_string()
+                Line::from(vec![
+                    Span::styled(indent, Style::default().fg(Color::DarkGray)),
+                    Span::raw("◈ index.md"),
+                ])
             } else {
-                format!("{}/index.md", row.dir_label)
+                Line::from(vec![
+                    Span::styled(indent, Style::default().fg(Color::DarkGray)),
+                    Span::raw("◈ "),
+                    Span::raw(row.dir_label.as_str()),
+                    Span::raw("/index.md"),
+                ])
             };
-            ListItem::new(Line::from(format!("{indent}◈ {label}")))
+            ListItem::new(label)
         })
         .collect::<Vec<_>>();
     let mut state = ListState::default();
