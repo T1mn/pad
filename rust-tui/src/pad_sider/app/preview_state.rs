@@ -25,18 +25,24 @@ impl App {
         self.set_file_preview(preview);
     }
 
-    pub(crate) fn refresh_preview(&mut self) {
+    pub(crate) fn refresh_preview(&mut self) -> bool {
         let Some(preview) = self.preview.as_mut() else {
-            return;
+            return false;
         };
         if preview.path.is_file() {
             let scroll = preview.preview.scroll;
-            preview.preview = self
+            let mut refreshed = self
                 .file_preview_cache
                 .preview_for(&self.cwd, &preview.path);
-            preview.preview.scroll = scroll;
+            refreshed.scroll = scroll;
+            if preview.preview == refreshed {
+                return false;
+            }
+            preview.preview = refreshed;
+            true
         } else {
             self.preview = None;
+            true
         }
     }
 }

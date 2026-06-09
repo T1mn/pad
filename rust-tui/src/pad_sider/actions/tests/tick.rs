@@ -41,6 +41,35 @@ fn tick_refreshes_preview_without_rebuilding_tree() {
 }
 
 #[test]
+fn tick_marks_dirty_only_when_fullscreen_preview_changes() {
+    let root = temp_dir("tick_marks_dirty_only_when_fullscreen_preview_changes");
+    fs::create_dir_all(&root).unwrap();
+    let selected = root.join("notes.md");
+    fs::write(&selected, "# before").unwrap();
+
+    let mut app = App::new(root.clone(), None);
+    app.reveal_path(&selected);
+    app.open_preview();
+    assert!(app.take_dirty());
+
+    app.last_refresh = Instant::now() - Duration::from_secs(3);
+    assert!(!app.tick());
+    assert!(!app.dirty);
+
+    fs::write(&selected, "# after with more content").unwrap();
+    app.last_refresh = Instant::now() - Duration::from_secs(3);
+
+    assert!(app.tick());
+    assert!(app.dirty);
+    assert!(app
+        .preview
+        .as_ref()
+        .is_some_and(|preview| preview.preview.content.contains("after")));
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn tick_eventually_rebuilds_tree_on_full_refresh_interval() {
     let root = temp_dir("tick_eventually_rebuilds_tree_on_full_refresh_interval");
     fs::create_dir_all(&root).unwrap();

@@ -82,7 +82,6 @@ impl App {
         let previous_selected_stats = self.selected_stats.clone();
         let previous_selected_label = self.selected_label.clone();
         let previous_file_preview_revision = self.file_preview_revision;
-        let previous_preview = self.preview.clone();
 
         let codex_diffs = codex_turn_diff::list_for_cwd(&self.cwd);
         let codex_diffs_changed = codex_diffs != self.codex_diffs;
@@ -92,13 +91,13 @@ impl App {
         }
         self.refresh_selected();
         self.refresh_file_preview();
-        self.refresh_preview();
+        let preview_changed = self.refresh_preview();
         self.last_refresh = Instant::now();
 
         let changed = previous_selected_stats != self.selected_stats
             || previous_selected_label != self.selected_label
             || previous_file_preview_revision != self.file_preview_revision
-            || previous_preview != self.preview
+            || preview_changed
             || codex_diffs_changed;
 
         if changed {

@@ -5,4 +5,4 @@
 - `index_map.rs`：index.md 预览、Index Map 选择和 reveal 回 tree 测试。
 - `preview.rs`：文件预览打开与右侧预览滚动测试。
 - `display.rs`：行号与文字缩放开关测试。
-- `tick.rs`：idle tick、轻量预览刷新和完整 tree rebuild 测试。
+- `tick.rs`：idle tick、轻量/全屏预览刷新和完整 tree rebuild 测试。
