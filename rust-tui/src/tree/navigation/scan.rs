@@ -10,9 +10,10 @@ impl FileTree {
 
     /// Scan directory and return entries
     pub(in crate::tree) fn scan_directory(&self, path: &Path) -> Vec<TreeEntry> {
-        let mut entries = parent_entry(path, &self.root_path)
-            .into_iter()
-            .collect::<Vec<_>>();
+        let mut entries = Vec::new();
+        if let Some(parent) = parent_entry(path, &self.root_path) {
+            entries.push(parent);
+        }
         let Ok(dir_entries) = std::fs::read_dir(path) else {
             return entries;
         };
