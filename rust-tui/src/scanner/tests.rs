@@ -1,8 +1,7 @@
 use super::{
     capture_pane_content, capture_panes_content, detect_agent_type, get_git_info_for_paths,
     parse_git_status_porcelain_v2, parse_tmux_panes_output, scan_panels,
-    tmux_panes::{parse_pane_line, LIST_PANES_FORMAT},
-    ScanCaches,
+    tmux_panes::LIST_PANES_FORMAT, ScanCaches,
 };
 use crate::model::{AgentState, AgentType, GitInfo};
 use std::process::Command;
@@ -118,26 +117,17 @@ fn measure_scan_breakdown() -> ScanBreakdown {
     let list_ms = list_started_at.elapsed().as_secs_f64() * 1000.0;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let pane_pids = stdout
-        .lines()
-        .filter_map(|line| line.split('|').nth(5))
-        .filter(|pid| !pid.trim().is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    let mut caches = ScanCaches::with_pane_pids(pane_pids);
+    let parsed_panes = parse_tmux_panes_output(&stdout);
+    let mut caches = ScanCaches::with_pane_pids(parsed_panes.pane_pids.clone());
     let mut out = ScanBreakdown {
-        panes: stdout.lines().count(),
+        panes: parsed_panes.total_panes,
         list_ms,
         ..ScanBreakdown::default()
     };
     let mut agent_panes = Vec::new();
     let mut agent_dirs = Vec::new();
 
-    for line in stdout.lines() {
-        let Some(pane_line) = parse_pane_line(line) else {
-            continue;
-        };
-
+    for pane_line in parsed_panes.iter() {
         let started_at = Instant::now();
         let (agent_type, _, _) =
             detect_agent_type(pane_line.current_cmd, pane_line.pane_pid, &mut caches);
