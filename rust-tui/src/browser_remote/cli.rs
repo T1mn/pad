@@ -20,7 +20,10 @@ fn run_browser_open(args: &[String]) -> Result<(), Box<dyn Error>> {
         .ok_or("missing url")?;
     if dry_run {
         let command = browser_open_command(url)?;
-        println!("{} {}", command.program, command.args.join(" "));
+        println!(
+            "{}",
+            format_command_line(&command.program, command.args.iter().map(String::as_str))
+        );
         return Ok(());
     }
     open_browser_url(url)?;
@@ -36,13 +39,13 @@ fn run_remote_exec(args: &[String]) -> Result<(), Box<dyn Error>> {
         .iter()
         .position(|arg| arg == "--")
         .ok_or("missing -- command")?;
-    let command = args[sep + 1..].join(" ");
+    let command = format_args(&args[sep + 1..]);
     if command.trim().is_empty() {
         return Err("missing remote command".into());
     }
     let ssh = remote_ssh_command(&RemoteCommandRequest { host, cwd, command });
     if dry_run {
-        println!("{}", ssh.join(" "));
+        println!("{}", format_args(&ssh));
         return Ok(());
     }
     let output = Command::new(&ssh[0]).args(&ssh[1..]).output()?;
@@ -62,3 +65,22 @@ fn value_after(args: &[String], key: &str) -> Option<String> {
         .find(|pair| pair[0] == key)
         .map(|pair| pair[1].clone())
 }
+
+fn format_args(args: &[String]) -> String {
+    format_command_line("", args.iter().map(String::as_str))
+}
+
+fn format_command_line<'a>(program: &str, args: impl IntoIterator<Item = &'a str>) -> String {
+    let mut line = program.to_string();
+    for arg in args {
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(arg);
+    }
+    line
+}
+
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod tests;
