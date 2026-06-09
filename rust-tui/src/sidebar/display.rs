@@ -33,11 +33,20 @@ pub fn folder_display_label(path: &str) -> String {
         .parent()
         .and_then(|parent| parent.file_name())
         .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string());
+        .filter(|name| !name.is_empty());
 
     match parent {
-        Some(parent) => format!("{} · {}", leaf, parent),
+        Some(parent) => {
+            let mut label = String::with_capacity(leaf.len() + " · ".len() + parent.len());
+            label.push_str(&leaf);
+            label.push_str(" · ");
+            label.push_str(parent);
+            label
+        }
         None => leaf,
     }
 }
+
+#[cfg(test)]
+#[path = "display_tests.rs"]
+mod tests;
