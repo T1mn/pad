@@ -19,9 +19,9 @@ pub fn persist_resolved_session(
     };
 
     let normalized_turns = normalize_turns(turns, panel.agent_type == AgentType::Codex);
-    let transcript = transcript_path.to_string_lossy().to_string();
+    let transcript = transcript_path.to_string_lossy();
     if panel.session_cache_state == Some(SessionCacheState::Confirmed)
-        && panel.transcript_path.as_deref() == Some(transcript.as_str())
+        && panel.transcript_path.as_deref() == Some(transcript.as_ref())
         && panel.cached_preview_turns.as_ref() == normalized_turns.as_slice()
     {
         return Ok(());
@@ -37,7 +37,7 @@ pub fn persist_resolved_session(
         .first()
         .and_then(|turn| turn.answer.clone());
     let record = &mut index.sessions[record_idx];
-    record.transcript_path = Some(transcript);
+    record.transcript_path = Some(transcript.into_owned());
     record.recent_turns = normalized_turns;
     record.last_user_prompt = last_user_prompt;
     record.last_assistant_message = last_assistant_message;
