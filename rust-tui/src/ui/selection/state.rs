@@ -26,17 +26,4 @@ impl SelectionState {
             .filter_map(|(idx, item)| matches_query(item, &self.query).then_some(idx))
             .collect()
     }
-
-    pub fn selected_filtered_index<T>(
-        &self,
-        items: &[T],
-        matches_query: impl Fn(&T, &str) -> bool,
-    ) -> Option<usize> {
-        let filtered = self.filtered_indices(items, matches_query);
-        if filtered.is_empty() {
-            None
-        } else {
-            Some(self.selected.min(filtered.len().saturating_sub(1)))
-        }
-    }
 }

@@ -25,9 +25,7 @@ pub(super) fn render_selection_list_rows(
         return;
     }
 
-    let selected = state
-        .selected_filtered_index(items, SelectionItem::matches_query)
-        .unwrap_or(0);
+    let selected = state.selected.min(filtered.len().saturating_sub(1));
     let rows = filtered
         .iter()
         .enumerate()
