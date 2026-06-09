@@ -15,15 +15,16 @@ pub fn render_diff_patch(content: &str, width: u16) -> Text<'static> {
         );
     }
 
+    let files = doc.files;
     let mut lines = doc
         .prelude
-        .iter()
-        .map(|line| Line::from(Span::styled(line.clone(), meta_style())))
+        .into_iter()
+        .map(|line| Line::from(Span::styled(line, meta_style())))
         .collect::<Vec<_>>();
     if width >= SIDE_BY_SIDE_MIN_WIDTH {
-        super::side_by_side::render(&doc.files, width as usize, &mut lines);
+        super::side_by_side::render(&files, width as usize, &mut lines);
     } else {
-        super::unified::render(&doc.files, &mut lines);
+        super::unified::render(&files, &mut lines);
     }
     Text::from(lines)
 }
