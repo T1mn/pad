@@ -3,17 +3,21 @@ use std::path::Path;
 
 impl App {
     pub fn toggle_selected(&mut self) {
-        let Some(row) = self.tree.get(self.selected).cloned() else {
+        let Some((is_dir, path)) = self
+            .tree
+            .get(self.selected)
+            .map(|row| (row.is_dir, row.path.clone()))
+        else {
             return;
         };
-        if !row.is_dir || row.path == self.cwd {
+        if !is_dir || path == self.cwd {
             return;
         }
-        if !self.expanded.insert(row.path.clone()) {
-            self.expanded.remove(&row.path);
+        if !self.expanded.insert(path.clone()) {
+            self.expanded.remove(&path);
         }
         self.refresh();
-        self.set_selected_path(&row.path);
+        self.set_selected_path(&path);
         self.refresh_selected();
         self.refresh_file_preview();
     }
