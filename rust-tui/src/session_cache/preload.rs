@@ -41,14 +41,15 @@ pub(super) fn apply_snapshot_to_panel(panel: &mut AgentPanel, snapshot: &Session
     let recent_turns = normalize_snapshot_turns(&snapshot.recent_turns, &panel.agent_type);
     let last_user_prompt =
         normalize_snapshot_prompt(snapshot.last_user_prompt.as_deref(), &panel.agent_type);
+    let is_busy = latest_turn_missing_answer(recent_turns.as_ref());
     panel.agent_session_id = Some(snapshot.agent_session_id.clone());
     panel.transcript_path = snapshot.transcript_path.clone();
-    panel.cached_preview_turns = recent_turns.clone();
+    panel.cached_preview_turns = recent_turns;
     panel.last_user_prompt = last_user_prompt;
     panel.last_assistant_message = snapshot.last_assistant_message.clone();
     panel.session_cache_state = Some(snapshot.state);
 
-    if latest_turn_missing_answer(recent_turns.as_ref()) {
+    if is_busy {
         panel.state = AgentState::Busy;
         panel.state_source = AgentStateSource::Hook;
         panel.is_active = true;
