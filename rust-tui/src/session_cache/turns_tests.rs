@@ -1,4 +1,4 @@
-use super::normalize_turns;
+use super::{normalize_cached_codex_prompt, normalize_turns};
 use crate::model::PreviewTurn;
 
 #[test]
@@ -51,4 +51,20 @@ fn normalize_turns_stops_after_history_limit_valid_turns() {
         normalized.last().map(|turn| turn.question.as_str()),
         Some("q49")
     );
+}
+
+#[test]
+fn normalize_cached_codex_prompt_trims_without_precopy() {
+    assert_eq!(
+        normalize_cached_codex_prompt(Some("  hello  "), false).as_deref(),
+        Some("hello")
+    );
+    assert_eq!(normalize_cached_codex_prompt(Some("   "), false), None);
+}
+
+#[test]
+fn normalize_cached_codex_prompt_filters_codex_context() {
+    let text = " <environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context> ";
+
+    assert_eq!(normalize_cached_codex_prompt(Some(text), true), None);
 }

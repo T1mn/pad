@@ -2,7 +2,7 @@ use super::super::bindings::upsert_binding;
 use super::super::model::{snapshot_from_record, HookBindingContext, SessionCacheSnapshot};
 use super::super::storage::{load_index, prune_index, save_index};
 use super::super::turns::{merge_recent_turns, normalize_cached_codex_prompt};
-use super::super::util::{clean_text, now_ts, prefer_non_empty};
+use super::super::util::{clean_text, first_non_empty_str, now_ts, prefer_non_empty_str};
 use super::record::upsert_session_record;
 use crate::hook::HookEvent;
 use crate::model::{AgentPanel, AgentType, SessionCacheState};
@@ -29,11 +29,11 @@ pub fn persist_hook_event(
     let normalize_codex = panel.agent_type == AgentType::Codex;
 
     let record_idx = upsert_session_record(&mut index, agent_session_id, agent_type, now);
-    index.sessions[record_idx].transcript_path = prefer_non_empty(
-        event.transcript_path.as_ref(),
-        panel.transcript_path.as_ref(),
-        index.sessions[record_idx].transcript_path.as_ref(),
-    );
+    index.sessions[record_idx].transcript_path = prefer_non_empty_str([
+        event.transcript_path.as_deref(),
+        panel.transcript_path.as_deref(),
+        index.sessions[record_idx].transcript_path.as_deref(),
+    ]);
     if index.sessions[record_idx].last_source != "hook" {
         index.sessions[record_idx].last_source = "hook".to_string();
     }
@@ -41,8 +41,7 @@ pub fn persist_hook_event(
     index.sessions[record_idx].updated_at = now;
 
     let prompt = normalize_cached_codex_prompt(
-        clean_text(event.prompt.as_deref())
-            .or_else(|| clean_text(panel.last_user_prompt.as_deref())),
+        first_non_empty_str([event.prompt.as_deref(), panel.last_user_prompt.as_deref()]),
         normalize_codex,
     );
     let assistant = match event.event.as_str() {
@@ -55,11 +54,8 @@ pub fn persist_hook_event(
         &mut index.sessions[record_idx].recent_turns,
         prompt.as_deref(),
         assistant.as_deref(),
-        normalize_cached_codex_prompt(
-            clean_text(panel.last_user_prompt.as_deref()),
-            normalize_codex,
-        )
-        .as_deref(),
+        normalize_cached_codex_prompt(panel.last_user_prompt.as_deref(), normalize_codex)
+            .as_deref(),
     );
 
     let (last_user_prompt, last_assistant_message) =

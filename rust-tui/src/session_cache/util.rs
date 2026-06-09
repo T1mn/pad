@@ -1,12 +1,17 @@
-pub(super) fn prefer_non_empty(
-    first: Option<&String>,
-    second: Option<&String>,
-    third: Option<&String>,
+pub(super) fn first_non_empty_str<'a>(
+    values: impl IntoIterator<Item = Option<&'a str>>,
+) -> Option<&'a str> {
+    values
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|text| !text.is_empty())
+}
+
+pub(super) fn prefer_non_empty_str<'a>(
+    values: impl IntoIterator<Item = Option<&'a str>>,
 ) -> Option<String> {
-    first
-        .and_then(|value| clean_text(Some(value.as_str())))
-        .or_else(|| second.and_then(|value| clean_text(Some(value.as_str()))))
-        .or_else(|| third.and_then(|value| clean_text(Some(value.as_str()))))
+    first_non_empty_str(values).map(ToOwned::to_owned)
 }
 
 pub(super) fn clean_text(value: Option<&str>) -> Option<String> {
