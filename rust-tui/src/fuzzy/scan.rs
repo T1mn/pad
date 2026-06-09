@@ -20,19 +20,18 @@ pub fn scan_directories(base: &str, max_depth: usize) -> Vec<String> {
                     }
                 }
 
-                results.push(path_str.clone());
-
                 // Recursively scan (limit depth)
                 if max_depth > 1 {
                     let sub_dirs = scan_directories(&path_str, max_depth - 1);
                     results.extend(sub_dirs.into_iter().skip(1)); // Skip duplicate base
                 }
+                results.push(path_str);
             }
         }
     }
 
     // Sort and remove duplicates
-    results.sort();
+    results.sort_unstable();
     results.dedup();
     results
 }
