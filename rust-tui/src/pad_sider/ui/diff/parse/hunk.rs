@@ -61,7 +61,7 @@ impl HunkBuilder {
 }
 
 fn strip_marker(line: &str) -> String {
-    line.chars().skip(1).collect()
+    line[1..].to_string()
 }
 
 fn parse_hunk_start(header: &str) -> (usize, usize) {
