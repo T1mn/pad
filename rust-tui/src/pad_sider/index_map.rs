@@ -39,7 +39,7 @@ fn collect_index_rows(root: &Path, dir: &Path, depth: usize, rows: &mut Vec<Inde
         }
         dirs.push(entry.path());
     }
-    dirs.sort();
+    dirs.sort_unstable();
 
     for child in dirs {
         collect_index_rows(root, &child, depth + 1, rows);

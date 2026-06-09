@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 pub fn scan_files(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     collect_files(root, &mut files);
-    files.sort();
+    files.sort_unstable();
     files
 }
 
