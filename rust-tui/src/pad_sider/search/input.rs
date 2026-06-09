@@ -25,13 +25,16 @@ pub(super) fn handle_key(search: &mut FileSearch, key: KeyEvent) -> SearchAction
             SearchAction::None
         }
         KeyCode::Delete if key.modifiers.contains(KeyModifiers::SHIFT) => {
-            search.query.clear();
-            filter::update_filter(search);
+            if !search.query.is_empty() {
+                search.query.clear();
+                filter::update_filter(search);
+            }
             SearchAction::None
         }
         KeyCode::Backspace => {
-            search.query.pop();
-            filter::update_filter(search);
+            if search.query.pop().is_some() {
+                filter::update_filter(search);
+            }
             SearchAction::None
         }
         KeyCode::Char(c) => {
