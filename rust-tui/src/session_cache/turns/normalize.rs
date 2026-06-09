@@ -10,13 +10,14 @@ where
     I: IntoIterator<Item = T>,
     T: Borrow<PreviewTurn>,
 {
-    let mut normalized = turns
-        .into_iter()
-        .filter_map(|turn| normalize_turn(turn.borrow(), normalize_codex_prompts))
-        .collect::<Vec<_>>();
-
-    if normalized.len() > SESSION_HISTORY_TURN_LIMIT {
-        normalized.truncate(SESSION_HISTORY_TURN_LIMIT);
+    let mut normalized = Vec::with_capacity(SESSION_HISTORY_TURN_LIMIT);
+    for turn in turns {
+        if let Some(turn) = normalize_turn(turn.borrow(), normalize_codex_prompts) {
+            normalized.push(turn);
+            if normalized.len() == SESSION_HISTORY_TURN_LIMIT {
+                break;
+            }
+        }
     }
 
     normalized
