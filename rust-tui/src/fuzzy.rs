@@ -20,7 +20,8 @@ pub struct FuzzyPicker {
 
 impl FuzzyPicker {
     pub fn new(items: Vec<String>) -> Self {
-        let filtered: Vec<_> = items.iter().map(|s| (s.clone(), 0)).collect();
+        let mut filtered = Vec::with_capacity(items.len());
+        search::fill_unfiltered(&items, &mut filtered);
         Self {
             items,
             filtered,
@@ -32,7 +33,11 @@ impl FuzzyPicker {
 
     /// Update filter based on current query
     fn update_filter(&mut self) {
-        self.filtered = search::filter_items(&self.items, &self.query);
+        if self.query.is_empty() {
+            search::fill_unfiltered(&self.items, &mut self.filtered);
+        } else {
+            self.filtered = search::filter_items(&self.items, &self.query);
+        }
 
         // Reset selection if out of bounds
         if self.selected >= self.filtered.len() {

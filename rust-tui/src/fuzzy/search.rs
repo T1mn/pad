@@ -3,7 +3,9 @@ use nucleo_matcher::{Matcher, Utf32Str};
 
 pub(super) fn filter_items(items: &[String], query: &str) -> Vec<(String, u32)> {
     if query.is_empty() {
-        return items.iter().map(|s| (s.clone(), 0)).collect();
+        let mut results = Vec::with_capacity(items.len());
+        fill_unfiltered(items, &mut results);
+        return results;
     }
 
     let mut matcher = Matcher::default();
@@ -20,4 +22,9 @@ pub(super) fn filter_items(items: &[String], query: &str) -> Vec<(String, u32)> 
 
     results.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     results
+}
+
+pub(super) fn fill_unfiltered(items: &[String], filtered: &mut Vec<(String, u32)>) {
+    filtered.clear();
+    filtered.extend(items.iter().map(|item| (item.clone(), 0)));
 }
