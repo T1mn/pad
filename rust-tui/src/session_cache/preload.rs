@@ -79,20 +79,37 @@ fn normalize_snapshot_turns(
         return turns.clone();
     }
 
-    turns
-        .iter()
-        .cloned()
-        .filter_map(|mut turn| {
-            turn.question =
-                crate::preview_source::codex::normalize_codex_user_text(&turn.question, None);
-            if turn.question.is_empty() {
-                None
-            } else {
-                Some(turn)
+    let mut normalized = None::<Vec<PreviewTurn>>;
+
+    for (index, turn) in turns.iter().enumerate() {
+        let question =
+            crate::preview_source::codex::normalize_codex_user_text_cow(&turn.question, None);
+        if question.is_empty() {
+            if normalized.is_none() {
+                let mut normalized_turns = turns[..index].to_vec();
+                normalized_turns.reserve(turns.len().saturating_sub(index + 1));
+                normalized = Some(normalized_turns);
             }
-        })
-        .collect::<Vec<_>>()
-        .into()
+            continue;
+        }
+
+        if let Some(normalized_turns) = normalized.as_mut() {
+            normalized_turns.push(PreviewTurn {
+                question: question.into_owned(),
+                answer: turn.answer.clone(),
+            });
+        } else if question.as_ref() != turn.question.as_str() {
+            let mut normalized_turns = Vec::with_capacity(turns.len());
+            normalized_turns.extend_from_slice(&turns[..index]);
+            normalized_turns.push(PreviewTurn {
+                question: question.into_owned(),
+                answer: turn.answer.clone(),
+            });
+            normalized = Some(normalized_turns);
+        }
+    }
+
+    normalized.map(Into::into).unwrap_or_else(|| turns.clone())
 }
 
 fn normalize_snapshot_prompt(value: Option<&str>, agent_type: &AgentType) -> Option<String> {
@@ -102,11 +119,11 @@ fn normalize_snapshot_prompt(value: Option<&str>, agent_type: &AgentType) -> Opt
     }
 
     if *agent_type == AgentType::Codex {
-        let normalized = crate::preview_source::codex::normalize_codex_user_text(text, None);
+        let normalized = crate::preview_source::codex::normalize_codex_user_text_cow(text, None);
         if normalized.is_empty() {
             None
         } else {
-            Some(normalized)
+            Some(normalized.into_owned())
         }
     } else {
         Some(text.to_string())

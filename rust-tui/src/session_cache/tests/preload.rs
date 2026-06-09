@@ -3,7 +3,9 @@ use super::super::preload::{
     apply_snapshot_to_panel, latest_turn_missing_answer, panel_needs_preload,
 };
 use super::support::panel;
-use crate::model::{AgentState, AgentStateSource, AgentType, PreviewTurn, SessionCacheState};
+use crate::model::{
+    AgentState, AgentStateSource, AgentType, PreviewTurn, SessionCacheState, SharedPreviewTurns,
+};
 
 #[test]
 fn latest_unanswered_turn_restores_busy_state() {
@@ -114,4 +116,27 @@ fn apply_snapshot_to_panel_normalizes_old_codex_image_placeholders() {
         restored_panel.last_user_prompt.as_deref(),
         Some("[Image x1] 为什么有黑边？")
     );
+}
+
+#[test]
+fn apply_snapshot_to_panel_reuses_clean_codex_turns() {
+    let mut restored_panel = panel("%1", "dev", "1", "0", "/repo");
+    let recent_turns = SharedPreviewTurns::from(vec![PreviewTurn {
+        question: "plain prompt".to_string(),
+        answer: Some("plain answer".to_string()),
+    }]);
+    let snapshot = SessionCacheSnapshot {
+        agent_session_id: "s1".to_string(),
+        transcript_path: Some("/tmp/a.jsonl".to_string()),
+        recent_turns: recent_turns.clone(),
+        last_user_prompt: Some("plain prompt".to_string()),
+        last_assistant_message: Some("plain answer".to_string()),
+        state: SessionCacheState::Cached,
+    };
+
+    apply_snapshot_to_panel(&mut restored_panel, &snapshot);
+
+    assert!(restored_panel
+        .cached_preview_turns
+        .shares_allocation_with(&recent_turns));
 }

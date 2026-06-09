@@ -13,7 +13,7 @@ use super::SessionReadMode;
 use crate::model::PreviewTurn;
 use std::path::Path;
 
-pub(crate) use normalize::normalize_codex_user_text;
+pub(crate) use normalize::{normalize_codex_user_text, normalize_codex_user_text_cow};
 
 pub(super) fn parse_transcript(
     path: &Path,
