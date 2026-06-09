@@ -1,7 +1,7 @@
 use crate::app::state::Mode;
 use crate::app::App;
 use crate::log_debug;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 
@@ -16,6 +16,17 @@ pub(super) fn handle_key_event(
     }
 
     if super::input_clear::handle_shift_delete(app, key) {
+        return Ok(());
+    }
+
+    if key.code == KeyCode::Char(' ')
+        && key.modifiers.contains(KeyModifiers::SHIFT)
+        && relay_real_chat_provider_list_is_focused(app)
+    {
+        if let Some(agent_name) = selected_relay_agent_name(app).map(str::to_string) {
+            app.trigger_provider_batch_test_for_agent(&agent_name);
+        }
+        app.dirty = true;
         return Ok(());
     }
 
@@ -94,4 +105,31 @@ pub(super) fn handle_paste(app: &mut App, text: &str) {
         app.sync_sidebar_selection();
         app.dirty = true;
     }
+}
+
+fn relay_real_chat_provider_list_is_focused(app: &App) -> bool {
+    use crate::app::state::{Mode, RelayView, SettingsDetailKind, SettingsFocus};
+
+    let relay_is_visible = match app.mode {
+        Mode::RelaySettings => true,
+        Mode::Settings => {
+            app.settings_focus == SettingsFocus::Detail
+                && app.current_settings_detail_kind() == Some(SettingsDetailKind::Relay)
+        }
+        _ => false,
+    };
+    relay_is_visible
+        && app.relay_view == RelayView::ProviderList
+        && app
+            .config
+            .agents
+            .get(app.relay_selected_agent)
+            .is_some_and(|agent| matches!(agent.name.as_str(), "claude" | "codex"))
+}
+
+fn selected_relay_agent_name(app: &App) -> Option<&str> {
+    app.config
+        .agents
+        .get(app.relay_selected_agent)
+        .map(|agent| agent.name.as_str())
 }

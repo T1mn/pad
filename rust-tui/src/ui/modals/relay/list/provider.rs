@@ -30,7 +30,7 @@ fn provider_item(agent: &AgentConfig, idx: usize, provider: &ProviderConfig) -> 
     let is_active = agent.active_provider == Some(idx);
     SelectionItem {
         title: provider_list_title(agent.name.as_str(), provider, is_active),
-        value: None,
+        value: provider_list_value(agent.name.as_str(), provider),
         subtitle: Some(provider_list_subtitle(agent.name.as_str(), provider)),
         keyword: Some(format!(
             "{} {} {}",
@@ -77,14 +77,61 @@ fn provider_list_subtitle(agent_name: &str, provider: &ProviderConfig) -> String
             ),
         );
     }
-    if let Some(ok) = provider.test_status {
-        push_subtitle_part(&mut subtitle, if ok { "probe ok" } else { "probe failed" });
+    if !matches!(agent_name, "claude" | "codex") {
+        if let Some(ok) = provider.test_status {
+            let label = if ok { "probe ok" } else { "probe failed" };
+            if let Some(latency_ms) = provider.test_latency_ms {
+                push_subtitle_part(&mut subtitle, &format!("{label} · {latency_ms} ms"));
+            } else {
+                push_subtitle_part(&mut subtitle, label);
+            }
+        }
     }
     if subtitle.is_empty() {
         "-".to_string()
     } else {
         subtitle
     }
+}
+
+fn provider_list_value(agent_name: &str, provider: &ProviderConfig) -> Option<String> {
+    if !matches!(agent_name, "claude" | "codex") {
+        return None;
+    }
+
+    let result = provider.test_result.as_deref()?;
+    if result.contains("Testing") {
+        return Some("testing".to_string());
+    }
+
+    match provider.test_status {
+        Some(true) => {
+            let first = provider
+                .test_latency_ms
+                .or_else(|| number_after(result, "first output "));
+            let total = number_after(result, "complete ");
+            match (first, total) {
+                (Some(first), Some(total)) => Some(format!("{first}/{total} ms")),
+                (Some(first), None) => Some(format!("{first} ms")),
+                _ => Some("ok".to_string()),
+            }
+        }
+        Some(false) => provider
+            .test_http_status
+            .map(|status| format!("失败 {status}"))
+            .or_else(|| Some("失败".to_string())),
+        None => Some("-".to_string()),
+    }
+}
+
+fn number_after(text: &str, marker: &str) -> Option<u64> {
+    let start = text.find(marker)? + marker.len();
+    let digits = text[start..]
+        .chars()
+        .skip_while(|ch| ch.is_whitespace())
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    digits.parse().ok()
 }
 
 fn push_subtitle_part(subtitle: &mut String, part: &str) {

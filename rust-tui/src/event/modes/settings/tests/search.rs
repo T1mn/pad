@@ -1,5 +1,5 @@
 use super::super::handle_settings_mode;
-use crate::app::state::{Mode, SettingsDetailKind, SettingsFocus};
+use crate::app::state::{CodexSettingsView, Mode, RelayView, SettingsDetailKind, SettingsFocus};
 use crate::app::App;
 use crossterm::event::KeyCode;
 
@@ -114,4 +114,49 @@ fn settings_f1_closes_modal_from_detail_view() {
     assert!(app.active_settings_detail.is_none());
     assert!(!app.settings_searching);
     assert!(app.settings_search.is_empty());
+}
+
+#[test]
+fn settings_search_can_route_to_codex_relay_agent() {
+    let mut app = App::new();
+    app.mode = Mode::Settings;
+    app.settings_open = true;
+    app.settings_focus = SettingsFocus::List;
+    app.settings_searching = true;
+    app.settings_search = "codex relay".into();
+    app.settings_selected = 0;
+
+    let items = app.filtered_settings_items();
+    assert_eq!(items.first().map(|item| item.0), Some("relay"));
+
+    handle_settings_mode(&mut app, KeyCode::Enter);
+
+    assert!(matches!(
+        app.current_settings_detail_kind(),
+        Some(SettingsDetailKind::Relay)
+    ));
+    assert!(matches!(app.relay_view, RelayView::ProviderList));
+    assert_eq!(app.config.agents[app.relay_selected_agent].name, "codex");
+}
+
+#[test]
+fn settings_search_can_route_to_codex_settings_subpage() {
+    let mut app = App::new();
+    app.mode = Mode::Settings;
+    app.settings_open = true;
+    app.settings_focus = SettingsFocus::List;
+    app.settings_searching = true;
+    app.settings_search = "codex cli".into();
+    app.settings_selected = 0;
+
+    let items = app.filtered_settings_items();
+    assert_eq!(items.first().map(|item| item.0), Some("codex_settings"));
+
+    handle_settings_mode(&mut app, KeyCode::Enter);
+
+    assert!(matches!(
+        app.current_settings_detail_kind(),
+        Some(SettingsDetailKind::CodexSettings)
+    ));
+    assert_eq!(app.codex_settings_view, CodexSettingsView::Cli);
 }

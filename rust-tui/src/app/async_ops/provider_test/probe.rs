@@ -24,6 +24,7 @@ pub(super) async fn run_provider_test_probe(
     agent_name: String,
     base_url: String,
     credential: Option<String>,
+    default_model: String,
 ) -> ProviderTestMessage {
     let client = match provider_test_client() {
         Ok(client) => client,
@@ -41,7 +42,9 @@ pub(super) async fn run_provider_test_probe(
 
     let (success, http_status, latency, message) = match agent_name.as_str() {
         "codex" => probe_codex_provider(&client, &base_url, credential.as_deref()).await,
-        "claude" => probe_claude_provider(&client, &base_url, credential.as_deref()).await,
+        "claude" => {
+            probe_claude_provider(&client, &base_url, credential.as_deref(), &default_model).await
+        }
         _ => probe_generic_provider(&client, &base_url, credential.as_deref()).await,
     };
 

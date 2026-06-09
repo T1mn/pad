@@ -1,6 +1,6 @@
 pub(super) fn provider_test_client() -> Result<reqwest::Client, reqwest::Error> {
     reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(45))
         .redirect(reqwest::redirect::Policy::none())
         .user_agent("pad-provider-test/0.1")
         .build()
@@ -14,6 +14,38 @@ pub(super) fn bearer_get<'a>(
     let mut request = client.get(url);
     if let Some(token) = credential.filter(|token| !token.trim().is_empty()) {
         request = request.bearer_auth(token);
+    }
+    request
+}
+
+pub(super) fn bearer_post_json<'a>(
+    client: &'a reqwest::Client,
+    url: &'a str,
+    credential: Option<&str>,
+    payload: &'a serde_json::Value,
+) -> reqwest::RequestBuilder {
+    let mut request = client
+        .post(url)
+        .header(reqwest::header::ACCEPT, "text/event-stream")
+        .json(payload);
+    if let Some(token) = credential.filter(|token| !token.trim().is_empty()) {
+        request = request.bearer_auth(token);
+    }
+    request
+}
+
+pub(super) fn claude_post_json<'a>(
+    client: &'a reqwest::Client,
+    url: &'a str,
+    credential: Option<&str>,
+    payload: &'a serde_json::Value,
+) -> reqwest::RequestBuilder {
+    let mut request = client
+        .post(url)
+        .header("anthropic-version", "2023-06-01")
+        .json(payload);
+    if let Some(token) = credential.filter(|token| !token.trim().is_empty()) {
+        request = request.header("x-api-key", token).bearer_auth(token);
     }
     request
 }

@@ -7,8 +7,10 @@ impl App {
             self.return_to_settings_list();
             return;
         };
+        let route_query = self.settings_search.clone();
         self.active_settings_detail = Some(kind);
         self.prepare_settings_detail(kind);
+        super::search_route::apply_settings_search_route(self, kind, &route_query);
         self.settings_focus = SettingsFocus::Detail;
         self.settings_searching = false;
         self.dirty = true;

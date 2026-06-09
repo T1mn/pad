@@ -86,6 +86,8 @@ pub struct App {
     pub needs_clear: bool,
     // Provider connectivity test
     pub provider_test_in_progress: bool,
+    pub provider_test_pending_count: usize,
+    pub provider_test_sort_agent_on_complete: Option<usize>,
     pub provider_test_rx: Option<mpsc::Receiver<ProviderTestResult>>,
     pub codex_cli_check_in_progress: bool,
     pub codex_cli_check_rx: Option<mpsc::Receiver<CodexCliVersionCheckResult>>,

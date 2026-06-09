@@ -30,16 +30,15 @@ pub(super) fn relay_detail_base_lines(app: &App) -> u16 {
 }
 
 pub(super) fn relay_provider_footer_text<'a>(app: &App, locale: Locale) -> &'a str {
-    if app
+    match app
         .config
         .agents
         .get(app.relay_selected_agent)
-        .map(|agent| agent.name.as_str() == "opencode")
-        .unwrap_or(false)
+        .map(|agent| agent.name.as_str())
     {
-        crate::i18n::t(locale, "relay.footer_provider_opencode")
-    } else {
-        crate::i18n::t(locale, "relay.footer_provider")
+        Some("claude" | "codex") => crate::i18n::t(locale, "relay.footer_provider_codex"),
+        Some("opencode") => crate::i18n::t(locale, "relay.footer_provider_opencode"),
+        _ => crate::i18n::t(locale, "relay.footer_provider"),
     }
 }
 

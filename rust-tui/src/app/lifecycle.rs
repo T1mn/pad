@@ -64,6 +64,8 @@ impl App {
             delayed_scan_at: None,
             needs_clear: false,
             provider_test_in_progress: false,
+            provider_test_pending_count: 0,
+            provider_test_sort_agent_on_complete: None,
             provider_test_rx: None,
             codex_cli_check_in_progress: false,
             codex_cli_check_rx: None,

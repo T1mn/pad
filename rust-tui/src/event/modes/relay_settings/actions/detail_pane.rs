@@ -1,5 +1,5 @@
 use super::super::transfer::{export_selected_codex_provider, import_selected_codex_provider};
-use super::super::{exit_relay, relay_field_count, selected_agent_name, RelayHost};
+use super::super::{relay_field_count, selected_agent_name, RelayHost};
 use crate::app::state::{RelayPopupMode, RelayView};
 use crate::app::App;
 use crossterm::event::KeyCode;
@@ -7,15 +7,11 @@ use crossterm::event::KeyCode;
 pub(in crate::event::modes::relay_settings) fn handle_detail_pane_key(
     app: &mut App,
     key: KeyCode,
-    host: RelayHost,
+    _host: RelayHost,
 ) -> bool {
     match key {
         KeyCode::Esc => {
-            if host == RelayHost::Settings {
-                exit_relay(app, host);
-            } else {
-                app.relay_view = RelayView::ProviderList;
-            }
+            app.relay_view = RelayView::ProviderList;
             app.dirty = true;
         }
         KeyCode::Left | KeyCode::Char('h') => {

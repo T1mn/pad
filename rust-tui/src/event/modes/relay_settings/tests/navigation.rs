@@ -4,16 +4,23 @@ use crate::app::App;
 use crossterm::event::KeyCode;
 
 #[test]
-fn relay_escape_from_settings_host_returns_to_settings_list() {
+fn relay_escape_from_settings_host_steps_back_by_level() {
     let mut app = App::new();
     app.mode = Mode::Settings;
     app.settings_open = true;
     app.settings_focus = SettingsFocus::Detail;
     app.active_settings_detail = Some(SettingsDetailKind::Relay);
-    app.relay_view = RelayView::ProviderList;
+    app.relay_view = RelayView::DetailPane;
 
     handle_relay_key(&mut app, KeyCode::Esc, RelayHost::Settings);
+    assert!(matches!(app.relay_view, RelayView::ProviderList));
+    assert!(matches!(app.settings_focus, SettingsFocus::Detail));
 
+    handle_relay_key(&mut app, KeyCode::Esc, RelayHost::Settings);
+    assert!(matches!(app.relay_view, RelayView::AgentList));
+    assert!(matches!(app.settings_focus, SettingsFocus::Detail));
+
+    handle_relay_key(&mut app, KeyCode::Esc, RelayHost::Settings);
     assert!(matches!(app.mode, Mode::Settings));
     assert!(matches!(app.settings_focus, SettingsFocus::List));
     assert!(app.active_settings_detail.is_none());

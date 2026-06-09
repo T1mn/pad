@@ -35,8 +35,18 @@ pub(crate) fn settings_item_matches_search(
     query: &str,
 ) -> bool {
     let query = query.trim();
-    query.is_empty()
-        || term_matches(id, query)
+    if query.is_empty() {
+        return true;
+    }
+
+    if query.split_whitespace().nth(1).is_some() {
+        let blob = settings_item_search_blob(locale, id, value, name_key, desc_key);
+        return query
+            .split_whitespace()
+            .all(|token| term_matches(&blob, token));
+    }
+
+    term_matches(id, query)
         || normalized_term_matches(id, query, &['_'])
         || term_matches(name_key, query)
         || normalized_term_matches(name_key, query, &['.', '_'])
@@ -102,6 +112,14 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
             "subagents",
             "web search",
             "search mode",
+            "codex runtime",
+            "codex status line",
+            "codex status",
+            "codex prompts",
+            "codex prompt",
+            "codex preview",
+            "codex cli",
+            "codex version",
         ],
         "claude_full_access" => &[
             "claude",
@@ -121,7 +139,20 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
             "beep",
             "chime",
         ],
-        "relay" => &["relay", "provider", "model provider", "proxy"],
+        "relay" => &[
+            "relay",
+            "provider",
+            "model provider",
+            "proxy",
+            "codex relay",
+            "claude relay",
+            "gemini relay",
+            "opencode relay",
+            "codex provider",
+            "claude provider",
+            "gemini provider",
+            "opencode provider",
+        ],
         "telegram" => &["telegram", "bot", "telegram bot"],
         "agent_style" => &["agent style", "attach style", "status bar", "zoom"],
         "preview_mode" => &[
