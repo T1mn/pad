@@ -4,8 +4,11 @@ use crate::pad_sider::preview::FilePreview;
 impl App {
     pub(crate) fn refresh_file_preview(&mut self) {
         let path = match self.nav_mode {
-            NavMode::Tree => self.selected_path().cloned(),
-            NavMode::IndexMap => self.selected_index_path().cloned(),
+            NavMode::Tree => self.tree.get(self.selected).map(|row| &row.path),
+            NavMode::IndexMap => self
+                .index_rows
+                .get(self.index_selected)
+                .map(|row| &row.path),
             NavMode::CodexRuns => {
                 self.refresh_codex_diff_preview();
                 return;
@@ -14,7 +17,6 @@ impl App {
         self.codex_diff_preview_key = None;
         let previous_scroll = self.file_preview.scroll;
         let mut preview = path
-            .as_deref()
             .map(|path| self.file_preview_cache.preview_for(&self.cwd, path))
             .unwrap_or_else(FilePreview::empty);
         if preview.title == self.file_preview.title {
