@@ -49,22 +49,29 @@ fn finish_turn(event: &HookEvent) -> io::Result<Option<CompletedTurnDiff>> {
     let end = capture_worktree_tree(Path::new(&pending.repo_root))?;
     let patch = diff_trees(&end.repo_root, &pending.base_tree, &end.tree)?;
     let record_id = storage::new_record_id(&pending.id);
-    let pending_id = pending.id.clone();
+    let PendingTurnDiff {
+        id: pending_id,
+        session_id,
+        turn_id,
+        pane_id,
+        repo_root,
+        cwd,
+        prompt,
+        started_at,
+        base_tree,
+        ..
+    } = pending;
     let record = CompletedTurnDiff {
         id: record_id,
-        session_id: pending
-            .session_id
-            .or_else(|| clean(event.session_id.as_deref())),
-        turn_id: pending.turn_id.or_else(|| clean(event.turn_id.as_deref())),
-        pane_id: pending
-            .pane_id
-            .or_else(|| clean(event.tmux.pane_id.as_deref())),
-        repo_root: pending.repo_root,
-        cwd: pending.cwd,
-        prompt: pending.prompt.or_else(|| clean(event.prompt.as_deref())),
-        started_at: pending.started_at,
+        session_id: session_id.or_else(|| clean(event.session_id.as_deref())),
+        turn_id: turn_id.or_else(|| clean(event.turn_id.as_deref())),
+        pane_id: pane_id.or_else(|| clean(event.tmux.pane_id.as_deref())),
+        repo_root,
+        cwd,
+        prompt: prompt.or_else(|| clean(event.prompt.as_deref())),
+        started_at,
         ended_at: event_timestamp(event),
-        base_tree: pending.base_tree,
+        base_tree,
         end_tree: end.tree,
         patch_path: String::new(),
         stats: stats_from_patch(&patch),
