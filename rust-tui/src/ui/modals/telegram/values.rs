@@ -96,19 +96,27 @@ fn mask_secret(secret: &str) -> String {
     if secret.is_empty() {
         return "(empty)".to_string();
     }
-    let chars = secret.chars().collect::<Vec<_>>();
-    if chars.len() <= 10 {
-        return "*".repeat(chars.len());
+
+    let mut head = String::new();
+    let mut tail = std::collections::VecDeque::with_capacity(4);
+    let mut char_count = 0usize;
+    for ch in secret.chars() {
+        if char_count < 4 {
+            head.push(ch);
+        }
+        if tail.len() == 4 {
+            tail.pop_front();
+        }
+        tail.push_back(ch);
+        char_count += 1;
     }
-    let head = chars.iter().take(4).collect::<String>();
-    let tail = chars
-        .iter()
-        .rev()
-        .take(4)
-        .copied()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect::<String>();
-    format!("{}…{}", head, tail)
+
+    if char_count <= 10 {
+        return "*".repeat(char_count);
+    }
+    format!("{}…{}", head, tail.into_iter().collect::<String>())
 }
+
+#[cfg(test)]
+#[path = "values_tests.rs"]
+mod tests;
