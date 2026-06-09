@@ -55,14 +55,11 @@ fn push_dir_row(
 }
 
 fn dir_label(root: &Path, dir: &Path) -> String {
-    if dir == root {
-        return root
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("/")
-            .to_string();
-    }
-    dir.file_name()
+    path_file_label(if dir == root { root } else { dir })
+}
+
+fn path_file_label(path: &Path) -> String {
+    path.file_name()
         .and_then(|value| value.to_str())
         .unwrap_or("/")
         .to_string()
