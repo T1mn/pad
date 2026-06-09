@@ -47,7 +47,10 @@ pub(in crate::thread_meta) fn load_deleted_thread_meta_at(
         .query_map([], thread_meta_from_row)
         .map_err(to_io_error)?;
     let mut deleted = rows.collect::<Result<Vec<_>, _>>().map_err(to_io_error)?;
-    hydrate_deleted_tags(db_path, &mut deleted)?;
+    hydrate_deleted_tags(&connection, &mut deleted)?;
+    for (_, meta) in &mut deleted {
+        normalize_meta(meta);
+    }
     Ok(deleted)
 }
 

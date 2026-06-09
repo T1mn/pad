@@ -34,17 +34,18 @@ pub(super) fn load_tags_into_records(
 }
 
 pub(super) fn hydrate_deleted_tags(
-    db_path: &std::path::Path,
+    connection: &rusqlite::Connection,
     deleted: &mut [(ThreadMetaKey, ThreadMeta)],
 ) -> io::Result<()> {
-    let keys = deleted
+    let wanted = deleted
         .iter()
         .map(|(key, _)| key.clone())
-        .collect::<Vec<_>>();
-    let tags = super::load_thread_meta_batch_at(db_path, &keys)?;
+        .collect::<HashSet<_>>();
+    let mut records = HashMap::new();
+    load_tags_into_records(connection, &wanted, &mut records)?;
     for (key, meta) in deleted {
-        if let Some(tag_meta) = tags.get(key) {
-            meta.tags = tag_meta.tags.clone();
+        if let Some(tag_meta) = records.get(key) {
+            meta.tags.clone_from(&tag_meta.tags);
         }
     }
     Ok(())

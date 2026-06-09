@@ -1,7 +1,8 @@
 use super::db::{ensure_schema_at, open_db};
 use super::storage::{
     deleted_thread_count_at, load_deleted_thread_meta_at, load_thread_meta_batch_at,
-    set_thread_deleted_at, upsert_generated_title_at, upsert_thread_meta_at,
+    replace_thread_tags_at, set_thread_deleted_at, upsert_generated_title_at,
+    upsert_thread_meta_at,
 };
 use super::ThreadMetaKey;
 use rusqlite::params;
@@ -163,6 +164,33 @@ fn load_deleted_thread_meta_returns_only_deleted_rows() {
     assert_eq!(deleted.len(), 1);
     assert_eq!(deleted[0].0.thread_id, "sid-2");
     assert!(deleted[0].1.deleted);
+
+    let _ = std::fs::remove_file(&db_path);
+}
+
+#[test]
+fn load_deleted_thread_meta_hydrates_tags_once() {
+    let db_path = temp_db_path("deleted-tags");
+    let _ = std::fs::remove_file(&db_path);
+
+    upsert_thread_meta_at(&db_path, "codex", "sid-1", Some("Trash"), None, false)
+        .expect("seed trash");
+    replace_thread_tags_at(
+        &db_path,
+        "codex",
+        "sid-1",
+        &["Alpha".to_string(), "alpha".to_string(), "Beta".to_string()],
+    )
+    .expect("save tags");
+    set_thread_deleted_at(&db_path, "codex", "sid-1", true).expect("mark deleted");
+
+    let deleted = load_deleted_thread_meta_at(&db_path).expect("load deleted");
+
+    assert_eq!(deleted.len(), 1);
+    assert_eq!(
+        deleted[0].1.tags,
+        vec!["Alpha".to_string(), "Beta".to_string()]
+    );
 
     let _ = std::fs::remove_file(&db_path);
 }
