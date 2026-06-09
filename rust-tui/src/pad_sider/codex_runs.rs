@@ -1,6 +1,7 @@
 use super::app::App;
 use super::preview::{FilePreview, PreviewKind};
 use crate::codex_turn_diff::{TurnDiffEntry, TurnDiffStatus};
+use std::fmt::Write as _;
 
 impl App {
     pub fn selected_codex_diff(&self) -> Option<&TurnDiffEntry> {
@@ -72,14 +73,16 @@ fn codex_diff_preview(entry: &TurnDiffEntry) -> FilePreview {
         patch
     };
     let ended = entry.ended_at.as_deref().unwrap_or("-");
-    let content = format!(
-        "Codex turn diff\nstatus: {status}\nstarted: {}\nended: {ended}\nprompt: {prompt}\nfiles: {}  +{}  -{}\n\n{}",
+    let mut content = String::with_capacity(96 + prompt.len() + patch.len());
+    let _ = write!(
+        content,
+        "Codex turn diff\nstatus: {status}\nstarted: {}\nended: {ended}\nprompt: {prompt}\nfiles: {}  +{}  -{}\n\n",
         entry.started_at,
         entry.stats.files_changed,
         entry.stats.insertions,
         entry.stats.deletions,
-        patch
     );
+    content.push_str(&patch);
     FilePreview::new(
         format!(
             "codex diff {}",
