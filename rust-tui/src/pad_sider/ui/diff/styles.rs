@@ -28,12 +28,6 @@ pub(super) fn add_style() -> Style {
     Style::default().fg(Color::Green).bg(ADD_BG)
 }
 
-pub(super) fn line_no(value: Option<usize>, width: usize) -> String {
-    value
-        .map(|value| format!("{value:>width$}"))
-        .unwrap_or_else(|| " ".repeat(width))
-}
-
 pub(super) fn fit(value: &str, width: usize) -> String {
     let mut out = String::with_capacity(width);
     let mut len = 0usize;

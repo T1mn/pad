@@ -1,9 +1,10 @@
 use super::model::{DiffFile, DiffRow, DiffRowKind};
-use super::styles::{add_style, delete_style, file_style, hunk_style, line_no, meta_style};
+use super::styles::{add_style, delete_style, file_style, hunk_style, meta_style};
 use ratatui::{
     style::Style,
     text::{Line, Span},
 };
+use std::fmt::Write as _;
 
 pub(super) fn render(files: &[DiffFile], lines: &mut Vec<Line<'static>>) {
     for file in files {
@@ -75,12 +76,22 @@ fn unified_line(
     text: &str,
     style: Style,
 ) -> Line<'static> {
-    Line::from(Span::styled(
-        format!(
-            "{marker} {} {} │ {text}",
-            line_no(old_no, 4),
-            line_no(new_no, 4)
-        ),
-        style,
-    ))
+    let mut out = String::with_capacity(12 + text.len());
+    out.push(marker);
+    out.push(' ');
+    push_line_no(&mut out, old_no);
+    out.push(' ');
+    push_line_no(&mut out, new_no);
+    out.push_str(" │ ");
+    out.push_str(text);
+    Line::from(Span::styled(out, style))
+}
+
+fn push_line_no(out: &mut String, value: Option<usize>) {
+    match value {
+        Some(value) => {
+            let _ = write!(out, "{value:>4}");
+        }
+        None => out.push_str("    "),
+    }
 }
