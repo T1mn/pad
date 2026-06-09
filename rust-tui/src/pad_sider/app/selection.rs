@@ -40,16 +40,18 @@ impl App {
     }
 
     pub(crate) fn refresh_selected(&mut self) {
-        let Some(path) = self.selected_path().cloned() else {
+        let Some(path) = self.selected_path() else {
             self.selected_label = ".".into();
             self.selected_stats = FileStats::default();
             return;
         };
-        self.selected_label = relative_path_label(&self.cwd, &path);
-        self.selected_stats = if path.is_file() {
-            read_file_stats(&path)
+        let selected_label = relative_path_label(&self.cwd, path);
+        let selected_stats = if path.is_file() {
+            read_file_stats(path)
         } else {
             FileStats::default()
         };
+        self.selected_label = selected_label;
+        self.selected_stats = selected_stats;
     }
 }
