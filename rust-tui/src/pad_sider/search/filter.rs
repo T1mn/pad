@@ -22,17 +22,14 @@ fn fuzzy_filter(items: &[SearchItem], query: &str) -> Vec<(usize, u32)> {
     let mut matcher = Matcher::default();
     let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
     let mut buf = Vec::new();
-    let mut filtered = items
-        .iter()
-        .enumerate()
-        .filter_map(|(index, item)| {
-            buf.clear();
-            let utf32 = Utf32Str::new(&item.relative, &mut buf);
-            pattern
-                .score(utf32, &mut matcher)
-                .map(|score| (index, score))
-        })
-        .collect::<Vec<_>>();
+    let mut filtered = Vec::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        buf.clear();
+        let utf32 = Utf32Str::new(&item.relative, &mut buf);
+        if let Some(score) = pattern.score(utf32, &mut matcher) {
+            filtered.push((index, score));
+        }
+    }
     filtered.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
     filtered
 }
