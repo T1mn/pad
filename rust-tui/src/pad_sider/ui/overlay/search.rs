@@ -26,7 +26,7 @@ pub(in crate::pad_sider::ui) fn draw_search(frame: &mut Frame, search: &FileSear
         area,
     );
 
-    let query = Paragraph::new(search.query().to_string())
+    let query = Paragraph::new(search.query())
         .block(Block::default().title(" / ").borders(Borders::ALL))
         .wrap(Wrap { trim: false });
     frame.render_widget(query, chunks[0]);
@@ -53,7 +53,7 @@ pub(in crate::pad_sider::ui) fn draw_search(frame: &mut Frame, search: &FileSear
     frame.render_widget(Paragraph::new(Text::from(lines)), chunks[1]);
 }
 
-fn search_line(search: &FileSearch, index: usize, selected: usize) -> Option<Line<'static>> {
+fn search_line(search: &FileSearch, index: usize, selected: usize) -> Option<Line<'_>> {
     let path = search.relative_at(index)?;
     let highlighted = index == selected;
     let style = if highlighted {
@@ -67,6 +67,6 @@ fn search_line(search: &FileSearch, index: usize, selected: usize) -> Option<Lin
     let prefix = if highlighted { "❯ " } else { "  " };
     Some(Line::from(vec![
         Span::styled(prefix, style),
-        Span::styled(path.to_string(), style),
+        Span::styled(path, style),
     ]))
 }
