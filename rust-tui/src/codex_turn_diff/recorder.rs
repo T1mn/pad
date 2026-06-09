@@ -49,35 +49,28 @@ fn finish_turn(event: &HookEvent) -> io::Result<Option<CompletedTurnDiff>> {
     let end = capture_worktree_tree(Path::new(&pending.repo_root))?;
     let patch = diff_trees(&end.repo_root, &pending.base_tree, &end.tree)?;
     let record_id = storage::new_record_id(&pending.id);
+    let pending_id = pending.id.clone();
     let record = CompletedTurnDiff {
         id: record_id,
         session_id: pending
             .session_id
-            .clone()
             .or_else(|| clean(event.session_id.as_deref())),
-        turn_id: pending
-            .turn_id
-            .clone()
-            .or_else(|| clean(event.turn_id.as_deref())),
+        turn_id: pending.turn_id.or_else(|| clean(event.turn_id.as_deref())),
         pane_id: pending
             .pane_id
-            .clone()
             .or_else(|| clean(event.tmux.pane_id.as_deref())),
-        repo_root: pending.repo_root.clone(),
-        cwd: pending.cwd.clone(),
-        prompt: pending
-            .prompt
-            .clone()
-            .or_else(|| clean(event.prompt.as_deref())),
-        started_at: pending.started_at.clone(),
+        repo_root: pending.repo_root,
+        cwd: pending.cwd,
+        prompt: pending.prompt.or_else(|| clean(event.prompt.as_deref())),
+        started_at: pending.started_at,
         ended_at: event_timestamp(event),
-        base_tree: pending.base_tree.clone(),
+        base_tree: pending.base_tree,
         end_tree: end.tree,
         patch_path: String::new(),
         stats: stats_from_patch(&patch),
     };
     let record = storage::save_completed(record, &patch)?;
-    storage::remove_pending(&pending.id)?;
+    storage::remove_pending(&pending_id)?;
     Ok(Some(record))
 }
 
