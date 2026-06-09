@@ -83,9 +83,10 @@ impl App {
         let previous_selected_label = self.selected_label.clone();
         let previous_file_preview_revision = self.file_preview_revision;
         let previous_preview = self.preview.clone();
-        let previous_codex_diffs = self.codex_diffs.clone();
 
-        self.codex_diffs = codex_turn_diff::list_for_cwd(&self.cwd);
+        let codex_diffs = codex_turn_diff::list_for_cwd(&self.cwd);
+        let codex_diffs_changed = codex_diffs != self.codex_diffs;
+        self.codex_diffs = codex_diffs;
         if self.codex_diff_selected >= self.codex_diffs.len() {
             self.codex_diff_selected = self.codex_diffs.len().saturating_sub(1);
         }
@@ -98,7 +99,7 @@ impl App {
             || previous_selected_label != self.selected_label
             || previous_file_preview_revision != self.file_preview_revision
             || previous_preview != self.preview
-            || previous_codex_diffs != self.codex_diffs;
+            || codex_diffs_changed;
 
         if changed {
             self.mark_dirty();
