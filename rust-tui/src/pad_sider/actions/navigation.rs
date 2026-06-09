@@ -6,8 +6,7 @@ impl App {
             Focus::Tree => {
                 if self.selected + 1 < self.tree.len() {
                     self.selected += 1;
-                    self.refresh_selected();
-                    self.refresh_file_preview();
+                    self.refresh_tree_selection_preview();
                 }
             }
             Focus::IndexMap => {
@@ -31,8 +30,7 @@ impl App {
             Focus::Tree => {
                 if self.selected > 0 {
                     self.selected -= 1;
-                    self.refresh_selected();
-                    self.refresh_file_preview();
+                    self.refresh_tree_selection_preview();
                 }
             }
             Focus::IndexMap => {
@@ -56,8 +54,7 @@ impl App {
             Focus::Tree => {
                 if self.selected != 0 {
                     self.selected = 0;
-                    self.refresh_selected();
-                    self.refresh_file_preview();
+                    self.refresh_tree_selection_preview();
                 }
             }
             Focus::IndexMap => {
@@ -82,8 +79,7 @@ impl App {
                 let selected = self.tree.len().saturating_sub(1);
                 if self.selected != selected {
                     self.selected = selected;
-                    self.refresh_selected();
-                    self.refresh_file_preview();
+                    self.refresh_tree_selection_preview();
                 }
             }
             Focus::IndexMap => {
@@ -102,5 +98,10 @@ impl App {
             }
             Focus::Preview => self.file_preview.scroll = u16::MAX,
         }
+    }
+
+    fn refresh_tree_selection_preview(&mut self) {
+        self.refresh_selected();
+        self.refresh_file_preview();
     }
 }
