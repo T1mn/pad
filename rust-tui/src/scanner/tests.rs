@@ -1,6 +1,6 @@
 use super::{
     capture_pane_content, capture_panes_content, detect_agent_type, get_git_info_for_paths,
-    parse_git_status_porcelain_v2, scan_panels,
+    parse_git_status_porcelain_v2, parse_tmux_panes_output, scan_panels,
     tmux_panes::{parse_pane_line, LIST_PANES_FORMAT},
     ScanCaches,
 };
@@ -49,6 +49,23 @@ fn parses_git_status_porcelain_v2_branch_commit_and_changes() {
     assert_eq!(info.branch.as_deref(), Some("main"));
     assert_eq!(info.commit.as_deref(), Some("abcdef1234567890"));
     assert_eq!(info.changed_files, 2);
+}
+
+#[test]
+fn parse_tmux_panes_output_collects_pids_once() {
+    let parsed = parse_tmux_panes_output(
+        "bad\nsession|window|1|0|%1|123|zsh|/tmp/a|b\nsession|window|1|1|%2||zsh|/tmp/c\n",
+    );
+
+    assert_eq!(parsed.total_panes, 3);
+    assert_eq!(parsed.lines.len(), 2);
+    assert_eq!(parsed.pane_pids, vec!["123".to_string()]);
+
+    let panes = parsed.iter().collect::<Vec<_>>();
+    assert_eq!(panes.len(), 2);
+    assert_eq!(panes[0].pane_pid, "123");
+    assert_eq!(panes[0].working_dir, "/tmp/a|b");
+    assert_eq!(panes[1].pane_pid, "");
 }
 
 #[test]

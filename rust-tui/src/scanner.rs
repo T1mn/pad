@@ -36,23 +36,12 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let total_panes = stdout.lines().count();
+    let parsed_panes = parse_tmux_panes_output(&stdout);
+    let mut caches = ScanCaches::with_pane_pids(parsed_panes.pane_pids.clone());
 
     let mut panels = Vec::new();
     let mut process_logs = Vec::new();
-    let pane_pids = stdout
-        .lines()
-        .filter_map(|line| line.split('|').nth(5))
-        .filter(|pid| !pid.trim().is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    let mut caches = ScanCaches::with_pane_pids(pane_pids);
-
-    for line in stdout.lines() {
-        let Some(pane_line) = parse_pane_line(line) else {
-            continue;
-        };
-
+    for pane_line in parsed_panes.iter() {
         let (agent_type, main_process, child_processes) =
             detect_agent_type(pane_line.current_cmd, pane_line.pane_pid, &mut caches);
 
@@ -83,7 +72,7 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     let elapsed = scan_started_at.elapsed();
     log_debug!(
         "scanner: completed panes={} agents={} elapsed_ms={}",
-        total_panes,
+        parsed_panes.total_panes,
         panels.len(),
         elapsed.as_millis()
     );
@@ -101,6 +90,37 @@ pub fn scan_panels() -> Result<Vec<AgentPanel>, Box<dyn std::error::Error + Send
     });
 
     Ok(panels)
+}
+
+struct ParsedPaneLines {
+    total_panes: usize,
+    lines: Vec<String>,
+    pane_pids: Vec<String>,
+}
+
+impl ParsedPaneLines {
+    fn iter(&self) -> impl Iterator<Item = tmux_panes::PaneLine<'_>> {
+        self.lines.iter().filter_map(|line| parse_pane_line(line))
+    }
+}
+
+fn parse_tmux_panes_output(stdout: &str) -> ParsedPaneLines {
+    let mut parsed = ParsedPaneLines {
+        total_panes: 0,
+        lines: Vec::new(),
+        pane_pids: Vec::new(),
+    };
+    for line in stdout.lines() {
+        parsed.total_panes += 1;
+        let Some(pane_line) = parse_pane_line(line) else {
+            continue;
+        };
+        if !pane_line.pane_pid.trim().is_empty() {
+            parsed.pane_pids.push(pane_line.pane_pid.to_string());
+        }
+        parsed.lines.push(line.to_string());
+    }
+    parsed
 }
 
 #[cfg(test)]
