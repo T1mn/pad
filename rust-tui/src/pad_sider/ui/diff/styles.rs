@@ -35,7 +35,7 @@ pub(super) fn line_no(value: Option<usize>, width: usize) -> String {
 }
 
 pub(super) fn fit(value: &str, width: usize) -> String {
-    let mut out = String::new();
+    let mut out = String::with_capacity(width);
     let mut len = 0usize;
     for ch in value.chars().take(width) {
         out.push(ch);
