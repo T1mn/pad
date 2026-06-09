@@ -1,11 +1,10 @@
 use super::model::{DiffFile, DiffRow, DiffRowKind};
-use super::styles::{
-    add_style, delete_style, file_style, fit, hunk_style, line_no, meta_style, SEPARATOR,
-};
+use super::styles::{add_style, delete_style, file_style, fit, hunk_style, meta_style, SEPARATOR};
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
+use std::fmt::Write as _;
 
 pub(super) fn render(files: &[DiffFile], width: usize, lines: &mut Vec<Line<'static>>) {
     let col_width = width.saturating_sub(SEPARATOR.len()).max(40) / 2;
@@ -84,5 +83,27 @@ fn side_line(
 }
 
 fn format_cell(line: Option<usize>, text: &str, width: usize) -> String {
-    fit(&format!("{} │ {text}", line_no(line, 4)), width)
+    let mut out = String::with_capacity(width);
+    match line {
+        Some(value) => {
+            let _ = write!(out, "{value:>4}");
+        }
+        None => out.push_str("    "),
+    }
+    out.push_str(" │ ");
+
+    let mut len = out.len();
+    if len > width {
+        out.truncate(width);
+        return out;
+    }
+
+    for ch in text.chars().take(width - len) {
+        out.push(ch);
+        len += 1;
+    }
+    if len < width {
+        out.extend(std::iter::repeat_n(' ', width - len));
+    }
+    out
 }
