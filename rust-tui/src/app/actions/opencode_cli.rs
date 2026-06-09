@@ -13,19 +13,36 @@ pub(super) fn opencode_command(config: &Config) -> OsString {
 }
 
 pub(super) fn safe_filename(value: &str) -> String {
-    let mut out = String::new();
+    let mut out = String::with_capacity(value.len().min(96));
+    let mut sanitized_len = 0usize;
+    let mut last_was_underscore = false;
     for ch in value.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
-            out.push(ch);
-        } else if !out.ends_with('_') {
-            out.push('_');
+            if sanitized_len == 0 && ch == '_' {
+                continue;
+            }
+            if out.len() < 96 {
+                out.push(ch);
+            }
+            sanitized_len += 1;
+            last_was_underscore = ch == '_';
+        } else if sanitized_len > 0 && !last_was_underscore {
+            if out.len() < 96 {
+                out.push('_');
+            }
+            sanitized_len += 1;
+            last_was_underscore = true;
         }
     }
-    let out = out.trim_matches('_');
+    if sanitized_len <= 96 {
+        while out.ends_with('_') {
+            out.pop();
+        }
+    }
     if out.is_empty() {
         "session".to_string()
     } else {
-        out.chars().take(96).collect()
+        out
     }
 }
 
