@@ -3,16 +3,13 @@ use std::path::Path;
 
 impl App {
     pub fn toggle_selected(&mut self) {
-        let Some((is_dir, path)) = self
-            .tree
-            .get(self.selected)
-            .map(|row| (row.is_dir, row.path.clone()))
-        else {
+        let Some(row) = self.tree.get(self.selected) else {
             return;
         };
-        if !is_dir || path == self.cwd {
+        if !row.is_dir || row.path == self.cwd {
             return;
         }
+        let path = row.path.clone();
         if !self.expanded.insert(path.clone()) {
             self.expanded.remove(&path);
         }
