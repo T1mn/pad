@@ -36,10 +36,16 @@ pub struct CachedSessionSummary {
 
 pub fn list_cached_sessions() -> Vec<CachedSessionSummary> {
     let index = storage::load_index();
+    let bindings = latest_bindings_by_session(&index);
     index
         .sessions
         .iter()
-        .map(|record| cached_session_summary(&index, record))
+        .map(|record| {
+            cached_session_summary(
+                record,
+                bindings.get(record.agent_session_id.as_str()).copied(),
+            )
+        })
         .collect()
 }
 
@@ -54,18 +60,15 @@ pub fn find_cached_session(session_id: &str) -> Option<CachedSessionSummary> {
         .sessions
         .iter()
         .find(|record| record.agent_session_id == session_id)
-        .map(|record| cached_session_summary(&index, record))
+        .map(|record| {
+            cached_session_summary(record, latest_binding_for_session(&index, session_id))
+        })
 }
 
 fn cached_session_summary(
-    index: &model::SessionCacheIndex,
     record: &model::CachedSessionRecord,
+    binding: Option<&model::CachedPaneBinding>,
 ) -> CachedSessionSummary {
-    let binding = index
-        .pane_bindings
-        .iter()
-        .filter(|binding| binding.agent_session_id == record.agent_session_id)
-        .max_by_key(|binding| binding.updated_at);
     CachedSessionSummary {
         agent_session_id: record.agent_session_id.clone(),
         agent_type: record.agent_type.clone(),
@@ -77,4 +80,30 @@ fn cached_session_summary(
         updated_at: record.updated_at,
         last_seen_at: record.last_seen_at,
     }
+}
+
+fn latest_bindings_by_session(
+    index: &model::SessionCacheIndex,
+) -> HashMap<&str, &model::CachedPaneBinding> {
+    let mut latest = HashMap::with_capacity(index.pane_bindings.len());
+    for binding in &index.pane_bindings {
+        let entry = latest
+            .entry(binding.agent_session_id.as_str())
+            .or_insert(binding);
+        if binding.updated_at > entry.updated_at {
+            *entry = binding;
+        }
+    }
+    latest
+}
+
+fn latest_binding_for_session<'a>(
+    index: &'a model::SessionCacheIndex,
+    session_id: &str,
+) -> Option<&'a model::CachedPaneBinding> {
+    index
+        .pane_bindings
+        .iter()
+        .filter(|binding| binding.agent_session_id == session_id)
+        .max_by_key(|binding| binding.updated_at)
 }
