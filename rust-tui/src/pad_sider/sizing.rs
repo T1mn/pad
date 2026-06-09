@@ -1,5 +1,7 @@
 use std::process::Command;
 
+use super::tmux_args::format_tmux_args;
+
 const WIDTH_LEVELS: &[u16] = &[45, 50, 55, 60, 65];
 const WIDTH_OPTION: &str = "@pad_sider_width_percent";
 
@@ -105,13 +107,13 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
     let output = Command::new("tmux")
         .args(args)
         .output()
-        .map_err(|err| format!("tmux {}: {err}", args.join(" ")))?;
+        .map_err(|err| format!("tmux {}: {err}", format_tmux_args(args)))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
         Err(format!(
             "tmux {} failed: {}",
-            args.join(" "),
+            format_tmux_args(args),
             String::from_utf8_lossy(&output.stderr).trim()
         ))
     }

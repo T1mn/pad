@@ -10,6 +10,7 @@ mod preview_render_cache;
 mod search;
 mod sizing;
 mod tmux;
+mod tmux_args;
 mod tree;
 mod ui;
 

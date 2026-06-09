@@ -4,6 +4,7 @@ mod pane;
 
 use std::process::Command;
 
+use super::tmux_args::format_tmux_args;
 use crate::text_match::contains_ascii_ignore_case;
 
 use helper::{create_helper, focus_and_zoom_helper, hide_helper, show_helper};
@@ -49,13 +50,13 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
     let output = Command::new("tmux")
         .args(args)
         .output()
-        .map_err(|err| format!("tmux {}: {err}", args.join(" ")))?;
+        .map_err(|err| format!("tmux {}: {err}", format_tmux_args(args)))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
         Err(format!(
             "tmux {} failed: {}",
-            args.join(" "),
+            format_tmux_args(args),
             String::from_utf8_lossy(&output.stderr).trim()
         ))
     }
