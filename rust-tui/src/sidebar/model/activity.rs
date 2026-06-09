@@ -19,7 +19,7 @@ pub fn thread_sort_activity_keys(
     transcript_path: Option<&str>,
     working_dir: Option<&str>,
 ) -> Vec<String> {
-    let mut keys = Vec::new();
+    let mut keys = Vec::with_capacity(2);
     if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
         keys.push(format!("{}:sid:{}", agent_type, session_id));
     }
