@@ -66,5 +66,5 @@ pub(super) fn first_command_token(command: &str) -> Option<&str> {
 }
 
 pub(crate) fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
+    crate::shell_quote::single_quote(value)
 }

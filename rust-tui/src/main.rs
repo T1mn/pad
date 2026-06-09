@@ -36,6 +36,7 @@ mod scanner;
 mod session;
 mod session_cache;
 mod session_continuity;
+mod shell_quote;
 mod shutdown;
 mod sidebar;
 mod socket_api;

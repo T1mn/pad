@@ -70,5 +70,5 @@ fn hidden_window_name(helper_pane: &str) -> String {
 }
 
 fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r#"'\''"#))
+    crate::shell_quote::single_quote(value)
 }

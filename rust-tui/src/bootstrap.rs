@@ -28,7 +28,7 @@ pub fn should_bootstrap_into_tmux(
 }
 
 fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r#"'\''"#))
+    crate::shell_quote::single_quote(value)
 }
 
 fn bootstrap_command(args: &[String], executable: &std::path::Path) -> String {

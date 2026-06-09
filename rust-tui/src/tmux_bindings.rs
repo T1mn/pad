@@ -57,5 +57,5 @@ pub(crate) fn pad_sider_toggle_command() -> String {
 }
 
 fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
+    crate::shell_quote::single_quote(value)
 }

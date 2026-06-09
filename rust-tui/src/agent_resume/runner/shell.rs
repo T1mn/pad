@@ -1,5 +1,5 @@
 pub(super) fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r#"'\''"#))
+    crate::shell_quote::single_quote(value)
 }
 
 pub(super) fn shell_display_quote(value: &str) -> String {

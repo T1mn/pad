@@ -50,5 +50,5 @@ fn pad_restart_args(current_args: &[String]) -> Vec<String> {
 }
 
 fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r#"'\''"#))
+    crate::shell_quote::single_quote(value)
 }
