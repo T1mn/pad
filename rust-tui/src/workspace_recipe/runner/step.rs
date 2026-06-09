@@ -10,35 +10,23 @@ pub(in crate::workspace_recipe::runner) fn step_command(
 ) -> RecipeCommand {
     let cwd = step.effective_cwd(recipe_root);
     let command = step_launch_command(step, &cwd);
+    let mut args = Vec::with_capacity(9);
     if first {
-        RecipeCommand {
-            program: "tmux".into(),
-            args: vec![
-                "new-session".into(),
-                "-d".into(),
-                "-s".into(),
-                session_name.to_string(),
-                "-n".into(),
-                step.name.clone(),
-                "-c".into(),
-                cwd,
-                command,
-            ],
-        }
+        args.extend(["new-session", "-d", "-s"].map(String::from));
     } else {
-        RecipeCommand {
-            program: "tmux".into(),
-            args: vec![
-                "new-window".into(),
-                "-t".into(),
-                session_name.to_string(),
-                "-n".into(),
-                step.name.clone(),
-                "-c".into(),
-                cwd,
-                command,
-            ],
-        }
+        args.extend(["new-window", "-t"].map(String::from));
+    }
+    args.push(session_name.to_string());
+    args.extend([
+        "-n".to_string(),
+        step.name.clone(),
+        "-c".to_string(),
+        cwd,
+        command,
+    ]);
+    RecipeCommand {
+        program: "tmux".into(),
+        args,
     }
 }
 
