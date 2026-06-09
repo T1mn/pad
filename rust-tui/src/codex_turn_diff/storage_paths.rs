@@ -72,13 +72,13 @@ fn safe_name(value: &str) -> String {
     let mut out = String::with_capacity(value.len().min(96));
     for ch in value.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+            if out.is_empty() && ch == '_' {
+                continue;
+            }
             out.push(ch);
         } else if !out.is_empty() && !out.ends_with('_') {
             out.push('_');
         }
-    }
-    while out.starts_with('_') {
-        out.remove(0);
     }
     while out.ends_with('_') {
         out.pop();
