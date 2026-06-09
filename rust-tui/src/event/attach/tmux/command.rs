@@ -17,7 +17,7 @@ pub(in crate::event::attach) fn run_tmux_logged(
     context: &str,
     args: Vec<String>,
 ) -> Option<std::process::Output> {
-    log_debug!("tmux:{}: cmd=tmux {}", context, args.join(" "));
+    log_debug!("tmux:{}: cmd=tmux {}", context, format_tmux_args(&args));
 
     let output = std::process::Command::new("tmux")
         .args(args.iter().map(String::as_str))
@@ -40,3 +40,18 @@ pub(in crate::event::attach) fn run_tmux_success(context: &str, args: Vec<String
         .map(|output| output.status.success())
         .unwrap_or(false)
 }
+
+fn format_tmux_args(args: &[String]) -> String {
+    let mut formatted = String::new();
+    for arg in args {
+        if !formatted.is_empty() {
+            formatted.push(' ');
+        }
+        formatted.push_str(arg);
+    }
+    formatted
+}
+
+#[cfg(test)]
+#[path = "command_tests.rs"]
+mod tests;
