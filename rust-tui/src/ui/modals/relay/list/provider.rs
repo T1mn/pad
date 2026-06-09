@@ -57,30 +57,43 @@ fn provider_list_title(agent_name: &str, provider: &ProviderConfig, is_active: b
 }
 
 fn provider_list_subtitle(agent_name: &str, provider: &ProviderConfig) -> String {
-    let mut parts = Vec::new();
+    let mut subtitle = String::new();
     if agent_name == "opencode" {
-        parts.push(format!("{} models", provider.models.len()));
-        parts.push(truncate_modal_line(provider.opencode_npm_package(), 24));
+        push_subtitle_part(&mut subtitle, &format!("{} models", provider.models.len()));
+        push_subtitle_part(
+            &mut subtitle,
+            &truncate_modal_line(provider.opencode_npm_package(), 24),
+        );
     }
     if !provider.base_url.trim().is_empty() {
-        parts.push(truncate_modal_line(&provider.base_url, 28));
+        push_subtitle_part(&mut subtitle, &truncate_modal_line(&provider.base_url, 28));
     }
     if agent_name == "codex" {
-        parts.push(format!(
-            "auth {}",
-            super::super::layout::yes_no(provider.codex_auth_token().is_some())
-        ));
+        push_subtitle_part(
+            &mut subtitle,
+            &format!(
+                "auth {}",
+                super::super::layout::yes_no(provider.codex_auth_token().is_some())
+            ),
+        );
     }
     if let Some(ok) = provider.test_status {
-        parts.push(if ok {
-            "probe ok".to_string()
-        } else {
-            "probe failed".to_string()
-        });
+        push_subtitle_part(&mut subtitle, if ok { "probe ok" } else { "probe failed" });
     }
-    if parts.is_empty() {
+    if subtitle.is_empty() {
         "-".to_string()
     } else {
-        parts.join("  |  ")
+        subtitle
     }
 }
+
+fn push_subtitle_part(subtitle: &mut String, part: &str) {
+    if !subtitle.is_empty() {
+        subtitle.push_str("  |  ");
+    }
+    subtitle.push_str(part);
+}
+
+#[cfg(test)]
+#[path = "provider_tests.rs"]
+mod tests;
