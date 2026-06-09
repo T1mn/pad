@@ -53,18 +53,13 @@ pub fn draw_thread_action_confirm(f: &mut Frame, app: &App, area: Rect) {
 
     render_modal_surface(f, popup_area, theme);
 
-    let mut lines = vec![
-        confirm_line.to_string(),
-        String::new(),
-        subject,
-        String::new(),
-    ];
-    if let Some(warning) = warning {
-        lines.push(warning.to_string());
-        lines.push(String::new());
-    }
-    lines.push(thread_action_confirm_hint(app.locale).to_string());
-    lines.push(thread_action_cancel_hint(app.locale).to_string());
+    let body = thread_action_confirm_body(
+        &confirm_line,
+        &subject,
+        warning,
+        thread_action_confirm_hint(app.locale),
+        thread_action_cancel_hint(app.locale),
+    );
 
     let block = Block::default()
         .title(format!(" ⚠ {} ", title))
@@ -74,10 +69,42 @@ pub fn draw_thread_action_confirm(f: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().bg(theme.bg).fg(theme.fg))
         .border_style(Style::default().fg(theme.warning));
 
-    let paragraph = Paragraph::new(lines.join("\n"))
+    let paragraph = Paragraph::new(body)
         .block(block)
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 
     f.render_widget(paragraph, popup_area);
 }
+
+fn thread_action_confirm_body(
+    confirm_line: &str,
+    subject: &str,
+    warning: Option<&str>,
+    confirm_hint: &str,
+    cancel_hint: &str,
+) -> String {
+    let mut body = String::new();
+    push_body_line(&mut body, confirm_line);
+    push_body_line(&mut body, "");
+    push_body_line(&mut body, subject);
+    push_body_line(&mut body, "");
+    if let Some(warning) = warning {
+        push_body_line(&mut body, warning);
+        push_body_line(&mut body, "");
+    }
+    push_body_line(&mut body, confirm_hint);
+    push_body_line(&mut body, cancel_hint);
+    body
+}
+
+fn push_body_line(body: &mut String, line: &str) {
+    if !body.is_empty() {
+        body.push('\n');
+    }
+    body.push_str(line);
+}
+
+#[cfg(test)]
+#[path = "thread_action_tests.rs"]
+mod tests;
