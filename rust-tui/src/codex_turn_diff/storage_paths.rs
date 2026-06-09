@@ -69,7 +69,7 @@ pub fn now_stamp() -> String {
 }
 
 fn safe_name(value: &str) -> String {
-    let mut out = String::new();
+    let mut out = String::with_capacity(value.len().min(96));
     for ch in value.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
             out.push(ch);
