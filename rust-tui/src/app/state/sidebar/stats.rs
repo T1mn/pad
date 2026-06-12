@@ -14,6 +14,7 @@ pub struct PreferredPanelWidthCache {
     pub locale: crate::i18n::Locale,
     pub thread_list_view: ThreadListView,
     pub live_only: bool,
+    pub manual_width: Option<u16>,
 }
 
 impl VisibleSidebarStats {
@@ -28,7 +29,7 @@ impl VisibleSidebarStats {
                 SidebarItem::Folder(_) => stats.row_count += 1,
                 SidebarItem::Thread(_) => {
                     stats.thread_count += 1;
-                    stats.row_count += 2;
+                    stats.row_count += 1;
                 }
             }
         }

@@ -20,6 +20,7 @@ fn config_round_trips_opencode_provider_models() {
         config.codex.index_prompt_file = true;
         config.codex.title_summary = true;
         config.codex.show_qa_preview = true;
+        config.display.agent_panel_width = Some(72);
         let opencode = config
             .agents
             .iter_mut()
@@ -33,6 +34,7 @@ fn config_round_trips_opencode_provider_models() {
             wire_api: "responses".into(),
             provider_key: "relay".into(),
             npm_package: "@ai-sdk/openai-compatible".into(),
+            disable_thinking: false,
             models: vec![OpenCodeModelConfig {
                 id: "gpt-4o".into(),
                 name: "GPT-4o".into(),
@@ -64,6 +66,7 @@ fn config_round_trips_opencode_provider_models() {
         assert!(loaded.codex.index_prompt_file);
         assert!(loaded.codex.title_summary);
         assert!(loaded.codex.show_qa_preview);
+        assert_eq!(loaded.display.agent_panel_width, Some(72));
         let opencode = loaded
             .agents
             .iter()
@@ -100,6 +103,7 @@ fn config_save_omits_wire_api_entries() {
             wire_api: "responses_websocket".into(),
             provider_key: "relay".into(),
             npm_package: "@ai-sdk/openai-compatible".into(),
+            disable_thinking: false,
             models: Vec::new(),
             test_status: None,
             test_http_status: None,

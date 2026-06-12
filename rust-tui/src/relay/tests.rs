@@ -23,6 +23,7 @@ fn sample_provider(base_url: &str, api_key: &str) -> ProviderConfig {
         wire_api: "responses".into(),
         provider_key: "relay-a".into(),
         npm_package: "@ai-sdk/openai-compatible".into(),
+        disable_thinking: false,
         models: Vec::new(),
         test_status: None,
         test_http_status: None,

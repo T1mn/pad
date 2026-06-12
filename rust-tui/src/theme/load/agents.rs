@@ -53,6 +53,7 @@ fn parse_agent(agent: &toml::Value) -> Option<AgentConfig> {
             wire_api: "responses".to_string(),
             provider_key: "default".to_string(),
             npm_package: "@ai-sdk/openai-compatible".to_string(),
+            disable_thinking: false,
             models: Vec::new(),
             test_status: None,
             test_http_status: None,
@@ -95,6 +96,7 @@ fn parse_provider(value: &toml::Value) -> Option<ProviderConfig> {
             .unwrap_or_else(|| normalize_provider_key(&label)),
         npm_package: string_field(table, "npm_package")
             .unwrap_or_else(|| "@ai-sdk/openai-compatible".to_string()),
+        disable_thinking: bool_field(table, "disable_thinking").unwrap_or(false),
         models: parse_models(table),
         label,
         test_status: None,
@@ -132,6 +134,13 @@ fn parse_active_provider(table: &toml::map::Map<String, toml::Value>) -> Option<
 fn string_field(table: &toml::map::Map<String, toml::Value>, key: &str) -> Option<String> {
     table.get(key).and_then(|value| match value {
         toml::Value::String(value) => Some(value.clone()),
+        _ => None,
+    })
+}
+
+fn bool_field(table: &toml::map::Map<String, toml::Value>, key: &str) -> Option<bool> {
+    table.get(key).and_then(|value| match value {
+        toml::Value::Boolean(value) => Some(*value),
         _ => None,
     })
 }

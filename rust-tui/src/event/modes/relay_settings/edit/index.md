@@ -1,5 +1,5 @@
 # relay_settings/edit
 
-- `field.rs`：字段编辑键处理和提交到当前 provider。
+- `field.rs`：字段编辑键处理和提交到当前 provider，包含布尔兼容项解析。
 - `provider.rs`：provider 新增、删除和 OpenCode provider key 去重。
 - `persist.rs`：保存 relay 配置并刷新运行时覆盖。

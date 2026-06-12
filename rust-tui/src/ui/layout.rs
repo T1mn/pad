@@ -27,7 +27,7 @@ pub fn compute_layout(
         ]
     } else {
         let min_left = 6;
-        let max_left = main_layout[0].width.saturating_sub(18).clamp(min_left, 38);
+        let max_left = normal_mode_max_left_width(main_layout[0].width, min_left);
         let left = preferred_left_width.unwrap_or(16).clamp(min_left, max_left);
         vec![Constraint::Length(left), Constraint::Min(0)]
     };
@@ -38,6 +38,18 @@ pub fn compute_layout(
         .split(main_layout[0]);
 
     (main_layout.to_vec(), body_layout.to_vec())
+}
+
+fn normal_mode_max_left_width(body_width: u16, min_left: u16) -> u16 {
+    const MIN_RIGHT_PREVIEW_WIDTH: u16 = 36;
+    const MAX_LEFT_WIDTH: u16 = 84;
+
+    let max_by_right_preview = body_width.saturating_sub(MIN_RIGHT_PREVIEW_WIDTH);
+    let max_by_ratio = ((body_width as f32) * 0.60).round() as u16;
+    max_by_right_preview
+        .min(max_by_ratio)
+        .min(MAX_LEFT_WIDTH)
+        .max(min_left)
 }
 
 /// Split the left column for tree mode: file tree + agent status bar

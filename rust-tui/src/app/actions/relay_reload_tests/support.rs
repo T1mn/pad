@@ -11,6 +11,7 @@ pub(super) fn sample_provider(label: &str, base_url: &str, api_key: &str) -> Pro
         wire_api: "responses".to_string(),
         provider_key: crate::theme::normalize_provider_key(label),
         npm_package: "@ai-sdk/openai-compatible".to_string(),
+        disable_thinking: false,
         models: Vec::new(),
         test_status: Some(true),
         test_http_status: Some(200),

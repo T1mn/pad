@@ -15,6 +15,7 @@ pub(in crate::event::modes::relay_settings) fn add_provider(app: &mut App) {
             wire_api: "responses".to_string(),
             provider_key,
             npm_package: "@ai-sdk/openai-compatible".to_string(),
+            disable_thinking: false,
             models: Vec::new(),
             test_status: None,
             test_http_status: None,

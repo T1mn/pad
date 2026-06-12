@@ -57,6 +57,7 @@ fn default_agents() -> Vec<AgentConfig> {
     vec![
         default_agent("claude"),
         default_agent("codex"),
+        default_agent("deepseek"),
         default_agent("gemini"),
         default_agent("opencode"),
     ]

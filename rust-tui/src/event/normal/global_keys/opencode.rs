@@ -43,7 +43,7 @@ pub(super) fn handle_opencode_key(app: &mut App, key: KeyEvent) -> bool {
             let _ = app.open_opencode_pr_from_clipboard();
             true
         }
-        KeyCode::Char('L') => {
+        KeyCode::Char('M') => {
             let _ = app.install_opencode_plugin_from_clipboard();
             true
         }

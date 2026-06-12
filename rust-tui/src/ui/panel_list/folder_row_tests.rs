@@ -9,6 +9,7 @@ fn folder_label_uses_readable_text_without_dim() {
 
     assert_eq!(style.fg, Some(theme.fg));
     assert!(!style.add_modifier.contains(Modifier::DIM));
+    assert!(style.add_modifier.contains(Modifier::BOLD));
 }
 
 #[test]

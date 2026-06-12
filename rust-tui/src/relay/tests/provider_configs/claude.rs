@@ -38,6 +38,7 @@ fn claude_provider_writes_cc_switch_style_env_settings() {
                 .and_then(|v| v.as_str()),
             Some("sk-ant-test")
         );
+        assert!(value.pointer("/env/ANTHROPIC_API_KEY").is_none());
         assert_eq!(
             value
                 .pointer("/env/CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")
@@ -50,6 +51,10 @@ fn claude_provider_writes_cc_switch_style_env_settings() {
                 .and_then(|v| v.as_str()),
             Some("0")
         );
+        assert!(value
+            .pointer("/env/CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS")
+            .is_none());
+        assert!(value.pointer("/env/MAX_THINKING_TOKENS").is_none());
         assert!(value.get("mcpServers").is_some());
         assert!(value.get("apiUrl").is_none());
         assert!(value.get("apiKey").is_none());
@@ -63,6 +68,7 @@ fn claude_provider_strips_trailing_v1_from_base_url() {
         "https://claude-relay.example/v1/",
         "sk-ant-test",
         "",
+        false,
     );
     let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
 
@@ -81,6 +87,7 @@ fn claude_provider_writes_default_model_env_when_configured() {
         "https://claude-relay.example",
         "sk-ant-test",
         "claude-sonnet-4-5",
+        false,
     );
     let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
 
@@ -93,5 +100,47 @@ fn claude_provider_writes_default_model_env_when_configured() {
             .pointer("/env/ANTHROPIC_CUSTOM_MODEL_OPTION")
             .and_then(|v| v.as_str()),
         Some("claude-sonnet-4-5")
+    );
+}
+
+#[test]
+fn claude_provider_clears_stale_default_model_env_when_unconfigured() {
+    let updated = crate::relay::claude::update_claude_settings_config(
+        r#"{"env":{"ANTHROPIC_API_KEY":"old","ANTHROPIC_MODEL":"old","ANTHROPIC_CUSTOM_MODEL_OPTION":"old","MAX_THINKING_TOKENS":"0"}}"#,
+        "https://claude-relay.example",
+        "sk-ant-test",
+        "",
+        false,
+    );
+    let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
+
+    assert!(value.pointer("/env/ANTHROPIC_API_KEY").is_none());
+    assert!(value.pointer("/env/ANTHROPIC_MODEL").is_none());
+    assert!(value
+        .pointer("/env/ANTHROPIC_CUSTOM_MODEL_OPTION")
+        .is_none());
+    assert!(value.pointer("/env/MAX_THINKING_TOKENS").is_none());
+}
+
+#[test]
+fn claude_provider_writes_disable_thinking_env_only_when_enabled() {
+    let updated = crate::relay::claude::update_claude_settings_config(
+        "{}",
+        "https://claude-relay.example",
+        "sk-ant-test",
+        "",
+        true,
+    );
+    let value: serde_json::Value = serde_json::from_str(&updated).expect("parse");
+
+    assert_eq!(
+        value
+            .pointer("/env/CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS")
+            .and_then(|v| v.as_str()),
+        Some("1")
+    );
+    assert_eq!(
+        value.pointer("/env/MAX_THINKING_TOKENS").and_then(|v| v.as_str()),
+        Some("0")
     );
 }

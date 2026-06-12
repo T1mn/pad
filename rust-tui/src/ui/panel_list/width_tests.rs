@@ -41,6 +41,7 @@ fn preferred_panel_width_cache_clears_on_sidebar_invalidation() {
         locale: app.locale,
         thread_list_view: app.thread_list_view(),
         live_only: app.showing_live_sessions(),
+        manual_width: app.config.display.agent_panel_width,
     });
 
     assert_eq!(preferred_panel_width(&mut app), 33);
@@ -48,4 +49,23 @@ fn preferred_panel_width_cache_clears_on_sidebar_invalidation() {
     app.invalidate_sidebar_visible_cache();
 
     assert!(app.sidebar.preferred_panel_width_cache.is_none());
+}
+
+#[test]
+fn thread_width_grows_with_long_titles() {
+    let short = super::thread_item_width("短标题");
+    let long = super::thread_item_width(
+        "这是一个比较长的会话标题，用来确认左侧 pane 会根据标题长度自动变宽",
+    );
+
+    assert!(long > short);
+    assert!(long > 46);
+}
+
+#[test]
+fn manual_width_is_used_as_minimum() {
+    let mut app = App::new();
+    app.config.display.agent_panel_width = Some(70);
+
+    assert!(preferred_panel_width(&mut app) >= 70);
 }

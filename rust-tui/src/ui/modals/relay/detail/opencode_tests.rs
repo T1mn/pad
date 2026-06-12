@@ -11,6 +11,7 @@ fn provider_with_models(models: Vec<OpenCodeModelConfig>) -> ProviderConfig {
         provider_key: String::new(),
         npm_package: String::new(),
         models,
+        disable_thinking: false,
         test_status: None,
         test_http_status: None,
         test_latency_ms: None,

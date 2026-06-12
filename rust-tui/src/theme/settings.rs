@@ -165,12 +165,14 @@ impl Default for AgentPermissionsConfig {
 #[derive(Clone, Debug)]
 pub struct DisplayConfig {
     pub session_scope: String,
+    pub agent_panel_width: Option<u16>,
 }
 
 impl Default for DisplayConfig {
     fn default() -> Self {
         Self {
             session_scope: "live".to_string(),
+            agent_panel_width: None,
         }
     }
 }

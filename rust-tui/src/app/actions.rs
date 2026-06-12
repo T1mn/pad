@@ -13,6 +13,7 @@ mod opencode_run;
 mod opencode_serve;
 mod opencode_stats;
 mod opencode_web;
+mod panel_width;
 mod relay_reload;
 mod settings;
 mod thread_actions;

@@ -6,7 +6,6 @@ use ratatui::{
 };
 
 mod layout;
-mod subtitle;
 mod title;
 
 #[cfg(test)]
@@ -20,12 +19,15 @@ pub(crate) fn build_thread_row(
     jump_badge: Option<usize>,
 ) -> Row<'static> {
     let layout = layout::thread_row_layout(content_width);
-    let lines = vec![
-        title::render_thread_title_line(thread, is_selected, &layout, theme, jump_badge),
-        subtitle::render_thread_subtitle_line(thread, is_selected, &layout, theme),
-    ];
+    let lines = vec![title::render_thread_title_line(
+        thread,
+        is_selected,
+        &layout,
+        theme,
+        jump_badge,
+    )];
 
     Row::new(vec![Cell::from(Text::from(lines))])
-        .height(2)
+        .height(1)
         .style(Style::default().bg(theme.bg))
 }

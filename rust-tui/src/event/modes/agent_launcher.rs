@@ -32,11 +32,14 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                     let target_dir = launcher.target_dir.clone();
                     let agent_name = agent.0.to_string();
                     let raw_agent_cmd = agent.1.to_string();
-                    relay::apply_runtime_configs(
-                        &app.config.agents,
-                        &app.config.agent_permissions,
-                        &app.config.codex,
-                    );
+
+                    // Only apply the selected agent's config
+                    if let Some(selected_agent) =
+                        app.config.agents.iter().find(|a| a.name == agent_name)
+                    {
+                        relay::apply_relay_configs(std::slice::from_ref(selected_agent));
+                    }
+
                     let agent_cmd = match crate::codex_runtime::prepare_agent_command(
                         &agent_name,
                         &raw_agent_cmd,

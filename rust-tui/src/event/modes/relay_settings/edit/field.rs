@@ -77,6 +77,9 @@ fn commit_relay_field_edit(app: &mut App) {
                     0 => provider.label = value,
                     1 => provider.base_url = value,
                     2 => provider.api_key = value,
+                    3 if agent_name == "claude" => {
+                        provider.disable_thinking = parse_bool_field(&value);
+                    }
                     _ => {}
                 },
             }
@@ -93,4 +96,11 @@ fn commit_relay_field_edit(app: &mut App) {
     persist_relay_config(app, agent_idx);
     app.relay_editing = false;
     app.relay_edit_buffer.clear();
+}
+
+fn parse_bool_field(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }

@@ -65,7 +65,11 @@ pub(super) fn is_codex_agent(agent_name: &str, agent_cmd: &str) -> bool {
 }
 
 pub(super) fn is_claude_agent(agent_name: &str, agent_cmd: &str) -> bool {
-    agent_name.trim() == "claude" || first_command_token(agent_cmd) == Some("claude")
+    let name = agent_name.trim();
+    if name == "deepseek" || name == "deepseek(cc)" {
+        return false;
+    }
+    name == "claude" || first_command_token(agent_cmd) == Some("claude")
 }
 
 pub(super) fn first_command_token(command: &str) -> Option<&str> {

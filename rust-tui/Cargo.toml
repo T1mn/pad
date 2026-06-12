@@ -1,6 +1,6 @@
 [package]
 name = "pad"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 default-run = "pad"
 authors = ["T1mn <tinggofun@gmail.com>"]
@@ -31,7 +31,7 @@ pty = "0.2"
 
 [profile.release]
 opt-level = 3
-lto = true
+lto = "thin"
 
 # 更激进的优化配置（用于分发）
 [profile.dist]
@@ -41,3 +41,7 @@ lto = true
 strip = true
 codegen-units = 1
 panic = "abort"
+
+[profile.dev]
+split-debuginfo = "unpacked"
+debug = "line-tables-only"

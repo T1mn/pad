@@ -24,6 +24,7 @@ pub(super) fn relay_detail_base_lines(app: &App) -> u16 {
         .map(|agent| agent.name.as_str())
     {
         Some("codex") => 14,
+        Some("claude") => 17,
         Some("opencode") => 22,
         _ => 14,
     }

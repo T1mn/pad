@@ -10,6 +10,7 @@ fn provider() -> ProviderConfig {
         wire_api: String::new(),
         provider_key: "openai".into(),
         npm_package: "@ai-sdk/openai-compatible".into(),
+        disable_thinking: false,
         models: vec![OpenCodeModelConfig {
             id: "gpt-5".into(),
             name: "GPT-5".into(),

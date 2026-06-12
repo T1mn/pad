@@ -1,6 +1,7 @@
 mod claude;
 mod codex;
 mod common;
+mod deepseek;
 mod gemini;
 mod opencode;
 mod permissions;
@@ -19,6 +20,7 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
         match agent.name.as_str() {
             "claude" => claude::apply_claude_agent_config(agent),
             "codex" => codex::apply_codex_agent_config(agent),
+            "deepseek" | "deepseek(cc)" => deepseek::apply_deepseek_agent_config(agent),
             "gemini-cli" | "gemini" => gemini::apply_gemini_agent_config(agent),
             "opencode" => opencode::apply_opencode_agent_config(agent),
             _ => {}

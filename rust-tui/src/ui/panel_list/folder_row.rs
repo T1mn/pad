@@ -1,5 +1,5 @@
 use super::metrics::{display_width, truncate_to_width};
-use super::style::{maybe_bold, sidebar_folder_bg, sidebar_folder_fg};
+use super::style::{sidebar_folder_bg, sidebar_folder_fg};
 use crate::sidebar::SidebarFolderSummary;
 use ratatui::{
     style::{Modifier, Style},
@@ -72,16 +72,14 @@ pub(crate) fn build_folder_row(
 
 fn folder_label_style(
     is_selected: bool,
-    unread: bool,
+    _unread: bool,
     theme: &crate::theme::Theme,
     card_bg: ratatui::style::Color,
 ) -> Style {
-    maybe_bold(
-        Style::default()
-            .fg(sidebar_folder_fg(is_selected, theme))
-            .bg(card_bg),
-        unread,
-    )
+    Style::default()
+        .fg(sidebar_folder_fg(is_selected, theme))
+        .bg(card_bg)
+        .add_modifier(Modifier::BOLD)
 }
 
 fn count_style(

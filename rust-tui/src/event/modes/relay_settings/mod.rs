@@ -36,6 +36,7 @@ pub(crate) fn handle_relay_key(app: &mut App, key: KeyCode, host: RelayHost) -> 
 pub(super) fn relay_field_count(app: &App) -> usize {
     match selected_agent_name(app) {
         Some("opencode") => 6,
+        Some("claude") => 4,
         _ => 3,
     }
 }

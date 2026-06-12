@@ -8,7 +8,6 @@ mod metrics;
 mod status;
 mod style;
 mod thread_row;
-mod thread_subtitle;
 mod viewport;
 mod width;
 

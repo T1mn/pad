@@ -68,7 +68,7 @@ fn render_title_body(
     let meta_width = display_width(meta);
     let title_width = inner_card_width
         .saturating_sub(badge_width + jump_badge_width + meta_width)
-        .clamp(1, 52);
+        .max(1);
     let compact_title = truncate_to_width(&thread.title, title_width);
     let used_width = badge_width + jump_badge_width + display_width(&compact_title) + meta_width;
 

@@ -28,6 +28,7 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
         &prov.base_url,
         &prov.api_key,
         &agent.default_model,
+        prov.disable_thinking,
     );
     write_text_file(&path, &updated);
 }
@@ -37,6 +38,7 @@ pub(super) fn update_claude_settings_config(
     base_url: &str,
     api_key: &str,
     default_model: &str,
+    disable_thinking: bool,
 ) -> String {
     let mut obj = parse_json_object(content);
     obj.as_object_mut()
@@ -64,6 +66,7 @@ pub(super) fn update_claude_settings_config(
         "ANTHROPIC_AUTH_TOKEN".to_string(),
         serde_json::Value::String(api_key.to_string()),
     );
+    env_obj.remove("ANTHROPIC_API_KEY");
     env_obj.insert(
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC".to_string(),
         serde_json::Value::String("1".to_string()),
@@ -72,6 +75,20 @@ pub(super) fn update_claude_settings_config(
         "CLAUDE_CODE_ATTRIBUTION_HEADER".to_string(),
         serde_json::Value::String("0".to_string()),
     );
+    env_obj.remove("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS");
+    env_obj.remove("MAX_THINKING_TOKENS");
+    if disable_thinking {
+        env_obj.insert(
+            "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS".to_string(),
+            serde_json::Value::String("1".to_string()),
+        );
+        env_obj.insert(
+            "MAX_THINKING_TOKENS".to_string(),
+            serde_json::Value::String("0".to_string()),
+        );
+    }
+    env_obj.remove("ANTHROPIC_MODEL");
+    env_obj.remove("ANTHROPIC_CUSTOM_MODEL_OPTION");
     if !default_model.trim().is_empty() {
         env_obj.insert(
             "ANTHROPIC_MODEL".to_string(),

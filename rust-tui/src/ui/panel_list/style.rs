@@ -34,14 +34,6 @@ pub(crate) fn sidebar_thread_fg(is_selected: bool, theme: &Theme) -> Color {
     }
 }
 
-pub(crate) fn sidebar_subtitle_fg(is_selected: bool, theme: &Theme) -> Color {
-    if is_selected {
-        blend_color(theme.highlight_fg, theme.comment, 0.62)
-    } else {
-        blend_color(theme.fg, theme.comment, 0.46)
-    }
-}
-
 pub(crate) fn badge_color(agent_type: AgentType, theme: &Theme) -> Color {
     match agent_type {
         AgentType::Claude => Color::Rgb(249, 140, 87),

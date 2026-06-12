@@ -49,6 +49,19 @@ pub(super) fn relay_detail_lines(
         )
     };
 
+    if agent.name == "claude" {
+        detail_lines.push(Line::from(""));
+        detail_lines.push(detail_line(theme, locale, "relay.disable_thinking"));
+        detail_lines.push(Line::from(Span::styled(
+            if provider.disable_thinking {
+                "true"
+            } else {
+                "false"
+            },
+            field_style(3),
+        )));
+    }
+
     codex::append_codex_source_line(&mut detail_lines, agent, provider, theme);
 
     append_provider_test_lines(

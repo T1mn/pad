@@ -68,6 +68,10 @@ fn apply_display(value: Option<&toml::Value>, config: &mut Config) {
             _ => "live".to_string(),
         };
     }
+    if let Some(toml::Value::Integer(width)) = display.get("agent_panel_width") {
+        config.display.agent_panel_width =
+            u16::try_from(*width).ok().map(|width| width.clamp(6, 90));
+    }
 }
 
 fn apply_sound(value: Option<&toml::Value>, config: &mut Config) {

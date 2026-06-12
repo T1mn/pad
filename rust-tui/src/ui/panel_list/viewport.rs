@@ -73,7 +73,7 @@ pub(crate) fn jump_badge_for_item(
 pub(crate) fn item_row_height(item: &SidebarItem) -> usize {
     match item {
         SidebarItem::Folder(_) => 1,
-        SidebarItem::Thread(_) => 2,
+        SidebarItem::Thread(_) => 1,
     }
 }
 

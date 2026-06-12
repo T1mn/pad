@@ -50,6 +50,7 @@ pub(in crate::event::modes::relay_settings) fn handle_detail_pane_key(
                             0 => provider.label.clone(),
                             1 => provider.base_url.clone(),
                             2 => provider.api_key.clone(),
+                            3 if agent.name == "claude" => provider.disable_thinking.to_string(),
                             _ => String::new(),
                         },
                     };

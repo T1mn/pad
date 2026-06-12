@@ -25,6 +25,9 @@ impl Config {
             "session_scope = \"{}\"\n",
             self.display.session_scope
         ));
+        if let Some(width) = self.display.agent_panel_width {
+            content.push_str(&format!("agent_panel_width = {}\n", width));
+        }
         content.push_str("\n[sound]\n");
         content.push_str(&format!("enabled = {}\n", self.sound.enabled));
         push_sound_event_config(&mut content, "completion", &self.sound.completion);
@@ -122,6 +125,9 @@ fn push_provider(content: &mut String, provider: &ProviderConfig) {
     }
     if !provider.npm_package.trim().is_empty() {
         push_escaped_line(content, "npm_package", &provider.npm_package);
+    }
+    if provider.disable_thinking {
+        content.push_str("disable_thinking = true\n");
     }
     for model in &provider.models {
         content.push_str("\n[[agents.providers.models]]\n");

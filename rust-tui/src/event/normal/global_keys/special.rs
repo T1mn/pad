@@ -11,6 +11,12 @@ pub(super) fn handle_special_key(app: &mut App, key: KeyEvent) -> bool {
         return true;
     }
 
+    if key.code == KeyCode::Char('L') {
+        let current_width = crate::ui::panel_list::preferred_panel_width(app);
+        app.widen_agent_panel_width(current_width);
+        return true;
+    }
+
     if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
         app.open_tree_in_home();
         return true;

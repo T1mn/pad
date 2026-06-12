@@ -28,11 +28,12 @@ fn opencode_provider_prefers_existing_jsonc_and_preserves_urls_in_strings() {
                 wire_api: "responses".into(),
                 provider_key: "relay-a".into(),
                 npm_package: "@ai-sdk/openai-compatible".into(),
-                models: vec![crate::theme::OpenCodeModelConfig {
+        disable_thinking: false,
+        models: vec![crate::theme::OpenCodeModelConfig {
                     id: "gpt-4o".into(),
                     name: "GPT-4o".into(),
                 }],
-                test_status: None,
+        test_status: None,
                 test_http_status: None,
                 test_latency_ms: None,
                 test_result: None,
@@ -83,11 +84,12 @@ fn opencode_provider_writes_additive_live_config_and_models() {
                 wire_api: "responses".into(),
                 provider_key: "relay-a".into(),
                 npm_package: "@ai-sdk/openai-compatible".into(),
-                models: vec![crate::theme::OpenCodeModelConfig {
+        disable_thinking: false,
+        models: vec![crate::theme::OpenCodeModelConfig {
                     id: "gpt-4o".into(),
                     name: "GPT-4o".into(),
                 }],
-                test_status: None,
+        test_status: None,
                 test_http_status: None,
                 test_latency_ms: None,
                 test_result: None,

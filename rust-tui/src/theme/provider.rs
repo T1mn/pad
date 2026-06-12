@@ -9,6 +9,7 @@ pub struct ProviderConfig {
     pub wire_api: String,
     pub provider_key: String,
     pub npm_package: String,
+    pub disable_thinking: bool,
     pub models: Vec<OpenCodeModelConfig>,
     pub test_status: Option<bool>,
     pub test_http_status: Option<u16>,

@@ -12,6 +12,7 @@ fn opencode_small_model_picker_can_clear_selection() {
         let opencode_idx = agent_index(&app, "opencode");
         let agent = &mut app.config.agents[opencode_idx];
         agent.providers.push(ProviderConfig {
+            disable_thinking: false,
             models: vec![OpenCodeModelConfig {
                 id: "gpt-5".into(),
                 name: "GPT-5".into(),
@@ -45,6 +46,7 @@ fn opencode_model_popup_supports_add_edit_and_delete_flow() {
         let opencode_idx = agent_index(&app, "opencode");
         let agent = &mut app.config.agents[opencode_idx];
         agent.providers.push(ProviderConfig {
+            disable_thinking: false,
             models: vec![OpenCodeModelConfig {
                 id: "model-1".into(),
                 name: "Model 1".into(),
@@ -99,6 +101,7 @@ fn opencode_model_id_edit_is_uniquified_and_updates_model_refs() {
         let opencode_idx = agent_index(&app, "opencode");
         let agent = &mut app.config.agents[opencode_idx];
         agent.providers.push(ProviderConfig {
+            disable_thinking: false,
             models: vec![
                 OpenCodeModelConfig {
                     id: "gpt-5".into(),
@@ -142,6 +145,7 @@ fn opencode_provider_key_edit_is_uniquified_and_updates_model_refs() {
         let opencode_idx = agent_index(&app, "opencode");
         let agent = &mut app.config.agents[opencode_idx];
         agent.providers.push(ProviderConfig {
+            disable_thinking: false,
             models: vec![OpenCodeModelConfig {
                 id: "gpt-5".into(),
                 name: "GPT-5".into(),
@@ -149,6 +153,7 @@ fn opencode_provider_key_edit_is_uniquified_and_updates_model_refs() {
             ..sample_provider("relay-a")
         });
         agent.providers.push(ProviderConfig {
+            disable_thinking: false,
             models: vec![OpenCodeModelConfig {
                 id: "gpt-5-mini".into(),
                 name: "GPT-5 Mini".into(),

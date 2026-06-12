@@ -21,6 +21,7 @@ fn relay_provider_matches(left: &ProviderConfig, right: &ProviderConfig) -> bool
         && left.wire_api == right.wire_api
         && left.provider_key == right.provider_key
         && left.npm_package == right.npm_package
+        && left.disable_thinking == right.disable_thinking
         && left.models == right.models
 }
 

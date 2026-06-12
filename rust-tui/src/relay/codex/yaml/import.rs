@@ -29,6 +29,7 @@ pub(in crate::relay) fn import_codex_relay_yaml(
             wire_api: String::new(),
             provider_key: provider.provider_name,
             npm_package: "@ai-sdk/openai-compatible".to_string(),
+            disable_thinking: false,
             models: Vec::new(),
             test_status: None,
             test_http_status: None,
