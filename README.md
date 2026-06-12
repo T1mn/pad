@@ -271,6 +271,8 @@ PAD can still detect and attach to other terminal agents. OpenCode now has pract
 
 Thanks to the broader terminal tooling community for early feedback and testing. I also learned a lot of practical, project-helpful ideas from [linux.do](https://linux.do) along the way.
 
+Special thanks to [linux.do 慕鸢](https://linux.do/u/user792/summary) for token support.
+
 Special thanks to [linux.do 百倍佬 labs100x](https://linux.do/u/labs100x) for token support.
 
 ## License
