@@ -8,8 +8,13 @@ SOCK="${TMPDIR:-/tmp}/pad-smoke-$$.sock"
 SMOKE_HOME="$(mktemp -d)"
 LOG_FILE="${SMOKE_HOME}/.pad/logs/pad.log"
 STATUS_FILE="${SMOKE_HOME}/.pad/pad-status.json"
+CONTROL_FIFO="${SMOKE_HOME}/tmux-control.in"
+WRITABLE_CLIENT_PID=""
 
 cleanup() {
+  if [ -n "${WRITABLE_CLIENT_PID}" ]; then
+    kill "${WRITABLE_CLIENT_PID}" >/dev/null 2>&1 || true
+  fi
   tmux -S "${SOCK}" kill-server >/dev/null 2>&1 || true
   rm -rf "${SMOKE_HOME}"
 }
@@ -131,6 +136,13 @@ tm split-window -t agents:0 -v "${REPO_ROOT}/scripts/ci/mock_agent.sh opencode"
 tm select-layout -t agents:0 tiled
 tm new-session -d -s pad -x 160 -y 48 \
   "/bin/sh -lc 'export HOME=${SMOKE_HOME}; export TERM=xterm-256color; cd ${REPO_ROOT}/rust-tui && ${PAD_BIN} --debug'"
+# A real PAD run has a writable terminal client. Keep one here so newer tmux
+# versions do not select PAD's read-only event client for switch-client.
+mkfifo "${CONTROL_FIFO}"
+exec 9<>"${CONTROL_FIFO}"
+tmux -S "${SOCK}" -C attach-session -t pad -f ignore-size,no-output \
+  <"${CONTROL_FIFO}" >"${SMOKE_HOME}/tmux-control.log" 2>&1 &
+WRITABLE_CLIENT_PID=$!
 
 if ! wait_for_file "${LOG_FILE}" 20; then
   fail "pad log file was not created"
@@ -171,7 +183,7 @@ return_cmd="$(sed -n 's/^.*stage=attach\.return_cmd cmd=//p' "${LOG_FILE}" | tai
 if [ -z "${return_cmd}" ]; then
   fail "missing logged return command"
 fi
-eval "${return_cmd}"
+tm run-shell "${return_cmd}"
 
 if ! wait_for_log "[return] after_return_select" 20; then
   fail "pad did not return to the original pane"
