@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "${RUNNER_OS:-}" = "macOS" ]; then
+  PS4='+${LINENO}: '
+  set -x
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PAD_BIN="${PAD_BIN:-${REPO_ROOT}/rust-tui/target/debug/pad}"
