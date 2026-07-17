@@ -1,11 +1,14 @@
 use crate::app::App;
 use crate::log_debug;
 
+use super::super::super::tmux::writable_client_for_pane;
+
 pub(super) struct InstallContext {
     pub(super) trace_id: String,
     pub(super) pad_pane_id: String,
     pub(super) pad_win_target: String,
     pub(super) pad_session: String,
+    pub(super) pad_client: Option<String>,
 }
 
 impl InstallContext {
@@ -52,12 +55,14 @@ impl InstallContext {
             );
             return None;
         }
+        let pad_client = writable_client_for_pane(&pad_pane_id);
 
         Some(Self {
             trace_id,
             pad_pane_id,
             pad_win_target,
             pad_session,
+            pad_client,
         })
     }
 }

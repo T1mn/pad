@@ -2,24 +2,23 @@ use crate::app::App;
 use crate::log_debug;
 
 use super::super::bindings::restore_tmux_bindings;
-use super::super::tmux::run_tmux_success;
+use super::super::tmux::{run_tmux_success, writable_client_for_pane};
 
 pub(super) fn switch_client(app: &mut App, target_session: &str) -> bool {
-    run_or_restore(
-        app,
-        "attach.cross_session.switch_client",
-        vec![
-            "switch-client".to_string(),
-            "-t".to_string(),
-            target_session.to_string(),
-        ],
-        || {
-            log_debug!(
-                "attach.cross_session: switch-client failed target_session={}",
-                target_session
-            );
-        },
-    )
+    let target_client = std::env::var("TMUX_PANE")
+        .ok()
+        .and_then(|pane_id| writable_client_for_pane(&pane_id));
+    let mut args = vec!["switch-client".to_string()];
+    if let Some(client) = target_client {
+        args.extend(["-c".to_string(), client]);
+    }
+    args.extend(["-t".to_string(), target_session.to_string()]);
+    run_or_restore(app, "attach.cross_session.switch_client", args, || {
+        log_debug!(
+            "attach.cross_session: switch-client failed target_session={}",
+            target_session
+        );
+    })
 }
 
 pub(super) fn select_window(app: &mut App, prefix: &str, target_window: &str) -> bool {

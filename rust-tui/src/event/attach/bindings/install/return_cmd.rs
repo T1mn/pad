@@ -69,7 +69,16 @@ fn push_pad_return(restore_parts: &mut Vec<String>, ctx: &InstallContext, target
             "before_return_switch target_session={} pad_session={}",
             target_session, ctx.pad_session
         )));
-        restore_parts.push(format!("tmux switch-client -t '{}'", ctx.pad_session));
+        let target_client = ctx
+            .pad_client
+            .as_deref()
+            .map(|client| format!(" -c {}", crate::shell_quote::single_quote(client)))
+            .unwrap_or_default();
+        restore_parts.push(format!(
+            "tmux switch-client{} -t {}",
+            target_client,
+            crate::shell_quote::single_quote(&ctx.pad_session)
+        ));
         restore_parts.push(shell_log_cmd(&format!(
             "after_return_switch target_session={} pad_session={}",
             target_session, ctx.pad_session
