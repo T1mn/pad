@@ -33,6 +33,11 @@ dump_diagnostics() {
   tm capture-pane -p -t "agents:0.0" >&2 || true
   echo "--- agents pane 1 capture ---" >&2
   tm capture-pane -p -t "agents:0.1" >&2 || true
+  echo "--- agents panes ---" >&2
+  tm list-panes -t agents:0 -F '#{pane_id}' 2>/dev/null | while read -r pane; do
+    echo "--- ${pane} ---" >&2
+    tm capture-pane -p -t "${pane}" >&2 || true
+  done
   if [ -f "${STATUS_FILE}" ]; then
     echo "--- status file ---" >&2
     cat "${STATUS_FILE}" >&2
@@ -121,6 +126,9 @@ tm kill-server >/dev/null 2>&1 || true
 tm -f /dev/null new-session -d -s agents -n agents -x 160 -y 48 \
   "${REPO_ROOT}/scripts/ci/mock_agent.sh codex"
 tm split-window -t agents:0 -h "${REPO_ROOT}/scripts/ci/mock_agent.sh claude"
+tm split-window -t agents:0 -v "${REPO_ROOT}/scripts/ci/mock_agent.sh grok"
+tm split-window -t agents:0 -v "${REPO_ROOT}/scripts/ci/mock_agent.sh opencode"
+tm select-layout -t agents:0 tiled
 tm new-session -d -s pad -x 160 -y 48 \
   "/bin/sh -lc 'export HOME=${SMOKE_HOME}; export TERM=xterm-256color; cd ${REPO_ROOT}/rust-tui && ${PAD_BIN} --debug'"
 
@@ -135,6 +143,12 @@ if ! wait_for_log "agent=Codex" 20; then
 fi
 if ! wait_for_log "agent=Claude" 20; then
   fail "pad did not scan the mock claude pane"
+fi
+if ! wait_for_log "agent=Grok" 20; then
+  fail "pad did not scan the mock grok pane"
+fi
+if ! wait_for_log "agent=OpenCode" 20; then
+  fail "pad did not scan the mock opencode pane"
 fi
 if ! wait_for_capture "pad:0.0" "CODEX" 20; then
   fail "pad UI did not render the codex panel"

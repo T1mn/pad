@@ -27,11 +27,27 @@ pub fn persist_hook_event(
     let now = now_ts();
     let agent_type = panel.agent_type.as_str();
     let normalize_codex = panel.agent_type == AgentType::Codex;
+    let panel_fallback_allowed = match (
+        event.session_id.as_deref(),
+        panel.agent_session_id.as_deref(),
+    ) {
+        (Some(event_id), Some(panel_id)) => event_id == panel_id,
+        _ => true,
+    };
+    let panel_transcript = panel_fallback_allowed
+        .then_some(panel.transcript_path.as_deref())
+        .flatten();
+    let panel_prompt = panel_fallback_allowed
+        .then_some(panel.last_user_prompt.as_deref())
+        .flatten();
+    let panel_assistant = panel_fallback_allowed
+        .then_some(panel.last_assistant_message.as_deref())
+        .flatten();
 
     let record_idx = upsert_session_record(&mut index, agent_session_id, agent_type, now);
     index.sessions[record_idx].transcript_path = prefer_non_empty_str([
         event.transcript_path.as_deref(),
-        panel.transcript_path.as_deref(),
+        panel_transcript,
         index.sessions[record_idx].transcript_path.as_deref(),
     ]);
     if index.sessions[record_idx].last_source != "hook" {
@@ -41,21 +57,20 @@ pub fn persist_hook_event(
     index.sessions[record_idx].updated_at = now;
 
     let prompt = normalize_cached_codex_prompt(
-        first_non_empty_str([event.prompt.as_deref(), panel.last_user_prompt.as_deref()]),
+        first_non_empty_str([event.prompt.as_deref(), panel_prompt]),
         normalize_codex,
     );
     let assistant = match event.event.as_str() {
         "user_prompt_submit" => clean_text(event.last_assistant_message.as_deref()),
         _ => clean_text(event.last_assistant_message.as_deref())
-            .or_else(|| clean_text(panel.last_assistant_message.as_deref())),
+            .or_else(|| clean_text(panel_assistant)),
     };
 
     merge_recent_turns(
         &mut index.sessions[record_idx].recent_turns,
         prompt.as_deref(),
         assistant.as_deref(),
-        normalize_cached_codex_prompt(panel.last_user_prompt.as_deref(), normalize_codex)
-            .as_deref(),
+        normalize_cached_codex_prompt(panel_prompt, normalize_codex).as_deref(),
     );
 
     let (last_user_prompt, last_assistant_message) =

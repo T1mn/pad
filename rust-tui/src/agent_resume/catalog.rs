@@ -6,6 +6,16 @@ pub fn list_resume_targets() -> Vec<ResumeTarget> {
         .filter(|session| !session.agent_session_id.trim().is_empty())
         .map(resume_target_from_cached_session)
         .collect();
+    if let Ok(threads) = crate::grok_history::all_threads() {
+        for thread in threads {
+            if !targets
+                .iter()
+                .any(|target| target.agent_session_id == thread.session_id)
+            {
+                targets.push(resume_target_from_grok_thread(thread));
+            }
+        }
+    }
     targets.sort_by(|left, right| {
         right
             .updated_at
@@ -16,7 +26,25 @@ pub fn list_resume_targets() -> Vec<ResumeTarget> {
 }
 
 pub fn find_resume_target(session_id: &str) -> Option<ResumeTarget> {
-    crate::session_cache::find_cached_session(session_id).map(resume_target_from_cached_session)
+    crate::session_cache::find_cached_session(session_id)
+        .map(resume_target_from_cached_session)
+        .or_else(|| {
+            crate::grok_history::thread_for_id(session_id)
+                .ok()
+                .flatten()
+                .map(resume_target_from_grok_thread)
+        })
+}
+
+fn resume_target_from_grok_thread(thread: crate::grok_history::GrokThreadRef) -> ResumeTarget {
+    ResumeTarget {
+        agent_session_id: thread.session_id,
+        agent_type: "grok".to_string(),
+        working_dir: thread.cwd.to_string_lossy().to_string(),
+        transcript_path: Some(thread.transcript_path.to_string_lossy().to_string()),
+        title: thread.title,
+        updated_at: thread.updated_at,
+    }
 }
 
 fn resume_target_from_cached_session(
@@ -31,3 +59,7 @@ fn resume_target_from_cached_session(
         updated_at: session.updated_at,
     }
 }
+
+#[cfg(test)]
+#[path = "catalog_tests.rs"]
+mod tests;

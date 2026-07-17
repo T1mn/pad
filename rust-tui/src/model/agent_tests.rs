@@ -10,6 +10,10 @@ fn from_processes_detects_agent_case_insensitively() {
         AgentType::from_processes("node OpenCode"),
         AgentType::OpenCode
     );
+    assert_eq!(
+        AgentType::from_processes("/Users/tim/.grok/downloads/grok-0.2.102-macos-aarch64"),
+        AgentType::Grok
+    );
 }
 
 #[test]

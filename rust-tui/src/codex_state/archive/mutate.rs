@@ -29,13 +29,14 @@ pub(crate) fn mutate_thread_archive_state_at(
     let thread = read_thread_for_update(&connection, thread_id)?;
     validate_archive_transition(thread_id, thread.archived, archive)?;
 
-    let source_path = PathBuf::from(&thread.rollout_path);
-    if !source_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("rollout file not found: {}", source_path.display()),
-        ));
-    }
+    let stored_source_path = PathBuf::from(&thread.rollout_path);
+    let source_path =
+        crate::codex_rollout::existing_rollout_path(&stored_source_path).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("rollout file not found: {}", stored_source_path.display()),
+            )
+        })?;
 
     let target_path = target_rollout_path(&source_path, codex_home, thread_id, archive)?;
     create_target_parent(&target_path)?;

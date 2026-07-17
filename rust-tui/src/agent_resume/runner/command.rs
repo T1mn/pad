@@ -12,6 +12,7 @@ pub fn build_resume_command(target: &ResumeTarget) -> String {
             sid
         ),
         "claude" => format!("exec claude --resume {}", sid),
+        "grok" => format!("exec grok --resume {}", sid),
         "gemini" => format!("exec gemini --resume {}", sid),
         "opencode" => format!("exec opencode --session {}", sid),
         other => format!("exec {} --resume {}", shell_command_name(other), sid),

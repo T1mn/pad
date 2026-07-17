@@ -35,6 +35,7 @@ pub(super) struct BuildLogStats {
     pub(super) codex_history_threads: usize,
     pub(super) claude_history_threads: usize,
     pub(super) gemini_history_threads: usize,
+    pub(super) grok_history_threads: usize,
     pub(super) opencode_history_threads: usize,
 }
 
@@ -46,6 +47,7 @@ impl BuildLogStats {
             codex_history_threads: 0,
             claude_history_threads: 0,
             gemini_history_threads: 0,
+            grok_history_threads: 0,
             opencode_history_threads: 0,
         }
     }
@@ -54,7 +56,7 @@ impl BuildLogStats {
 pub(super) fn log_total_build(started_at: Instant, folder_count: usize, stats: &BuildLogStats) {
     if started_at.elapsed() >= Duration::from_millis(20) {
         crate::log_debug!(
-            "sidebar.build: total elapsed_ms={} folders={} live_threads={} hidden_live_panels={} codex_history_threads={} claude_history_threads={} gemini_history_threads={} opencode_history_threads={}",
+            "sidebar.build: total elapsed_ms={} folders={} live_threads={} hidden_live_panels={} codex_history_threads={} claude_history_threads={} gemini_history_threads={} grok_history_threads={} opencode_history_threads={}",
             started_at.elapsed().as_millis(),
             folder_count,
             stats.live_panel_threads,
@@ -62,6 +64,7 @@ pub(super) fn log_total_build(started_at: Instant, folder_count: usize, stats: &
             stats.codex_history_threads,
             stats.claude_history_threads,
             stats.gemini_history_threads,
+            stats.grok_history_threads,
             stats.opencode_history_threads
         );
     }

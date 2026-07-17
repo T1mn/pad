@@ -1,5 +1,7 @@
 use super::target::SessionTarget;
-use super::{persistence_panel_from_request, resolved_session_id_for_request};
+use super::{
+    persistence_panel_from_request, resolve_session_target, resolved_session_id_for_request,
+};
 use crate::model::{AgentState, AgentType, PreviewSessionOrigin, PreviewTurn, SessionCacheState};
 use crate::preview_source::PreviewRequest;
 use std::fs;
@@ -70,4 +72,41 @@ fn persistence_panel_uses_resolved_target_session_id() {
         panel.transcript_path.as_deref(),
         Some("/tmp/gemini-session-2.json")
     );
+}
+
+#[test]
+fn claude_target_follows_claude_config_dir() {
+    crate::test_support::with_temp_home("pad-preview-target", "claude-config-dir", |home| {
+        let config_dir = home.join("custom-claude");
+        let transcript = config_dir.join("projects/demo/claude-session.jsonl");
+        fs::create_dir_all(transcript.parent().expect("transcript parent"))
+            .expect("create transcript parent");
+        fs::write(
+            &transcript,
+            concat!(
+                "{\"type\":\"user\",\"sessionId\":\"claude-session\",\"cwd\":\"/tmp/claude\",",
+                "\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n"
+            ),
+        )
+        .expect("write transcript");
+
+        let previous = std::env::var_os("CLAUDE_CONFIG_DIR");
+        std::env::set_var("CLAUDE_CONFIG_DIR", &config_dir);
+        let mut request = base_request();
+        request.agent_type = AgentType::Claude;
+        request.working_dir = "/tmp/claude".into();
+        request.agent_session_id = Some("claude-session".into());
+        let target = resolve_session_target(&request).expect("resolve Claude transcript");
+        restore_config_dir(previous);
+
+        assert_eq!(target.transcript_path, transcript);
+    });
+}
+
+fn restore_config_dir(previous: Option<std::ffi::OsString>) {
+    if let Some(previous) = previous {
+        std::env::set_var("CLAUDE_CONFIG_DIR", previous);
+    } else {
+        std::env::remove_var("CLAUDE_CONFIG_DIR");
+    }
 }

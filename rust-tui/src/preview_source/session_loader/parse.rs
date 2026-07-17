@@ -1,4 +1,4 @@
-use super::super::{claude, codex, gemini, opencode, SessionReadMode};
+use super::super::{claude, codex, gemini, grok, opencode, SessionReadMode};
 use crate::model::{AgentType, PreviewTurn};
 use std::path::Path;
 
@@ -15,6 +15,7 @@ pub(super) fn parse_session_transcript(
         AgentType::Gemini => {
             gemini::parse_transcript(transcript_path, SessionReadMode::FullBackfill)
         }
+        AgentType::Grok => grok::parse_transcript(transcript_path, SessionReadMode::FullBackfill),
         AgentType::OpenCode => {
             opencode::parse_transcript(transcript_path, session_id, SessionReadMode::FullBackfill)
         }

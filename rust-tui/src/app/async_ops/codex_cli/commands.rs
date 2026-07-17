@@ -15,16 +15,24 @@ pub(super) fn detect_codex_cli_version_info() -> CodexCliVersionInfo {
 }
 
 pub(super) fn update_codex_cli() -> Result<CodexCliVersionInfo, String> {
-    let output = Command::new("npm")
-        .args(["install", "-g", "@openai/codex@latest"])
+    let binary_path = command_path("codex")
+        .ok_or_else(|| "Codex executable was not found in PATH".to_string())?;
+    run_codex_cli_update(&binary_path)?;
+
+    Ok(detect_codex_cli_version_info())
+}
+
+fn run_codex_cli_update(binary_path: &str) -> Result<(), String> {
+    let output = Command::new(binary_path)
+        .arg("update")
         .output()
-        .map_err(|err| format!("failed to launch npm: {err}"))?;
+        .map_err(|err| format!("failed to launch Codex update: {err}"))?;
 
     if !output.status.success() {
         return Err(failed_command_message(&output));
     }
 
-    Ok(detect_codex_cli_version_info())
+    Ok(())
 }
 
 fn failed_command_message(output: &std::process::Output) -> String {
@@ -35,7 +43,7 @@ fn failed_command_message(output: &std::process::Output) -> String {
     } else if !stdout.is_empty() {
         stdout
     } else {
-        format!("npm exited with status {}", output.status)
+        format!("Codex update exited with status {}", output.status)
     }
 }
 

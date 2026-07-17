@@ -1,6 +1,7 @@
 use super::common::{
     backup_file, claude_backup_path, claude_settings_path, has_backup, parse_json_object,
-    restore_file, serialize_json_pretty, should_restore_standard_relay_config, write_text_file,
+    parse_json_object_strict, restore_file, serialize_json_pretty,
+    should_restore_standard_relay_config, write_text_file,
 };
 use crate::theme::AgentConfig;
 use serde_json::json;
@@ -18,7 +19,14 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
         return;
     };
 
-    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => "{}".to_string(),
+        Err(_) => return,
+    };
+    if parse_json_object_strict(&content).is_none() {
+        return;
+    }
     if !has_backup(&claude_backup_path()) {
         let _ = backup_file(&claude_backup_path(), &content);
     }

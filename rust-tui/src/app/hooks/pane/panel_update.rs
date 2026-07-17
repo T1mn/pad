@@ -8,6 +8,7 @@ pub(super) fn apply_panel_hook_event(
     event: &HookEvent,
     panel_item_focused: bool,
 ) -> Option<SessionCacheSnapshot> {
+    let persisted_snapshot = persist_hook_event(panel, event);
     apply_event_metadata(panel, event);
     apply_event_state(panel, event, panel_item_focused);
     crate::session_continuity::record_hook_event(
@@ -17,7 +18,6 @@ pub(super) fn apply_panel_hook_event(
         panel.transcript_path.as_deref(),
     );
 
-    let persisted_snapshot = persist_hook_event(panel, event);
     if let Some(snapshot) = persisted_snapshot.as_ref() {
         apply_persisted_snapshot(panel, snapshot);
     }

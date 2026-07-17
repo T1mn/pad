@@ -14,10 +14,10 @@
 - `pad_sider/`：Codex pane 左侧全屏辅助栏，负责 tree、文件/代码预览、`/` fuzzy 搜索与 Codex diff 审阅。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
-- `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/`：同步 PAD 私有 Codex home provider 元数据，并读取/归档 Codex 线程状态。
+- `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/` / `codex_rollout.rs`：同步 PAD 私有 Codex home provider 元数据，解析普通或冷压缩 rollout，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
 - `relay.rs` / `relay/`：各 agent relay/native 配置与运行时覆盖。
-- `preview_source/` / `claude_history.rs` / `claude_history/` / `gemini_history/`：Claude/Codex/Gemini/OpenCode 会话预览与历史解析。
+- `preview_source/` / `claude_history.rs` / `claude_history/` / `gemini_history/` / `grok_history/`：Claude/Codex/Gemini/Grok/OpenCode 会话预览与历史解析。
 - `chat/` / `telegram.rs`：聊天后端与 Telegram 集成。
 - `notify.rs` / `notify/`：桌面通知入口、平台命令选择与通知子进程 helper。
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。

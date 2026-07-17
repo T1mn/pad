@@ -2,6 +2,7 @@ mod claude;
 pub(crate) mod codex;
 mod core;
 mod gemini;
+mod grok;
 mod opencode;
 mod session_loader;
 mod session_target;

@@ -40,6 +40,7 @@ fn agent_type_label(agent_type: &AgentType) -> &'static str {
     match agent_type {
         AgentType::Claude => "claude",
         AgentType::Codex => "codex",
+        AgentType::Grok => "grok",
         AgentType::Kimi => "kimi",
         AgentType::Gemini => "gemini",
         AgentType::OpenCode => "opencode",

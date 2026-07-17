@@ -19,15 +19,8 @@ pub(super) fn export_opencode_stats(project: &str, command: &OsString) -> io::Re
 
 fn collect_stats_output(project: &str, command: &OsString) -> io::Result<String> {
     let output = Command::new(command)
-        .args([
-            "stats",
-            "--project",
-            project,
-            "--models",
-            "10",
-            "--tools",
-            "10",
-        ])
+        .current_dir(project)
+        .args(["stats", "--project", "", "--models", "10", "--tools", "10"])
         .output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -45,3 +38,7 @@ fn collect_stats_output(project: &str, command: &OsString) -> io::Result<String>
         Ok(body)
     }
 }
+
+#[cfg(test)]
+#[path = "export_tests.rs"]
+mod tests;

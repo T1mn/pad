@@ -8,13 +8,27 @@ pub(in crate::relay) fn read_json_value(
     let Ok(content) = std::fs::read_to_string(path) else {
         return fallback;
     };
-    let parsed = serde_json::from_str::<serde_json::Value>(&strip_json_comments(&content))
+    let parsed = strip_json_comments(&content)
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .unwrap_or(fallback);
     if parsed.is_object() {
         parsed
     } else {
         json!({})
     }
+}
+
+pub(in crate::relay) fn read_json_object_for_update(
+    path: &Path,
+    fallback: serde_json::Value,
+) -> Option<serde_json::Value> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(fallback),
+        Err(_) => return None,
+    };
+
+    parse_json_object_strict(&strip_json_comments(&content)?)
 }
 
 pub(in crate::relay) fn write_json_value(path: &Path, value: &serde_json::Value) {
@@ -38,6 +52,12 @@ pub(in crate::relay) fn parse_json_object(content: &str) -> serde_json::Value {
     obj
 }
 
+pub(in crate::relay) fn parse_json_object_strict(content: &str) -> Option<serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .filter(serde_json::Value::is_object)
+}
+
 pub(in crate::relay) fn serialize_json_pretty(value: &serde_json::Value) -> String {
     let mut serialized = serde_json::to_string_pretty(value).unwrap_or_default();
     if !serialized.ends_with('\n') {
@@ -46,7 +66,7 @@ pub(in crate::relay) fn serialize_json_pretty(value: &serde_json::Value) -> Stri
     serialized
 }
 
-fn strip_json_comments(content: &str) -> String {
+fn strip_json_comments(content: &str) -> Option<String> {
     let mut out = String::with_capacity(content.len());
     let mut chars = content.chars().peekable();
     let mut in_string = false;
@@ -86,12 +106,18 @@ fn strip_json_comments(content: &str) -> String {
                 Some('*') => {
                     chars.next();
                     let mut previous = '\0';
+                    let mut closed = false;
                     for next in chars.by_ref() {
                         if previous == '*' && next == '/' {
+                            closed = true;
                             break;
                         }
                         previous = next;
                     }
+                    if !closed {
+                        return None;
+                    }
+                    out.push(' ');
                     continue;
                 }
                 _ => {}
@@ -101,5 +127,5 @@ fn strip_json_comments(content: &str) -> String {
         out.push(ch);
     }
 
-    out
+    Some(out)
 }

@@ -54,7 +54,7 @@ pub(super) fn normalize_rollout_prefix(
                 OR rollout_path LIKE ?4",
             (
                 to_prefix,
-                from_with_sep.len() as i64,
+                from_with_sep.chars().count() as i64,
                 from_prefix,
                 format!("{from_with_sep}%"),
             ),

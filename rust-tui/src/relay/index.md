@@ -1,6 +1,6 @@
 # relay
 
-- `claude.rs`：Claude 原生配置写入、base URL 规范化、模型与兼容 env。
+- `claude.rs`：Claude 原生配置安全写入、base URL 规范化、模型与兼容 env；损坏配置拒绝覆盖。
 - `codex.rs` / `codex/`：Codex relay 应用入口，拆分配置写入、auth 更新、provider sync 与 export/import YAML。
 - `deepseek.rs` / `deepseek/`：DeepSeek(cc) 独立 Claude 配置目录与启动脚本生成。
 - `gemini.rs`：Gemini 原生配置写入。

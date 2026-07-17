@@ -3,7 +3,7 @@ use std::process::Command;
 
 pub(crate) fn default_db_paths() -> Vec<PathBuf> {
     let mut paths = configured_db_paths();
-    if paths.iter().any(|path| path.exists()) {
+    if opencode_db_is_configured() || paths.iter().any(|path| path.exists()) {
         return paths;
     }
     if let Some(path) = opencode_cli_db_path() {
@@ -21,8 +21,24 @@ where
     F: Fn(&str) -> Option<std::ffi::OsString>,
 {
     let mut paths = Vec::new();
-    if let Some(path) = get_env("OPENCODE_DB") {
-        paths.push(PathBuf::from(path));
+    if let Some(path) = get_env("OPENCODE_DB").filter(|path| !path.is_empty()) {
+        let path = PathBuf::from(path);
+        if path == std::path::Path::new(":memory:") {
+            return paths;
+        }
+        if path.is_absolute() {
+            paths.push(path);
+            return paths;
+        }
+        let data_home = get_env("XDG_DATA_HOME").map(PathBuf::from).or_else(|| {
+            get_env("HOME").map(|home| PathBuf::from(home).join(".local").join("share"))
+        });
+        paths.push(
+            data_home
+                .map(|root| root.join("opencode").join(&path))
+                .unwrap_or(path),
+        );
+        return paths;
     }
     if let Some(data_home) = get_env("XDG_DATA_HOME") {
         push_unique(
@@ -50,6 +66,12 @@ where
         );
     }
     paths
+}
+
+fn opencode_db_is_configured() -> bool {
+    std::env::var_os("OPENCODE_DB")
+        .filter(|path| !path.is_empty())
+        .is_some()
 }
 
 fn opencode_cli_db_path() -> Option<PathBuf> {

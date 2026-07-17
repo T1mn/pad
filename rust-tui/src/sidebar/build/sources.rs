@@ -1,5 +1,6 @@
 use crate::claude_history::ClaudeThreadRef;
 use crate::gemini_history::GeminiThreadRef;
+use crate::grok_history::GrokThreadRef;
 use crate::model::AgentType;
 use crate::opencode_history::OpenCodeThreadRef;
 use crate::session_cache::SessionCacheSnapshot;
@@ -9,6 +10,7 @@ pub(super) struct HistorySources {
     pub(super) codex_session_snapshots: HashMap<String, SessionCacheSnapshot>,
     pub(super) claude_threads: Option<Vec<ClaudeThreadRef>>,
     pub(super) gemini_threads: Option<Vec<GeminiThreadRef>>,
+    pub(super) grok_threads: Option<Vec<GrokThreadRef>>,
     pub(super) opencode_threads: Option<Vec<OpenCodeThreadRef>>,
 }
 
@@ -17,7 +19,16 @@ pub(super) fn load_history_sources(live_only: bool, archived_threads_view: bool)
         codex_session_snapshots: load_codex_session_snapshots(live_only, archived_threads_view),
         claude_threads: load_claude_threads(live_only, archived_threads_view),
         gemini_threads: load_gemini_threads(live_only, archived_threads_view),
+        grok_threads: load_grok_threads(live_only, archived_threads_view),
         opencode_threads: load_opencode_threads(live_only, archived_threads_view),
+    }
+}
+
+fn load_grok_threads(live_only: bool, archived_threads_view: bool) -> Option<Vec<GrokThreadRef>> {
+    if live_only || archived_threads_view {
+        None
+    } else {
+        crate::grok_history::all_threads().ok()
     }
 }
 

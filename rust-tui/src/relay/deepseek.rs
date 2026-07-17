@@ -1,3 +1,5 @@
+mod launcher;
+
 use super::common::{
     parse_json_object, serialize_json_pretty, should_restore_standard_relay_config, write_text_file,
 };
@@ -151,19 +153,8 @@ exec claude "$@"
         model_name
     );
 
-    if let Err(e) = std::fs::write(&script_path, script) {
+    if let Err(e) = launcher::write(&script_path, script.as_bytes()) {
         eprintln!("Failed to write deepseek launcher: {}", e);
-        return;
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&script_path)
-            .map(|m| m.permissions())
-            .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o755));
-        perms.set_mode(0o755);
-        let _ = std::fs::set_permissions(&script_path, perms);
     }
 }
 

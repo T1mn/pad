@@ -3,6 +3,7 @@ use std::path::PathBuf;
 const DEFAULT_AGENTS: &[(&str, &str)] = &[
     ("claude-code", "claude"),
     ("codex", "codex"),
+    ("grok-build", "grok"),
     ("kimi-cli", "kimi-cli"),
     ("gemini-cli", "gemini-cli"),
     ("opencode", "opencode"),

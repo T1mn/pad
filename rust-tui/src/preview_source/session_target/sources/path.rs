@@ -1,6 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub(super) fn select_cwd_candidate<T>(threads: Vec<T>, require_unique: bool) -> Option<T> {
+    if require_unique && threads.len() != 1 {
+        return None;
+    }
+    threads.into_iter().next()
+}
+
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {
     if left == right {
         return true;
@@ -50,3 +57,7 @@ where
 
     None
 }
+
+#[cfg(test)]
+#[path = "path_tests.rs"]
+mod tests;

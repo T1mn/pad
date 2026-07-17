@@ -71,6 +71,32 @@ fn set_toml_bool_in_section_preserves_leading_blank_line() {
 }
 
 #[test]
+fn set_toml_bool_in_section_updates_compact_assignment_only() {
+    let updated = set_toml_bool_in_section(
+        "[features]\nhooks=false\nhooks_extra=false\n",
+        "features",
+        "hooks",
+        true,
+    );
+    let parsed = updated
+        .parse::<toml::Value>()
+        .expect("updated config must remain valid TOML");
+    let features = parsed
+        .get("features")
+        .and_then(toml::Value::as_table)
+        .expect("features table");
+
+    assert_eq!(
+        features.get("hooks").and_then(toml::Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        features.get("hooks_extra").and_then(toml::Value::as_bool),
+        Some(false)
+    );
+}
+
+#[test]
 fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
     let updated = remove_toml_key_in_section(
         "[features]\ncodex_hooks = true\nhooks = true\n",
@@ -79,4 +105,30 @@ fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
     );
 
     assert_eq!(updated, "[features]\nhooks = true\n");
+}
+
+#[test]
+fn remove_toml_key_in_section_removes_compact_assignment_only() {
+    let updated = remove_toml_key_in_section(
+        "[features]\ncodex_hooks=false\ncodex_hooks_extra=false\nhooks=true\n",
+        "features",
+        "codex_hooks",
+    );
+    let parsed = updated.parse::<toml::Value>().expect("valid TOML");
+    let features = parsed
+        .get("features")
+        .and_then(toml::Value::as_table)
+        .expect("features table");
+
+    assert!(!features.contains_key("codex_hooks"));
+    assert_eq!(
+        features
+            .get("codex_hooks_extra")
+            .and_then(toml::Value::as_bool),
+        Some(false)
+    );
+    assert_eq!(
+        features.get("hooks").and_then(toml::Value::as_bool),
+        Some(true)
+    );
 }

@@ -1,4 +1,4 @@
-use super::common::{opencode_config_path, read_json_value, write_json_value};
+use super::common::{opencode_config_path, read_json_object_for_update, write_json_value};
 use crate::theme::AgentConfig;
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -9,10 +9,12 @@ mod provider;
 
 pub(super) fn apply_opencode_agent_config(agent: &AgentConfig) {
     let path = opencode_config_path();
-    let mut root = read_json_value(
+    let Some(mut root) = read_json_object_for_update(
         &path,
         json!({ "$schema": "https://opencode.ai/config.json" }),
-    );
+    ) else {
+        return;
+    };
     ensure_schema(&mut root);
 
     let previous_managed = managed::read_opencode_managed_keys();

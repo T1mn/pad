@@ -55,9 +55,7 @@ pub fn unarchive_thread(session_id: &str) -> io::Result<()> {
 }
 
 fn default_projects_root() -> io::Result<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "home directory not found"))?;
-    Ok(home.join(".claude").join("projects"))
+    Ok(crate::paths::claude_projects_dir())
 }
 
 fn default_index_db_path() -> io::Result<PathBuf> {

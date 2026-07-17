@@ -37,7 +37,7 @@ fn export_diagnostics(command: &OsString) -> io::Result<PathBuf> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, report::format_report(&sections).as_bytes())?;
+    report::write_private_report(&path, &report::format_report(&sections))?;
     Ok(path)
 }
 

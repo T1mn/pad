@@ -1,5 +1,7 @@
 #[path = "tests/bench.rs"]
 mod bench;
+#[path = "tests/compressed.rs"]
+mod compressed;
 #[path = "tests/normalize.rs"]
 mod normalize;
 #[path = "tests/status.rs"]

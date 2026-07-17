@@ -70,6 +70,41 @@ fn sync_skips_when_state_db_is_missing() {
     let _ = std::fs::remove_dir_all(&codex_home);
 }
 
+#[cfg(unix)]
+#[test]
+fn sync_preserves_rollout_file_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let codex_home = temp_codex_home("rollout-permissions");
+    let relative = "sessions/2026/04/10/rollout-private.jsonl";
+    let rollout_path = codex_home.join(relative);
+    write_rollout(&rollout_path, "thread-private", "old");
+    std::fs::set_permissions(&rollout_path, std::fs::Permissions::from_mode(0o600))
+        .expect("set private rollout permissions");
+
+    let result = sync_to_provider_at(&codex_home, "openai").expect("sync provider");
+
+    assert_eq!(result.updated_rollout_files, 1);
+    let rollout = rollout_text(&codex_home, relative);
+    assert!(rollout.contains("\"model_provider\":\"openai\""));
+    assert!(rollout.contains("\"type\":\"event_msg\""));
+    let mode = std::fs::metadata(&rollout_path)
+        .expect("stat synced rollout")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o600, "rollout permissions changed to {mode:o}");
+    let temp_files = std::fs::read_dir(rollout_path.parent().expect("rollout dir"))
+        .expect("read rollout dir")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().contains(".pad-sync"))
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    assert!(temp_files.is_empty(), "leftover temp files: {temp_files:?}");
+
+    let _ = std::fs::remove_dir_all(&codex_home);
+}
+
 #[test]
 fn sync_to_provider_uses_pad_private_codex_home() {
     with_temp_home("private-home", |_home| {

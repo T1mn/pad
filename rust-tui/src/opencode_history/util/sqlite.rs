@@ -11,7 +11,11 @@ pub(crate) fn open_readonly(path: &Path) -> io::Result<rusqlite::Connection> {
 }
 
 pub(crate) fn open_write(path: &Path) -> io::Result<rusqlite::Connection> {
-    rusqlite::Connection::open(path).map_err(to_io_error)
+    let connection = rusqlite::Connection::open(path).map_err(to_io_error)?;
+    connection
+        .busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(to_io_error)?;
+    Ok(connection)
 }
 
 pub(crate) fn to_io_error(err: rusqlite::Error) -> io::Error {

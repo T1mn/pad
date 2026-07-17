@@ -5,6 +5,7 @@ use std::fmt;
 pub enum AgentType {
     Claude,
     Codex,
+    Grok,
     Kimi,
     Gemini,
     OpenCode,
@@ -24,6 +25,7 @@ impl AgentType {
         match self {
             AgentType::Claude => "claude",
             AgentType::Codex => "codex",
+            AgentType::Grok => "grok",
             AgentType::Kimi => "kimi",
             AgentType::Gemini => "gemini",
             AgentType::OpenCode => "opencode",
@@ -37,6 +39,7 @@ impl AgentType {
         match self {
             AgentType::Claude => "🟣C",
             AgentType::Codex => "🔵X",
+            AgentType::Grok => "🔴G",
             AgentType::Kimi => "🟢K",
             AgentType::Gemini => "🔷G",
             AgentType::OpenCode => "🟠O",
@@ -51,6 +54,8 @@ impl AgentType {
             AgentType::Claude
         } else if contains_ascii_ignore_case(processes, "codex") {
             AgentType::Codex
+        } else if contains_ascii_ignore_case(processes, "grok") {
+            AgentType::Grok
         } else if contains_ascii_ignore_case(processes, "kimi") {
             AgentType::Kimi
         } else if contains_ascii_ignore_case(processes, "gemini") {

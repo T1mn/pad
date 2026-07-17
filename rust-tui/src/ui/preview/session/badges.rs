@@ -34,6 +34,7 @@ pub(crate) fn preview_agent_badge_colors(
     match agent_type {
         crate::model::AgentType::Codex => (theme.bg, Color::Rgb(88, 166, 255)),
         crate::model::AgentType::Claude => (theme.bg, Color::Rgb(249, 140, 87)),
+        crate::model::AgentType::Grok => (theme.bg, Color::Rgb(255, 70, 70)),
         crate::model::AgentType::Gemini => (theme.bg, Color::Rgb(180, 140, 255)),
         crate::model::AgentType::Kimi | crate::model::AgentType::OpenCode => {
             (Color::White, Color::Black)

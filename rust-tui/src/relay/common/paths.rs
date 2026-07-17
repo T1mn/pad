@@ -43,7 +43,7 @@ pub(in crate::relay) fn claude_permission_state_path() -> PathBuf {
 }
 
 pub(in crate::relay) fn claude_settings_path() -> PathBuf {
-    home_dir().join(".claude").join("settings.json")
+    crate::paths::claude_settings_path()
 }
 
 pub(in crate::relay) fn claude_backup_path() -> PathBuf {

@@ -1,5 +1,6 @@
 use crate::claude_history::ClaudeThreadRef;
 use crate::gemini_history::GeminiThreadRef;
+use crate::grok_history::GrokThreadRef;
 use crate::model::AgentPanel;
 use std::collections::HashMap;
 
@@ -20,6 +21,7 @@ pub(super) fn seed_history_folders(
     archived_threads_view: bool,
     claude_threads: Option<&[ClaudeThreadRef]>,
     gemini_threads: Option<&[GeminiThreadRef]>,
+    grok_threads: Option<&[GrokThreadRef]>,
     opencode_threads: Option<&[crate::opencode_history::OpenCodeThreadRef]>,
 ) {
     let codex_threads = if archived_threads_view {
@@ -45,6 +47,10 @@ pub(super) fn seed_history_folders(
         if thread.kind == "subagent" {
             continue;
         }
+        ensure_folder(folders, &thread.cwd.to_string_lossy());
+    }
+
+    for thread in grok_threads.unwrap_or(&[]) {
         ensure_folder(folders, &thread.cwd.to_string_lossy());
     }
 

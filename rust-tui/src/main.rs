@@ -9,6 +9,7 @@ mod chat;
 mod claude_history;
 mod cli;
 mod codex_provider_sync;
+mod codex_rollout;
 mod codex_runtime;
 mod codex_state;
 mod codex_turn_diff;
@@ -16,6 +17,7 @@ mod detector;
 mod event;
 mod fuzzy;
 mod gemini_history;
+mod grok_history;
 mod hook;
 mod i18n;
 #[macro_use]

@@ -9,8 +9,9 @@ pub(super) use files::{
     has_pad_codex_backup, restore_codex_auth, restore_codex_config, restore_file, write_text_file,
 };
 pub(super) use formats::{
-    parse_env_file, parse_json_object, parse_toml_document, read_json_value, serialize_env_file,
-    serialize_json_pretty, serialize_toml_document, write_json_value,
+    parse_env_file, parse_json_object, parse_json_object_strict, parse_toml_document,
+    read_json_object_for_update, read_json_value, serialize_env_file, serialize_json_pretty,
+    serialize_toml_document, write_json_value,
 };
 pub(super) use paths::{
     claude_backup_path, claude_permission_state_path, claude_settings_path, codex_auth_path,

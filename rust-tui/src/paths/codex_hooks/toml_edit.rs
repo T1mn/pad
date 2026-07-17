@@ -5,7 +5,6 @@ pub(crate) fn set_toml_bool_in_section(
     value: bool,
 ) -> String {
     let target_header = format!("[{}]", section);
-    let key_prefix = format!("{} =", key);
     let new_line = format!("{} = {}", key, value);
 
     let mut result =
@@ -37,7 +36,7 @@ pub(crate) fn set_toml_bool_in_section(
             in_target = false;
         }
 
-        if in_target && trimmed.starts_with(&key_prefix) {
+        if in_target && is_bare_key_assignment(trimmed, key) {
             push_toml_line(&mut result, &mut wrote_line, &new_line);
             key_written = true;
             last_line_empty = false;
@@ -67,7 +66,6 @@ pub(crate) fn set_toml_bool_in_section(
 
 pub(crate) fn remove_toml_key_in_section(content: &str, section: &str, key: &str) -> String {
     let target_header = format!("[{}]", section);
-    let key_prefix = format!("{} =", key);
 
     let mut result = String::with_capacity(content.len());
     let mut wrote_line = false;
@@ -87,7 +85,7 @@ pub(crate) fn remove_toml_key_in_section(content: &str, section: &str, key: &str
             in_target = false;
         }
 
-        if in_target && trimmed.starts_with(&key_prefix) {
+        if in_target && is_bare_key_assignment(trimmed, key) {
             continue;
         }
 
@@ -95,6 +93,11 @@ pub(crate) fn remove_toml_key_in_section(content: &str, section: &str, key: &str
     }
 
     finish_toml_result(result)
+}
+
+fn is_bare_key_assignment(line: &str, key: &str) -> bool {
+    line.strip_prefix(key)
+        .is_some_and(|rest| rest.trim_start_matches([' ', '\t']).starts_with('='))
 }
 
 fn push_toml_line(result: &mut String, wrote_line: &mut bool, line: &str) {

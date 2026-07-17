@@ -1,6 +1,6 @@
 [package]
 name = "pad"
-version = "0.7.2"
+version = "0.7.3"
 edition = "2021"
 default-run = "pad"
 authors = ["T1mn <tinggofun@gmail.com>"]
@@ -24,6 +24,7 @@ toml = "0.7"
 tokio = { version = "1.35", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+zstd = "0.13"
 
 # Unix-only PTY support
 [target.'cfg(unix)'.dependencies]

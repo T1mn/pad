@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod bindings;
 #[cfg(test)]
+mod persist;
+#[cfg(test)]
 mod preload;
 #[cfg(test)]
 mod summary;

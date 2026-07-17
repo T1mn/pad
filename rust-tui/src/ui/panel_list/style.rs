@@ -38,6 +38,7 @@ pub(crate) fn badge_color(agent_type: AgentType, theme: &Theme) -> Color {
     match agent_type {
         AgentType::Claude => Color::Rgb(249, 140, 87),
         AgentType::Codex => Color::Rgb(88, 166, 255),
+        AgentType::Grok => Color::Rgb(255, 70, 70),
         AgentType::Kimi => Color::Rgb(80, 200, 120),
         AgentType::Gemini => Color::Rgb(180, 140, 255),
         AgentType::OpenCode => Color::Rgb(250, 173, 20),

@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 
 mod base;
+mod claude;
 mod codex_home;
 mod codex_hooks;
 mod codex_wrapper;
@@ -10,6 +11,9 @@ mod prompts;
 mod runtime_files;
 mod sounds;
 
+#[cfg(test)]
+pub(crate) use claude::claude_config_dir;
+pub(crate) use claude::{claude_projects_dir, claude_settings_path};
 pub(crate) use codex_home::{
     canonical_codex_home_dir, ensure_pad_codex_home_layout, pad_codex_auth_path,
     pad_codex_config_path, pad_codex_home_dir, pad_codex_hooks_path,

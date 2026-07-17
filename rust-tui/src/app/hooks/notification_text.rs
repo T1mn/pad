@@ -6,6 +6,7 @@ pub(super) fn notification_agent_label(agent_type: &AgentType) -> &'static str {
     match agent_type {
         AgentType::Claude => "Claude",
         AgentType::Codex => "Codex",
+        AgentType::Grok => "Grok",
         AgentType::Gemini => "Gemini",
         AgentType::OpenCode => "OpenCode",
         AgentType::Kimi => "Kimi",
@@ -51,6 +52,11 @@ fn lookup_notification_title(agent_type: &AgentType, session_id: Option<&str>) -
                     .or(thread.last_user_message)
                     .or(thread.first_user_message)
             })
+            .map(normalize_notification_text),
+        AgentType::Grok => crate::grok_history::thread_for_id(session_id)
+            .ok()
+            .flatten()
+            .and_then(|thread| thread.title)
             .map(normalize_notification_text),
         _ => None,
     }

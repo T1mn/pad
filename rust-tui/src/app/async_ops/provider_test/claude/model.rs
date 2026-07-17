@@ -24,7 +24,7 @@ pub(super) fn claude_probe_models(configured_model: &str) -> Vec<String> {
 }
 
 fn claude_settings_model() -> Option<String> {
-    let path = dirs::home_dir()?.join(".claude").join("settings.json");
+    let path = crate::paths::claude_settings_path();
     let content = std::fs::read_to_string(path).ok()?;
     let value = serde_json::from_str::<serde_json::Value>(&content).ok()?;
     value
@@ -69,22 +69,5 @@ fn push_unique(out: &mut Vec<String>, model: &str) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::expanded_model_candidates;
-
-    #[test]
-    fn opus_1m_prefers_claude_code_wire_model() {
-        assert_eq!(
-            expanded_model_candidates("opus[1m]"),
-            vec!["claude-opus-4-8", "opus[1m]"]
-        );
-    }
-
-    #[test]
-    fn full_model_1m_strips_display_suffix_first() {
-        assert_eq!(
-            expanded_model_candidates("claude-opus-4-8[1m]"),
-            vec!["claude-opus-4-8", "claude-opus-4-8[1m]"]
-        );
-    }
-}
+#[path = "model_tests.rs"]
+mod tests;

@@ -2,6 +2,7 @@ use super::finalize::finalize_folder_threads;
 use super::history_claude::merge_claude_threads;
 use super::history_codex::merge_codex_threads;
 use super::history_gemini::merge_gemini_threads;
+use super::history_grok::merge_grok_threads;
 use super::history_opencode::merge_opencode_threads;
 use super::live::{self, should_hide_live_panel};
 use super::logging::{log_slow_folder, BuildLogStats};
@@ -93,6 +94,14 @@ fn merge_history_threads(
         ctx.thread_sort_activity,
         ctx.startup_thread_sort_activity,
         ctx.history_sources.gemini_threads.as_deref(),
+        ctx.archived_threads_view,
+    );
+    stats.grok_history_threads += merge_grok_threads(
+        folder,
+        ctx.activity_overrides,
+        ctx.thread_sort_activity,
+        ctx.startup_thread_sort_activity,
+        ctx.history_sources.grok_threads.as_deref(),
         ctx.archived_threads_view,
     );
     stats.opencode_history_threads += merge_opencode_threads(

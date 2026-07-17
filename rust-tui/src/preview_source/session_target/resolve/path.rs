@@ -1,6 +1,7 @@
 use super::super::sources::{
     claude_transcript_path_for_session_id_from_thread, codex_transcript_path_for_session_id,
     find_matching_jsonl, gemini_transcript_path_for_session_id_from_thread,
+    grok_transcript_path_for_session_id,
 };
 use crate::model::AgentType;
 use crate::preview_source::PreviewRequest;
@@ -24,6 +25,7 @@ pub(super) fn resolve_transcript_path(
         AgentType::Gemini => {
             gemini_transcript_path_for_session_id_from_thread(session_id, gemini_thread)
         }
+        AgentType::Grok => grok_transcript_path_for_session_id(session_id),
         AgentType::OpenCode => opencode_transcript_path(session_id),
         _ => None,
     }
@@ -31,13 +33,16 @@ pub(super) fn resolve_transcript_path(
 
 fn existing_request_transcript_path(request: &PreviewRequest) -> Option<PathBuf> {
     let candidate = PathBuf::from(request.transcript_path.as_ref()?);
+    if request.agent_type == AgentType::Codex {
+        return crate::codex_rollout::existing_rollout_path(&candidate);
+    }
     candidate.exists().then_some(candidate)
 }
 
 fn codex_transcript_path(session_id: &str) -> Option<PathBuf> {
     codex_transcript_path_for_session_id(session_id).or_else(|| {
         find_matching_jsonl(&dirs::home_dir()?.join(".codex").join("sessions"), |name| {
-            name.ends_with(".jsonl") && name.contains(session_id)
+            (name.ends_with(".jsonl") || name.ends_with(".jsonl.zst")) && name.contains(session_id)
         })
     })
 }
@@ -57,10 +62,9 @@ fn claude_transcript_path_from_filesystem(
 ) -> Option<PathBuf> {
     let started_at = Instant::now();
     let expected = format!("{}.jsonl", session_id);
-    let path = find_matching_jsonl(
-        &dirs::home_dir()?.join(".claude").join("projects"),
-        |name| name == expected,
-    );
+    let path = find_matching_jsonl(&crate::paths::claude_projects_dir(), |name| {
+        name == expected
+    });
     if started_at.elapsed().as_millis() >= 15 {
         crate::log_debug!(
             "session_target.resolve: target={} agent=claude fallback=filesystem elapsed_ms={} session_id={} hit={}",

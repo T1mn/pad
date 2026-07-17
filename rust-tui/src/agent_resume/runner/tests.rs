@@ -37,6 +37,23 @@ fn opencode_resume_command_uses_session_flag() {
 }
 
 #[test]
+fn grok_resume_command_uses_resume_flag_not_session_id() {
+    let target = ResumeTarget {
+        agent_session_id: "019f-session".into(),
+        agent_type: "grok".into(),
+        working_dir: "/tmp/demo".into(),
+        transcript_path: None,
+        title: None,
+        updated_at: 1,
+    };
+
+    assert_eq!(
+        build_resume_command(&target),
+        "exec grok --resume '019f-session'"
+    );
+}
+
+#[test]
 fn launch_plan_wraps_resume_command_in_tmux() {
     let target = ResumeTarget {
         agent_session_id: "sid".into(),

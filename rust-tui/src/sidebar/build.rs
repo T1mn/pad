@@ -4,6 +4,7 @@ mod folder;
 mod history_claude;
 mod history_codex;
 mod history_gemini;
+mod history_grok;
 mod history_opencode;
 mod live;
 mod logging;
@@ -58,6 +59,7 @@ pub fn build_sidebar_folders(
             archived_threads_view,
             history_sources.claude_threads.as_deref(),
             history_sources.gemini_threads.as_deref(),
+            history_sources.grok_threads.as_deref(),
             history_sources.opencode_threads.as_deref(),
         );
         log_sidebar_stage(

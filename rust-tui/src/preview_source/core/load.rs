@@ -98,7 +98,7 @@ fn supports_session_preview(request: &PreviewRequest) -> bool {
                 || request.agent_session_id.is_some()
                 || !request.cached_preview_turns.is_empty()
         }
-        AgentType::Gemini | AgentType::OpenCode => true,
+        AgentType::Gemini | AgentType::Grok | AgentType::OpenCode => true,
         _ => false,
     }
 }

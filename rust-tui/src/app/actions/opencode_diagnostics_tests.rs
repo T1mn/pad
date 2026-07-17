@@ -52,3 +52,39 @@ fn diagnostics_report_has_expected_sections() {
     assert!(body.contains("## mcp list"));
     assert!(body.contains("ERROR: no mcp"));
 }
+
+#[test]
+fn diagnostics_report_redacts_sensitive_keys_and_token_prefixes() {
+    let sections = [DiagnosticsSection {
+        title: "debug config",
+        body: concat!(
+            "  \"apiKey\": \"sk-live-secret\",\n",
+            "Authorization: Bearer xai-secret\n",
+            "tokens_input: 1200\n",
+            "safe output accidentally contains ghp_123456\n",
+        )
+        .into(),
+    }];
+    let body = format_report(&sections);
+    assert!(!body.contains("sk-live-secret"));
+    assert!(!body.contains("xai-secret"));
+    assert!(!body.contains("ghp_123456"));
+    assert!(body.contains("[REDACTED]"));
+    assert!(body.contains("tokens_input: 1200"));
+}
+
+#[cfg(unix)]
+#[test]
+fn diagnostics_report_file_is_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = crate::test_support::temp_path("pad", "diagnostics-mode");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("report.txt");
+    super::report::write_private_report(&path, "safe").unwrap();
+    assert_eq!(
+        std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

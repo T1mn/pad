@@ -5,7 +5,7 @@
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
 
-PAD gives you one place to manage Codex, Claude Code, Gemini, and other terminal agents.
+PAD gives you one place to manage Codex, Claude Code, Grok Build, OpenCode, Gemini, and other terminal agents.
 You can see which session moved, read recent conversation history, and only then jump into the right pane.
 
 ## TL;DR
@@ -90,14 +90,14 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 ## Core Features
 
-- One workspace view for live Codex, Claude Code, Gemini, and other agent sessions
+- One workspace view for live Codex, Claude Code, Grok Build, OpenCode, Gemini, and other agent sessions
 - See recent session history and latest turns without entering the pane
 - Pure Rust TUI with a small footprint and quick session-aware previews
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
 - Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
 - `F10` pad-sider for tree, index map, changes, and file preview beside your agent pane
-- Archive threads without touching upstream session data
+- Archive or restore with agent-specific adapters, without deleting upstream history
 - Relay / proxy settings for supported agents
 - Completion notifications when an agent finishes, on supported desktop backends
 - Telegram bot daemon for remote updates and quick session access
@@ -107,7 +107,7 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 - It does not replace tmux.
 - It does not fake tabs on top of tmux panes.
-- It does not delete upstream agent history when you archive a thread in PAD.
+- It does not delete upstream agent history when you archive a thread in PAD; some adapters update upstream archive metadata.
 - It does not take over the agent runtime. It helps you see and jump faster.
 
 ## Screen Tour
@@ -138,12 +138,12 @@ Settings stays in flow. Open it with `/`, change what you need, leave with `Esc`
 
 <img src="docs/media/archive-annotated.png" alt="PAD archive confirmation overview" width="960">
 
-Archive in PAD is narrow on purpose. It matches the Codex-side mental model: hide it from PAD, keep the original session data intact.
+Archive in PAD is reversible and never means delete. The exact metadata change depends on the agent.
 
 1. Confirmation dialog: archive is explicit and reversible. It is not delete.
 2. Target thread: the dialog shows exactly which thread is being archived before you confirm.
-3. Live pane warning: if the thread still has a live pane, PAD tells you clearly that archive only hides it in PAD and updates PAD's local index.
-4. Codex-aligned semantics: PAD keeps upstream session data untouched and only updates its own tracking layer. For Claude that means PAD updates its Claude sqlite index and does not modify the original `~/.claude` session source.
+3. Live pane warning: if the thread still has a live pane, PAD shows the target and effect before changing archive state.
+4. Agent-specific semantics: Codex moves the rollout between its active/archive directories and updates its state DB; OpenCode updates `time_archived`; Claude uses PAD's local index. None of these paths deletes the original conversation.
 
 ### Tree
 
@@ -259,13 +259,14 @@ Full session workflows:
 
 Extended session / history support:
 
+- 🔴 Grok Build (`grok`): process detection, launcher and pane attach, `--resume`, history, and preview from official session files; hooks, relay, archive, and export/import are not supported
 - 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, `opencode github install`, `opencode plugin`, `opencode pr`, `opencode run`, local `opencode serve`, project `opencode stats`, debug/provider/model diagnostics, `opencode attach`, `opencode web`, and `opencode --session` resume
 
 Basic launcher / pane workflows:
 
 - 🟢 Kimi (`kimi-cli`)
 
-PAD can still detect and attach to other terminal agents. OpenCode now has practical session workflows, while hook-driven live events are still deeper for Claude, Codex, and Gemini. See `docs/opencode-support.md` for the OpenCode capability matrix.
+PAD can still detect and attach to other terminal agents. Hook-driven live events remain deeper for Claude, Codex, and Gemini. See the [compatibility matrix](docs/agent-compatibility.md), [Grok notes](docs/grok-support.md), and [OpenCode notes](docs/opencode-support.md).
 
 ## Acknowledgements
 

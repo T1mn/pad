@@ -95,7 +95,10 @@ pub(super) fn normalize_probe_capture(capture: &str) -> String {
 }
 
 pub(super) fn extract_status_session_id(capture: &str) -> Option<String> {
-    for token in capture.split(|ch: char| {
+    let status_line = capture
+        .lines()
+        .find(|line| line.to_ascii_lowercase().contains("session id"))?;
+    for token in status_line.split(|ch: char| {
         ch.is_whitespace()
             || matches!(
                 ch,
