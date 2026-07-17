@@ -51,13 +51,20 @@ dump_diagnostics() {
     echo "--- pad.log ---" >&2
     cat "${LOG_FILE}" >&2
   fi
+  if [ -f "${SMOKE_HOME}/tmux-control.log" ]; then
+    echo "--- writable control client ---" >&2
+    cat "${SMOKE_HOME}/tmux-control.log" >&2
+  fi
 }
 
 fail() {
+  trap - ERR
   echo "$1" >&2
   dump_diagnostics
   exit 1
 }
+
+trap 'fail "tmux smoke command failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
 
 wait_for_file() {
   local path="$1"
