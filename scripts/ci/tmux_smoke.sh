@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-if [ "${RUNNER_OS:-}" = "macOS" ]; then
-  PS4='+${LINENO}: '
-  set -x
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PAD_BIN="${PAD_BIN:-${REPO_ROOT}/rust-tui/target/debug/pad}"
@@ -18,9 +12,12 @@ WRITABLE_CLIENT_PID=""
 
 cleanup() {
   if [ -n "${WRITABLE_CLIENT_PID}" ]; then
+    tm_write "kill-server" || true
+    sleep 0.1
     kill "${WRITABLE_CLIENT_PID}" >/dev/null 2>&1 || true
+  else
+    tmux -S "${SOCK}" kill-server >/dev/null 2>&1 || true
   fi
-  tmux -S "${SOCK}" kill-server >/dev/null 2>&1 || true
   rm -rf "${SMOKE_HOME}"
 }
 trap cleanup EXIT
@@ -28,6 +25,9 @@ trap cleanup EXIT
 tm() {
   tmux -S "${SOCK}" "$@"
 }
+
+tm_write() { printf '%s\n' "$1" >&9; }
+tm_run_shell() { printf 'run-shell %q\n' "$1" >&9; }
 
 dump_diagnostics() {
   echo "=== tmux smoke diagnostics ===" >&2
@@ -39,10 +39,6 @@ dump_diagnostics() {
   tm list-panes -a -F '#{session_name}:#{window_index}.#{pane_index} #{pane_id} #{pane_current_command} #{pane_current_path}' >&2 || true
   echo "--- pad pane capture ---" >&2
   tm capture-pane -p -t "pad:0.0" >&2 || true
-  echo "--- agents pane 0 capture ---" >&2
-  tm capture-pane -p -t "agents:0.0" >&2 || true
-  echo "--- agents pane 1 capture ---" >&2
-  tm capture-pane -p -t "agents:0.1" >&2 || true
   echo "--- agents panes ---" >&2
   tm list-panes -t agents:0 -F '#{pane_id}' 2>/dev/null | while read -r pane; do
     echo "--- ${pane} ---" >&2
@@ -178,11 +174,11 @@ if ! wait_for_capture "pad:0.0" "CODEX" 20; then
   fail "pad UI did not render the codex panel"
 fi
 
-tm send-keys -t pad:0.0 Enter
+tm_write "send-keys -t pad:0.0 Enter"
 sleep 1
-tm send-keys -t pad:0.0 2
+tm_write "send-keys -t pad:0.0 2"
 sleep 1
-tm send-keys -t pad:0.0 Enter
+tm_write "send-keys -t pad:0.0 Enter"
 
 if ! wait_for_log "attach.cross_session: handoff complete" 20; then
   fail "pad did not complete cross-session attach"
@@ -195,7 +191,7 @@ return_cmd="$(sed -n 's/^.*stage=attach\.return_cmd cmd=//p' "${LOG_FILE}" | tai
 if [ -z "${return_cmd}" ]; then
   fail "missing logged return command"
 fi
-tm run-shell "${return_cmd}"
+tm_run_shell "${return_cmd}"
 
 if ! wait_for_log "[return] after_return_select" 20; then
   fail "pad did not return to the original pane"
