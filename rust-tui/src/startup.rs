@@ -24,7 +24,9 @@ pub fn prepare_runtime_environment(
 }
 
 pub fn start_runtime_services(app: &mut App) -> Result<(), Box<dyn Error>> {
-    crate::relay::apply_runtime_configs(
+    // Do not rewrite provider live configs on launch; only apply permission overlays.
+    // Relay sync happens when the user edits relay settings, reloads config, or launches an agent.
+    crate::relay::apply_runtime_overlays(
         &app.config.agents,
         &app.config.agent_permissions,
         &app.config.codex,

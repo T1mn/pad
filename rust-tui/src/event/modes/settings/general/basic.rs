@@ -40,7 +40,7 @@ pub(in crate::event::modes::settings) fn handle_claude_full_access_detail_mode(
             app.config.agent_permissions.claude_auto_full_access =
                 !app.config.agent_permissions.claude_auto_full_access;
             app.config.save();
-            relay::apply_runtime_configs(
+            relay::apply_runtime_overlays(
                 &app.config.agents,
                 &app.config.agent_permissions,
                 &app.config.codex,

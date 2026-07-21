@@ -4,7 +4,8 @@ use super::common::{
     parse_env_file, serialize_env_file,
 };
 use super::{
-    apply_relay_configs, apply_runtime_configs, read_codex_relay_import, write_codex_relay_export,
+    apply_relay_configs, apply_runtime_configs, apply_runtime_overlays, read_codex_relay_import,
+    write_codex_relay_export,
 };
 use crate::paths::{
     codex_index_prompt_file_path, codex_jailbreak_prompt_file_path,

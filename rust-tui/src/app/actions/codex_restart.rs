@@ -36,7 +36,7 @@ impl App {
             self.show_action_toast(restart_failed_title(self.locale), &err.to_string());
             return false;
         }
-        crate::relay::apply_runtime_configs(
+        crate::relay::apply_runtime_overlays(
             &self.config.agents,
             &self.config.agent_permissions,
             &self.config.codex,

@@ -28,14 +28,28 @@ pub fn apply_relay_configs(agents: &[AgentConfig]) {
     }
 }
 
+/// Apply PAD-managed runtime permission overlays without rewriting provider live configs.
+///
+/// Startup and other non-relay UI paths should call this so OpenCode/Claude/etc.
+/// configs managed by external tools (e.g. CC-Switch) are left alone.
+pub fn apply_runtime_overlays(
+    agents: &[AgentConfig],
+    permissions: &AgentPermissionsConfig,
+    codex: &CodexConfig,
+) {
+    permissions::apply_runtime_overlays(agents, permissions, codex);
+}
+
 /// Apply both relay/provider config and PAD-managed runtime permission overlays.
+///
+/// Use only when the user (or an explicit config reload) changed PAD relay settings.
 pub fn apply_runtime_configs(
     agents: &[AgentConfig],
     permissions: &AgentPermissionsConfig,
     codex: &CodexConfig,
 ) {
     apply_relay_configs(agents);
-    permissions::apply_runtime_overlays(agents, permissions, codex);
+    apply_runtime_overlays(agents, permissions, codex);
 }
 
 pub fn write_codex_relay_export(agent: &AgentConfig) -> std::io::Result<PathBuf> {

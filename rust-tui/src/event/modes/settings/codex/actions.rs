@@ -107,7 +107,8 @@ fn apply_preview_action(app: &mut App) {
 
 fn persist_codex_runtime_config(app: &mut App) {
     app.config.save();
-    relay::apply_runtime_configs(
+    // Codex settings only change runtime overlays, not provider live configs.
+    relay::apply_runtime_overlays(
         &app.config.agents,
         &app.config.agent_permissions,
         &app.config.codex,
