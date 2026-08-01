@@ -51,7 +51,7 @@ jobs:
     name: Repository structure
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check index files
         run: python3 ./scripts/ci/check_index.py
@@ -63,7 +63,7 @@ jobs:
     name: Installer sync
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify generated install.sh is up to date
         run: |
@@ -83,7 +83,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -111,7 +111,7 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -146,7 +146,7 @@ jobs:
           - macos-15
           - macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -201,7 +201,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -242,7 +242,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -354,7 +354,7 @@ jobs:
             bootstrap: |
               apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download local Linux release archives
         uses: actions/download-artifact@v8
@@ -389,7 +389,7 @@ jobs:
             bootstrap: |
               apk add --no-cache bash curl ca-certificates build-base pkgconf git sudo tar gzip xz sed
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Docker source fallback smoke
         env:
@@ -415,7 +415,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -468,7 +468,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

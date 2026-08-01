@@ -49,7 +49,7 @@ jobs:
           - macos-15
           - macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux tmux
         if: runner.os == 'Linux'

@@ -21,7 +21,7 @@ jobs:
   tag-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate tag matches Cargo.toml version
         shell: bash
@@ -40,7 +40,7 @@ jobs:
     needs: tag-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Exercise SHA256SUMS verification in install.sh
         shell: bash
@@ -112,7 +112,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -178,7 +178,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -218,7 +218,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -269,7 +269,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -318,7 +318,7 @@ jobs:
       run:
         working-directory: rust-tui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -435,7 +435,7 @@ jobs:
             bootstrap: |
               apk add --no-cache bash curl ca-certificates sudo tar gzip xz sed
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download x86_64 Linux artifacts
         uses: actions/download-artifact@v8
