@@ -46,7 +46,7 @@ pub fn restart_daemon(config: &Config) -> io::Result<bool> {
 
 pub fn daemon_is_running() -> bool {
     runtime_status::read_status(&crate::paths::telegram_bot_status_path())
-        .map(|status| runtime_status::process_alive(status.pid))
+        .map(|status| runtime_status::status_process_alive(&status))
         .unwrap_or(false)
         || super::super::super::daemon_socket_is_active()
 }

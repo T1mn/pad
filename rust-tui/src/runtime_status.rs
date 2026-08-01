@@ -3,7 +3,11 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod identity;
+mod lock;
 mod process;
+
+pub(crate) use lock::StatusLock;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessStatus {
@@ -20,8 +24,9 @@ pub struct StatusGuard {
 
 impl StatusGuard {
     pub fn new(path: PathBuf, mode: &str) -> io::Result<Self> {
+        let _lock = StatusLock::acquire(&path)?;
         if let Some(existing) = read_status(&path) {
-            if existing.pid != std::process::id() && process_alive(existing.pid) {
+            if status_process_alive(&existing) {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
                     format!("{} already running with pid {}", mode, existing.pid),
@@ -46,12 +51,26 @@ impl StatusGuard {
 
 impl Drop for StatusGuard {
     fn drop(&mut self) {
-        if let Some(status) = read_status(&self.path) {
-            if status.pid == self.pid && status.started_at == self.started_at {
-                let _ = fs::remove_file(&self.path);
-            }
+        // A stop operation may already hold the lock while terminating us. In
+        // that case it owns the cleanup; leaving the file behind is safer than
+        // racing a new daemon's status write.
+        let Ok(_lock) = StatusLock::acquire(&self.path) else {
+            return;
+        };
+        if status_matches(&self.path, self.pid, self.started_at) {
+            let _ = fs::remove_file(&self.path);
         }
     }
+}
+
+fn status_matches(path: &Path, pid: u32, started_at: i64) -> bool {
+    read_status(path).is_some_and(|status| status.pid == pid && status.started_at == started_at)
+}
+
+pub(crate) fn status_lock_path(status_path: &Path) -> PathBuf {
+    let mut lock_path = status_path.to_path_buf();
+    lock_path.set_extension("lock");
+    lock_path
 }
 
 pub fn read_status(path: &Path) -> Option<ProcessStatus> {
@@ -59,11 +78,12 @@ pub fn read_status(path: &Path) -> Option<ProcessStatus> {
     serde_json::from_str(&body).ok()
 }
 
+pub use identity::status_process_alive;
 pub use process::process_alive;
 
 pub fn describe_status(path: &Path) -> String {
     match read_status(path) {
-        Some(status) if process_alive(status.pid) => format!("running (pid {})", status.pid),
+        Some(status) if status_process_alive(&status) => format!("running (pid {})", status.pid),
         Some(status) => format!("stopped (stale pid {})", status.pid),
         None => "stopped".to_string(),
     }
@@ -74,11 +94,8 @@ fn now_ts() -> i64 {
 }
 
 fn write_status_body(path: &Path, status: &ProcessStatus) -> io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
     let body = serde_json::to_string_pretty(status)?;
-    fs::write(path, body)
+    crate::atomic_file::write_private(path, body)
 }
 
 #[cfg(test)]
