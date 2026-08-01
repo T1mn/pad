@@ -15,8 +15,12 @@ LOCAL_REF_SUFFIXES = (".rs", ".py", ".sh", ".md", ".yml", ".yaml")
 LOCAL_GLOB_SUFFIXES = LOCAL_REF_SUFFIXES
 
 
-def tracked_files() -> set[str]:
-    output = subprocess.check_output(["git", "ls-files"], text=True)
+def workspace_files() -> set[str]:
+    # Include intent-to-add and ordinary untracked files so a local check
+    # catches stale references before the change is staged or committed.
+    output = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"], text=True
+    )
     return {line for line in output.splitlines() if line}
 
 
@@ -82,7 +86,7 @@ def validate_index_refs(index_file: str, files: set[str], dirs: set[str]) -> lis
 
 
 def main() -> int:
-    files = tracked_files()
+    files = workspace_files()
     dirs = tracked_dirs(files)
     errors: list[str] = []
 

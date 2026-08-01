@@ -13,8 +13,11 @@ EXEMPT_PREFIXES = (
 )
 
 
-def tracked_rust_files() -> list[str]:
-    output = subprocess.check_output(["git", "ls-files", "rust-tui/src"], text=True)
+def workspace_rust_files() -> list[str]:
+    output = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "rust-tui/src"],
+        text=True,
+    )
     return [line for line in output.splitlines() if line.endswith(".rs")]
 
 
@@ -37,7 +40,7 @@ def is_exempt(path: str) -> bool:
 
 def main() -> int:
     errors = []
-    for path in tracked_rust_files():
+    for path in workspace_rust_files():
         text = read_file(path)
         if not is_exempt(path):
             lines = line_count(text)

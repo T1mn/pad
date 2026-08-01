@@ -28,6 +28,11 @@ mod opencode {
     include!("provider_configs/opencode.rs");
 }
 
+mod opencode_runtime {
+    use super::*;
+    include!("provider_configs/opencode_runtime.rs");
+}
+
 mod opencode_safety {
     use super::*;
     include!("provider_configs/opencode_safety.rs");
