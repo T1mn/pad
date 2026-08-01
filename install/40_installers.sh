@@ -4,6 +4,7 @@ install_from_binary() {
   fi
 
   local os arch version filename url tmp_dir libc_family runtime_note
+  local sums_dir sums_file
   os="$(get_os)"
   arch="$(get_arch)"
 
@@ -30,6 +31,11 @@ install_from_binary() {
   fi
   say "  Version:  ${version}"
 
+  sums_dir="$(mktemp -d)"
+  TEMP_DIRS+=("${sums_dir}")
+  sums_file="${sums_dir}/${CHECKSUM_FILE}"
+  prepare_release_checksums "${version}" "${sums_file}"
+
   while IFS= read -r filename; do
     [ -n "$filename" ] || continue
     url="$(release_download_url "${version}" "${filename}")"
@@ -42,6 +48,8 @@ install_from_binary() {
       warn "  Download failed for ${filename}"
       continue
     fi
+
+    verify_release_archive "${tmp_dir}/pad.tar.gz" "${filename}" "${sums_file}"
 
     tar -xzf "${tmp_dir}/pad.tar.gz" -C "${tmp_dir}"
     mkdir -p "${INSTALL_DIR}"

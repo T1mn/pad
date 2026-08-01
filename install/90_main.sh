@@ -34,13 +34,20 @@ Usage:
 
 What this script does:
   1. Try to download a matching release binary
-  2. Fall back to building from source if needed
-  3. Offer to install tmux if it is missing
+  2. Verify it against the release SHA256SUMS before extracting
+  3. Fall back to building from source if needed
+  4. Offer to install tmux if it is missing
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
   PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_ALLOW_UNVERIFIED
+                         Install even when the archive cannot be checked against
+                         SHA256SUMS (unsafe; only for sources you fully trust)
+  PAD_INSTALL_REQUIRE_CHECKSUM
+                         Require SHA256SUMS even for a custom
+                         PAD_RELEASE_BASE_URL (always required for GitHub releases)
   PAD_INSTALL_DISABLE_SOURCE_FALLBACK
                          Fail instead of building from source when no compatible
                          prebuilt binary can be installed

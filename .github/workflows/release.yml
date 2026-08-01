@@ -35,6 +35,76 @@ jobs:
             exit 1
           }
 
+  installer-integrity:
+    name: Installer checksum verification
+    needs: tag-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exercise SHA256SUMS verification in install.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          archive="pad-v0.0.0-ci-linux-x86_64-glibc-2.35.tar.gz"
+          release_dir="${work}/release/v0.0.0-ci"
+          mkdir -p "${release_dir}" "${work}/stage" "${work}/fakebin" "${work}/home"
+
+          # A runnable stand-in binary so the installer self-check passes.
+          printf '#!/bin/sh\necho "pad 0.0.0-ci"\n' > "${work}/stage/pad"
+          chmod +x "${work}/stage/pad"
+          tar -czf "${release_dir}/${archive}" -C "${work}/stage" pad
+          (cd "${release_dir}" && sha256sum -- *.tar.gz > SHA256SUMS)
+
+          # tmux only has to exist for the runtime check.
+          printf '#!/bin/sh\necho "tmux 0.0"\n' > "${work}/fakebin/tmux"
+          chmod +x "${work}/fakebin/tmux"
+
+          run_installer() {
+            env PATH="${work}/fakebin:${PATH}" \
+                HOME="${work}/home" \
+                PAD_INSTALL_ASSUME_YES=1 \
+                PAD_INSTALL_DISABLE_SOURCE_FALLBACK=1 \
+                PAD_RELEASE_BASE_URL="file://${work}/release" \
+                VERSION=v0.0.0-ci \
+                INSTALL_DIR="${work}/bin" \
+                "$@" \
+                bash ./install.sh
+          }
+
+          echo "--- case 1: valid checksum installs"
+          run_installer > "${work}/ok.log" 2>&1
+          cat "${work}/ok.log"
+          grep -q "Verified: ${archive}" "${work}/ok.log"
+          grep -q "Installed binary to" "${work}/ok.log"
+
+          echo "--- case 2: tampered archive is rejected"
+          rm -f "${work}/bin/pad"
+          printf 'tampered' >> "${release_dir}/${archive}"
+          status=0
+          run_installer > "${work}/tampered.log" 2>&1 || status=$?
+          cat "${work}/tampered.log"
+          [ "${status}" -ne 0 ]
+          grep -q "Checksum mismatch" "${work}/tampered.log"
+          [ ! -e "${work}/bin/pad" ]
+
+          echo "--- case 3: missing SHA256SUMS fails when verification is required"
+          tar -czf "${release_dir}/${archive}" -C "${work}/stage" pad
+          rm -f "${release_dir}/SHA256SUMS"
+          status=0
+          run_installer PAD_INSTALL_REQUIRE_CHECKSUM=1 > "${work}/missing.log" 2>&1 || status=$?
+          cat "${work}/missing.log"
+          [ "${status}" -ne 0 ]
+          grep -q "publishes no SHA256SUMS" "${work}/missing.log"
+          [ ! -e "${work}/bin/pad" ]
+
+          echo "--- case 4: custom source without SHA256SUMS warns loudly"
+          run_installer > "${work}/unverified.log" 2>&1
+          cat "${work}/unverified.log"
+          grep -q "downloads will NOT be verified" "${work}/unverified.log"
+          grep -q "Installed binary to" "${work}/unverified.log"
+
   build-linux:
     needs: tag-check
     runs-on: ubuntu-22.04
@@ -374,6 +444,16 @@ jobs:
           path: .pad-release/${{ github.ref_name }}
           merge-multiple: true
 
+      - name: Generate SHA256SUMS for the local release fixture
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd ".pad-release/${RELEASE_TAG}"
+          sha256sum -- *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Validate release installer path
         env:
           IMAGE: ${{ matrix.image }}
@@ -390,6 +470,7 @@ jobs:
       - build-linux-musl
       - build-linux-musl-arm64
       - build-macos
+      - installer-integrity
       - validate-linux-release-compat
     runs-on: ubuntu-latest
     steps:
@@ -398,6 +479,27 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        shell: bash
+        working-directory: artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=( *.tar.gz )
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo "no release archives found to checksum" >&2
+            exit 1
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -- "${archives[@]}" > SHA256SUMS
+          elif command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 -- "${archives[@]}" > SHA256SUMS
+          else
+            echo "no sha256 tool available on this runner" >&2
+            exit 1
+          fi
+          cat SHA256SUMS
 
       - name: Prepare release body
         shell: bash
@@ -424,6 +526,15 @@ jobs:
           tar -xzf pad-*.tar.gz
           mv pad ~/.local/bin/
           ```
+
+          ### Verify a manual download
+          `SHA256SUMS` is published with every release; `install.sh` checks it automatically.
+
+          ```bash
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS
+          grep "pad-${{ github.ref_name }}-linux-x86_64-glibc-2.35.tar.gz" SHA256SUMS | sha256sum -c -
+          # macOS: replace `sha256sum -c -` with `shasum -a 256 -c -`
+          ```
           MD
           if [ -f artifacts/pad-power-smoke.md ]; then
             {
@@ -435,7 +546,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*.tar.gz
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS
           generate_release_notes: true
           body_path: release-body.md
         env:

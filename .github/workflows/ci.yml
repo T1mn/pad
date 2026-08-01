@@ -8,17 +8,29 @@ on:
     paths-ignore:
       - README.md
       - README_ZH.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+      - CHANGELOG.md
       - docs/**
       - .github/index.md
       - .github/release.yml
+      - .github/dependabot.yml
+      - .github/PULL_REQUEST_TEMPLATE.md
+      - .github/ISSUE_TEMPLATE/**
       - .github/workflows/index.md
   pull_request:
     paths-ignore:
       - README.md
       - README_ZH.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+      - CHANGELOG.md
       - docs/**
       - .github/index.md
       - .github/release.yml
+      - .github/dependabot.yml
+      - .github/PULL_REQUEST_TEMPLATE.md
+      - .github/ISSUE_TEMPLATE/**
       - .github/workflows/index.md
   workflow_dispatch:
 
@@ -32,6 +44,7 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   CROSS_VERSION: "0.2.5"
+  CARGO_AUDIT_VERSION: "0.22.2"
 
 jobs:
   repository-structure:
@@ -93,6 +106,32 @@ jobs:
 
       - name: cargo build --profile dist
         run: cargo build --profile dist
+
+  cargo-audit:
+    name: Dependency audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo-audit binary
+        id: audit-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-${{ runner.arch }}-${{ env.CARGO_AUDIT_VERSION }}
+
+      - name: Install cargo-audit
+        if: steps.audit-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --version "${CARGO_AUDIT_VERSION}" --locked
+
+      # Fails on RUSTSEC vulnerabilities. Unmaintained / unsound warnings are reported
+      # but do not fail the job, so an unfixable upstream crate cannot block every PR.
+      - name: cargo audit
+        working-directory: rust-tui
+        run: cargo audit
 
   installer-smoke:
     name: Installer smoke (${{ matrix.os }})

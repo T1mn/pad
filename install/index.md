@@ -2,7 +2,7 @@
 
 - `00_core.sh`：公共基础函数。
 - `10_platform.sh`：平台识别。
-- `20_release.sh`：release 资产选择与下载。
+- `20_release.sh`：release 资产选择、下载与 SHA256SUMS 校验。
 - `30_dependencies.sh`：依赖安装。
 - `40_installers.sh`：安装执行细节。
 - `50_prompt.sh`：交互提示。

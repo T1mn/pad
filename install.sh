@@ -9,7 +9,12 @@ VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
 DISABLE_SOURCE_FALLBACK="${PAD_INSTALL_DISABLE_SOURCE_FALLBACK:-0}"
-RELEASE_BASE_URL="${PAD_RELEASE_BASE_URL:-https://github.com/${REPO}/releases/download}"
+DEFAULT_RELEASE_BASE_URL="https://github.com/${REPO}/releases/download"
+RELEASE_BASE_URL="${PAD_RELEASE_BASE_URL:-${DEFAULT_RELEASE_BASE_URL}}"
+CHECKSUM_FILE="SHA256SUMS"
+ALLOW_UNVERIFIED="${PAD_INSTALL_ALLOW_UNVERIFIED:-0}"
+REQUIRE_CHECKSUM="${PAD_INSTALL_REQUIRE_CHECKSUM:-auto}"
+CHECKSUM_MODE="verify"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -207,6 +212,165 @@ release_download_url() {
   local filename="$2"
   local base="${RELEASE_BASE_URL%/}"
   echo "${base}/${version}/${filename}"
+}
+
+checksum_tool() {
+  if check_command sha256sum; then
+    echo "sha256sum"
+  elif check_command shasum; then
+    echo "shasum"
+  elif check_command openssl; then
+    echo "openssl"
+  else
+    echo "none"
+  fi
+}
+
+file_sha256() {
+  local path="$1"
+  local output=""
+
+  case "$(checksum_tool)" in
+    sha256sum)
+      output="$(sha256sum "$path" 2>/dev/null || true)"
+      output="${output%% *}"
+      ;;
+    shasum)
+      output="$(shasum -a 256 "$path" 2>/dev/null || true)"
+      output="${output%% *}"
+      ;;
+    openssl)
+      output="$(openssl dgst -sha256 "$path" 2>/dev/null || true)"
+      output="${output##* }"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  [ -n "$output" ] || return 1
+  printf '%s\n' "$output" | tr '[:upper:]' '[:lower:]'
+}
+
+# Look up the digest recorded for one asset in a `sha256sum`-style manifest.
+expected_sha256_for() {
+  local sums_file="$1"
+  local filename="$2"
+  local hash name
+
+  [ -r "$sums_file" ] || return 1
+  while read -r hash name || [ -n "$hash" ]; do
+    [ -n "$hash" ] || continue
+    case "$hash" in \#*) continue ;; esac
+    name="${name#\*}"
+    name="${name##*/}"
+    if [ "$name" = "$filename" ]; then
+      printf '%s\n' "$hash" | tr '[:upper:]' '[:lower:]'
+      return 0
+    fi
+  done < "$sums_file"
+
+  return 1
+}
+
+release_base_is_official() {
+  [ "${RELEASE_BASE_URL%/}" = "${DEFAULT_RELEASE_BASE_URL%/}" ]
+}
+
+# Missing manifests are fatal for the official release host; a custom
+# PAD_RELEASE_BASE_URL (mirror, CI fixture) only warns unless asked otherwise.
+checksum_required() {
+  case "$REQUIRE_CHECKSUM" in
+    1) return 0 ;;
+    0) return 1 ;;
+  esac
+
+  release_base_is_official
+}
+
+fetch_release_checksums() {
+  local version="$1"
+  local dest="$2"
+  local url
+
+  url="$(release_download_url "$version" "$CHECKSUM_FILE")"
+  curl -fsSL "$url" -o "$dest" 2>/dev/null && [ -s "$dest" ]
+}
+
+prepare_release_checksums() {
+  local version="$1"
+  local dest="$2"
+  local tool
+
+  CHECKSUM_MODE="verify"
+
+  tool="$(checksum_tool)"
+  if [ "$tool" = "none" ]; then
+    warn "! No SHA-256 tool found (tried sha256sum, shasum, openssl)"
+    if [ "${ALLOW_UNVERIFIED}" = "1" ]; then
+      warn "! PAD_INSTALL_ALLOW_UNVERIFIED=1: installing WITHOUT integrity verification"
+      CHECKSUM_MODE="skip"
+      return 0
+    fi
+    err "✗ Refusing to install a release archive that cannot be verified"
+    say "  Install coreutils (sha256sum) or openssl, then run the installer again"
+    say "  Or set PAD_INSTALL_ALLOW_UNVERIFIED=1 to accept the risk"
+    exit 1
+  fi
+
+  if fetch_release_checksums "$version" "$dest"; then
+    say "  Checksums: ${CHECKSUM_FILE} (${tool})"
+    return 0
+  fi
+
+  warn "! ${CHECKSUM_FILE} is missing under ${RELEASE_BASE_URL%/}/${version}"
+  if [ "${ALLOW_UNVERIFIED}" = "1" ]; then
+    warn "! PAD_INSTALL_ALLOW_UNVERIFIED=1: installing WITHOUT integrity verification"
+    CHECKSUM_MODE="skip"
+    return 0
+  fi
+  if checksum_required; then
+    err "✗ Refusing to install: this release publishes no ${CHECKSUM_FILE}"
+    say "  Set PAD_INSTALL_ALLOW_UNVERIFIED=1 only if you fully trust this source"
+    exit 1
+  fi
+
+  warn "! Continuing without ${CHECKSUM_FILE}: downloads will NOT be verified"
+  warn "  Set PAD_INSTALL_REQUIRE_CHECKSUM=1 to turn this into a hard failure"
+  CHECKSUM_MODE="skip"
+  return 0
+}
+
+verify_release_archive() {
+  local archive="$1"
+  local filename="$2"
+  local sums_file="$3"
+  local expected actual
+
+  if [ "$CHECKSUM_MODE" = "skip" ]; then
+    return 0
+  fi
+
+  if ! expected="$(expected_sha256_for "$sums_file" "$filename")"; then
+    err "✗ ${filename} is not listed in ${CHECKSUM_FILE}"
+    say "  The release manifest does not cover this asset; aborting"
+    exit 1
+  fi
+
+  if ! actual="$(file_sha256 "$archive")"; then
+    err "✗ Could not compute the SHA-256 of ${filename}"
+    exit 1
+  fi
+
+  if [ "$expected" != "$actual" ]; then
+    err "✗ Checksum mismatch for ${filename}"
+    say "  expected: ${expected}"
+    say "  actual:   ${actual}"
+    err "  The download does not match ${CHECKSUM_FILE}; aborting"
+    exit 1
+  fi
+
+  say "  Verified: ${filename} (sha256 ok)"
 }
 
 release_filenames_for_platform() {
@@ -552,6 +716,7 @@ install_from_binary() {
   fi
 
   local os arch version filename url tmp_dir libc_family runtime_note
+  local sums_dir sums_file
   os="$(get_os)"
   arch="$(get_arch)"
 
@@ -578,6 +743,11 @@ install_from_binary() {
   fi
   say "  Version:  ${version}"
 
+  sums_dir="$(mktemp -d)"
+  TEMP_DIRS+=("${sums_dir}")
+  sums_file="${sums_dir}/${CHECKSUM_FILE}"
+  prepare_release_checksums "${version}" "${sums_file}"
+
   while IFS= read -r filename; do
     [ -n "$filename" ] || continue
     url="$(release_download_url "${version}" "${filename}")"
@@ -590,6 +760,8 @@ install_from_binary() {
       warn "  Download failed for ${filename}"
       continue
     fi
+
+    verify_release_archive "${tmp_dir}/pad.tar.gz" "${filename}" "${sums_file}"
 
     tar -xzf "${tmp_dir}/pad.tar.gz" -C "${tmp_dir}"
     mkdir -p "${INSTALL_DIR}"
@@ -860,13 +1032,20 @@ Usage:
 
 What this script does:
   1. Try to download a matching release binary
-  2. Fall back to building from source if needed
-  3. Offer to install tmux if it is missing
+  2. Verify it against the release SHA256SUMS before extracting
+  3. Fall back to building from source if needed
+  4. Offer to install tmux if it is missing
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
   PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_ALLOW_UNVERIFIED
+                         Install even when the archive cannot be checked against
+                         SHA256SUMS (unsafe; only for sources you fully trust)
+  PAD_INSTALL_REQUIRE_CHECKSUM
+                         Require SHA256SUMS even for a custom
+                         PAD_RELEASE_BASE_URL (always required for GitHub releases)
   PAD_INSTALL_DISABLE_SOURCE_FALLBACK
                          Fail instead of building from source when no compatible
                          prebuilt binary can be installed
