@@ -17,6 +17,16 @@ fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
             DEFAULT_CODEX_INDEX_PROMPT_TEMPLATE
         );
         assert!(pad_codex_wrapper_path().is_file());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(hook_events_path())
+                .expect("hook journal metadata")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
     });
 }
 

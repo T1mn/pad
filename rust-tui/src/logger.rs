@@ -19,8 +19,10 @@ pub fn init_with_path(path: PathBuf) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    if !path.exists() {
-        std::fs::write(&path, "")?;
+    if path.exists() {
+        crate::atomic_file::ensure_private(&path)?;
+    } else {
+        crate::atomic_file::write_private(&path, "")?;
     }
     LOG_PATH.set(path).ok();
     Ok(())
@@ -34,7 +36,15 @@ pub fn is_enabled() -> bool {
 pub fn log(msg: &str) {
     if let Some(path) = LOG_PATH.get() {
         rotate_log_if_needed(path);
-        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let mut options = OpenOptions::new();
+        options.create(true).append(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(crate::atomic_file::PRIVATE_MODE);
+        }
+        if let Ok(mut file) = options.open(path) {
+            let _ = crate::atomic_file::ensure_private(path);
             let now = chrono_lite();
             let _ = writeln!(file, "[{}] {}", now, msg);
         }
@@ -52,7 +62,9 @@ fn rotate_log_if_needed(path: &PathBuf) {
 
     let rotated_path = path.with_extension("log.1");
     let _ = fs::remove_file(&rotated_path);
-    let _ = fs::rename(path, &rotated_path);
+    if fs::rename(path, &rotated_path).is_ok() {
+        let _ = crate::atomic_file::ensure_private(&rotated_path);
+    }
 }
 
 /// Convenience macro for debug logging — only writes when logger is initialized

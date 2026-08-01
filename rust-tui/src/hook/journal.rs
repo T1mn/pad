@@ -8,8 +8,19 @@ pub(super) fn append_hook_event_journal(event: &HookEvent) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    match OpenOptions::new().create(true).append(true).open(path) {
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(crate::atomic_file::PRIVATE_MODE);
+    }
+    match options.open(&path) {
         Ok(mut file) => {
+            if let Err(err) = crate::atomic_file::ensure_private(&path) {
+                log_debug!("hook_listener: failed to protect hook journal: {}", err);
+                return;
+            }
             if let Ok(line) = serde_json::to_string(event) {
                 let _ = writeln!(file, "{}", line);
             }

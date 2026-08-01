@@ -64,8 +64,11 @@ pub fn ensure_runtime_layout() -> io::Result<()> {
     prompts::ensure_codex_jailbreak_prompt_file_seeded()?;
     prompts::ensure_codex_index_prompt_file_seeded()?;
     ensure_pad_codex_home_layout()?;
-    if !hook_events_path().exists() {
-        fs::write(hook_events_path(), "")?;
+    let hook_events = hook_events_path();
+    if hook_events.exists() {
+        crate::atomic_file::ensure_private(&hook_events)?;
+    } else {
+        crate::atomic_file::write_private(&hook_events, "")?;
     }
     hook_bridge::install_bridge_scripts()?;
     ensure_pad_codex_wrapper()?;

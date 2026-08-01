@@ -19,5 +19,11 @@ fn save_and_load_round_trips_entries() {
 
     assert_eq!(loaded.entries.len(), 1);
     assert_eq!(loaded.entries[0].id, "one");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

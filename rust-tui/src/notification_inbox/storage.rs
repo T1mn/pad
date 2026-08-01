@@ -1,7 +1,7 @@
 use super::model::{NotificationEntry, NotificationInbox};
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
 static INBOX_IO_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -63,15 +63,9 @@ pub(crate) fn save_to_path(path: &Path, inbox: &NotificationInbox) -> io::Result
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let tmp = tmp_path(path);
     let content = serde_json::to_string_pretty(inbox)?;
-    fs::write(&tmp, content)?;
-    fs::rename(&tmp, path)?;
+    crate::atomic_file::write_private(path, content)?;
     Ok(())
-}
-
-fn tmp_path(path: &Path) -> PathBuf {
-    path.with_extension(format!("tmp.{}", std::process::id()))
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ pub(in crate::chat::providers::telegram) fn load_state() -> io::Result<TelegramS
 
 pub(in crate::chat::providers::telegram) fn save_state(state: &TelegramState) -> io::Result<()> {
     let body = serde_json::to_string_pretty(state)?;
-    fs::write(crate::paths::telegram_state_path(), body)
+    crate::atomic_file::write_private(&crate::paths::telegram_state_path(), body)
 }
 
 pub(in crate::chat::providers::telegram) fn journal_len() -> u64 {

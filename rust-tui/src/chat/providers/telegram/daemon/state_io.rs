@@ -13,7 +13,7 @@ pub(super) fn save_state_if_changed(
     if last_saved_state.as_deref() == Some(body.as_str()) {
         return Ok(false);
     }
-    std::fs::write(crate::paths::telegram_state_path(), &body)?;
+    crate::atomic_file::write_private(&crate::paths::telegram_state_path(), &body)?;
     *last_saved_state = Some(body);
     Ok(true)
 }
