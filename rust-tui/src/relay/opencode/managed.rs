@@ -1,4 +1,6 @@
-use crate::relay::common::{opencode_managed_state_path, read_json_value, write_json_value};
+use crate::relay::common::{
+    log_file_error, opencode_managed_state_path, read_json_value, write_json_value,
+};
 use serde_json::json;
 use std::collections::BTreeSet;
 
@@ -18,5 +20,8 @@ pub(super) fn write_opencode_managed_keys(keys: &BTreeSet<String>) {
     let value = json!({
         "provider_keys": keys.iter().collect::<Vec<_>>()
     });
-    write_json_value(&opencode_managed_state_path(), &value);
+    let path = opencode_managed_state_path();
+    if let Err(error) = write_json_value(&path, &value) {
+        log_file_error("write", &path, &error);
+    }
 }

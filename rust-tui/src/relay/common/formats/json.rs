@@ -31,17 +31,16 @@ pub(in crate::relay) fn read_json_object_for_update(
     parse_json_object_strict(&strip_json_comments(&content)?)
 }
 
-pub(in crate::relay) fn write_json_value(path: &Path, value: &serde_json::Value) {
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let Ok(mut content) = serde_json::to_string_pretty(value) else {
-        return;
-    };
+pub(in crate::relay) fn write_json_value(
+    path: &Path,
+    value: &serde_json::Value,
+) -> std::io::Result<()> {
+    let mut content = serde_json::to_string_pretty(value)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
     if !content.ends_with('\n') {
         content.push('\n');
     }
-    let _ = std::fs::write(path, content);
+    crate::atomic_file::write_private(path, content)
 }
 
 pub(in crate::relay) fn parse_json_object(content: &str) -> serde_json::Value {

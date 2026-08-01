@@ -2,8 +2,8 @@ mod fields;
 mod prompt;
 
 use super::super::super::common::{
-    codex_config_path, codex_permission_state_path, parse_toml_document, serialize_toml_document,
-    write_text_file,
+    codex_config_path, codex_permission_state_path, log_file_error, parse_toml_document,
+    serialize_toml_document, write_text_file,
 };
 use super::super::toml_helpers::cleanup_empty_toml_table_path;
 use super::state::{
@@ -43,7 +43,9 @@ pub(in crate::relay::permissions) fn apply_codex_runtime_overlay(overlay: CodexR
     cleanup_empty_toml_table_path(root, &["features"]);
     cleanup_empty_toml_table_path(root, &["tui"]);
 
-    write_text_file(&path, &serialize_toml_document(&doc));
+    if let Err(error) = write_text_file(&path, &serialize_toml_document(&doc)) {
+        log_file_error("write", &path, &error);
+    }
 
     if overlay_is_empty(&overlay) {
         let _ = std::fs::remove_file(codex_permission_state_path());

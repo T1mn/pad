@@ -1,4 +1,6 @@
-use super::super::super::common::{codex_permission_state_path, read_json_value, write_json_value};
+use super::super::super::common::{
+    codex_permission_state_path, log_file_error, read_json_value, write_json_value,
+};
 use super::super::toml_helpers::{toml_bool_at_path, toml_string_array_at_path};
 use serde_json::json;
 
@@ -42,7 +44,9 @@ pub(super) fn capture_codex_permission_state_once(root: &toml::map::Map<String, 
             .get("model_instructions_file")
             .and_then(|value| value.as_str()),
     });
-    write_json_value(&path, &value);
+    if let Err(error) = write_json_value(&path, &value) {
+        log_file_error("write", &path, &error);
+    }
 }
 
 pub(super) fn overlay_is_empty(overlay: &super::CodexRuntimeOverlay<'_>) -> bool {

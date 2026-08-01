@@ -36,6 +36,23 @@ pub fn write_private(path: &Path, content: impl AsRef<[u8]>) -> io::Result<()> {
     Ok(())
 }
 
+/// Tighten an existing regular file without following a symlink.
+pub fn ensure_private(path: &Path) -> io::Result<()> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "private file path is not a regular file",
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(PRIVATE_MODE))?;
+    }
+    Ok(())
+}
+
 fn write_temp(temp: &Path, content: &[u8]) -> io::Result<()> {
     use std::io::Write;
 

@@ -1,6 +1,6 @@
 use super::common::{
-    backup_file, gemini_env_backup_path, gemini_env_path, gemini_settings_backup_path,
-    gemini_settings_path, has_backup, parse_env_file, parse_json_object, restore_file,
+    gemini_env_backup_path, gemini_env_path, gemini_settings_backup_path, gemini_settings_path,
+    log_file_error, parse_env_file, parse_json_object, preserve_backup, restore_file,
     serialize_env_file, serialize_json_pretty, should_restore_standard_relay_config,
     write_text_file,
 };
@@ -12,31 +12,46 @@ pub(super) fn apply_gemini_agent_config(agent: &AgentConfig) {
     let settings_path = gemini_settings_path();
 
     if should_restore_standard_relay_config(agent) {
-        restore_file(&env_path, &gemini_env_backup_path());
-        restore_file(&settings_path, &gemini_settings_backup_path());
+        if let Err(error) = restore_file(&env_path, &gemini_env_backup_path()) {
+            log_file_error("restore", &env_path, &error);
+        }
+        if let Err(error) = restore_file(&settings_path, &gemini_settings_backup_path()) {
+            log_file_error("restore", &settings_path, &error);
+        }
         return;
     }
 
     let Some(prov) = agent.active() else {
-        restore_file(&env_path, &gemini_env_backup_path());
-        restore_file(&settings_path, &gemini_settings_backup_path());
+        if let Err(error) = restore_file(&env_path, &gemini_env_backup_path()) {
+            log_file_error("restore", &env_path, &error);
+        }
+        if let Err(error) = restore_file(&settings_path, &gemini_settings_backup_path()) {
+            log_file_error("restore", &settings_path, &error);
+        }
         return;
     };
 
     let env_content = std::fs::read_to_string(&env_path).unwrap_or_default();
     let settings_content = std::fs::read_to_string(&settings_path).unwrap_or_default();
 
-    if !has_backup(&gemini_env_backup_path()) {
-        let _ = backup_file(&gemini_env_backup_path(), &env_content);
+    if let Err(error) = preserve_backup(&gemini_env_backup_path(), &env_content) {
+        log_file_error("backup", &gemini_env_backup_path(), &error);
+        return;
     }
-    if !has_backup(&gemini_settings_backup_path()) {
-        let _ = backup_file(&gemini_settings_backup_path(), &settings_content);
+    if let Err(error) = preserve_backup(&gemini_settings_backup_path(), &settings_content) {
+        log_file_error("backup", &gemini_settings_backup_path(), &error);
+        return;
     }
 
     let updated_env = update_gemini_env_config(&env_content, &prov.base_url, &prov.api_key);
     let updated_settings = update_gemini_settings_config(&settings_content);
-    write_text_file(&env_path, &updated_env);
-    write_text_file(&settings_path, &updated_settings);
+    if let Err(error) = write_text_file(&env_path, &updated_env) {
+        log_file_error("write", &env_path, &error);
+        return;
+    }
+    if let Err(error) = write_text_file(&settings_path, &updated_settings) {
+        log_file_error("write", &settings_path, &error);
+    }
 }
 
 pub(super) fn update_gemini_settings_config(content: &str) -> String {

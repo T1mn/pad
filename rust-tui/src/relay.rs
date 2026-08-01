@@ -54,10 +54,7 @@ pub fn apply_runtime_configs(
 
 pub fn write_codex_relay_export(agent: &AgentConfig) -> std::io::Result<PathBuf> {
     let path = crate::paths::relay_export_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, codex::export_codex_relay_yaml(agent))?;
+    crate::atomic_file::write_private(&path, codex::export_codex_relay_yaml(agent))?;
     Ok(path)
 }
 

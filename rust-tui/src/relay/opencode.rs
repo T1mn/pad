@@ -1,4 +1,6 @@
-use super::common::{opencode_config_path, read_json_object_for_update, write_json_value};
+use super::common::{
+    log_file_error, opencode_config_path, read_json_object_for_update, write_json_value,
+};
 use crate::theme::AgentConfig;
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -41,7 +43,10 @@ pub(super) fn apply_opencode_agent_config(agent: &AgentConfig) {
         &previous_managed,
     );
 
-    write_json_value(&path, &root);
+    if let Err(error) = write_json_value(&path, &root) {
+        log_file_error("write", &path, &error);
+        return;
+    }
     managed::write_opencode_managed_keys(&current_managed);
 }
 

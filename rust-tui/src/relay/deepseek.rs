@@ -1,7 +1,8 @@
 mod launcher;
 
 use super::common::{
-    parse_json_object, serialize_json_pretty, should_restore_standard_relay_config, write_text_file,
+    log_file_error, parse_json_object, serialize_json_pretty, should_restore_standard_relay_config,
+    write_text_file,
 };
 use crate::theme::AgentConfig;
 use serde_json::json;
@@ -41,7 +42,10 @@ pub(super) fn apply_deepseek_agent_config(agent: &AgentConfig) {
         &agent.default_model,
         prov.disable_thinking,
     );
-    write_text_file(&path, &updated);
+    if let Err(error) = write_text_file(&path, &updated) {
+        log_file_error("write", &path, &error);
+        return;
+    }
 
     generate_deepseek_launcher_script(&prov.base_url, &prov.api_key, &agent.default_model);
 }

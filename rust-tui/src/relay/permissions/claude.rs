@@ -1,6 +1,6 @@
 use super::super::common::{
-    claude_permission_state_path, claude_settings_path, parse_json_object, read_json_value,
-    serialize_json_pretty, write_json_value, write_text_file,
+    claude_permission_state_path, claude_settings_path, log_file_error, parse_json_object,
+    read_json_value, serialize_json_pretty, write_json_value, write_text_file,
 };
 use super::json_helpers::{
     cleanup_empty_json_objects, json_bool_at_path, json_string_at_path, restore_json_bool_path,
@@ -21,7 +21,9 @@ pub(super) fn apply_claude_permission_overlay() {
     );
     set_json_bool_path(&mut obj, &["sandbox", "enabled"], false);
 
-    write_text_file(&path, &serialize_json_pretty(&obj));
+    if let Err(error) = write_text_file(&path, &serialize_json_pretty(&obj)) {
+        log_file_error("write", &path, &error);
+    }
 }
 
 pub(super) fn remove_claude_permission_overlay() {
@@ -52,7 +54,9 @@ pub(super) fn remove_claude_permission_overlay() {
     );
     cleanup_empty_json_objects(&mut obj);
 
-    write_text_file(&path, &serialize_json_pretty(&obj));
+    if let Err(error) = write_text_file(&path, &serialize_json_pretty(&obj)) {
+        log_file_error("write", &path, &error);
+    }
     let _ = std::fs::remove_file(state_path);
 }
 
@@ -66,5 +70,7 @@ fn capture_claude_permission_state_once(obj: &serde_json::Value) {
         "permissions_default_mode": json_string_at_path(obj, &["permissions", "defaultMode"]),
         "sandbox_enabled": json_bool_at_path(obj, &["sandbox", "enabled"]),
     });
-    write_json_value(&path, &value);
+    if let Err(error) = write_json_value(&path, &value) {
+        log_file_error("write", &path, &error);
+    }
 }

@@ -1,6 +1,6 @@
 use super::common::{
-    backup_file, claude_backup_path, claude_settings_path, has_backup, parse_json_object,
-    parse_json_object_strict, restore_file, serialize_json_pretty,
+    claude_backup_path, claude_settings_path, log_file_error, parse_json_object,
+    parse_json_object_strict, preserve_backup, restore_file, serialize_json_pretty,
     should_restore_standard_relay_config, write_text_file,
 };
 use crate::theme::AgentConfig;
@@ -10,12 +10,16 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
     let path = claude_settings_path();
 
     if should_restore_standard_relay_config(agent) {
-        restore_file(&path, &claude_backup_path());
+        if let Err(error) = restore_file(&path, &claude_backup_path()) {
+            log_file_error("restore", &path, &error);
+        }
         return;
     }
 
     let Some(prov) = agent.active() else {
-        restore_file(&path, &claude_backup_path());
+        if let Err(error) = restore_file(&path, &claude_backup_path()) {
+            log_file_error("restore", &path, &error);
+        }
         return;
     };
 
@@ -27,8 +31,9 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
     if parse_json_object_strict(&content).is_none() {
         return;
     }
-    if !has_backup(&claude_backup_path()) {
-        let _ = backup_file(&claude_backup_path(), &content);
+    if let Err(error) = preserve_backup(&claude_backup_path(), &content) {
+        log_file_error("backup", &claude_backup_path(), &error);
+        return;
     }
 
     let updated = update_claude_settings_config(
@@ -38,7 +43,9 @@ pub(super) fn apply_claude_agent_config(agent: &AgentConfig) {
         &agent.default_model,
         prov.disable_thinking,
     );
-    write_text_file(&path, &updated);
+    if let Err(error) = write_text_file(&path, &updated) {
+        log_file_error("write", &path, &error);
+    }
 }
 
 pub(super) fn update_claude_settings_config(

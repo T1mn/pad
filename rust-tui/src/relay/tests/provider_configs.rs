@@ -37,3 +37,8 @@ mod opencode_safety {
     use super::*;
     include!("provider_configs/opencode_safety.rs");
 }
+
+mod security {
+    use super::*;
+    include!("provider_configs/security.rs");
+}
