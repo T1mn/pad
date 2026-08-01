@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 const SOCKET_MODE: u32 = 0o600;
 const SOCKET_DIR_MODE: u32 = 0o700;
 
-pub(super) fn socket_is_live(socket_path: &Path) -> bool {
+pub(crate) fn socket_is_live(socket_path: &Path) -> bool {
     StdUnixStream::connect(socket_path).is_ok()
 }
 
@@ -18,7 +18,7 @@ pub(super) fn socket_is_live(socket_path: &Path) -> bool {
 /// - 用 link 而不是 rename，因为 rename 会原子覆盖掉另一个实例正在监听的 socket，
 ///   而 link 碰到已存在的正式名直接 EEXIST，这一步本身就是所有权判据，
 ///   不需要先 exists() 再动手，也就没有 TOCTOU。
-pub(super) fn bind_private_listener(socket_path: &Path) -> io::Result<StdUnixListener> {
+pub(crate) fn bind_private_listener(socket_path: &Path) -> io::Result<StdUnixListener> {
     harden_socket_dir(socket_path.parent().unwrap_or_else(|| Path::new(".")))?;
     match bind_via_staging(socket_path) {
         Err(err) if link_unsupported(&err) => bind_in_place(socket_path),
@@ -69,7 +69,10 @@ fn reclaim_stale_socket(socket_path: &Path) -> io::Result<()> {
     if socket_is_live(socket_path) {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("pad socket API already active at {}", socket_path.display()),
+            format!(
+                "pad Unix socket already active at {}",
+                socket_path.display()
+            ),
         ));
     }
     match std::fs::remove_file(socket_path) {

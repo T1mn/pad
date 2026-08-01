@@ -13,7 +13,7 @@ pub(super) fn current_uid() -> u32 {
 }
 
 /// 校验通过返回对端 uid，否则返回错误；调用方必须直接关闭连接。
-pub(super) fn authorize_peer(stream: &impl AsRawFd) -> io::Result<u32> {
+pub(crate) fn authorize_peer(stream: &impl AsRawFd) -> io::Result<u32> {
     let owner_uid = current_uid();
     let peer_uid = peer_uid(stream.as_raw_fd())?;
     if !peer_uid_is_allowed(peer_uid, owner_uid) {
