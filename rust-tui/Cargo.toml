@@ -13,7 +13,7 @@ repository = "https://github.com/T1mn/pad"
 crossterm = "0.28"
 dirs = "5.0"
 md5 = "0.7"
-nix = { version = "0.27", features = ["term"] }
+nix = { version = "0.29", features = ["term"] }
 libc = "0.2"
 nucleo-matcher = "0.3"
 pulldown-cmark = "0.13"
