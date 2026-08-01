@@ -232,7 +232,7 @@ jobs:
 
       - name: Cache cross binary
         id: cross-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cross
@@ -283,7 +283,7 @@ jobs:
 
       - name: Cache cross binary
         id: cross-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cross
