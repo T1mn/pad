@@ -118,7 +118,7 @@ jobs:
 
       - name: Cache cargo-audit binary
         id: audit-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-audit
           key: cargo-audit-${{ runner.os }}-${{ runner.arch }}-${{ env.CARGO_AUDIT_VERSION }}
@@ -257,7 +257,7 @@ jobs:
 
       - name: Cache cross binary
         id: cross-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cross
@@ -430,7 +430,7 @@ jobs:
 
       - name: Cache cross binary
         id: cross-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cross
