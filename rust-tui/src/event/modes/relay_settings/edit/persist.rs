@@ -10,7 +10,7 @@ pub(in crate::event::modes::relay_settings) fn persist_relay_config(
             agent.repair_opencode_model_refs();
         }
     }
-    app.config.save();
+    app.save_config();
     relay::apply_runtime_configs(
         &app.config.agents,
         &app.config.agent_permissions,

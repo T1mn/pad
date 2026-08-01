@@ -10,11 +10,12 @@ impl App {
             .min(MAX_AGENT_PANEL_WIDTH);
         self.config.display.agent_panel_width = Some(next);
         self.sidebar.preferred_panel_width_cache = None;
-        self.config.save();
-        self.show_action_toast(
-            panel_width_toast_title(self.locale),
-            &panel_width_toast_body(self.locale, next),
-        );
+        if self.save_config() {
+            self.show_action_toast(
+                panel_width_toast_title(self.locale),
+                &panel_width_toast_body(self.locale, next),
+            );
+        }
         self.dirty = true;
     }
 }

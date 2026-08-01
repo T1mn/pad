@@ -31,7 +31,7 @@ pub(crate) async fn handle_update(
     if config.telegram.chat_id.is_empty() {
         if text.starts_with("/start") {
             config.telegram.chat_id = chat_id.clone();
-            config.save();
+            config.save_or_log();
             send_text(
                 &config.telegram.bot_token,
                 &chat_id,

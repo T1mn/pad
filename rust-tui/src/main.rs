@@ -3,6 +3,7 @@ use std::io::{self, IsTerminal};
 
 mod agent_resume;
 mod app;
+mod atomic_file;
 mod bootstrap;
 mod browser_remote;
 mod chat;

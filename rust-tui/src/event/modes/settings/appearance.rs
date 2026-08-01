@@ -79,7 +79,7 @@ pub(super) fn handle_language_detail_mode(app: &mut App, key: KeyCode) -> bool {
             if let Some(locale) = locales.get(app.language_selected) {
                 app.locale = *locale;
                 app.config.language = locale.as_str().to_string();
-                app.config.save();
+                app.save_config();
             }
             app.settings_focus = SettingsFocus::List;
             app.dirty = true;
@@ -126,7 +126,7 @@ pub(super) fn handle_agent_style_detail_mode(app: &mut App, key: KeyCode) -> boo
                 }
                 _ => {}
             }
-            app.config.save();
+            app.save_config();
             app.dirty = true;
         }
         _ => {}

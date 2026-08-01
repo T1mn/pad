@@ -39,7 +39,7 @@ pub(crate) fn handle_agent_style_mode(app: &mut App, key: KeyCode) {
                 }
                 _ => {}
             }
-            app.config.save();
+            app.save_config();
             app.dirty = true;
         }
         _ => {}

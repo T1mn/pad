@@ -29,7 +29,7 @@ pub(super) fn seed_codex_provider(label: &str, base_url: &str, api_key: &str) {
         .expect("codex agent");
     codex.providers = vec![sample_provider(label, base_url, api_key)];
     codex.active_provider = Some(0);
-    config.save();
+    config.save().expect("seed config save");
 }
 
 pub(super) fn update_codex_provider(label: &str, base_url: &str, api_key: &str) {
@@ -41,7 +41,7 @@ pub(super) fn update_codex_provider(label: &str, base_url: &str, api_key: &str) 
         .expect("updated codex agent");
     codex.providers = vec![sample_provider(label, base_url, api_key)];
     codex.active_provider = Some(0);
-    updated.save();
+    updated.save().expect("update config save");
 }
 
 pub(super) fn current_codex_provider(app: &App) -> &ProviderConfig {

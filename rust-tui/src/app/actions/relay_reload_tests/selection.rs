@@ -14,7 +14,7 @@ fn external_relay_reload_clamps_provider_selection() {
             sample_provider("b", "https://b.example/v1", "sk-b"),
         ];
         codex.active_provider = Some(1);
-        config.save();
+        config.save().expect("seed config save");
 
         let mut app = App::new();
         app.relay_selected_agent = app
@@ -39,7 +39,7 @@ fn external_relay_reload_clamps_provider_selection() {
             "sk-only",
         )];
         codex.active_provider = Some(0);
-        updated.save();
+        updated.save().expect("update config save");
 
         poll_external_relay_config(&mut app);
 

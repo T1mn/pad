@@ -28,7 +28,7 @@ impl App {
 
         if persist_default && config_changed {
             self.config.display.session_scope = normalized.to_string();
-            self.config.save();
+            self.save_config();
         }
 
         if runtime_changed {

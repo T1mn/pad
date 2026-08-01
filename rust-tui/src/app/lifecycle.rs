@@ -12,12 +12,13 @@ impl App {
         let mut table_state = TableState::default();
         table_state.select(Some(0));
 
-        let config = Config::load();
+        let report = Config::load_reported();
+        let config = report.config;
         let display_session_scope = config.display.session_scope.clone();
         let locale = crate::i18n::Locale::from_str(&config.language);
         let theme = Theme::by_name(&config.theme);
 
-        Self {
+        let mut app = Self {
             panels: Vec::new(),
             table_state,
             mode: Mode::Normal,
@@ -96,6 +97,11 @@ impl App {
             relay_config_source_modified_ms: None,
             relay_config_source_len: None,
             pending_external_relay_reload: false,
+        };
+        // 配置解析失败时不能只是静默用默认值：下一次保存就会把原文件覆盖掉。
+        if let Some(recovery) = &report.recovery {
+            app.notify_config_recovery(recovery);
         }
+        app
     }
 }

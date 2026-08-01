@@ -64,7 +64,7 @@ async fn authenticate_bot(config: &mut Config, auth_state: &mut TelegramAuthStat
     let username = me.username.unwrap_or_default();
     if config.telegram.bot_username != username {
         config.telegram.bot_username = username.clone();
-        config.save();
+        config.save_or_log();
     }
     if let Err(err) = set_my_commands(&config.telegram.bot_token, telegram_locale(config)).await {
         log_debug!("telegram: setMyCommands failed: {}", err);

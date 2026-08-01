@@ -19,6 +19,7 @@ mod tests;
 
 pub use agent::{AgentConfig, OpenCodeModelConfig};
 pub use config::Config;
+pub use load::ConfigRecovery;
 pub use palette_core::Theme;
 pub use provider::{normalize_provider_key, ProviderConfig};
 pub use settings::{

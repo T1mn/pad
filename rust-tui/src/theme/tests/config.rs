@@ -47,7 +47,7 @@ fn config_round_trips_opencode_provider_models() {
         opencode.active_provider = Some(0);
         opencode.default_model = "relay/gpt-4o".into();
         opencode.small_model = "relay/gpt-4o-mini".into();
-        config.save();
+        config.save().expect("save config");
 
         let loaded = Config::load();
         assert!(!loaded.agent_permissions.codex_auto_full_access);
@@ -111,7 +111,7 @@ fn config_save_omits_wire_api_entries() {
             test_result: None,
         });
         codex.active_provider = Some(0);
-        config.save();
+        config.save().expect("save config");
 
         let saved = std::fs::read_to_string(Config::config_path()).expect("read saved config");
         assert!(!saved.contains("wire_api"));
@@ -136,7 +136,7 @@ fn config_loads_legacy_codex_prompt_file_as_jailbreak_prompt_file() {
 fn config_defaults_agent_permissions_to_enabled() {
     with_temp_home("permissions-default", || {
         let config = Config::default();
-        config.save();
+        config.save().expect("save config");
 
         let loaded = Config::load();
         assert!(loaded.agent_permissions.codex_auto_full_access);

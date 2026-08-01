@@ -14,7 +14,7 @@ fn config_round_trips_sound_section() {
         config.sound.timeout.preset = "warning".into();
         config.sound.failure.enabled = true;
         config.sound.failure.preset = "alert".into();
-        config.save();
+        config.save().expect("save config");
 
         let loaded = Config::load();
         assert!(loaded.sound.enabled);

@@ -21,7 +21,7 @@ pub(super) fn handle_telegram_detail_mode(app: &mut App, key: KeyCode) -> bool {
                     2 => app.config.telegram.chat_id = app.telegram_edit_buffer.clone(),
                     _ => {}
                 }
-                app.config.save();
+                app.save_config();
                 let daemon_result = if restart_needed {
                     telegram::restart_daemon(&app.config)
                 } else {
@@ -68,7 +68,7 @@ pub(super) fn handle_telegram_detail_mode(app: &mut App, key: KeyCode) -> bool {
             match app.telegram_selected_field {
                 0 => {
                     app.config.telegram.enabled = !app.config.telegram.enabled;
-                    app.config.save();
+                    app.save_config();
                     if let Err(err) = telegram::sync_daemon(&app.config) {
                         log_debug!("telegram: daemon sync failed after toggle: {}", err);
                     }

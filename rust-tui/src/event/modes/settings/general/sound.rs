@@ -78,7 +78,7 @@ fn apply_sound_settings_action(app: &mut App, preview: bool) {
         _ => false,
     };
     if changed {
-        app.config.save();
+        app.save_config();
     }
     app.dirty = true;
 }

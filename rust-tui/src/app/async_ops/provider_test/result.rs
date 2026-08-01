@@ -88,5 +88,5 @@ fn sort_providers_after_batch(app: &mut App, agent_idx: usize) {
         .unwrap_or(app.relay_selected_provider)
         .min(provider_count.saturating_sub(1));
     agent.providers = indexed.into_iter().map(|(_, provider)| provider).collect();
-    app.config.save();
+    app.save_config();
 }

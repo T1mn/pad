@@ -22,7 +22,7 @@ pub(in crate::event::modes::settings) fn handle_auto_refresh_detail_mode(
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Enter | KeyCode::Char(' ') => {
             app.config.auto_refresh = !app.config.auto_refresh;
-            app.config.save();
+            app.save_config();
             app.dirty = true;
         }
         _ => {}
@@ -39,7 +39,7 @@ pub(in crate::event::modes::settings) fn handle_claude_full_access_detail_mode(
         KeyCode::Enter | KeyCode::Char(' ') => {
             app.config.agent_permissions.claude_auto_full_access =
                 !app.config.agent_permissions.claude_auto_full_access;
-            app.config.save();
+            app.save_config();
             relay::apply_runtime_overlays(
                 &app.config.agents,
                 &app.config.agent_permissions,
@@ -64,7 +64,7 @@ pub(in crate::event::modes::settings) fn handle_preview_mode_detail_mode(
                 "tmux" => "session".to_string(),
                 _ => "auto".to_string(),
             };
-            app.config.save();
+            app.save_config();
             app.invalidate_preview();
             app.dirty = true;
         }

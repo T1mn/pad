@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod async_ops;
 pub mod clipboard;
+mod config_persist;
 mod display_scope;
 pub mod hooks;
 mod lifecycle;
@@ -126,7 +127,7 @@ impl App {
     pub fn apply_theme(&mut self, name: &str) {
         self.config.theme = name.to_string();
         self.theme = Theme::by_name(name);
-        self.config.save();
+        self.save_config();
         self.preview.theme_before_preview = None;
         self.clear_preview_render_caches();
         self.dirty = true;
