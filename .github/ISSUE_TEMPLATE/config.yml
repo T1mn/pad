@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/T1mn/pad/security/advisories/new
+    about: Do not open a public issue. Use a private security advisory; see SECURITY.md.
+  - name: Installation and setup
+    url: https://github.com/T1mn/pad#install
+    about: Installer, tmux, WSL2 and platform notes are covered in the README.
+  - name: Agent compatibility
+    url: https://github.com/T1mn/pad/blob/master/docs/agent-compatibility.md
+    about: What each agent CLI supports in PAD, before filing a missing-feature issue.

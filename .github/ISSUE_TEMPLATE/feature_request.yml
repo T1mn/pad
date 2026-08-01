@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest a capability or change for PAD.
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        PAD is deliberately narrow: it is a tmux-first workspace for agent sessions. It does not
+        replace tmux, does not fake tabs on top of panes, and does not take over the agent runtime.
+        Requests that stay inside that scope are much easier to accept.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do today, and where does PAD get in the way?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should PAD do instead? Include keys, panels, or config if relevant.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Sidebar / session list
+        - Preview and session history
+        - pad-sider (F10 panel)
+        - Attach / detach and tmux integration
+        - Relay and provider settings
+        - Notifications / Telegram daemon
+        - Installer and release
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: agent
+    attributes:
+      label: Agent involved
+      description: If this is agent-specific, which agent CLI.
+      placeholder: Codex, Claude Code, Grok Build, OpenCode, Gemini, none
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Existing keys, tmux configuration, or scripts you already tried.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this.
