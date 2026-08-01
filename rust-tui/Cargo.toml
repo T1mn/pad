@@ -2,6 +2,7 @@
 name = "pad"
 version = "0.7.3"
 edition = "2021"
+rust-version = "1.88"
 default-run = "pad"
 authors = ["T1mn <tinggofun@gmail.com>"]
 description = "PAD (Panel for Agent Development) - tmux-first workspace for AI agents"
