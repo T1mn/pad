@@ -160,13 +160,13 @@ jobs:
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64-glibc-2.35.tar.gz -C target/dist pad
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64-glibc-2.35
           path: rust-tui/dist/*.tar.gz
 
       - name: Upload power smoke summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: power-smoke
           path: rust-tui/dist/pad-power-smoke.md
@@ -206,7 +206,7 @@ jobs:
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64-glibc-2.35.tar.gz -C target/aarch64-unknown-linux-gnu/dist pad
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-aarch64-glibc-2.35
           path: rust-tui/dist/*.tar.gz
@@ -257,7 +257,7 @@ jobs:
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-x86_64-musl.tar.gz -C target/x86_64-unknown-linux-musl/dist pad
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64-musl
           path: rust-tui/dist/*.tar.gz
@@ -306,7 +306,7 @@ jobs:
           tar -czf dist/pad-${GITHUB_REF_NAME}-linux-aarch64-musl.tar.gz -C target/aarch64-unknown-linux-musl/dist pad
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-aarch64-musl
           path: rust-tui/dist/*.tar.gz
@@ -366,7 +366,7 @@ jobs:
           tar -czf dist/pad-${GITHUB_REF_NAME}-macos-universal.tar.gz -C target/dist/universal pad
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-universal
           path: rust-tui/dist/*.tar.gz
