@@ -43,7 +43,7 @@ fn run_remote_exec(args: &[String]) -> Result<(), Box<dyn Error>> {
     if command.trim().is_empty() {
         return Err("missing remote command".into());
     }
-    let ssh = remote_ssh_command(&RemoteCommandRequest { host, cwd, command });
+    let ssh = remote_ssh_command(&RemoteCommandRequest { host, cwd, command })?;
     if dry_run {
         println!("{}", format_args(&ssh));
         return Ok(());

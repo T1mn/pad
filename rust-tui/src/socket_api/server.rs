@@ -1,61 +1,43 @@
 use super::handler::handle_request;
 use super::model::{ApiRequest, ApiResponse};
+use super::peer::authorize_peer;
+use super::socket_file::bind_private_listener;
 use std::io;
-use std::os::unix::net::UnixStream as StdUnixStream;
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 
-pub fn api_socket_is_active() -> bool {
-    let path = crate::paths::api_socket_path();
-    path.exists() && StdUnixStream::connect(path).is_ok()
-}
-
+/// bind 在同步部分完成，失败会真正返回给调用方；只有 accept 循环进 tokio::spawn。
 pub fn start_api_listener() -> io::Result<()> {
     let socket_path = crate::paths::api_socket_path();
-    if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    if socket_path.exists() {
-        if api_socket_is_active() {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("pad socket API already active at {}", socket_path.display()),
-            ));
-        }
-        match std::fs::remove_file(&socket_path) {
-            Ok(()) => {}
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
-    }
-
-    tokio::spawn(async move {
-        let listener = match UnixListener::bind(&socket_path) {
-            Ok(listener) => listener,
-            Err(err) => {
-                log_debug!("socket_api: bind failed: {}", err);
-                return;
-            }
-        };
-        log_debug!("socket_api: listening on {}", display_path(&socket_path));
-        loop {
-            match listener.accept().await {
-                Ok((stream, _)) => {
-                    tokio::spawn(async move {
-                        if let Err(err) = handle_stream(stream).await {
-                            log_debug!("socket_api: stream error: {}", err);
-                        }
-                    });
-                }
-                Err(err) => {
-                    log_debug!("socket_api: accept error: {}", err);
-                    break;
-                }
-            }
-        }
-    });
+    let listener = bind_private_listener(&socket_path)?;
+    let listener = UnixListener::from_std(listener)?;
+    log_debug!("socket_api: listening on {}", display_path(&socket_path));
+    tokio::spawn(accept_loop(listener));
     Ok(())
+}
+
+async fn accept_loop(listener: UnixListener) {
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                if let Err(err) = authorize_peer(&stream) {
+                    log_debug!("socket_api: rejected connection: {}", err);
+                    drop(stream);
+                    continue;
+                }
+                tokio::spawn(async move {
+                    if let Err(err) = handle_stream(stream).await {
+                        log_debug!("socket_api: stream error: {}", err);
+                    }
+                });
+            }
+            Err(err) => {
+                log_debug!("socket_api: accept error: {}", err);
+                break;
+            }
+        }
+    }
 }
 
 async fn handle_stream(stream: UnixStream) -> io::Result<()> {
@@ -79,3 +61,7 @@ async fn handle_stream(stream: UnixStream) -> io::Result<()> {
 fn display_path(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
+
+#[cfg(test)]
+#[path = "server_tests.rs"]
+mod server_tests;

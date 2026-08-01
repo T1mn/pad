@@ -28,12 +28,16 @@ pub(super) fn remote_exec_response(request: ApiRequest) -> ApiResponse {
     let Some(command) = request.command else {
         return ApiResponse::err("missing command");
     };
-    let ssh =
-        crate::browser_remote::remote_ssh_command(&crate::browser_remote::RemoteCommandRequest {
+    let ssh = match crate::browser_remote::remote_ssh_command(
+        &crate::browser_remote::RemoteCommandRequest {
             host,
             cwd: request.cwd,
             command,
-        });
+        },
+    ) {
+        Ok(ssh) => ssh,
+        Err(err) => return ApiResponse::err(format!("invalid host: {err}")),
+    };
     if request.dry_run {
         return ApiResponse::ok("dry_run", Some(json!({ "command": ssh })));
     }

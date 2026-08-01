@@ -45,10 +45,14 @@ fn step_launch_command(step: &WorkspaceRecipeStep, cwd: &str) -> String {
             cwd: Some(cwd.to_string()),
             command,
         });
-    format!(
-        "{} {} {}",
-        ssh[0],
-        shell_quote(&ssh[1]),
-        shell_quote(&ssh[2])
-    )
+    let Ok(ssh) = ssh else {
+        // host 非法就当场报错退出:悄悄退回本地执行会把远端命令跑到错误的机器上。
+        return "echo 'pad: invalid remote host' >&2; exit 1".to_string();
+    };
+    let mut line = ssh[0].clone();
+    for arg in &ssh[1..] {
+        line.push(' ');
+        line.push_str(&shell_quote(arg));
+    }
+    line
 }
