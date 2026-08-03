@@ -56,7 +56,7 @@ impl AgentPanel {
         let start = path
             .char_indices()
             .rev()
-            .find(|(i, _)| path.len() - i <= max_len - 3)
+            .find(|(i, _)| path.len() - i <= max_len.saturating_sub(3))
             .map(|(i, _)| i)
             .unwrap_or(0);
         format!("...{}", &path[start..])

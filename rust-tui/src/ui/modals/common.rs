@@ -129,14 +129,17 @@ fn trailing_chars(input: &str, count: usize) -> String {
     suffix
 }
 
+/// `prefix_len` 按字符算：api_key / auth token 是用户自由输入的，按字节切片会在
+/// 多字节字符中间截断并 panic。
 pub(super) fn mask_secret_prefix(value: &str, prefix_len: usize) -> String {
     if value.trim().is_empty() {
         return "-".to_string();
     }
-    if value.len() <= prefix_len {
+    if value.chars().count() <= prefix_len {
         return value.to_string();
     }
-    format!("{}...", &value[..prefix_len])
+    let prefix: String = value.chars().take(prefix_len).collect();
+    format!("{}...", prefix)
 }
 
 #[cfg(test)]

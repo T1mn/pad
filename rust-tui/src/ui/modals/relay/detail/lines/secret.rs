@@ -10,11 +10,7 @@ pub(super) fn masked_api_key(app: &App, agent: &AgentConfig, provider: &Provider
             provider.codex_auth_token().as_deref().unwrap_or_default(),
             10,
         )
-    } else if provider.api_key.is_empty() {
-        "-".to_string()
-    } else if provider.api_key.len() > 12 {
-        format!("{}...", &provider.api_key[..12])
     } else {
-        provider.api_key.clone()
+        mask_secret_prefix(&provider.api_key, 12)
     }
 }

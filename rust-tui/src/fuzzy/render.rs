@@ -44,6 +44,11 @@ pub(super) fn draw_picker(picker: &FuzzyPicker, f: &mut ratatui::Frame) {
     f.render_widget(block, area);
 
     // Help text at bottom
+    // 终端只有 1 行时 centered_rect 会算出 height = 0，减 1 会让 u16 下溢。
+    if area.height == 0 {
+        return;
+    }
+
     let help = Paragraph::new("Up/Down: navigate | type: filter | Enter: select | Esc: cancel")
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::Gray));

@@ -68,21 +68,29 @@ fn rollout_date_parts(file_name: &str) -> io::Result<(&str, &str, &str)> {
             "rollout path missing filename timestamp",
         )
     })?;
-    if stem.len() < 10 {
-        return Err(io::Error::new(
+    let bytes = stem.as_bytes();
+    let invalid = || {
+        io::Error::new(
             io::ErrorKind::InvalidData,
             "rollout path missing filename timestamp",
-        ));
+        )
+    };
+    if bytes.len() < 10 {
+        return Err(invalid());
+    }
+    if bytes[4] != b'-' || bytes[7] != b'-' {
+        return Err(invalid());
+    }
+    // 必须先确认日期段是纯 ASCII 数字，再切片：多字节文件名会让字节切片切在字符中间。
+    let is_date_digits =
+        |range: std::ops::Range<usize>| bytes[range].iter().all(u8::is_ascii_digit);
+    if !is_date_digits(0..4) || !is_date_digits(5..7) || !is_date_digits(8..10) {
+        return Err(invalid());
     }
 
-    let year = &stem[0..4];
-    let month = &stem[5..7];
-    let day = &stem[8..10];
-    if stem.as_bytes().get(4) != Some(&b'-') || stem.as_bytes().get(7) != Some(&b'-') {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "rollout path missing filename timestamp",
-        ));
-    }
-    Ok((year, month, day))
+    Ok((&stem[0..4], &stem[5..7], &stem[8..10]))
 }
+
+#[cfg(test)]
+#[path = "path_tests.rs"]
+mod tests;
