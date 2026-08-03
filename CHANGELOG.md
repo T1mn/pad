@@ -11,6 +11,8 @@ than listed one by one.
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-08-03
+
 ### Security
 
 - Relay and provider configuration is written through an atomic, permission-checked path instead of
@@ -35,6 +37,14 @@ than listed one by one.
 ### Fixed
 
 - Relay: skip rewriting live provider config on startup.
+- Relay settings: a non-ASCII API key or Codex auth token no longer crashes the detail pane. The
+  mask truncated by byte offset while guarding by byte length, so a multi-byte character could be
+  split. Because the key is persisted, this crashed on every render of the pane.
+- Codex archive: a rollout filename with multi-byte characters is rejected instead of panicking.
+  The date segments were sliced before the filename was validated, and checking only the `-`
+  separators still allowed a split character in the day segment.
+- Panel path shortening no longer underflows when the available width is under 3 columns.
+- The fuzzy picker no longer underflows when the terminal is too short to give it any height.
 
 ## [0.7.3] - 2026-07-17
 
@@ -104,7 +114,8 @@ pad-sider (file tree, project index map, split preview, line numbers, Codex turn
 multi-provider relay and proxy settings, the Telegram bot daemon, completion notifications, six-language
 i18n, the native fuzzy picker, agent workflow automation, and the installer plus release pipeline.
 
-[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/T1mn/pad/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/T1mn/pad/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/T1mn/pad/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/T1mn/pad/compare/v0.7.0...v0.7.1
