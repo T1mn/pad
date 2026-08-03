@@ -14,18 +14,24 @@ pub type TerminalHandle = Terminal<CrosstermBackend<io::Stdout>>;
 
 pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(|info| {
-        let _ = disable_raw_mode();
-        let _ = execute!(
-            io::stdout(),
-            LeaveAlternateScreen,
-            DisableMouseCapture,
-            DisableFocusChange,
-            DisableBracketedPaste
-        );
         let msg = format!("PANIC: {}", info);
-        eprintln!("{}", msg);
         crate::logger::log(&msg);
+        if panic_requires_terminal_restore() {
+            let _ = disable_raw_mode();
+            let _ = execute!(
+                io::stdout(),
+                LeaveAlternateScreen,
+                DisableMouseCapture,
+                DisableFocusChange,
+                DisableBracketedPaste
+            );
+            eprintln!("{}", msg);
+        }
     }));
+}
+
+fn panic_requires_terminal_restore() -> bool {
+    !crate::panic_boundary::is_isolated()
 }
 
 pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Error>> {
@@ -62,4 +68,19 @@ pub fn restore(terminal: &mut TerminalHandle) -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::panic_requires_terminal_restore;
+
+    #[test]
+    fn isolated_worker_boundary_keeps_terminal_active() {
+        assert!(panic_requires_terminal_restore());
+        crate::panic_boundary::catch_isolated_unwind(|| {
+            assert!(!panic_requires_terminal_restore());
+        })
+        .unwrap();
+        assert!(panic_requires_terminal_restore());
+    }
 }

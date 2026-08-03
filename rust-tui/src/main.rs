@@ -29,6 +29,7 @@ mod notify;
 mod opencode_history;
 mod opencode_text;
 mod pad_sider;
+mod panic_boundary;
 mod paths;
 mod pipe;
 mod preview_source;
@@ -48,6 +49,7 @@ mod startup;
 mod system_check;
 mod telegram;
 mod terminal;
+mod terminal_runtime;
 #[cfg(test)]
 mod test_support;
 mod text_match;

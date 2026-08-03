@@ -1,11 +1,13 @@
 # src
 
 - `main.rs`：入口与主循环；启动参数、tmux bootstrap、终端管理、启动服务和信号处理拆到邻近模块。
+- `terminal_runtime.rs` / `terminal_runtime/`：内嵌终端的 pane、解析引擎、会话传输协议与分片 worker runtime；默认 UI 尚未切换。
 - `cli.rs` / `cli_tests.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
 - `time.rs` / `logger.rs` / `shell_quote.rs` / `shell_quote_tests.rs` / `text_match.rs` / `text_match_tests.rs` / `text_normalize.rs` / `text_normalize_tests.rs`：crate 内共享时间戳、debug log、shell quoting、文本匹配与文本归一化 helper。
+- `panic_boundary.rs`：标记可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。

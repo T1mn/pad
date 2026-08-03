@@ -1,6 +1,7 @@
 mod client;
 mod event;
 mod listener;
+mod output;
 mod parser;
 
 pub use event::TmuxEvent;
