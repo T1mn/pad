@@ -44,11 +44,7 @@ pub(super) fn handle_primary_key(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         KeyCode::Char('c') | KeyCode::Char('C') => {
-            if app.runtime_mode.uses_tmux() {
-                app.open_fuzzy_picker();
-            } else {
-                app.focus_terminal();
-            }
+            app.open_fuzzy_picker();
             true
         }
         KeyCode::Char('Z') => {
@@ -64,5 +60,27 @@ pub(super) fn handle_primary_key(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::event::KeyModifiers;
+
+    use super::*;
+
+    #[test]
+    fn c_keeps_opening_the_global_index_in_native_mode() {
+        crate::test_support::with_temp_home("pad-global-index", "native-c", |_home| {
+            let mut app = App::new();
+            app.runtime_mode = crate::runtime_mode::RuntimeMode::Native;
+
+            assert!(handle_primary_key(
+                &mut app,
+                KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE)
+            ));
+            assert!(matches!(app.mode, Mode::FuzzyPicker));
+            assert!(app.fuzzy_picker.is_some());
+        });
     }
 }

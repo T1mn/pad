@@ -56,6 +56,7 @@ PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `p
 ### Native Terminal Workspace
 
 - Press `Tab` to focus the terminal and `F12` to return to the sidebar.
+- `C` still opens PAD's global directory index; it is not used for terminal focus.
 - Press `F11` for PAD Terminal commands (`Ctrl+Shift+Space` also works with enhanced keyboard protocols).
 - In the command layer: `1`–`4` create Shell / Codex / Claude / GitHub CLI tabs, `v`/`s` split right/below, `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
 - `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.

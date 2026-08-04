@@ -55,6 +55,7 @@ PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只�
 ### 原生终端工作区
 
 - `Tab` 聚焦右侧终端，`F12` 返回左侧。
+- `C` 仍然打开 PAD 的全局目录索引，不再承担终端聚焦。
 - `F11` 打开 PAD Terminal 命令层（支持增强键盘协议时也可用 `Ctrl+Shift+Space`）。
 - 命令层中：`1`～`4` 新建 Shell / Codex / Claude / GitHub CLI 标签，`v`/`s` 左右/上下分屏，`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
 - `Shift+PgUp/PgDn/Home/End` 控制历史视口；鼠标滚轮会在应用鼠标上报与 PAD scrollback 之间自动仲裁。
