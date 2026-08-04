@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 
 impl App {
     pub fn trigger_async_scan(&mut self) {
-        if self.scan_in_progress {
+        if !self.runtime_mode.uses_tmux() || self.scan_in_progress {
             return;
         }
 

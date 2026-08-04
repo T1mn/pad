@@ -26,6 +26,12 @@ pub(super) fn run_pre_event_cycle(
     }
 
     check_async_results(app);
+    app.poll_native_terminal();
+    if app.terminal_is_active() && !app.sidebar.show_tree {
+        let area: Rect = terminal.size()?.into();
+        let size = crate::ui::terminal_viewport_size(app, area);
+        app.resize_native_terminal(size);
+    }
     check_preview_detail_update(terminal, app)?;
 
     events::drain_hook_events(app);

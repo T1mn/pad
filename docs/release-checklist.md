@@ -24,22 +24,23 @@
 4. Run `cargo build --profile dist` in `rust-tui/`.
 5. Run `bash scripts/build_installer.sh`.
 6. Launch `pad` locally at least once.
-7. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh`.
+7. Launch `pad` with a `PATH` that does not contain tmux; verify native shell input, resize, and clean exit.
+8. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh` without installing tmux.
 
 ## Automated checks
 
 1. Confirm `CI` workflow is green.
-2. Confirm `Tmux Smoke` workflow is green on macOS and Linux.
+2. Confirm native no-tmux smoke and explicit `Tmux Smoke` compatibility workflows are green on macOS and Linux.
 3. Confirm the release tag matches `rust-tui/Cargo.toml`.
 4. Confirm the installer smoke job is green.
 
 ## Manual smoke before publishing
 
 1. Run inside WSL2, not on the Windows host shell.
-2. Verify `tmux` is installed in WSL2.
-3. Start at least one real AI agent inside tmux.
-4. Launch `pad`.
-5. Verify scan, preview, attach, and detach.
+2. Launch native `pad` without tmux and verify shell input, resize, focus return, and exit.
+3. Install tmux in WSL2 only for the compatibility check.
+4. Start at least one real AI agent inside tmux and launch `pad --tmux`.
+5. Verify legacy scan, preview, attach, and detach.
 
 ## Publish
 

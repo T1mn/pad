@@ -271,6 +271,40 @@ mod tests {
     }
 
     #[test]
+    fn cursor_modifier_preserves_the_cells_existing_style() {
+        let mut terminal = TerminalSnapshot::blank(TerminalSize::new(1, 1));
+        terminal.cells[0].foreground = TerminalColor::Rgb(10, 20, 30);
+        terminal.cells[0].background = TerminalColor::Rgb(40, 50, 60);
+        terminal.cells[0].attributes.bold = true;
+        terminal.cursor = Some(TerminalCursor {
+            column: 0,
+            row: 0,
+            shape: CursorShape::Block,
+        });
+        let frame = PaneFrame {
+            metadata: PaneMetadata {
+                id: PaneId::new("styled-cursor"),
+                label: "Styled".to_string(),
+                engine_id: EngineId::new("alacritty"),
+                transport_id: TransportId::new("replay"),
+            },
+            terminal,
+        };
+        let area = Rect::new(0, 0, 3, 3);
+        let mut buffer = Buffer::empty(area);
+
+        TerminalPaneWidget::new(&frame)
+            .focused(true)
+            .render(area, &mut buffer);
+
+        let cursor = &buffer[(1, 1)];
+        assert_eq!(cursor.fg, Color::Rgb(10, 20, 30));
+        assert_eq!(cursor.bg, Color::Rgb(40, 50, 60));
+        assert!(cursor.modifier.contains(Modifier::BOLD));
+        assert!(cursor.modifier.contains(Modifier::REVERSED));
+    }
+
+    #[test]
     fn terminal_attributes_map_to_ratatui_modifiers() {
         let modifiers = attribute_modifiers(TextAttributes {
             bold: true,

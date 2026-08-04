@@ -10,7 +10,13 @@ pub(super) async fn run_app(
     app: &mut App,
 ) -> io::Result<()> {
     let mut state = super::loop_state::LoopState::new();
-    let mut pipe_rx = crate::pipe::start_control_pipe();
+    let (disabled_pipe_tx, disabled_pipe_rx) = tokio::sync::mpsc::channel(1);
+    let _disabled_pipe_tx = (!app.runtime_mode.uses_tmux()).then_some(disabled_pipe_tx);
+    let mut pipe_rx = if app.runtime_mode.uses_tmux() {
+        crate::pipe::start_control_pipe()
+    } else {
+        disabled_pipe_rx
+    };
 
     loop {
         super::refresh_pipeline::run_pre_event_cycle(terminal, app, &mut state, &mut pipe_rx)?;

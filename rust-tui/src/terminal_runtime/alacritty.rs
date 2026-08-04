@@ -110,6 +110,7 @@ impl TerminalEngine for AlacrittyEngine {
             mouse_reporting: renderable.mode.intersects(
                 TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION,
             ),
+            sgr_mouse: renderable.mode.contains(TermMode::SGR_MOUSE),
             application_cursor: renderable.mode.contains(TermMode::APP_CURSOR),
         };
         snapshot

@@ -8,6 +8,7 @@ mod lifecycle;
 pub mod navigation;
 pub mod preview;
 pub mod state;
+mod terminal;
 mod time;
 
 use crate::fuzzy::FuzzyPicker;
@@ -36,6 +37,8 @@ const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_TTL_SECS: i64 = 12 * 60 * 60;
 pub struct App {
+    pub runtime_mode: crate::runtime_mode::RuntimeMode,
+    pub terminal: TerminalUiState,
     pub panels: Vec<AgentPanel>,
     pub table_state: TableState,
     pub mode: Mode,
@@ -122,6 +125,8 @@ pub struct App {
     relay_config_source_len: Option<u64>,
     pending_external_relay_reload: bool,
 }
+
+pub use terminal::TerminalUiState;
 
 impl App {
     pub fn apply_theme(&mut self, name: &str) {

@@ -1,6 +1,6 @@
 <div align="center">
   <h1>PAD</h1>
-  <p><strong>One workspace for multiple AI agents in tmux.</strong></p>
+  <p><strong>One workspace with a PAD-owned native terminal for AI agents.</strong></p>
   <p><code>pad</code> = Panel for Agent Development.</p>
   <p>English | <a href="README_ZH.md">中文</a></p>
 </div>
@@ -12,12 +12,12 @@ You can see which session moved, read recent conversation history, and only then
 
 - Manage multiple AI agent sessions from one workspace.
 - Read recent conversation history before you attach to a pane.
-- Pure Rust. Tmux-native. Built for terminal agents.
+- Pure Rust. Native PTY by default, with explicit tmux compatibility.
 - Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.
 
 ## Install
 
-Requires: `tmux` at runtime.
+The default native terminal has no tmux runtime requirement. Install `tmux` only if you use `pad --tmux` or legacy tmux-only workflows.
 
 Supported runtime environments:
 
@@ -35,7 +35,7 @@ cd pad
 ./install.sh
 ```
 
-The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. It also installs `tmux` automatically when missing, and will bootstrap Rust plus common build tools when a source build is required.
+The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. Set `PAD_INSTALL_TMUX_COMPAT=1` to install optional tmux support; source builds bootstrap Rust and common build tools as needed.
 
 Installer source is split under `install/`. After editing those modules, regenerate the checked-in single-file `install.sh` with:
 
@@ -51,7 +51,7 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
-PAD is tmux-first. Install and run `tmux` in the same environment as `pad`. On macOS, [Ghostty](https://ghostty.org/) is recommended for smoother tmux/TUI rendering. On WSL2, install and run both inside WSL.
+PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `pad --tmux` to enter the legacy compatibility runtime. On WSL2, run PAD inside WSL; install tmux there only when using compatibility mode.
 
 ## Demo
 

@@ -8,10 +8,11 @@ PAD (`pad`) is tested for:
 
 ## Runtime requirements
 
-- `tmux` is required at runtime.
-- `pad` and `tmux` must run in the same environment.
-- On WSL2, install and run both `pad` and `tmux` inside WSL.
-- `install.sh` can prompt to install `tmux` automatically on supported package managers.
+- Native mode is the default and does not require `tmux`.
+- `tmux` is required only for the explicit `pad --tmux` compatibility mode and legacy tmux-only session workflows.
+- On WSL2, run `pad` inside WSL; when using compatibility mode, install and run `tmux` inside the same WSL environment.
+- `install.sh` may offer `tmux` for compatibility workflows, but the native terminal can start without it.
+- Set `PAD_HOME` to isolate PAD's config, runtime sockets, logs, and state from the default `~/.pad` directory.
 
 ## Supported release targets
 
@@ -24,10 +25,11 @@ PAD (`pad`) is tested for:
 ## Current non-goals
 
 - Windows native support
-- Mixed host setups such as Windows-host tmux with WSL `pad`
+- Mixed compatibility setups such as Windows-host tmux with WSL `pad`
 
 ## Release validation
 
 - CI: format, clippy, tests, dist build
-- tmux smoke: macOS and Linux
+- native no-tmux smoke: macOS and Linux
+- explicit tmux compatibility smoke: macOS and Linux
 - Manual smoke: WSL2 before release

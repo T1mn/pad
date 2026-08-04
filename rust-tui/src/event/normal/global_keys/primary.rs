@@ -44,7 +44,11 @@ pub(super) fn handle_primary_key(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         KeyCode::Char('c') | KeyCode::Char('C') => {
-            app.open_fuzzy_picker();
+            if app.runtime_mode.uses_tmux() {
+                app.open_fuzzy_picker();
+            } else {
+                app.focus_terminal();
+            }
             true
         }
         KeyCode::Char('Z') => {

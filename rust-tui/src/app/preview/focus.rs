@@ -7,7 +7,9 @@ impl App {
     }
 
     pub fn toggle_preview_focus(&mut self) -> bool {
-        if self.sidebar.show_tree || self.selected_preview_thread().is_none() {
+        if self.sidebar.show_tree
+            || (self.selected_preview_thread().is_none() && !self.terminal_is_active())
+        {
             return false;
         }
         self.preview.focus = match self.preview.focus {
@@ -28,7 +30,9 @@ impl App {
     }
 
     pub fn focus_preview(&mut self) -> bool {
-        if self.sidebar.show_tree || self.selected_preview_thread().is_none() {
+        if self.sidebar.show_tree
+            || (self.selected_preview_thread().is_none() && !self.terminal_is_active())
+        {
             return false;
         }
         if self.preview.focus != FocusTarget::Preview {

@@ -35,6 +35,7 @@ mod pipe;
 mod preview_source;
 pub mod pty;
 mod relay;
+mod runtime_mode;
 mod runtime_status;
 mod scanner;
 mod session;
@@ -68,9 +69,21 @@ mod workspace_recipe;
 use app::App;
 
 fn should_restore_tmux_state(app: &App) -> bool {
-    app.same_session_attached
-        || !app.saved_tmux_bindings.is_empty()
-        || app.saved_tmux_status.is_some()
+    tmux_state_needs_restore(
+        app.runtime_mode,
+        app.same_session_attached,
+        !app.saved_tmux_bindings.is_empty(),
+        app.saved_tmux_status.is_some(),
+    )
+}
+
+fn tmux_state_needs_restore(
+    runtime_mode: runtime_mode::RuntimeMode,
+    same_session_attached: bool,
+    has_saved_bindings: bool,
+    has_saved_status: bool,
+) -> bool {
+    runtime_mode.uses_tmux() && (same_session_attached || has_saved_bindings || has_saved_status)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -95,17 +108,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     let telegram_daemon = cli::is_telegram_daemon_command(&args);
     let debug = args.iter().any(|a| a == "--debug" || a == "-d");
+    let runtime_mode = runtime_mode::RuntimeMode::from_args(&args);
     let tmux_env_present = std::env::var_os("TMUX").is_some();
     let tmux_pane_present = std::env::var_os("TMUX_PANE").is_some();
     let already_bootstrapped = std::env::var_os(bootstrap::PAD_BOOTSTRAP_ENV).is_some();
-    if bootstrap::should_bootstrap_into_tmux(
-        &args,
-        tmux_env_present,
-        tmux_pane_present,
-        already_bootstrapped,
-        io::stdin().is_terminal(),
-        io::stdout().is_terminal(),
-    ) {
+    if runtime_mode.uses_tmux()
+        && bootstrap::should_bootstrap_into_tmux(
+            &args,
+            tmux_env_present,
+            tmux_pane_present,
+            already_bootstrapped,
+            io::stdin().is_terminal(),
+            io::stdout().is_terminal(),
+        )
+    {
         let _ = system_check::ensure_tmux_available()?;
         return bootstrap::bootstrap_into_tmux(&args);
     }
@@ -128,17 +144,32 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         )));
     }
 
-    let tmux_report = system_check::ensure_tmux_available()?;
-    for line in tmux_report.summary_lines() {
-        log_debug!("tmux_probe: {}", line);
-    }
+    let configure_tmux_focus_events = if runtime_mode.uses_tmux() {
+        let report = system_check::ensure_tmux_available()?;
+        for line in report.summary_lines() {
+            log_debug!("tmux_probe: {}", line);
+        }
+        report.capabilities.focus_events
+    } else {
+        log_debug!("runtime: native terminal mode; tmux probe skipped");
+        false
+    };
 
     terminal::install_panic_hook();
-    let mut terminal = terminal::enter(tmux_report.capabilities.focus_events)?;
+    let mut terminal = terminal::enter(configure_tmux_focus_events)?;
 
     let mut app = App::new();
+    app.runtime_mode = runtime_mode;
     startup::start_runtime_services(&mut app)?;
-    startup::load_initial_panels(&mut app);
+    if runtime_mode.uses_tmux() {
+        startup::load_initial_panels(&mut app);
+    } else {
+        let size = ui::terminal_viewport_size(&mut app, terminal.size()?.into());
+        if let Err(error) = app.start_native_terminal(size) {
+            let _ = terminal::restore(&mut terminal);
+            return Err(Box::new(error));
+        }
+    }
 
     let res = {
         let run_app = event::run_app(&mut terminal, &mut app);
@@ -162,6 +193,9 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         event::restore_tmux_bindings(&mut app);
     }
 
+    if let Err(error) = app.shutdown_native_terminal() {
+        log_debug!("native terminal shutdown failed: {}", error);
+    }
     terminal::restore(&mut terminal)?;
 
     if let Err(ref err) = res {
@@ -182,4 +216,25 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     res?;
     Ok(())
+}
+
+#[cfg(test)]
+mod native_runtime_tests {
+    use super::{runtime_mode::RuntimeMode, tmux_state_needs_restore};
+
+    #[test]
+    fn native_mode_never_runs_tmux_restore_even_with_stale_state() {
+        assert!(!tmux_state_needs_restore(
+            RuntimeMode::Native,
+            true,
+            true,
+            true
+        ));
+        assert!(tmux_state_needs_restore(
+            RuntimeMode::TmuxCompatibility,
+            false,
+            true,
+            false
+        ));
+    }
 }

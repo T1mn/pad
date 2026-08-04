@@ -4,6 +4,7 @@
 - `lifecycle.rs`：`App::new` 初始化。
 - `display_scope.rs`：侧边栏缓存失效、live/all session scope 与 thread list view helper。
 - `time.rs`：app 级时间戳与 handoff trace id helper。
+- `terminal.rs`：UI 侧 Native terminal controller、latest frame、输入背压与 viewport 状态。
 - `state/`：UI 与运行态结构。
 - `actions.rs` / `actions/`：用户动作封装。
 - `async_ops.rs`：扫描、预览、provider 测试异步入口。

@@ -18,7 +18,11 @@ impl App {
     }
 
     pub fn desired_tick_rate(&self) -> Duration {
-        if self.has_visible_busy_threads() {
+        if self.terminal_is_focused() {
+            Duration::from_millis(16)
+        } else if self.terminal_is_active() {
+            Duration::from_millis(33)
+        } else if self.has_visible_busy_threads() {
             Duration::from_millis(60)
         } else if self.preview.view == PreviewView::SessionDetail {
             Duration::from_millis(90)

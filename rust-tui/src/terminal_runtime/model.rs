@@ -114,6 +114,7 @@ pub struct TerminalMode {
     pub alternate_screen: bool,
     pub bracketed_paste: bool,
     pub mouse_reporting: bool,
+    pub sgr_mouse: bool,
     pub application_cursor: bool,
 }
 

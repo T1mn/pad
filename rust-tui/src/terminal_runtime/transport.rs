@@ -25,9 +25,9 @@ pub enum TransportCommand {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TransportEvent {
     Output(Vec<u8>),
-    /// Confirms that the transport has applied a requested terminal size.
-    /// Output emitted before this event belongs to the previous size; output
-    /// emitted after it belongs to `size`.
+    /// Confirms that the transport has applied a requested terminal size at
+    /// the kernel/session boundary. Events remain FIFO, but a real PTY reader
+    /// cannot prove when concurrently buffered bytes were physically emitted.
     ResizeApplied(TerminalSize),
     Exited(TransportExit),
 }

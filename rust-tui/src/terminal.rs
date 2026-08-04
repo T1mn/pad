@@ -34,7 +34,7 @@ fn panic_requires_terminal_restore() -> bool {
     !crate::panic_boundary::is_isolated()
 }
 
-pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Error>> {
+pub fn enter(configure_tmux_focus_events: bool) -> Result<TerminalHandle, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(
@@ -45,12 +45,10 @@ pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Err
         EnableBracketedPaste
     )?;
 
-    if focus_events_supported {
+    if configure_tmux_focus_events {
         let _ = std::process::Command::new("tmux")
             .args(["set", "-g", "focus-events", "on"])
             .output();
-    } else {
-        log_debug!("tmux_probe: skip focus-events enable because capability is unavailable");
     }
 
     let backend = CrosstermBackend::new(stdout);

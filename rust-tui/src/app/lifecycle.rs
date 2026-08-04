@@ -19,6 +19,8 @@ impl App {
         let theme = Theme::by_name(&config.theme);
 
         let mut app = Self {
+            runtime_mode: crate::runtime_mode::RuntimeMode::Native,
+            terminal: super::TerminalUiState::default(),
             panels: Vec::new(),
             table_state,
             mode: Mode::Normal,

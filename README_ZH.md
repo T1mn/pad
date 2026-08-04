@@ -9,13 +9,13 @@
 
 ## 一句话总结（太长不看）
 
-- 纯 Rust 打造，原生基于 tmux，专为终端智能体而生。
+- 纯 Rust 打造，默认使用 PAD 自己托管的原生 PTY，tmux 仅为显式兼容模式。
 - 看清谁动了，先读 preview，再进对的 pane。
 - 当前 macOS 实测：dist 二进制约 3.7 MB，空闲运行时约 12 MB RSS。
 
 ## 安装
 
-运行时依赖：`tmux`
+默认原生终端不依赖 `tmux`。只有使用 `pad --tmux` 或旧的 tmux 专属工作流时才需要安装 tmux。
 
 支持的运行环境：
 
@@ -33,7 +33,7 @@ cd pad
 ./install.sh
 ```
 
-安装脚本会优先尝试下载预编译 release，并在 Linux 上按运行时环境优先选择匹配的 glibc 或 musl 包；下载后还会验证二进制能否在当前机器上运行。只有在没有可用预编译包时，才会提示后回退到本地源码构建。系统里缺少 `tmux` 时，它也会提示你自动安装；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
+安装脚本会优先尝试下载预编译 release，并在 Linux 上按运行时环境优先选择匹配的 glibc 或 musl 包；下载后还会验证二进制能否在当前机器上运行。只有在没有可用预编译包时，才会提示后回退到本地源码构建。设置 `PAD_INSTALL_TMUX_COMPAT=1` 才会安装可选 tmux 兼容能力；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
 
 安装器源码已经拆到 `install/` 目录。修改这些模块后，请重新生成仓库里提交的单文件 `install.sh`：
 
@@ -49,9 +49,8 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
-PAD 是 tmux-first 的工具。`pad` 和 `tmux` 需要运行在同一个环境里。  
-macOS 下推荐使用 [Ghostty](https://ghostty.org/)，它和 tmux/TUI 的刷新体验通常更顺。  
-如果你在 WSL2 下使用，请确保两者都安装并运行在 WSL 内部。
+PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只有显式运行 `pad --tmux` 才进入旧兼容路径。
+如果你在 WSL2 下使用，请在 WSL 内运行 PAD；只有兼容模式需要在同一 WSL 环境安装 tmux。
 
 ## 演示
 

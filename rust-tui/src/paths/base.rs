@@ -1,11 +1,26 @@
 use std::path::PathBuf;
 
 pub fn pad_home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".pad")
+    resolve_pad_home_dir(
+        std::env::var_os("PAD_HOME").map(PathBuf::from),
+        std::env::var_os("HOME").map(PathBuf::from),
+        dirs::home_dir(),
+    )
+}
+
+fn resolve_pad_home_dir(
+    override_dir: Option<PathBuf>,
+    environment_home: Option<PathBuf>,
+    platform_home: Option<PathBuf>,
+) -> PathBuf {
+    override_dir
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| {
+            environment_home
+                .or(platform_home)
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".pad")
+        })
 }
 
 pub fn config_path() -> PathBuf {
@@ -105,4 +120,26 @@ pub fn codex_hook_bridge_path() -> PathBuf {
 
 pub fn pad_codex_wrapper_path() -> PathBuf {
     scripts_dir().join("pad-codex")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_pad_home_dir;
+    use std::path::PathBuf;
+
+    #[test]
+    fn explicit_pad_home_is_used_without_rewriting_process_home() {
+        assert_eq!(
+            resolve_pad_home_dir(
+                Some(PathBuf::from("/tmp/pad-isolated")),
+                Some(PathBuf::from("/users/example")),
+                None,
+            ),
+            PathBuf::from("/tmp/pad-isolated")
+        );
+        assert_eq!(
+            resolve_pad_home_dir(None, Some(PathBuf::from("/users/example")), None),
+            PathBuf::from("/users/example/.pad")
+        );
+    }
 }

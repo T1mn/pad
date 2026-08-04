@@ -13,6 +13,24 @@ use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
 
+pub fn terminal_viewport_size(
+    app: &mut App,
+    area: ratatui::layout::Rect,
+) -> crate::terminal_runtime::TerminalSize {
+    let preferred_left_width = if app.sidebar.show_tree {
+        None
+    } else {
+        Some(panel_list::preferred_panel_width(app))
+    };
+    let (_, body_layout) =
+        layout::compute_layout(area, app.sidebar.show_tree, preferred_left_width);
+    let terminal_area = body_layout[1];
+    crate::terminal_runtime::TerminalSize::new(
+        terminal_area.width.saturating_sub(2),
+        terminal_area.height.saturating_sub(2),
+    )
+}
+
 pub fn draw(f: &mut Frame, app: &mut App) {
     let frame_started = std::time::Instant::now();
     // Apply global background color from theme

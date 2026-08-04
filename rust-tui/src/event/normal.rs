@@ -2,6 +2,7 @@ mod global_keys;
 mod preview_keys;
 mod sidebar_keys;
 mod tab;
+mod terminal_keys;
 
 use crate::app::App;
 use crate::log_debug;
@@ -49,6 +50,10 @@ where
         app.sidebar.show_tree,
         app.panels.len()
     );
+
+    if terminal_keys::handle_terminal_key(app, key) {
+        return Ok(());
+    }
 
     let is_tab = matches!(key.code, KeyCode::Tab);
     let is_space = matches!(key.code, KeyCode::Char(' '));

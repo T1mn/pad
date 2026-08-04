@@ -7,6 +7,7 @@ REPO="T1mn/pad"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
+INSTALL_TMUX_COMPAT="${PAD_INSTALL_TMUX_COMPAT:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
 DISABLE_SOURCE_FALLBACK="${PAD_INSTALL_DISABLE_SOURCE_FALLBACK:-0}"
 DEFAULT_RELEASE_BASE_URL="https://github.com/${REPO}/releases/download"
@@ -559,16 +560,16 @@ install_tmux() {
 
   local plan
   if ! plan="$(detect_tmux_install_plan)"; then
-    err "✗ tmux is required at runtime, but no supported package manager was detected"
-    say "  Install tmux manually, then run pad in the same environment"
+    err "✗ tmux compatibility was requested, but no supported package manager was detected"
+    say "  Native mode is already available; install tmux manually only for pad --tmux"
     exit 1
   fi
 
   warn "! tmux is not installed"
-  if ! prompt_yes "PAD requires tmux at runtime. Install tmux now?"; then
-    err "✗ tmux installation was declined"
+  if ! prompt_yes "Install optional tmux compatibility support now?"; then
+    warn "! Skipping optional tmux compatibility support"
     say "  Manual command: $(tmux_manual_hint "$plan")"
-    exit 1
+    return 0
   fi
 
   ensure_root_or_sudo "$plan"
@@ -1016,10 +1017,10 @@ show_success() {
   say "  pad --help     Show help"
   say ""
   say "Quick start:"
-  say "  1. Start an AI agent inside tmux"
-  say "  2. Run: pad"
-  say "  3. Use j/k to navigate, Enter to attach"
-  say "  4. F12 or Ctrl+Q to return to PAD"
+  say "  1. Run: pad"
+  say "  2. Press Tab to focus PAD's native terminal"
+  say "  3. Press F12 to return to PAD controls"
+  say "  4. Optional legacy mode: pad --tmux"
 }
 
 show_help() {
@@ -1034,12 +1035,14 @@ What this script does:
   1. Try to download a matching release binary
   2. Verify it against the release SHA256SUMS before extracting
   3. Fall back to building from source if needed
-  4. Offer to install tmux if it is missing
+  4. Optionally install tmux compatibility when explicitly requested
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
-  PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_ASSUME_YES Auto-confirm installer prompts when set to 1
+  PAD_INSTALL_TMUX_COMPAT
+                         Install optional tmux support for pad --tmux when set to 1
   PAD_INSTALL_ALLOW_UNVERIFIED
                          Install even when the archive cannot be checked against
                          SHA256SUMS (unsafe; only for sources you fully trust)
@@ -1055,8 +1058,8 @@ Environment variables:
                          Useful for CI and local installer smoke tests
 
 Notes:
-  - PAD requires tmux at runtime.
-  - On WSL2, install and run both tmux and pad inside WSL.
+  - Native mode does not require tmux.
+  - On WSL2, run PAD inside WSL; tmux is needed there only for pad --tmux.
 EOF
 }
 
@@ -1087,10 +1090,12 @@ main() {
     install_from_source
   fi
 
-  install_tmux
-  if ! check_tmux; then
-    err "✗ PAD was installed, but tmux is still unavailable"
-    exit 1
+  if [ "${INSTALL_TMUX_COMPAT}" = "1" ]; then
+    install_tmux
+  elif check_tmux; then
+    ok "✓ Optional tmux compatibility available: $(tmux -V 2>/dev/null || echo tmux)"
+  else
+    say "Native mode is ready; tmux compatibility was not requested."
   fi
   ensure_default_codex_jailbreak_prompt
   ensure_default_codex_index_prompt

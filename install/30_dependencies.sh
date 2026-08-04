@@ -113,16 +113,16 @@ install_tmux() {
 
   local plan
   if ! plan="$(detect_tmux_install_plan)"; then
-    err "✗ tmux is required at runtime, but no supported package manager was detected"
-    say "  Install tmux manually, then run pad in the same environment"
+    err "✗ tmux compatibility was requested, but no supported package manager was detected"
+    say "  Native mode is already available; install tmux manually only for pad --tmux"
     exit 1
   fi
 
   warn "! tmux is not installed"
-  if ! prompt_yes "PAD requires tmux at runtime. Install tmux now?"; then
-    err "✗ tmux installation was declined"
+  if ! prompt_yes "Install optional tmux compatibility support now?"; then
+    warn "! Skipping optional tmux compatibility support"
     say "  Manual command: $(tmux_manual_hint "$plan")"
-    exit 1
+    return 0
   fi
 
   ensure_root_or_sudo "$plan"

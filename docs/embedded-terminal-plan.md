@@ -10,10 +10,10 @@ Beta：2026-09-16
 
 目标形态保持 PAD 左侧导航不变，右侧从“只读预览”逐步升级为可交互的终端 pane；每个 pane 具有 PAD 自己绘制的 label、状态、焦点与布局。
 
-PAD 不从零实现 VT 解析器，也不在第一阶段替换 shell、PTY 或 tmux 的全部能力。整体拆成两个可独立替换的轴：
+PAD 不从零实现 VT 解析器。默认运行路径由 PAD 直接创建和托管 PTY，不探测、不启动、也不配置 tmux；tmux 仅作为显式 `--tmux` 兼容模式保留。整体拆成两个可独立替换的轴：
 
 - **TerminalEngine**：把字节流解析成可绘制的终端网格。首选 Alacritty，Ghostty 作为实验引擎，另有确定性的 Replay/Test 引擎。
-- **SessionTransport**：负责进程、字节流、输入、resize 与生命周期。先接现有 tmux control mode，再增加 native PTY。
+- **SessionTransport**：负责进程、字节流、输入、resize 与生命周期。NativePty 是默认生产后端，tmux control mode 是可选兼容后端。
 
 组合关系是 `PaneRuntime = PaneMetadata + TerminalEngine + SessionTransport`。label 属于 PaneMetadata，由 Ratatui 绘制，不侵入终端引擎。
 
@@ -71,11 +71,11 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 | 后端 | 用途 | 首发顺序 |
 | --- | --- | ---: |
-| TmuxControl | 保留现有会话恢复、远程/多客户端和成熟 pane 管理 | 1 |
-| NativePty | PAD 直接启动/托管子进程，允许完全不依赖 tmux | 2 |
+| NativePty | PAD 直接启动/托管子进程；默认路径完全不依赖 tmux | 1 |
+| TmuxControl | 显式 `--tmux` 时保留旧会话恢复、远程/多客户端和成熟 pane 管理 | 2（兼容） |
 | Replay | 从录制字节流重放 bug 与性能基准 | 1（测试） |
 
-首个 MVP 仍可借用 tmux 作为 transport，但画面、label、pane 焦点与键鼠路由均由 PAD 控制。NativePty 完成后，tmux 变成可选后端。
+首个 MVP 以 NativePty 为准：画面、label、pane 焦点、键鼠路由、resize 与子进程生命周期均由 PAD 控制。tmux 不再是默认路径的前置条件。
 
 ## 4. 日程、工时与验收门
 
@@ -83,13 +83,13 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 | 阶段 | 日期 | 预计 | 交付物 | 验收门 |
 | --- | --- | ---: | --- | --- |
-| M0 设计与基线 | 08-03 ～ 08-05 | 3 人日 | 本文、终端录制样本、CPU/内存/延迟基线 | 当前 tmux 路径零行为变化 |
+| M0 设计与基线 | 08-03 ～ 08-05 | 3 人日 | 本文、终端录制样本、CPU/内存/延迟基线 | 原生与兼容路径边界明确 |
 | M1 引擎接口 | 08-06 ～ 08-12 | 5 人日 | TerminalEngine、Alacritty、Replay/Test、snapshot 测试 | ANSI/Unicode/resize/alternate-screen 样本通过 |
 | M2 多线程 runtime | 08-13 ～ 08-19 | 5 人日 | worker shards、有界队列、pane 顺序与关闭协议 | 8 panes 并发压测无死锁、无乱序、无丢字节 |
-| M3 单 pane 嵌入 | 08-20 ～ 08-26 | 5 人日 | 右侧 live terminal、tmux transport、label 与焦点 | Codex/Claude 可输入、resize、退出；MVP |
+| M3 原生单 pane 嵌入 | 08-20 ～ 08-26 | 5 人日 | 右侧 NativePty live terminal、label 与焦点 | 无 tmux 环境可输入、resize、退出；MVP |
 | M4 多 pane UI | 08-27 ～ 09-02 | 5 人日 | split/tab、pane label、焦点切换、布局持久化 | 4 panes 连续工作 2 小时无错位 |
 | M5 交互兼容 | 09-03 ～ 09-09 | 5 人日 | bracketed paste、mouse、scrollback、IME/Unicode、快捷键仲裁 | Codex/Claude/GitHub CLI 核心流程通过 |
-| M6 NativePty | 09-10 ～ 09-16 | 5 人日 | 无 tmux 启动、进程组/信号/resize/退出码 | 同一 UI 可切换 tmux/native；Beta |
+| M6 兼容迁移 | 09-10 ～ 09-16 | 5 人日 | tmux 显式兼容模式、旧会话迁移提示、配置升级 | 默认路径无 tmux，兼容模式可回退；Beta |
 | M7 Ghostty spike | 09-17 ～ 09-23 | 4 人日 | adapter、兼容性与工具链报告 | 达标则保留实验开关，否则冻结，不阻塞发布 |
 | M8 稳定与发布 | 09-24 ～ 09-30 | 5 人日 | 性能、崩溃恢复、文档、迁移与回滚开关 | 发布清单、全量 CI、24 小时 soak 通过 |
 
@@ -103,7 +103,7 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 - resize 后下一次 snapshot 尺寸正确，不出现跨 pane 内容污染。
 - 终端 parser panic 或 transport 退出只关闭对应 pane，PAD 主进程仍可操作。
 - release/dist profile 保持 `panic = "unwind"`；若未来恢复 abort，必须先把 engine 移到独立进程。
-- 默认路径可通过配置立即回退到当前 tmux attach 模式。
+- 默认路径不得调用 tmux；显式 `--tmux` 可回退到旧 attach 模式。
 
 ## 6. 主要风险与决策点
 
@@ -115,12 +115,13 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 ## 7. 当前执行顺序
 
-1. 在不接入 UI 的前提下建立 engine/transport/runtime 接口和多线程测试。
+1. 建立 engine/transport/runtime 接口和多线程测试。
 2. 接入 Alacritty，并用 ReplayTransport 做可重复的 parser 测试。
-3. 让现有 tmux control mode 提供输出流，完成右侧单 pane MVP。
-4. 单 pane 稳定后才打开多 pane 布局与 NativePty。
+3. 以 NativePty 完成右侧单 pane MVP，默认启动不触碰 tmux。
+4. 单 pane 稳定后打开 tab/split、pane label/profile 和布局持久化。
+5. 最后补齐显式 tmux transport 兼容层，不让它反向污染 native 核心。
 
-任何阶段若验收门失败，保留现有 tmux-first 路径为默认，不阻断 PAD 的日常使用。
+任何阶段若验收门失败，保持 `--tmux` 兼容入口可用；默认 native 路径不得静默回退或偷偷启动 tmux。
 
 ## 8. 分支与并行工作流
 
@@ -149,8 +150,8 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 ## 10. 分支进度（2026-08-03）
 
-`codex/embedded-terminal-runtime` 已完成 M1/M2 的后端基础：TerminalEngine/SessionTransport 接口、Alacritty adapter、ReplayTransport、分片 engine workers、有界 transport runtime、LivePaneRuntime、label widget、panic 隔离、8 panes 压测，以及 tmux `%output` 原始字节解析器。
+`codex/embedded-terminal-runtime` 已完成 M1/M2，并提前打通 M3 的 native-first 主链路：TerminalEngine/SessionTransport 接口、Alacritty adapter、ReplayTransport、分片 engine workers、有界 transport runtime、LivePaneRuntime、后台 TerminalController、NativePty 进程托管、右侧实时渲染、label、焦点、键鼠、bracketed paste、resize、退出码与 panic 隔离。默认启动跳过 tmux 探测和配置，只有显式 `--tmux` 才进入兼容路径。
 
-本次验收结果：终端运行时 70 项测试通过，PAD 全量 849 项通过（4 项既有 ignored），严格 Clippy、格式检查、diff 检查和 dist profile 测试均通过；背压竞态回归连续运行 100 次通过。
+当前验收：终端运行时 94 项测试通过；PAD 全量 881 项中 877 项通过、4 项既有 ignored；单槽高输出 + 强制退出竞态连续运行 50 次通过；严格 Clippy、dist profile 和真实无 tmux 交互 smoke 均通过。
 
-M3 尚未完成，默认 UI 与现有 tmux 路径没有切换。接入前必须完成三项门禁：把 LivePaneRuntime 放在 UI 线程之外并异步发布 latest snapshot；将 tmux listener 从 UTF-8 `lines()` 改为原始字节换行 framing；补齐真实 Codex、Claude 与 GitHub CLI 交互 smoke test。像素尺寸查询在宿主提供真实 cell/window 像素度量前保持显式 unsupported。
+M3 当前提供原生单 pane 基础，不代表高可玩性的多 pane 产品已经完成。下一门禁是：tab/split 与 pane profile/label 编辑、布局持久化、scrollback 交互，以及真实 Codex、Claude 与 GitHub CLI smoke。像素尺寸查询在宿主提供真实 cell/window 像素度量前保持显式 unsupported。
