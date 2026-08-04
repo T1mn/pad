@@ -51,6 +51,7 @@ mod system_check;
 mod telegram;
 mod terminal;
 mod terminal_runtime;
+mod terminal_workspace;
 #[cfg(test)]
 mod test_support;
 mod text_match;
@@ -165,7 +166,34 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         startup::load_initial_panels(&mut app);
     } else {
         let size = ui::terminal_viewport_size(&mut app, terminal.size()?.into());
-        if let Err(error) = app.start_native_terminal(size) {
+        let workspace = match terminal_workspace::load() {
+            Ok(workspace) => workspace.filter(|workspace| !workspace.tabs.is_empty()),
+            Err(error) => match terminal_workspace::quarantine_invalid() {
+                Ok(Some(recovery_path)) => {
+                    log_debug!(
+                        "terminal_workspace: quarantined invalid workspace at {} after load error: {}",
+                        recovery_path.display(),
+                        error
+                    );
+                    None
+                }
+                Ok(None) => None,
+                Err(quarantine_error) => {
+                    let _ = terminal::restore(&mut terminal);
+                    return Err(Box::new(io::Error::new(
+                        quarantine_error.kind(),
+                        format!(
+                            "terminal workspace is invalid ({error}) and could not be preserved before recovery: {quarantine_error}"
+                        ),
+                    )));
+                }
+            },
+        };
+        let start_result = match workspace {
+            Some(workspace) => app.restore_native_terminal_workspace(workspace, size),
+            None => app.start_native_terminal(size),
+        };
+        if let Err(error) = start_result {
             let _ = terminal::restore(&mut terminal);
             return Err(Box::new(error));
         }
@@ -193,6 +221,12 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         event::restore_tmux_bindings(&mut app);
     }
 
+    if !app.runtime_mode.uses_tmux() {
+        let workspace = app.terminal_workspace_snapshot();
+        if let Err(error) = terminal_workspace::save(&workspace) {
+            log_debug!("terminal workspace save failed: {}", error);
+        }
+    }
     if let Err(error) = app.shutdown_native_terminal() {
         log_debug!("native terminal shutdown failed: {}", error);
     }

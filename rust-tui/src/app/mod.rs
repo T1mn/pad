@@ -126,7 +126,13 @@ pub struct App {
     pending_external_relay_reload: bool,
 }
 
-pub use terminal::TerminalUiState;
+#[allow(unused_imports)]
+pub use terminal::{
+    TerminalCommandDefinition, TerminalInteractionState, TerminalLayoutNode,
+    TerminalPaneDefinition, TerminalPaneId, TerminalPaneLifecycle, TerminalPaneView,
+    TerminalProfile, TerminalSplitAxis, TerminalTab, TerminalUiState, TerminalWorkspace,
+    DEFAULT_SPLIT_RATIO_PER_MILLE,
+};
 
 impl App {
     pub fn apply_theme(&mut self, name: &str) {

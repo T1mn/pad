@@ -47,6 +47,10 @@ pub fn workspace_recipes_path() -> PathBuf {
     pad_home_dir().join("workspace-recipes.toml")
 }
 
+pub fn terminal_workspace_path() -> PathBuf {
+    pad_home_dir().join("terminal-workspace.json")
+}
+
 pub fn pad_db_path() -> PathBuf {
     pad_home_dir().join("pad.db")
 }
@@ -124,7 +128,7 @@ pub fn pad_codex_wrapper_path() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_pad_home_dir;
+    use super::{resolve_pad_home_dir, terminal_workspace_path};
     use std::path::PathBuf;
 
     #[test]
@@ -140,6 +144,15 @@ mod tests {
         assert_eq!(
             resolve_pad_home_dir(None, Some(PathBuf::from("/users/example")), None),
             PathBuf::from("/users/example/.pad")
+        );
+    }
+
+    #[test]
+    fn terminal_workspace_lives_under_pad_home() {
+        let path = terminal_workspace_path();
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some("terminal-workspace.json")
         );
     }
 }

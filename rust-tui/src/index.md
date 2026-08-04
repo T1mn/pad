@@ -3,6 +3,7 @@
 - `main.rs`：入口与主循环；默认 native runtime，显式 `--tmux` 才进入兼容启动路径。
 - `runtime_mode.rs`：native-first 与显式 tmux 兼容模式选择。
 - `terminal_runtime.rs` / `terminal_runtime/`：内嵌终端的 pane、解析引擎、Native PTY、会话传输协议与分片 worker runtime。
+- `terminal_workspace.rs`：原生终端 tab/split/label/profile 的版本化 JSON 加载与原子持久化；不保存 PTY 实时状态，损坏或未来版本文件先隔离保留再重建。
 - `cli.rs` / `cli_tests.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。

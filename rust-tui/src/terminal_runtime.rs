@@ -29,7 +29,7 @@ pub use input::{encode_key_event, encode_mouse_event, encode_paste};
 pub use live_pane::LivePaneRuntime;
 pub use model::{
     CursorShape, PaneId, TerminalCell, TerminalColor, TerminalCursor, TerminalEngineEvent,
-    TerminalMode, TerminalSize, TerminalSnapshot, TextAttributes,
+    TerminalMode, TerminalScroll, TerminalSize, TerminalSnapshot, TerminalViewport, TextAttributes,
 };
 pub use native_pty::{NativePtyCommand, NativePtyTransport};
 pub use pane::{PaneFrame, PaneMetadata, PaneRuntime, PaneSpec};

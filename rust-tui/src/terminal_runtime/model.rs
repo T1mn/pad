@@ -118,12 +118,35 @@ pub struct TerminalMode {
     pub application_cursor: bool,
 }
 
+/// Backend-neutral movement of the terminal's visible viewport.
+///
+/// Positive line deltas move upward into scrollback, while negative deltas
+/// move back toward the live bottom of the terminal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalScroll {
+    Lines(i32),
+    PageUp,
+    PageDown,
+    Top,
+    Bottom,
+}
+
+/// Effective scrollback state represented by a terminal snapshot.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TerminalViewport {
+    /// Number of lines between the rendered viewport and the live bottom.
+    pub display_offset: usize,
+    /// Number of currently retained lines available above the live screen.
+    pub history_size: usize,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminalSnapshot {
     pub size: TerminalSize,
     pub cells: Vec<TerminalCell>,
     pub cursor: Option<TerminalCursor>,
     pub mode: TerminalMode,
+    pub viewport: TerminalViewport,
 }
 
 impl TerminalSnapshot {
@@ -133,6 +156,7 @@ impl TerminalSnapshot {
             cells: vec![TerminalCell::default(); size.cell_count()],
             cursor: None,
             mode: TerminalMode::default(),
+            viewport: TerminalViewport::default(),
         }
     }
 

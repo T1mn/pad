@@ -93,51 +93,5 @@ pub fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_native_terminal(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(frame) = app.terminal_frame().cloned() {
-        f.render_widget(
-            crate::terminal_runtime::TerminalPaneWidget::new(&frame)
-                .focused(app.terminal_is_focused()),
-            area,
-        );
-        if let Some(exit) = app.terminal_exit() {
-            let status = exit
-                .code
-                .map(|code| format!(" exited {code} "))
-                .unwrap_or_else(|| " signaled ".to_string());
-            let width = status.len().min(usize::from(area.width)) as u16;
-            let status_area = Rect::new(
-                area.x + area.width.saturating_sub(width + 1),
-                area.y + area.height.saturating_sub(1),
-                width,
-                1,
-            );
-            f.render_widget(
-                Paragraph::new(status)
-                    .style(Style::default().bg(app.theme.bg).fg(app.theme.warning)),
-                status_area,
-            );
-        }
-        return;
-    }
-
-    let focused = app.terminal_is_focused();
-    let block = Block::default()
-        .title(" Native Terminal ")
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if focused {
-            app.theme.border_focused
-        } else {
-            app.theme.border
-        }));
-    let message = app
-        .terminal_error()
-        .map(|error| format!("Terminal failed: {error}"))
-        .unwrap_or_else(|| "Starting native shell…".to_string());
-    f.render_widget(
-        Paragraph::new(message)
-            .style(Style::default().bg(app.theme.bg).fg(app.theme.fg))
-            .block(block),
-        area,
-    );
+    super::terminal::draw(f, app, area);
 }

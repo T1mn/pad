@@ -29,8 +29,19 @@ pub(super) fn run_pre_event_cycle(
     app.poll_native_terminal();
     if app.terminal_is_active() && !app.sidebar.show_tree {
         let area: Rect = terminal.size()?.into();
-        let size = crate::ui::terminal_viewport_size(app, area);
-        app.resize_native_terminal(size);
+        let regions = super::mouse::normal_mouse_regions(app, area);
+        let placement = crate::ui::terminal::placement(app, regions.preview_area);
+        let sizes = placement
+            .panes
+            .iter()
+            .map(|pane| {
+                (
+                    pane.pane_id,
+                    crate::terminal_runtime::TerminalSize::new(pane.inner.width, pane.inner.height),
+                )
+            })
+            .collect::<Vec<_>>();
+        app.resize_native_terminals(&sizes);
     }
     check_preview_detail_update(terminal, app)?;
 

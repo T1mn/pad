@@ -84,9 +84,19 @@ pub(super) fn handle_key_event(
 
 pub(super) fn handle_paste(app: &mut App, text: &str) {
     if app.terminal_is_focused() {
-        let bytes =
-            crate::terminal_runtime::encode_paste(text, app.terminal_mode().bracketed_paste);
-        let _ = app.send_terminal_input(bytes);
+        match app.terminal_interaction() {
+            crate::app::TerminalInteractionState::Rename { .. } => {
+                app.append_terminal_rename_text(text);
+            }
+            crate::app::TerminalInteractionState::Command => {}
+            crate::app::TerminalInteractionState::Direct => {
+                let bytes = crate::terminal_runtime::encode_paste(
+                    text,
+                    app.terminal_mode().bracketed_paste,
+                );
+                let _ = app.send_terminal_input(bytes);
+            }
+        }
     } else if app.relay_popup_editing {
         app.relay_popup_buffer.push_str(text);
         app.dirty = true;

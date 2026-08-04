@@ -148,10 +148,12 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 协议测试必须至少覆盖普通/256 色/RGB、粗体与下划线、宽字符与组合字符、cursor shape、alternate screen、bracketed paste、mouse mode、scrollback、窗口 resize、进程正常/信号退出，以及通道饱和时不丢字节。
 
-## 10. 分支进度（2026-08-03）
+## 10. 分支进度（2026-08-04）
 
 `codex/embedded-terminal-runtime` 已完成 M1/M2，并提前打通 M3 的 native-first 主链路：TerminalEngine/SessionTransport 接口、Alacritty adapter、ReplayTransport、分片 engine workers、有界 transport runtime、LivePaneRuntime、后台 TerminalController、NativePty 进程托管、右侧实时渲染、label、焦点、键鼠、bracketed paste、resize、退出码与 panic 隔离。默认启动跳过 tmux 探测和配置，只有显式 `--tmux` 才进入兼容路径。
 
-当前验收：终端运行时 94 项测试通过；PAD 全量 881 项中 877 项通过、4 项既有 ignored；单槽高输出 + 强制退出竞态连续运行 50 次通过；严格 Clippy、dist profile 和真实无 tmux 交互 smoke 均通过。
+M4/M5 的产品链路也已落地：一个共享 controller 承载多 tab/嵌套 split，每 pane 独立管理 epoch、frame、有界输入/scroll、resize、label、错误与退出；提供 Shell、Codex、Claude 和常驻 Shell 形式的 GitHub CLI profile、PAD-owned tab bar、点击/键盘焦点、label 编辑、版本化 JSON 原子持久化，以及 Alacritty 10,000 行 history 上的 line/page/top/bottom scrollback。持久化只信任 profile 并重新派生启动命令；损坏或未来 schema 会先隔离保留。F11 是所有终端都能可靠编码的命令入口；增强键盘协议下同时接受 `Ctrl+Shift+Space`。
 
-M3 当前提供原生单 pane 基础，不代表高可玩性的多 pane 产品已经完成。下一门禁是：tab/split 与 pane profile/label 编辑、布局持久化、scrollback 交互，以及真实 Codex、Claude 与 GitHub CLI smoke。像素尺寸查询在宿主提供真实 cell/window 像素度量前保持显式 unsupported。
+当前验收：PAD 全量 921 项中 917 项通过、4 项既有 ignored；终端运行时 99 项、event 78 项、UI terminal 9 项和 app terminal 16 项通过；严格 Clippy、dist 构建与真实无 tmux 多 PTY smoke 通过。Smoke 已验证 3 个真实 PTY 上的 split、tab、跨 pane 输入、label rename、工作区退出保存和重启恢复，运行 PATH 中不含 tmux。
+
+尚未宣称完成的发布门禁只有长时稳定性与外部 CLI 版本矩阵：4 panes 连续 2 小时、发布前 24 小时 soak，以及真实 Codex、Claude、GitHub CLI 的认证后人工流程仍按 M4/M5/M8 执行。像素尺寸查询在宿主提供真实 cell/window 像素度量前保持显式 unsupported。

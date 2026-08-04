@@ -52,6 +52,14 @@ cp target/dist/pad ~/.local/bin/
 PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只有显式运行 `pad --tmux` 才进入旧兼容路径。
 如果你在 WSL2 下使用，请在 WSL 内运行 PAD；只有兼容模式需要在同一 WSL 环境安装 tmux。
 
+### 原生终端工作区
+
+- `Tab` 聚焦右侧终端，`F12` 返回左侧。
+- `F11` 打开 PAD Terminal 命令层（支持增强键盘协议时也可用 `Ctrl+Shift+Space`）。
+- 命令层中：`1`～`4` 新建 Shell / Codex / Claude / GitHub CLI 标签，`v`/`s` 左右/上下分屏，`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
+- `Shift+PgUp/PgDn/Home/End` 控制历史视口；鼠标滚轮会在应用鼠标上报与 PAD scrollback 之间自动仲裁。
+- tab、split、label、profile 与启动目录保存到 `~/.pad/terminal-workspace.json`；重启会创建新的 PTY，不会伪装成恢复旧进程。损坏或来自更新 schema 的文件会先原样保留为 `terminal-workspace.invalid*.json`，再创建干净工作区。
+
 ## 演示
 
 <video src="https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8" controls muted loop playsinline width="960"></video>
@@ -93,7 +101,7 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 - 纯 Rust TUI，体积小，session-aware preview 响应快
 - 当前 macOS 实测：dist 二进制约 3.7 MB，空闲 RSS 约 12 MB
 - session 级监听，活动追踪更聚焦，也更省资源
-- `Enter` 进去，`F12` / `Ctrl+Q` 退回 PAD
+- 原生模式用 `Tab` 进入右侧终端、`F12` 返回；`--tmux` 兼容模式保留 `Enter` attach 与 `Ctrl+Q`
 - `F10` 打开 pad-sider，在 agent 旁边看 tree、index map、changes 和文件预览
 - archive / restore 按 agent 使用不同适配，但不会删除上游原始历史
 - 支持的 agent relay / proxy 配置
@@ -103,8 +111,8 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 
 ## PAD 不做什么
 
-- 它不替代 tmux
-- 它不在 tmux 上面伪造一层 tabs
+- 原生模式不实现 tmux server 的断线常驻或多客户端共享；需要这些能力时使用 `pad --tmux`
+- 原生 tabs/splits 是 PAD 自己托管的真实 PTY，不是在 tmux 上叠一层外观
 - 它不会在 archive 时删除上游 agent 的原始历史；部分适配会更新上游 archive 元数据
 - 它不接管 agent runtime，本质上是让你更快地看清、跳转、返回
 

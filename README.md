@@ -53,6 +53,14 @@ cp target/dist/pad ~/.local/bin/
 
 PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `pad --tmux` to enter the legacy compatibility runtime. On WSL2, run PAD inside WSL; install tmux there only when using compatibility mode.
 
+### Native Terminal Workspace
+
+- Press `Tab` to focus the terminal and `F12` to return to the sidebar.
+- Press `F11` for PAD Terminal commands (`Ctrl+Shift+Space` also works with enhanced keyboard protocols).
+- In the command layer: `1`–`4` create Shell / Codex / Claude / GitHub CLI tabs, `v`/`s` split right/below, `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
+- `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.
+- Tabs, splits, labels, profiles, and launch directories persist in `~/.pad/terminal-workspace.json`. Restarting launches fresh PTYs; it does not pretend to restore old processes. Corrupt or newer-schema files are preserved as `terminal-workspace.invalid*.json` before PAD creates a clean workspace.
+
 ## Demo
 
 <video src="https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8" controls muted loop playsinline width="960"></video>
@@ -95,7 +103,7 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 - Pure Rust TUI with a small footprint and quick session-aware previews
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
-- Jump into a pane with `Enter`, return with `F12` or `Ctrl+Q`
+- In native mode, `Tab` focuses the terminal and `F12` returns; `--tmux` retains `Enter` attach and `Ctrl+Q`
 - `F10` pad-sider for tree, index map, changes, and file preview beside your agent pane
 - Archive or restore with agent-specific adapters, without deleting upstream history
 - Relay / proxy settings for supported agents
@@ -105,8 +113,8 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 ## What PAD Does Not Do
 
-- It does not replace tmux.
-- It does not fake tabs on top of tmux panes.
+- Native mode does not implement tmux-server persistence or multi-client sharing; use `pad --tmux` when those capabilities matter.
+- Native tabs and splits are real PAD-owned PTYs, not visual tabs layered over tmux.
 - It does not delete upstream agent history when you archive a thread in PAD; some adapters update upstream archive metadata.
 - It does not take over the agent runtime. It helps you see and jump faster.
 

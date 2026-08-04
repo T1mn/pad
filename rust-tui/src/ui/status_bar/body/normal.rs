@@ -1,5 +1,5 @@
 use super::super::text::format_two_sided;
-use crate::app::App;
+use crate::app::{App, TerminalInteractionState};
 use crate::i18n::t;
 use crate::model::PreviewSource;
 
@@ -23,6 +23,12 @@ pub(in crate::ui::status_bar) fn compose_status_body(app: &App, width: u16) -> S
 
     let right_hint = if app.sidebar.show_tree {
         t(l, "status.tree_nav")
+    } else if app.terminal_is_active() && app.preview_is_focused() {
+        match app.terminal_interaction() {
+            TerminalInteractionState::Direct => t(l, "status.terminal_nav"),
+            TerminalInteractionState::Command => t(l, "status.terminal_command"),
+            TerminalInteractionState::Rename { .. } => t(l, "status.terminal_rename"),
+        }
     } else if app.preview_is_focused() {
         if app.preview.source == PreviewSource::Session && !app.preview.turns.is_empty() {
             t(l, "status.preview_session_nav")

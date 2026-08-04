@@ -7,7 +7,8 @@ use std::thread::{self, JoinHandle};
 
 use super::model::TerminalEngineEvent;
 use super::{
-    EngineId, EngineRegistry, PaneId, TerminalEngine, TerminalError, TerminalSize, TerminalSnapshot,
+    EngineId, EngineRegistry, PaneId, TerminalEngine, TerminalError, TerminalScroll, TerminalSize,
+    TerminalSnapshot,
 };
 use crate::panic_boundary::catch_isolated_unwind;
 
@@ -28,6 +29,11 @@ enum EngineCommand {
     Resize {
         pane_id: PaneId,
         size: TerminalSize,
+        reply: SyncSender<Result<(), TerminalError>>,
+    },
+    Scroll {
+        pane_id: PaneId,
+        scroll: TerminalScroll,
         reply: SyncSender<Result<(), TerminalError>>,
     },
     Snapshot {
@@ -141,6 +147,19 @@ impl EngineRuntime {
             EngineCommand::Resize {
                 pane_id: pane_id.clone(),
                 size,
+                reply,
+            },
+        )?;
+        receive_reply(result)
+    }
+
+    pub fn scroll(&self, pane_id: &PaneId, scroll: TerminalScroll) -> Result<(), TerminalError> {
+        let (reply, result) = mpsc::sync_channel(1);
+        self.send(
+            pane_id,
+            EngineCommand::Scroll {
+                pane_id: pane_id.clone(),
+                scroll,
                 reply,
             },
         )?;
@@ -264,6 +283,16 @@ fn run_worker(registry: EngineRegistry, receiver: Receiver<EngineCommand>) {
                 });
                 let _ = reply.send(result);
             }
+            EngineCommand::Scroll {
+                pane_id,
+                scroll,
+                reply,
+            } => {
+                let result = call_engine(&mut engines, &pane_id, "scroll", |engine| {
+                    engine.scroll(scroll)
+                });
+                let _ = reply.send(result);
+            }
             EngineCommand::Snapshot { pane_id, reply } => {
                 let result = call_engine(&mut engines, &pane_id, "snapshot", |engine| {
                     Ok(engine.snapshot())
@@ -372,7 +401,7 @@ mod tests {
     const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
     #[test]
-    fn feed_and_resize_propagate_engine_and_missing_pane_errors() {
+    fn feed_resize_and_scroll_propagate_engine_and_missing_pane_errors() {
         let events = Arc::new(Mutex::new(Vec::new()));
         let drops = Arc::new(AtomicUsize::new(0));
         let mut registry = EngineRegistry::default();
@@ -393,6 +422,13 @@ mod tests {
         assert_eq!(
             runtime
                 .resize(&pane_id, TerminalSize::new(8, 2))
+                .unwrap_err()
+                .to_string(),
+            "terminal pane 'errors' is not open"
+        );
+        assert_eq!(
+            runtime
+                .scroll(&pane_id, TerminalScroll::Lines(2))
                 .unwrap_err()
                 .to_string(),
             "terminal pane 'errors' is not open"
@@ -423,9 +459,10 @@ mod tests {
         // An ordinary engine error does not poison the pane or its shard.
         runtime.feed(&pane_id, b"recovered".to_vec()).unwrap();
         runtime.resize(&pane_id, TerminalSize::new(9, 3)).unwrap();
+        runtime.scroll(&pane_id, TerminalScroll::Lines(2)).unwrap();
         assert_eq!(
             events.lock().unwrap().as_slice(),
-            ["feed:recovered", "resize:9x3"]
+            ["feed:recovered", "resize:9x3", "scroll:Lines(2)"]
         );
 
         runtime.close(&pane_id).unwrap();
@@ -634,6 +671,7 @@ mod tests {
             ("panic-create", PanicAt::Create),
             ("panic-feed", PanicAt::FeedAndDrop),
             ("panic-resize", PanicAt::Resize),
+            ("panic-scroll", PanicAt::Scroll),
             ("panic-snapshot", PanicAt::Snapshot),
             ("panic-drain", PanicAt::DrainEvents),
             ("panic-close", PanicAt::Drop),
@@ -687,6 +725,13 @@ mod tests {
         assert_panic_context(error, &resize_pane, "resize", "resize exploded");
         assert_healthy(&runtime, &healthy);
 
+        let scroll_pane = open_panic_pane(&runtime, "scroll-pane", "panic-scroll");
+        let error = runtime
+            .scroll(&scroll_pane, TerminalScroll::PageUp)
+            .unwrap_err();
+        assert_panic_context(error, &scroll_pane, "scroll", "scroll exploded");
+        assert_healthy(&runtime, &healthy);
+
         let snapshot_pane = open_panic_pane(&runtime, "snapshot-pane", "panic-snapshot");
         let error = runtime.snapshot(&snapshot_pane).unwrap_err();
         assert_panic_context(error, &snapshot_pane, "snapshot", "snapshot exploded");
@@ -706,7 +751,7 @@ mod tests {
         );
         assert_healthy(&runtime, &healthy);
 
-        assert_eq!(healthy_feeds.load(Ordering::SeqCst), 6);
+        assert_eq!(healthy_feeds.load(Ordering::SeqCst), 7);
     }
 
     struct RecordingFactory {
@@ -832,6 +877,14 @@ mod tests {
             Ok(())
         }
 
+        fn scroll(&mut self, scroll: TerminalScroll) -> Result<(), TerminalError> {
+            self.events
+                .lock()
+                .unwrap()
+                .push(format!("scroll:{scroll:?}"));
+            Ok(())
+        }
+
         fn snapshot(&self) -> TerminalSnapshot {
             self.snapshot.clone()
         }
@@ -849,6 +902,7 @@ mod tests {
         Create,
         FeedAndDrop,
         Resize,
+        Scroll,
         Snapshot,
         DrainEvents,
         Drop,
@@ -902,6 +956,13 @@ mod tests {
                 panic!("resize exploded");
             }
             self.snapshot = TerminalSnapshot::blank(size);
+            Ok(())
+        }
+
+        fn scroll(&mut self, _scroll: TerminalScroll) -> Result<(), TerminalError> {
+            if self.panic_at == PanicAt::Scroll {
+                panic!("scroll exploded");
+            }
             Ok(())
         }
 

@@ -5,6 +5,7 @@ pub mod panel_list;
 pub mod preview;
 pub mod selection;
 pub mod status_bar;
+pub mod terminal;
 pub mod toast;
 
 use crate::app::state::Mode;
@@ -25,10 +26,16 @@ pub fn terminal_viewport_size(
     let (_, body_layout) =
         layout::compute_layout(area, app.sidebar.show_tree, preferred_left_width);
     let terminal_area = body_layout[1];
-    crate::terminal_runtime::TerminalSize::new(
-        terminal_area.width.saturating_sub(2),
-        terminal_area.height.saturating_sub(2),
-    )
+    let placement = terminal::placement(app, terminal_area);
+    let focused = app.focused_terminal_pane_id();
+    let inner = placement
+        .panes
+        .iter()
+        .find(|pane| focused == Some(pane.pane_id))
+        .or_else(|| placement.panes.first())
+        .map(|pane| pane.inner)
+        .unwrap_or_default();
+    crate::terminal_runtime::TerminalSize::new(inner.width, inner.height)
 }
 
 pub fn draw(f: &mut Frame, app: &mut App) {

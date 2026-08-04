@@ -3,7 +3,7 @@ use std::mem;
 use std::rc::Rc;
 
 use alacritty_terminal::event::{Event as AlacrittyEvent, EventListener};
-use alacritty_terminal::grid::Dimensions;
+use alacritty_terminal::grid::{Dimensions, Scroll as AlacrittyScroll};
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::{Config, TermMode};
 use alacritty_terminal::vte::ansi::{
@@ -14,7 +14,8 @@ use alacritty_terminal::Term;
 use super::model::TerminalEngineEvent;
 use super::{
     CursorShape, EngineFactory, EngineId, TerminalCell, TerminalColor, TerminalCursor,
-    TerminalEngine, TerminalError, TerminalMode, TerminalSize, TerminalSnapshot, TextAttributes,
+    TerminalEngine, TerminalError, TerminalMode, TerminalScroll, TerminalSize, TerminalSnapshot,
+    TerminalViewport, TextAttributes,
 };
 
 pub const ALACRITTY_ENGINE_ID: &str = "alacritty";
@@ -72,10 +73,26 @@ impl TerminalEngine for AlacrittyEngine {
         Ok(())
     }
 
+    fn scroll(&mut self, scroll: TerminalScroll) -> Result<(), TerminalError> {
+        let scroll = match scroll {
+            TerminalScroll::Lines(delta) => AlacrittyScroll::Delta(delta),
+            TerminalScroll::PageUp => AlacrittyScroll::PageUp,
+            TerminalScroll::PageDown => AlacrittyScroll::PageDown,
+            TerminalScroll::Top => AlacrittyScroll::Top,
+            TerminalScroll::Bottom => AlacrittyScroll::Bottom,
+        };
+        self.term.scroll_display(scroll);
+        Ok(())
+    }
+
     fn snapshot(&self) -> TerminalSnapshot {
         let renderable = self.term.renderable_content();
         let display_offset = renderable.display_offset as i32;
         let mut snapshot = TerminalSnapshot::blank(self.size);
+        snapshot.viewport = TerminalViewport {
+            display_offset: renderable.display_offset,
+            history_size: self.term.grid().history_size(),
+        };
 
         for indexed in renderable.display_iter {
             let row = indexed.point.line.0 + display_offset;
@@ -250,15 +267,13 @@ fn convert_cursor(
 
 #[cfg(test)]
 mod tests {
-    use alacritty_terminal::grid::Scroll;
-
     use super::*;
 
     #[test]
     fn snapshot_indexes_a_scrollback_viewport_from_zero() {
         let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
         engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
-        engine.term.scroll_display(Scroll::Delta(2));
+        engine.scroll(TerminalScroll::Lines(2)).unwrap();
 
         let snapshot = engine.snapshot();
         assert_eq!(snapshot.row_text(0).as_deref(), Some("1"));
@@ -267,6 +282,54 @@ mod tests {
         assert_eq!(snapshot.cell(0, 0).unwrap().symbol, "1");
         assert_eq!(snapshot.cell(0, 2).unwrap().symbol, "3");
         assert_eq!(snapshot.cursor, None);
+        assert_eq!(snapshot.viewport.display_offset, 2);
+        assert_eq!(snapshot.viewport.history_size, 3);
+    }
+
+    #[test]
+    fn scrollback_clamps_and_stays_anchored_during_output() {
+        let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
+        engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
+
+        engine.scroll(TerminalScroll::Top).unwrap();
+        let top = engine.snapshot();
+        assert_eq!(top.viewport.display_offset, top.viewport.history_size);
+        assert_eq!(top.row_text(0).as_deref(), Some("0"));
+
+        engine.scroll(TerminalScroll::Lines(-1)).unwrap();
+        let anchored = engine.snapshot();
+        assert_eq!(anchored.row_text(0).as_deref(), Some("1"));
+        assert_eq!(anchored.viewport.display_offset, 2);
+
+        engine.feed(b"\r\n6").unwrap();
+        let after_output = engine.snapshot();
+        assert_eq!(after_output.row_text(0).as_deref(), Some("1"));
+        assert_eq!(after_output.viewport.display_offset, 3);
+        assert_eq!(after_output.viewport.history_size, 4);
+
+        engine.scroll(TerminalScroll::Bottom).unwrap();
+        let bottom = engine.snapshot();
+        assert_eq!(bottom.viewport.display_offset, 0);
+        assert_eq!(bottom.row_text(2).as_deref(), Some("6"));
+    }
+
+    #[test]
+    fn alternate_screen_has_no_scrollback_and_restores_primary_viewport() {
+        let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
+        engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
+        engine.scroll(TerminalScroll::Lines(2)).unwrap();
+
+        engine.feed(b"\x1b[?1049halt").unwrap();
+        engine.scroll(TerminalScroll::Top).unwrap();
+        let alternate = engine.snapshot();
+        assert!(alternate.mode.alternate_screen);
+        assert_eq!(alternate.viewport, TerminalViewport::default());
+
+        engine.feed(b"\x1b[?1049l").unwrap();
+        let primary = engine.snapshot();
+        assert!(!primary.mode.alternate_screen);
+        assert_eq!(primary.viewport.display_offset, 2);
+        assert_eq!(primary.row_text(0).as_deref(), Some("1"));
     }
 
     #[test]

@@ -10,7 +10,7 @@ use crate::panic_boundary::catch_isolated_unwind;
 
 use super::{
     LivePaneRuntime, NativePtyCommand, NativePtyTransport, PaneFrame, PaneId, PaneSpec,
-    SessionTransport, TerminalError, TerminalSize, TransportExit,
+    SessionTransport, TerminalError, TerminalScroll, TerminalSize, TransportExit,
 };
 
 pub const DEFAULT_CONTROLLER_COMMAND_CAPACITY: usize = 256;
@@ -268,6 +268,28 @@ impl TerminalController {
         }
     }
 
+    pub fn scroll(
+        &self,
+        pane_id: PaneId,
+        epoch: PaneEpoch,
+        scroll: TerminalScroll,
+    ) -> Result<(), ControllerQueueError<TerminalScroll>> {
+        match self.try_send(ControllerCommand::Scroll {
+            pane_id,
+            epoch,
+            scroll,
+        }) {
+            Ok(()) => Ok(()),
+            Err(TrySendError::Full(ControllerCommand::Scroll { scroll, .. })) => {
+                Err(ControllerQueueError::Full(scroll))
+            }
+            Err(TrySendError::Disconnected(ControllerCommand::Scroll { scroll, .. })) => {
+                Err(ControllerQueueError::Disconnected(scroll))
+            }
+            Err(_) => unreachable!("scroll submitted a Scroll command"),
+        }
+    }
+
     pub fn set_label(
         &self,
         pane_id: PaneId,
@@ -391,6 +413,11 @@ enum ControllerCommand {
         epoch: PaneEpoch,
         size: TerminalSize,
     },
+    Scroll {
+        pane_id: PaneId,
+        epoch: PaneEpoch,
+        scroll: TerminalScroll,
+    },
     SetLabel {
         pane_id: PaneId,
         epoch: PaneEpoch,
@@ -418,6 +445,10 @@ enum PaneOperation {
         epoch: PaneEpoch,
         size: TerminalSize,
     },
+    Scroll {
+        epoch: PaneEpoch,
+        scroll: TerminalScroll,
+    },
     SetLabel {
         epoch: PaneEpoch,
         label: String,
@@ -433,6 +464,7 @@ impl PaneOperation {
             Self::Open { epoch, .. }
             | Self::Input { epoch, .. }
             | Self::Resize { epoch, .. }
+            | Self::Scroll { epoch, .. }
             | Self::SetLabel { epoch, .. }
             | Self::Close { epoch } => *epoch,
         }
@@ -539,6 +571,11 @@ impl ControllerHost {
                 epoch,
                 size,
             } => (pane_id, PaneOperation::Resize { epoch, size }),
+            ControllerCommand::Scroll {
+                pane_id,
+                epoch,
+                scroll,
+            } => (pane_id, PaneOperation::Scroll { epoch, scroll }),
             ControllerCommand::SetLabel {
                 pane_id,
                 epoch,
@@ -675,6 +712,13 @@ impl ControllerHost {
                     None
                 }
             },
+            PaneOperation::Scroll { epoch, scroll } => {
+                match self.runtime.scroll(pane_id, scroll) {
+                    Ok(()) => self.publish_frame(pane_id, epoch, None, None, true),
+                    Err(error) => self.publish_error(pane_id, epoch, error, true),
+                }
+                None
+            }
             PaneOperation::SetLabel { epoch, label } => {
                 match self.runtime.set_label(pane_id, label) {
                     Ok(()) => self.publish_frame(pane_id, epoch, None, None, true),
@@ -922,6 +966,61 @@ mod tests {
     }
 
     #[test]
+    fn scroll_publishes_a_new_immutable_frame_without_transport_output() {
+        let controller = controller(8, 8);
+        let reader = controller.frames();
+        let pane_id = PaneId::new("scrollback");
+        let output = (0..=30)
+            .map(|line| line.to_string())
+            .collect::<Vec<_>>()
+            .join("\r\n")
+            .into_bytes();
+        let epoch = open_replay(
+            &controller,
+            &pane_id,
+            "scrollback-replay",
+            [
+                ReplayStep::output(output),
+                ReplayStep::exit(successful_exit()),
+            ],
+        );
+        let bottom = wait_for(&reader, &pane_id, |pane| pane.exit.is_some());
+        let bottom_revision = bottom.revision;
+        assert_eq!(
+            bottom
+                .frame
+                .as_ref()
+                .unwrap()
+                .terminal
+                .viewport
+                .display_offset,
+            0
+        );
+
+        controller
+            .scroll(pane_id.clone(), epoch, TerminalScroll::Lines(3))
+            .unwrap();
+        let scrolled = wait_for(&reader, &pane_id, |pane| {
+            pane.frame
+                .as_ref()
+                .is_some_and(|frame| frame.terminal.viewport.display_offset == 3)
+        });
+
+        assert!(scrolled.revision > bottom_revision);
+        assert_eq!(
+            scrolled
+                .frame
+                .as_ref()
+                .unwrap()
+                .terminal
+                .row_text(0)
+                .as_deref(),
+            Some("4")
+        );
+        controller.shutdown().unwrap();
+    }
+
+    #[test]
     fn transport_failure_is_published_with_the_last_frame() {
         let controller = controller(8, 8);
         let reader = controller.frames();
@@ -1020,6 +1119,24 @@ mod tests {
             .unwrap_err();
         assert!(error.is_full());
         assert_eq!(error.into_inner(), b"must-retry".to_vec());
+
+        release.send(()).unwrap();
+        controller.shutdown().unwrap();
+    }
+
+    #[test]
+    fn controller_queue_backpressure_returns_original_scroll() {
+        let (release, gate) = mpsc::sync_channel(1);
+        let controller = TerminalController::start_inner(runtime(8), 1, Some(gate)).unwrap();
+        let pane_id = PaneId::new("bounded-scroll");
+        let epoch = PaneEpoch(100);
+        controller
+            .input(pane_id.clone(), epoch, b"occupy-queue".to_vec())
+            .unwrap();
+        let scroll = TerminalScroll::Lines(7);
+        let error = controller.scroll(pane_id, epoch, scroll).unwrap_err();
+        assert!(error.is_full());
+        assert_eq!(error.into_inner(), scroll);
 
         release.send(()).unwrap();
         controller.shutdown().unwrap();

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::{
-    EngineId, EngineRuntime, PaneId, TerminalEngineEvent, TerminalError, TerminalSize,
-    TerminalSnapshot, TransportId,
+    EngineId, EngineRuntime, PaneId, TerminalEngineEvent, TerminalError, TerminalScroll,
+    TerminalSize, TerminalSnapshot, TransportId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,6 +69,11 @@ impl PaneRuntime {
     pub fn resize(&self, pane_id: &PaneId, size: TerminalSize) -> Result<(), TerminalError> {
         self.ensure_pane(pane_id)?;
         self.engines.resize(pane_id, size)
+    }
+
+    pub fn scroll(&self, pane_id: &PaneId, scroll: TerminalScroll) -> Result<(), TerminalError> {
+        self.ensure_pane(pane_id)?;
+        self.engines.scroll(pane_id, scroll)
     }
 
     pub fn frame(&self, pane_id: &PaneId) -> Result<PaneFrame, TerminalError> {
@@ -142,6 +147,21 @@ mod tests {
         assert_eq!(frame.metadata.label, "Claude · review");
         assert_eq!(frame.terminal.row_text(0).as_deref(), Some("ready"));
         assert_eq!(runtime.len(), 1);
+    }
+
+    #[test]
+    fn pane_scroll_updates_only_its_immutable_frame_viewport() {
+        let (runtime, pane_id) = runtime_with_pane();
+        runtime
+            .feed_output(&pane_id, b"0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6".to_vec())
+            .unwrap();
+
+        runtime.scroll(&pane_id, TerminalScroll::Lines(2)).unwrap();
+        let scrolled = runtime.frame(&pane_id).unwrap();
+
+        assert_eq!(scrolled.terminal.viewport.display_offset, 2);
+        assert_eq!(scrolled.terminal.row_text(0).as_deref(), Some("1"));
+        assert_eq!(scrolled.terminal.cursor, None);
     }
 
     #[test]

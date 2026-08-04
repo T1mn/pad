@@ -3,8 +3,8 @@ use std::sync::mpsc::{TryRecvError, TrySendError};
 
 use super::{
     PaneFrame, PaneId, PaneMetadata, PaneRuntime, PaneSpec, SessionTransport, TerminalEngineEvent,
-    TerminalError, TerminalSize, TransportCommand, TransportEvent, TransportExit, TransportHandle,
-    TransportRuntime,
+    TerminalError, TerminalScroll, TerminalSize, TransportCommand, TransportEvent, TransportExit,
+    TransportHandle, TransportRuntime,
 };
 
 struct LiveTransport {
@@ -175,6 +175,13 @@ impl LivePaneRuntime {
             .pending_resizes
             .push_back(size);
         Ok(())
+    }
+
+    /// Moves the parser-owned viewport without involving the PTY transport.
+    /// The engine runtime executes this on the pane's worker shard.
+    pub fn scroll(&self, pane_id: &PaneId, scroll: TerminalScroll) -> Result<(), TerminalError> {
+        self.ensure_transport(pane_id)?;
+        self.panes.scroll(pane_id, scroll)
     }
 
     pub fn frame(&self, pane_id: &PaneId) -> Result<PaneFrame, TerminalError> {

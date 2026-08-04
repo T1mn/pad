@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use super::model::TerminalEngineEvent;
-use super::{TerminalSize, TerminalSnapshot};
+use super::{TerminalScroll, TerminalSize, TerminalSnapshot};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EngineId(String);
@@ -46,6 +46,9 @@ pub trait TerminalEngine: 'static {
     fn id(&self) -> &EngineId;
     fn feed(&mut self, bytes: &[u8]) -> Result<(), TerminalError>;
     fn resize(&mut self, size: TerminalSize) -> Result<(), TerminalError>;
+    fn scroll(&mut self, _scroll: TerminalScroll) -> Result<(), TerminalError> {
+        Ok(())
+    }
     fn snapshot(&self) -> TerminalSnapshot;
     fn drain_events(&mut self) -> Vec<TerminalEngineEvent> {
         Vec::new()
