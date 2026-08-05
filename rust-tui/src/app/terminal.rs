@@ -1,3 +1,4 @@
+mod agent_registry;
 mod controller_io;
 mod model;
 
@@ -8,6 +9,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::model::AgentType;
 use crate::terminal_runtime::{
     PaneFrame, TerminalController, TerminalError, TerminalFrameReader, TerminalMode,
     TerminalScroll, TerminalSize, TransportExit,
@@ -248,6 +250,7 @@ impl App {
             .clone();
         self.terminal.install_pane_runtime(&definition, size);
         self.terminal.flush_commands();
+        self.mark_native_agent_panel_active(pane_id);
         self.dirty = true;
         self.persist_terminal_workspace();
         Ok(pane_id)
@@ -260,6 +263,7 @@ impl App {
         &mut self,
         label: &str,
         command: &str,
+        agent_type: AgentType,
         cwd: PathBuf,
         size: TerminalSize,
     ) -> Result<TerminalPaneId, TerminalError> {
@@ -274,11 +278,15 @@ impl App {
             ));
         }
         let label = model::normalize_label(label).map_err(TerminalError::new)?;
-        let pane_id = self.create_terminal_tab_at(TerminalProfile::Shell, cwd, size)?;
+        let pane_id = self.create_terminal_tab_at(TerminalProfile::Shell, cwd.clone(), size)?;
         self.rename_terminal_pane(pane_id, &label)?;
         let mut input = command.as_bytes().to_vec();
         input.push(b'\r');
-        self.terminal.queue_input(pane_id, input, true)?;
+        if let Err(error) = self.terminal.queue_input(pane_id, input, true) {
+            self.close_terminal_pane(pane_id);
+            return Err(error);
+        }
+        self.register_native_agent_panel(pane_id, agent_type, label, cwd);
         self.dirty = true;
         Ok(pane_id)
     }
@@ -318,6 +326,7 @@ impl App {
             .clone();
         self.terminal.install_pane_runtime(&definition, size);
         self.terminal.flush_commands();
+        self.mark_native_agent_panel_active(pane_id);
         self.dirty = true;
         self.persist_terminal_workspace();
         Ok(pane_id)
@@ -328,6 +337,10 @@ impl App {
             return false;
         }
         self.terminal.queue_close(pane_id);
+        self.remove_native_agent_panel(pane_id);
+        if let Some(focused) = self.focused_terminal_pane_id() {
+            self.mark_native_agent_panel_active(focused);
+        }
         self.dirty = true;
         self.persist_terminal_workspace();
         true
@@ -347,7 +360,16 @@ impl App {
         if !self.terminal.workspace.rename_pane(pane_id, label.clone()) {
             return Ok(false);
         }
-        self.terminal.queue_label(pane_id, label);
+        self.terminal.queue_label(pane_id, label.clone());
+        let live_pane_id = agent_registry::native_agent_pane_id(pane_id);
+        if let Some(panel) = self
+            .panels
+            .iter_mut()
+            .find(|panel| panel.pane_id == live_pane_id)
+        {
+            panel.window = label;
+            self.invalidate_sidebar_cache();
+        }
         self.dirty = true;
         self.persist_terminal_workspace();
         Ok(true)
@@ -357,6 +379,7 @@ impl App {
         if !self.terminal.workspace.focus_pane(pane_id) {
             return false;
         }
+        self.mark_native_agent_panel_active(pane_id);
         self.dirty = true;
         self.persist_terminal_workspace();
         true
@@ -366,6 +389,9 @@ impl App {
         let changed = self.terminal.workspace.cycle_pane(delta);
         self.dirty |= changed;
         if changed {
+            if let Some(pane_id) = self.focused_terminal_pane_id() {
+                self.mark_native_agent_panel_active(pane_id);
+            }
             self.persist_terminal_workspace();
         }
         changed
@@ -375,6 +401,9 @@ impl App {
         let changed = self.terminal.workspace.cycle_tab(delta);
         self.dirty |= changed;
         if changed {
+            if let Some(pane_id) = self.focused_terminal_pane_id() {
+                self.mark_native_agent_panel_active(pane_id);
+            }
             self.persist_terminal_workspace();
         }
         changed
@@ -384,6 +413,9 @@ impl App {
         let changed = self.terminal.workspace.focus_tab(index);
         self.dirty |= changed;
         if changed {
+            if let Some(pane_id) = self.focused_terminal_pane_id() {
+                self.mark_native_agent_panel_active(pane_id);
+            }
             self.persist_terminal_workspace();
         }
         changed
@@ -553,6 +585,11 @@ impl App {
         self.terminal.flush_order.clear();
         self.terminal.flush_cursor = 0;
         self.terminal.interaction = TerminalInteractionState::Direct;
+        if self.remove_all_native_agent_panels() {
+            self.invalidate_sidebar_cache();
+            self.sync_sidebar_selection();
+            self.dirty = true;
+        }
         if let Some(controller) = controller {
             controller.shutdown()?;
         }

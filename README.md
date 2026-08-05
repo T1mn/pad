@@ -58,6 +58,8 @@ PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `p
 - Press `Tab` to focus the terminal and `F12` to return to the sidebar.
 - `C` still opens PAD's global directory index; it is not used for terminal focus.
 - Choosing a directory and agent from that index opens a native terminal tab in the selected directory and runs the configured agent command there. No tmux session is created in native mode.
+- The selected directory is the child shell's real working directory. For OpenCode this follows the documented `cd /path/to/project && opencode` form (equivalent to `opencode /path/to/project`).
+- The left sidebar is the agent workspace/session navigator: a launched native agent appears there immediately beside discovered history. Press `Enter` on a live native entry to focus its tab/pane; closing that pane removes the live entry.
 - Press `F11` for PAD Terminal commands (`Ctrl+Shift+Space` also works with enhanced keyboard protocols).
 - In the command layer: `1`–`4` create Shell / Codex / Claude / GitHub CLI tabs, `v`/`s` split right/below, `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
 - `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.
@@ -106,7 +108,7 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 - Pure Rust TUI with a small footprint and quick session-aware previews
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
-- In native mode, `Tab` focuses the terminal and `F12` returns; `--tmux` retains `Enter` attach and `Ctrl+Q`
+- In native mode, `Tab` focuses the terminal, `F12` returns, and `Enter` on a live sidebar entry jumps to its native pane; `--tmux` retains tmux attach and `Ctrl+Q`
 - `F10` pad-sider for tree, index map, changes, and file preview beside your agent pane
 - Archive or restore with agent-specific adapters, without deleting upstream history
 - Relay / proxy settings for supported agents

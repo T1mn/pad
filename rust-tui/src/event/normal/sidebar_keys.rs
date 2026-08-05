@@ -73,11 +73,16 @@ where
                 let _ = app.toggle_selected_folder();
             }
             Some(item) if item.as_thread().is_some() => {
-                if app
+                if let Some(live_pane_id) = app
                     .selected_preview_thread()
-                    .is_some_and(|thread| thread.is_live())
+                    .filter(|thread| thread.is_live())
+                    .and_then(|thread| thread.live_pane_id)
                 {
-                    attach_fn(terminal, app)?;
+                    if App::is_native_agent_terminal_id(&live_pane_id) {
+                        let _ = app.focus_native_agent_terminal(&live_pane_id);
+                    } else {
+                        attach_fn(terminal, app)?;
+                    }
                 } else {
                     app.invalidate_preview();
                     app.dirty = true;

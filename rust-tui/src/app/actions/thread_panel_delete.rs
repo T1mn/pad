@@ -21,6 +21,19 @@ impl App {
             target_thread.as_ref().map(|thread| &thread.agent_type),
         );
 
+        if App::is_native_agent_terminal_id(&panel.pane_id) {
+            if self.close_native_agent_terminal(&panel.pane_id) {
+                self.invalidate_preview();
+                self.focus_panel();
+            } else {
+                self.show_action_toast(
+                    delete_failed_title(self.locale),
+                    "native terminal pane no longer exists",
+                );
+            }
+            return;
+        }
+
         let kill_result = std::process::Command::new("tmux")
             .args(["kill-pane", "-t", &panel.pane_id])
             .output();

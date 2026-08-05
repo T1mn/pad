@@ -29,9 +29,26 @@ fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
         assert_eq!(app.terminal_workspace().tabs.len(), 2);
         assert_eq!(app.terminal_workspace().panes.len(), 2);
         assert!(app.delayed_scan_at.is_none());
+        let agent_pane_id = app.focused_terminal_pane_id().unwrap();
         let pane = app.focused_terminal_pane().unwrap();
         assert_eq!(pane.cwd(), target);
         assert_eq!(pane.label(), "OpenCode · project");
+        assert_eq!(app.panels.len(), 1);
+        assert_eq!(app.panels[0].agent_type, AgentType::OpenCode);
+        assert_eq!(app.panels[0].working_dir, target.to_string_lossy());
+        assert!(App::is_native_agent_terminal_id(&app.panels[0].pane_id));
+        assert_eq!(
+            app.sidebar.selected_sidebar_key.as_deref(),
+            Some(format!("live:{}", app.panels[0].pane_id).as_str())
+        );
+        assert!(app
+            .sidebar
+            .expanded_folders
+            .contains(target.to_string_lossy().as_ref()));
+        assert_eq!(
+            app.selected_preview_thread().unwrap().title,
+            "OpenCode · project"
+        );
         for _ in 0..100 {
             if marker.exists() {
                 break;
@@ -42,6 +59,10 @@ fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
             std::fs::read_to_string(marker).unwrap(),
             "native-opencode-launch"
         );
+        let panel = app.panels[0].clone();
+        app.delete_panel(&panel);
+        assert!(app.terminal_pane(agent_pane_id).is_none());
+        assert!(app.panels.is_empty());
         app.shutdown_native_terminal().unwrap();
     });
 }

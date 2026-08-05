@@ -93,3 +93,34 @@ fn numeric_jump_targets_visible_threads_only() {
     handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Char('2'))).unwrap();
     assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
 }
+
+#[cfg(unix)]
+#[test]
+fn enter_on_native_agent_thread_focuses_its_terminal_tab() {
+    crate::test_support::with_temp_home("pad-sidebar", "native-agent-enter", |home| {
+        let target = home.join("project");
+        std::fs::create_dir_all(&target).unwrap();
+        let mut app = App::new();
+        app.runtime_mode = crate::runtime_mode::RuntimeMode::Native;
+        app.start_native_terminal(crate::terminal_runtime::TerminalSize::new(80, 24))
+            .unwrap();
+        let native_pane = app
+            .launch_native_agent_terminal_at(
+                "OpenCode · project",
+                "true",
+                AgentType::OpenCode,
+                target,
+                crate::terminal_runtime::TerminalSize::new(80, 24),
+            )
+            .unwrap();
+
+        assert!(app.focus_terminal_tab(0));
+        app.focus_panel();
+        let mut terminal = test_terminal();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Enter)).unwrap();
+
+        assert_eq!(app.focused_terminal_pane_id(), Some(native_pane));
+        assert!(app.terminal_is_focused());
+        app.shutdown_native_terminal().unwrap();
+    });
+}

@@ -95,6 +95,7 @@ pub enum AgentState {
 pub enum AgentStateSource {
     Scanner,
     Hook,
+    Native,
 }
 
 impl AgentState {

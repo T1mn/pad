@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::app::{state::Mode, App};
 use crate::log_debug;
+use crate::model::AgentType;
 use crate::relay;
 use crate::session;
 use crate::terminal_runtime::TerminalSize;
@@ -105,7 +106,8 @@ fn launch_native_agent(app: &mut App, agent_name: &str, agent_cmd: &str, target_
         .and_then(|pane| pane.size())
         .unwrap_or_else(|| TerminalSize::new(80, 24));
     let label = native_agent_label(agent_name, &target_dir);
-    match app.launch_native_agent_terminal_at(&label, agent_cmd, target_dir, size) {
+    let agent_type = AgentType::from_processes(agent_name);
+    match app.launch_native_agent_terminal_at(&label, agent_cmd, agent_type, target_dir, size) {
         Ok(_) => {
             app.focus_terminal();
             log_debug!("agent_launcher: native agent terminal opened");

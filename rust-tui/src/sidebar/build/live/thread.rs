@@ -17,10 +17,11 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
         .unwrap_or_default();
     let upstream_title = resolve_live_panel_upstream_title(panel);
     let subtitle = resolve_live_panel_subtitle(panel);
-    let fallback_title = panel
-        .agent_session_id
-        .as_deref()
-        .or(Some(panel.pane_id.as_str()));
+    let fallback_title = panel.agent_session_id.as_deref().or_else(|| {
+        (panel.session == "native" && !panel.window.is_empty())
+            .then_some(panel.window.as_str())
+            .or(Some(panel.pane_id.as_str()))
+    });
     let mut thread = SidebarThread {
         key: format!("live:{}", panel.pane_id),
         folder_key: panel.working_dir.clone(),

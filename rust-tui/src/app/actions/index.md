@@ -3,7 +3,7 @@
 - `tree.rs` / `tree/`：tree 开关、agent launcher/fuzzy picker 与文件预览 helper。
 - `thread_actions.rs` / `thread_actions/`：线程归档、恢复、回收站恢复的视图、目标筛选与确认执行。
 - `thread_meta_edit.rs`：thread 标题与标签编辑保存。
-- `thread_panel_delete.rs`：删除 live pane、隐藏对应 thread 与本地列表更新。
+- `thread_panel_delete.rs`：按 runtime 删除 native 或 tmux live pane、隐藏对应 thread 与本地列表更新。
 - `codex_restart.rs` / `codex_restart/`：选中 Codex pane 原地强制重启，用 PAD Codex runtime resume。
 - `panel_width.rs`：调整并持久化左侧 agent 列表宽度。
 - `opencode_cli.rs` / `opencode_cli_tests.rs`：OpenCode CLI 命令定位。

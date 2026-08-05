@@ -6,7 +6,7 @@ PAD 对 OpenCode 的支持以 2026-07-17 官方 stable `1.18.3` 审计为基准�
 
 ## 已接入能力
 
-- 启动 / attach：把 `opencode` 作为普通 agent pane 管理。
+- 启动 / attach：native 模式在所选项目目录创建真实 PTY，再执行配置的 `opencode` 命令；这对应官方 `cd /path/to/project && opencode` 用法，也等价于 `opencode /path/to/project`。启动后立即登记到左侧 live session，`Enter` 可跳回对应 tab/pane，不依赖 tmux。
 - relay/model：在 PAD relay 设置中维护 OpenCode provider/model，并写入 `opencode.jsonc`。
 - history：读取 OpenCode 官方 SQLite 数据库，合入 session 侧栏。
 - preview：从 `session` / `message` / `part` 表解析最近问答。
@@ -40,7 +40,7 @@ PAD 对 OpenCode 的支持以 2026-07-17 官方 stable `1.18.3` 审计为基准�
 ## 兼容与安全边界
 
 - history / preview 直接读取 OpenCode 本地 SQLite；未来 schema 变化需要重新审计。
-- PAD 不接入 OpenCode hook 实时事件；live 状态仍以 tmux pane 为准。
+- PAD 不接入 OpenCode hook 实时事件；native 模式的 live 存在性与焦点由 PAD 自己的 pane registry 管理，细粒度 Busy/Waiting 状态暂不从 OpenCode hook 推断；`--tmux` 兼容模式仍以 tmux pane 扫描为准。
 - relay 写配置前必须能解析现有 `opencode.jsonc`；解析失败时应停止，不覆盖用户文件。
 - 启动 pad 时只应用 runtime permission overlay，不写 OpenCode live provider/model；provider 同步仅在用户改 relay、外部 reload 配置、或 launcher 选中 OpenCode 时发生。
 - diagnostics 即使经过敏感字段清理，分享前仍应人工检查；PAD 不自动上传诊断文件。
