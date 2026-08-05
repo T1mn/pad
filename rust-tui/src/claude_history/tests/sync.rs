@@ -3,9 +3,8 @@ use super::super::db::query_threads_at;
 use super::super::model::ThreadArchiveFilter;
 use super::super::scan::sync_index_at;
 use super::support::{temp_db, temp_dir, write_thread};
-use std::fs;
-use std::thread::sleep;
-use std::time::Duration;
+use std::fs::{self, FileTimes, OpenOptions};
+use std::time::{Duration, UNIX_EPOCH};
 
 #[test]
 fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
@@ -20,13 +19,13 @@ fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
         "prompt a",
         "2099-03-10T05:41:54.280Z",
     );
+    set_modified_secs(&file_a, 2_000_000_000);
 
     sync_index_at(&root, &db).unwrap();
     let first = load_threads_at(&root, &db, ThreadArchiveFilter::ActiveOnly).unwrap();
     assert_eq!(first.len(), 1);
     assert_eq!(first[0].session_id, "a");
 
-    sleep(Duration::from_millis(1100));
     write_thread(
         &file_b,
         "b",
@@ -34,6 +33,7 @@ fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
         "prompt b",
         "2099-03-10T05:41:54.280Z",
     );
+    set_modified_secs(&file_b, 2_000_000_001);
     sync_index_at(&root, &db).unwrap();
     let second = load_threads_at(&root, &db, ThreadArchiveFilter::ActiveOnly).unwrap();
     assert_eq!(second.len(), 2);
@@ -48,6 +48,15 @@ fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
 
     fs::remove_dir_all(&root).ok();
     fs::remove_file(&db).ok();
+}
+
+fn set_modified_secs(path: &std::path::Path, seconds: u64) {
+    OpenOptions::new()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_times(FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(seconds)))
+        .unwrap();
 }
 
 #[test]
