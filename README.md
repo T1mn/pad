@@ -57,10 +57,12 @@ PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `p
 
 - Press `Tab` to focus the terminal and `F12` to return to the sidebar.
 - `C` still opens PAD's global directory index; it is not used for terminal focus.
+- Choosing a directory and agent from that index opens a native terminal tab in the selected directory and runs the configured agent command there. No tmux session is created in native mode.
 - Press `F11` for PAD Terminal commands (`Ctrl+Shift+Space` also works with enhanced keyboard protocols).
 - In the command layer: `1`–`4` create Shell / Codex / Claude / GitHub CLI tabs, `v`/`s` split right/below, `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
 - `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.
 - Tabs, splits, labels, profiles, and launch directories persist in `~/.pad/terminal-workspace.json`. Restarting launches fresh PTYs; it does not pretend to restore old processes. Corrupt or newer-schema files are preserved as `terminal-workspace.invalid*.json` before PAD creates a clean workspace.
+- Commands selected from the global agent launcher are runtime-only: after a PAD restart, their labelled tabs restore as safe interactive shells instead of silently re-running configuration text.
 
 ## Demo
 

@@ -56,10 +56,12 @@ PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只�
 
 - `Tab` 聚焦右侧终端，`F12` 返回左侧。
 - `C` 仍然打开 PAD 的全局目录索引，不再承担终端聚焦。
+- 在全局索引里选择目录和 Agent 后，会在该目录新建 native terminal tab，并运行配置中的 Agent 命令；native 模式不会创建 tmux session。
 - `F11` 打开 PAD Terminal 命令层（支持增强键盘协议时也可用 `Ctrl+Shift+Space`）。
 - 命令层中：`1`～`4` 新建 Shell / Codex / Claude / GitHub CLI 标签，`v`/`s` 左右/上下分屏，`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
 - `Shift+PgUp/PgDn/Home/End` 控制历史视口；鼠标滚轮会在应用鼠标上报与 PAD scrollback 之间自动仲裁。
 - tab、split、label、profile 与启动目录保存到 `~/.pad/terminal-workspace.json`；重启会创建新的 PTY，不会伪装成恢复旧进程。损坏或来自更新 schema 的文件会先原样保留为 `terminal-workspace.invalid*.json`，再创建干净工作区。
+- 全局 Agent Launcher 选中的命令只在本次运行中启动；PAD 重启后相应标签会安全恢复为交互式 Shell，不会静默重新执行配置文本。
 
 ## 演示
 

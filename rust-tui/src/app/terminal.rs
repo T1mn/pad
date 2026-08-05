@@ -253,6 +253,36 @@ impl App {
         Ok(pane_id)
     }
 
+    /// Opens a persistent shell tab and starts a configured agent command in
+    /// that shell. The command is runtime-only: workspace restore keeps the
+    /// labelled shell but never auto-runs arbitrary text loaded from disk.
+    pub fn launch_native_agent_terminal_at(
+        &mut self,
+        label: &str,
+        command: &str,
+        cwd: PathBuf,
+        size: TerminalSize,
+    ) -> Result<TerminalPaneId, TerminalError> {
+        let command = command.trim();
+        if command.is_empty()
+            || command
+                .chars()
+                .any(|character| matches!(character, '\0' | '\r' | '\n'))
+        {
+            return Err(TerminalError::new(
+                "native agent command must be one non-empty shell line",
+            ));
+        }
+        let label = model::normalize_label(label).map_err(TerminalError::new)?;
+        let pane_id = self.create_terminal_tab_at(TerminalProfile::Shell, cwd, size)?;
+        self.rename_terminal_pane(pane_id, &label)?;
+        let mut input = command.as_bytes().to_vec();
+        input.push(b'\r');
+        self.terminal.queue_input(pane_id, input, true)?;
+        self.dirty = true;
+        Ok(pane_id)
+    }
+
     pub fn split_focused_terminal(
         &mut self,
         axis: TerminalSplitAxis,
