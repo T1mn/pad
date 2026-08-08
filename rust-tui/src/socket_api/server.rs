@@ -61,7 +61,3 @@ async fn handle_stream(stream: UnixStream) -> io::Result<()> {
 fn display_path(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
-
-#[cfg(test)]
-#[path = "server_tests.rs"]
-mod server_tests;

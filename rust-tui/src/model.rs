@@ -10,5 +10,4 @@ pub use preview::{
 };
 
 #[cfg(test)]
-#[path = "model/panel_tests.rs"]
-mod panel_tests;
+mod tests;

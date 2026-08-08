@@ -85,7 +85,3 @@ pub(crate) fn visible_thread_jump_badges(items: &[SidebarItem]) -> Vec<Option<us
         .map(|item| jump_badge_for_item(item, &mut next_jump_badge))
         .collect()
 }
-
-#[cfg(test)]
-#[path = "viewport_tests.rs"]
-mod tests;

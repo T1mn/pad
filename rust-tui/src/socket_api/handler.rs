@@ -195,7 +195,3 @@ pub fn handle_request(request: ApiRequest) -> ApiResponse {
         other => ApiResponse::err(format!("unknown action: {other}")),
     }
 }
-
-#[cfg(test)]
-#[path = "handler_tests.rs"]
-mod handler_tests;

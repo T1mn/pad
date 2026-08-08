@@ -28,7 +28,3 @@ fn command_token(command: &str) -> &str {
         .and_then(|part| part.rsplit('/').next())
         .unwrap_or(command)
 }
-
-#[cfg(test)]
-#[path = "classify_tests.rs"]
-mod tests;

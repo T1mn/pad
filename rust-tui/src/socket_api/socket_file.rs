@@ -116,7 +116,3 @@ fn harden_socket_dir(dir: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-#[path = "socket_file_tests.rs"]
-mod socket_file_tests;

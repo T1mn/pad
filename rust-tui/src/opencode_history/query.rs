@@ -70,7 +70,3 @@ pub(crate) fn db_path_for_session(session_id: &str) -> io::Result<Option<PathBuf
 fn normalize_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
-
-#[cfg(test)]
-#[path = "query_tests.rs"]
-mod query_tests;

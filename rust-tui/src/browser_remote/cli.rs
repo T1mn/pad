@@ -66,11 +66,14 @@ fn value_after(args: &[String], key: &str) -> Option<String> {
         .map(|pair| pair[1].clone())
 }
 
-fn format_args(args: &[String]) -> String {
+pub(super) fn format_args(args: &[String]) -> String {
     format_command_line("", args.iter().map(String::as_str))
 }
 
-fn format_command_line<'a>(program: &str, args: impl IntoIterator<Item = &'a str>) -> String {
+pub(super) fn format_command_line<'a>(
+    program: &str,
+    args: impl IntoIterator<Item = &'a str>,
+) -> String {
     let mut line = program.to_string();
     for arg in args {
         if !line.is_empty() {
@@ -80,7 +83,3 @@ fn format_command_line<'a>(program: &str, args: impl IntoIterator<Item = &'a str
     }
     line
 }
-
-#[cfg(test)]
-#[path = "cli_tests.rs"]
-mod tests;

@@ -60,7 +60,3 @@ fn peer_uid(fd: RawFd) -> io::Result<u32> {
     }
     Ok(uid as u32)
 }
-
-#[cfg(test)]
-#[path = "peer_tests.rs"]
-mod peer_tests;

@@ -110,7 +110,3 @@ pub(crate) fn format_line(line: &str, theme: &Theme) -> Vec<Span<'static>> {
 
     tokenize_inline_code(line, Style::default(), theme)
 }
-
-#[cfg(test)]
-#[path = "inline_tests.rs"]
-mod tests;

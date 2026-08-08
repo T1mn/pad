@@ -22,7 +22,3 @@ pub(in crate::preview_source::session_target) fn codex_transcript_path_for_sessi
         .map(|thread| thread.rollout_path)
         .and_then(|path| crate::codex_rollout::existing_rollout_path(&path))
 }
-
-#[cfg(test)]
-#[path = "codex_tests.rs"]
-mod tests;

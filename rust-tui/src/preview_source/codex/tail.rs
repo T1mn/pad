@@ -49,7 +49,3 @@ pub(super) fn read_tail_lines(
         .map(str::to_string)
         .collect())
 }
-
-#[cfg(test)]
-#[path = "tail_tests.rs"]
-mod tests;

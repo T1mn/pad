@@ -56,3 +56,6 @@ pub(crate) mod socket_file;
 
 pub use cli::run_args;
 pub use server::start_api_listener;
+
+#[cfg(test)]
+mod tests;

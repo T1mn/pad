@@ -78,7 +78,3 @@ fn truncate_chars_with_ellipsis(text: &str, max_chars: usize) -> String {
     out.push('…');
     out
 }
-
-#[cfg(test)]
-#[path = "subagent_tests.rs"]
-mod tests;

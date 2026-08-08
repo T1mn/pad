@@ -32,7 +32,7 @@ pub(in crate::event::attach) fn writable_client_for_pane(pane_id: &str) -> Optio
     parse_writable_client(&String::from_utf8_lossy(&output.stdout), pane_id)
 }
 
-fn parse_writable_client(output: &str, pane_id: &str) -> Option<String> {
+pub(super) fn parse_writable_client(output: &str, pane_id: &str) -> Option<String> {
     output.lines().find_map(|line| {
         let mut fields = line.splitn(3, '\t');
         let name = fields.next()?;
@@ -58,7 +58,3 @@ fn tmux_display_message(target: Option<&str>, format: &str) -> Option<String> {
 
     Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
-
-#[cfg(test)]
-#[path = "query_tests.rs"]
-mod tests;

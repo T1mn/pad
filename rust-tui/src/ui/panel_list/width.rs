@@ -73,12 +73,8 @@ pub fn preferred_panel_width(app: &mut App) -> u16 {
     width
 }
 
-fn thread_item_width(title: &str) -> usize {
+pub(super) fn thread_item_width(title: &str) -> usize {
     let title_width =
         metrics::display_width(&metrics::truncate_to_width(title, THREAD_TITLE_WIDTH_LIMIT));
     9 + title_width
 }
-
-#[cfg(test)]
-#[path = "width_tests.rs"]
-mod tests;

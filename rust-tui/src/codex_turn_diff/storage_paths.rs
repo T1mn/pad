@@ -68,7 +68,7 @@ pub fn now_stamp() -> String {
     crate::time::unix_now_secs().to_string()
 }
 
-fn safe_name(value: &str) -> String {
+pub(super) fn safe_name(value: &str) -> String {
     let mut out = String::with_capacity(value.len().min(96));
     for ch in value.chars() {
         if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
@@ -90,7 +90,3 @@ fn safe_name(value: &str) -> String {
 fn now_nanos() -> u128 {
     crate::time::unix_now_nanos()
 }
-
-#[cfg(test)]
-#[path = "storage_paths_tests.rs"]
-mod tests;

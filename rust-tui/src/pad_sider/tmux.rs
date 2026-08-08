@@ -65,3 +65,6 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
 pub(super) fn is_codex_command(command: &str) -> bool {
     contains_ascii_ignore_case(command, "codex")
 }
+
+#[cfg(test)]
+mod tests;

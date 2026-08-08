@@ -32,7 +32,3 @@ fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "scan_tests.rs"]
-mod tests;

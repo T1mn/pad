@@ -8,7 +8,3 @@ pub fn display_tmux_command(args: &[String]) -> String {
     }
     display
 }
-
-#[cfg(test)]
-#[path = "display_tests.rs"]
-mod tests;

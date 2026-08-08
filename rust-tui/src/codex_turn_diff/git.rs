@@ -99,7 +99,7 @@ fn temp_index_path() -> PathBuf {
     ))
 }
 
-fn format_git_args(args: &[&str]) -> String {
+pub(super) fn format_git_args(args: &[&str]) -> String {
     let mut formatted = String::new();
     for arg in args {
         if !formatted.is_empty() {
@@ -109,7 +109,3 @@ fn format_git_args(args: &[&str]) -> String {
     }
     formatted
 }
-
-#[cfg(test)]
-#[path = "git_tests.rs"]
-mod tests;

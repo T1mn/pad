@@ -16,5 +16,4 @@ pub(crate) use wrap::{
 };
 
 #[cfg(test)]
-#[path = "markdown/normalize_tests.rs"]
-mod normalize_tests;
+mod tests;

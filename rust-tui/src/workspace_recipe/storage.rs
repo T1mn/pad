@@ -30,7 +30,3 @@ pub fn parse_recipes(content: &str) -> io::Result<WorkspaceRecipesFile> {
 pub fn find_recipe<'a>(recipes: &'a [WorkspaceRecipe], name: &str) -> Option<&'a WorkspaceRecipe> {
     recipes.iter().find(|recipe| recipe.name == name)
 }
-
-#[cfg(test)]
-#[path = "storage_tests.rs"]
-mod tests;

@@ -106,7 +106,3 @@ fn read_tree_entry(entry: Result<DirEntry, std::io::Error>) -> Option<TreeEntry>
         is_dir,
     })
 }
-
-#[cfg(test)]
-#[path = "build_tests.rs"]
-mod tests;

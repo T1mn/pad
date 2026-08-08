@@ -57,7 +57,3 @@ pub fn open_browser_url(url: &str) -> io::Result<()> {
         String::from_utf8_lossy(&output.stderr).trim()
     )))
 }
-
-#[cfg(test)]
-#[path = "browser_tests.rs"]
-mod tests;

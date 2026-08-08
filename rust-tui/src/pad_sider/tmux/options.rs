@@ -74,7 +74,3 @@ fn set_option(target: &str, key: &str, value: &str) -> Result<(), String> {
 fn unset_option(target: &str, key: &str) -> Result<(), String> {
     run_tmux(&["set-option", "-p", "-t", target, "-u", key]).map(|_| ())
 }
-
-#[cfg(test)]
-#[path = "options_tests.rs"]
-mod tests;

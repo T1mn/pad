@@ -70,7 +70,7 @@ pub(crate) fn build_folder_row(
         .style(Style::default().bg(theme.bg))
 }
 
-fn folder_label_style(
+pub(super) fn folder_label_style(
     is_selected: bool,
     _unread: bool,
     theme: &crate::theme::Theme,
@@ -82,7 +82,7 @@ fn folder_label_style(
         .add_modifier(Modifier::BOLD)
 }
 
-fn count_style(
+pub(super) fn count_style(
     is_selected: bool,
     unread: bool,
     theme: &crate::theme::Theme,
@@ -100,7 +100,3 @@ fn count_style(
     }
     style
 }
-
-#[cfg(test)]
-#[path = "folder_row_tests.rs"]
-mod tests;

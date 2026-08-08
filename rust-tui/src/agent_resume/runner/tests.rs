@@ -68,3 +68,38 @@ fn launch_plan_wraps_resume_command_in_tmux() {
     assert_eq!(plan.tmux_commands[0][0], "new-session");
     assert!(plan.resume_command.contains("claude --resume 'sid'"));
 }
+
+mod display {
+    use super::super::display::display_tmux_command;
+
+    #[test]
+    fn display_tmux_command_quotes_args_without_collecting_segments() {
+        let args = vec![
+            "new-session".to_string(),
+            "-s".to_string(),
+            "agent session".to_string(),
+            "echo ready".to_string(),
+        ];
+
+        assert_eq!(
+            display_tmux_command(&args),
+            "tmux new-session -s 'agent session' 'echo ready'"
+        );
+    }
+}
+
+mod execute {
+    use super::super::execute::format_tmux_args;
+
+    #[test]
+    fn tmux_args_format_keeps_error_message_shape() {
+        let args = vec![
+            "new-session".to_string(),
+            "-d".to_string(),
+            "-s".to_string(),
+            "pad-resume-demo".to_string(),
+        ];
+
+        assert_eq!(format_tmux_args(&args), "new-session -d -s pad-resume-demo");
+    }
+}

@@ -138,7 +138,3 @@ fn matches_agent(agent: &str, names: &[&str]) -> bool {
 fn default_shell_command() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
 }
-
-#[cfg(test)]
-#[path = "model_tests.rs"]
-mod tests;

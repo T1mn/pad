@@ -41,7 +41,7 @@ pub(in crate::event::attach) fn run_tmux_success(context: &str, args: Vec<String
         .unwrap_or(false)
 }
 
-fn format_tmux_args(args: &[String]) -> String {
+pub(super) fn format_tmux_args(args: &[String]) -> String {
     let mut formatted = String::new();
     for arg in args {
         if !formatted.is_empty() {
@@ -51,7 +51,3 @@ fn format_tmux_args(args: &[String]) -> String {
     }
     formatted
 }
-
-#[cfg(test)]
-#[path = "command_tests.rs"]
-mod tests;

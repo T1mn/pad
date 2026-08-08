@@ -79,7 +79,3 @@ impl PartialEq for SharedPreviewTurns {
 }
 
 impl Eq for SharedPreviewTurns {}
-
-#[cfg(test)]
-#[path = "preview_tests.rs"]
-mod tests;

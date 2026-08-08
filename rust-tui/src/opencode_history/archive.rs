@@ -13,7 +13,7 @@ pub(crate) fn set_archived(session_id: &str, archived: bool) -> io::Result<()> {
     set_archived_at(&db_path, session_id, archived)
 }
 
-fn set_archived_at(db_path: &Path, session_id: &str, archived: bool) -> io::Result<()> {
+pub(super) fn set_archived_at(db_path: &Path, session_id: &str, archived: bool) -> io::Result<()> {
     let connection = open_write(db_path)?;
     let value = if archived { Some(now_millis()) } else { None };
     let changed = connection
@@ -30,10 +30,6 @@ fn set_archived_at(db_path: &Path, session_id: &str, archived: bool) -> io::Resu
     }
     Ok(())
 }
-
-#[cfg(test)]
-#[path = "archive_tests.rs"]
-mod tests;
 
 fn now_millis() -> i64 {
     crate::time::unix_now_millis() as i64

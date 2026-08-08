@@ -63,3 +63,6 @@ pub(crate) use path::transcript_updated_at;
 pub(crate) use resolved::resolved_session_id_for_request;
 #[cfg(not(test))]
 pub(super) use resolved::resolved_session_id_for_request;
+
+#[cfg(test)]
+mod tests;

@@ -50,7 +50,9 @@ mod filter {
         }
     }
 
-    pub(super) fn normalize_root_pids(root_pids: &[String]) -> HashSet<String> {
+    pub(in crate::scanner::process_snapshot) fn normalize_root_pids(
+        root_pids: &[String],
+    ) -> HashSet<String> {
         root_pids
             .iter()
             .map(String::as_str)
@@ -63,10 +65,10 @@ mod filter {
 mod parse;
 
 pub(super) use command::{load_lightweight_process_snapshot, load_process_snapshot};
+#[cfg(test)]
+pub(in crate::scanner::process_snapshot) use filter::normalize_root_pids;
+#[cfg(test)]
+pub(in crate::scanner::process_snapshot) use parse::parse_process_snapshot;
 use std::collections::HashMap;
 
 pub(super) type ProcessMaps = (HashMap<String, String>, HashMap<String, Vec<String>>);
-
-#[cfg(test)]
-#[path = "loader_tests.rs"]
-mod tests;

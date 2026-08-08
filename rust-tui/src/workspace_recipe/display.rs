@@ -19,7 +19,3 @@ pub(super) fn shell_quote(value: &str) -> String {
         crate::shell_quote::single_quote(value)
     }
 }
-
-#[cfg(test)]
-#[path = "display_tests.rs"]
-mod tests;

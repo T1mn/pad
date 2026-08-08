@@ -51,7 +51,7 @@ mod execute {
         )))
     }
 }
-mod plan {
+pub(super) mod plan {
     use super::step::step_command;
     use super::{RecipeCommand, RecipeLaunchPlan};
     use crate::workspace_recipe::model::{WorkspaceRecipe, WorkspaceRecipeStep};
@@ -189,7 +189,3 @@ pub struct RecipeRunReport {
 }
 
 pub use execute::run_recipe;
-
-#[cfg(test)]
-#[path = "runner_tests.rs"]
-mod runner_tests;

@@ -2,7 +2,7 @@ use super::filter::{should_keep_child, should_keep_command};
 use super::ProcessMaps;
 use std::collections::{HashMap, HashSet};
 
-pub(super) fn parse_process_snapshot(
+pub(in crate::scanner::process_snapshot) fn parse_process_snapshot(
     stdout: &str,
     root_filter: Option<&HashSet<String>>,
 ) -> ProcessMaps {

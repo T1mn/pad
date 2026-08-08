@@ -66,8 +66,6 @@ mod width;
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod thread_row_tests;
 
 pub use draw::draw_panel_list;
 pub use file_tree::draw_file_tree;

@@ -19,7 +19,7 @@ pub(super) fn pane_info(target_pane: &str) -> Result<PaneInfo, String> {
     parse_pane_info(output.trim())
 }
 
-fn parse_pane_info(raw: &str) -> Result<PaneInfo, String> {
+pub(super) fn parse_pane_info(raw: &str) -> Result<PaneInfo, String> {
     let mut parts = raw.split(PANE_INFO_SEP);
     let Some(pane_id) = parts.next() else {
         return Err(unexpected_pane_info(raw));
@@ -84,7 +84,3 @@ pub(super) fn ensure_pane_unzoomed(pane: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-#[path = "pane_tests.rs"]
-mod tests;

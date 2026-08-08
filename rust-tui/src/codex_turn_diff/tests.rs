@@ -187,3 +187,27 @@ fn temp_dir(name: &str) -> PathBuf {
         .as_nanos();
     std::env::temp_dir().join(format!("pad-codex-turn-diff-{name}-{stamp}"))
 }
+
+mod git {
+    use super::super::git::format_git_args;
+
+    #[test]
+    fn git_args_format_keeps_error_message_shape() {
+        assert_eq!(
+            format_git_args(&["diff", "--no-ext-diff", "base", "end"]),
+            "diff --no-ext-diff base end"
+        );
+    }
+}
+
+mod storage_paths {
+    use super::super::storage_paths::safe_name;
+
+    #[test]
+    fn safe_name_collapses_trims_and_limits() {
+        assert_eq!(safe_name("  turn:/abc  "), "turn_abc");
+        assert_eq!(safe_name("a///b"), "a_b");
+        assert_eq!(safe_name("!@#"), "");
+        assert_eq!(safe_name(&"a".repeat(120)).len(), 96);
+    }
+}

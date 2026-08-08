@@ -84,7 +84,3 @@ fn is_port(port: &str) -> bool {
 fn shell_quote(value: &str) -> String {
     crate::shell_quote::single_quote(value)
 }
-
-#[cfg(test)]
-#[path = "remote_tests.rs"]
-mod tests;

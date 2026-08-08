@@ -129,5 +129,4 @@ fn append_spaced_command(processes: &mut String, command: &str) {
 }
 
 #[cfg(test)]
-#[path = "process_snapshot_tests.rs"]
 mod tests;

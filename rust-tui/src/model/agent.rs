@@ -72,10 +72,6 @@ impl AgentType {
     }
 }
 
-#[cfg(test)]
-#[path = "agent_tests.rs"]
-mod tests;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GitInfo {
     pub branch: Option<String>,
