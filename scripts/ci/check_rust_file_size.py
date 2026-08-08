@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Keep ordinary Rust source files small enough to review quickly."""
+"""Keep Rust modules cohesive without allowing unbounded source files."""
 
 from __future__ import annotations
 
 import subprocess
 import sys
 
-MAX_RUST_LINES = 200
+MAX_PRODUCTION_LINES = 500
+MAX_TEST_LINES = 800
+ABSOLUTE_MAX_LINES = 1000
 INLINE_TEST_MARKER = "mod tests {"
 EXEMPT_PREFIXES = (
     "rust-tui/src/i18n/",  # static translation tables are intentionally dense.
@@ -30,7 +32,7 @@ def line_count(text: str) -> int:
     return text.count("\n") + (0 if not text else 1)
 
 
-def may_have_inline_tests(path: str) -> bool:
+def is_test_file(path: str) -> bool:
     return path.endswith("tests.rs") or "/tests/" in path
 
 
@@ -42,11 +44,20 @@ def main() -> int:
     errors = []
     for path in workspace_rust_files():
         text = read_file(path)
-        if not is_exempt(path):
-            lines = line_count(text)
-            if lines > MAX_RUST_LINES:
-                errors.append(f"rust file too long: {path} has {lines} lines > {MAX_RUST_LINES}")
-        if not may_have_inline_tests(path) and INLINE_TEST_MARKER in text:
+        lines = line_count(text)
+        if lines > ABSOLUTE_MAX_LINES:
+            errors.append(
+                f"rust file exceeds absolute limit: {path} has {lines} lines "
+                f"> {ABSOLUTE_MAX_LINES}"
+            )
+        elif not is_exempt(path):
+            limit = MAX_TEST_LINES if is_test_file(path) else MAX_PRODUCTION_LINES
+            if lines > limit:
+                kind = "test" if is_test_file(path) else "production"
+                errors.append(
+                    f"rust {kind} file too long: {path} has {lines} lines > {limit}"
+                )
+        if not is_test_file(path) and INLINE_TEST_MARKER in text:
             errors.append(f"inline test module found: {path} should use an external *_tests.rs file")
 
     if errors:

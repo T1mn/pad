@@ -1,6 +1,6 @@
 # paths
 
-- `base.rs`：`PAD_HOME`（未设置时为 `~/.pad`）下基础目录、日志、脚本、session、配置等路径函数。
+- `base.rs` / `base_tests.rs`：`PAD_HOME`（未设置时为 `~/.pad`）下基础目录、日志、脚本、session、配置等路径函数和基础路径测试。
 - `claude.rs`：统一解析 `CLAUDE_CONFIG_DIR`，并提供 Claude settings / projects 路径。
 - `hook_bridge.rs` / `hook_bridge/`：Claude/Codex hook bridge 模板安装、状态检查与模板生成。
 - `codex_hooks.rs` / `codex_hooks/`：Codex hooks feature 开关、`hooks.json` 写入与版本兼容。

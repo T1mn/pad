@@ -5,6 +5,6 @@
 - `panel_list.rs` / `panel_list/`：面板列表渲染。
 - `preview.rs` / `preview/`：预览区渲染。
 - `status_bar.rs` / `status_bar/` / `status_bar_tests.rs` / `toast.rs`：状态栏、测试与提示。
-- `terminal.rs`：原生 terminal tab bar、递归 split 几何、pane 渲染与共享 hit-test placement。
+- `terminal.rs` / `terminal_tests.rs`：原生 terminal tab bar、递归 split 几何、pane 渲染、共享 hit-test placement 与回归测试。
 - `modals/`：设置、relay、Telegram 等弹窗。
 - `selection/`：选区模型与渲染。

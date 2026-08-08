@@ -4,4 +4,4 @@
 - `preview_keys.rs`: focused preview scrolling, turn selection, and expansion keys.
 - `sidebar_keys.rs`: sidebar/tree navigation, folder toggles, delete, native pane focus, and tmux compatibility attach entry.
 - `tab.rs`: Tab focus switching and double-Tab preview detail behavior.
-- `terminal_keys.rs`：focused Native terminal 输入与 Shift scrollback；F12 返回左侧，F11（或增强键盘协议下的 `Ctrl+Shift+Space`）打开 tab/split/profile/focus/rename/close 命令层。
+- `terminal_keys.rs` / `terminal_keys_tests.rs`：focused Native terminal 输入与 Shift scrollback；F12 返回左侧，F11（或增强键盘协议下的 `Ctrl+Shift+Space`）打开 tab/split/profile/focus/rename/close 命令层，并覆盖关键路由回归。

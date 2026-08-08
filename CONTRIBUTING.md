@@ -17,10 +17,13 @@ Security problems go to `SECURITY.md`, not to the issue tracker.
 
 ## Hard rules enforced by CI
 
-**1. Rust source files are capped at 200 lines.**
-Every tracked `rust-tui/src/**/*.rs` file must be at most 200 lines. Only `rust-tui/src/i18n/` is
-exempt (dense static translation tables). If a file grows past the cap, split it into a module
-directory instead of trimming blank lines.
+**1. Rust source files have role-based size limits.**
+Tracked production files under `rust-tui/src/**/*.rs` may contain up to 500 lines, while external
+test files (`*_tests.rs`, `tests.rs`, or files below a `tests/` directory) may contain up to 800.
+No Rust file may exceed the absolute 1000-line limit. Only `rust-tui/src/i18n/` is exempt from the
+role-based limit because translation tables are intentionally dense; the absolute limit still
+applies. Prefer one cohesive module over several tiny forwarding files, then split by responsibility
+when a file approaches its limit.
 
 **2. Unit tests live in external files.**
 Ordinary source files must not contain the literal `mod tests {`. Put the tests in a sibling file
@@ -95,7 +98,8 @@ and lowercase.
 
 ## Pull requests
 
-- One logical change per PR. The 200-line file cap already pushes toward small, focused diffs.
+- One logical change per PR. File limits are guardrails for cohesive modules, not a target size or a
+  reason to split a focused change across many tiny files.
 - Add or update tests for behavior changes, in an external `*_tests.rs` file.
 - Update the affected `index.md` files and, for user-visible changes, add an entry under
   `[Unreleased]` in `CHANGELOG.md`.

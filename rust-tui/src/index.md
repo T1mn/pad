@@ -1,15 +1,15 @@
 # src
 
 - `main.rs`：入口与主循环；默认 native runtime，显式 `--tmux` 才进入兼容启动路径。
-- `runtime_mode.rs`：native-first 与显式 tmux 兼容模式选择。
+- `runtime_mode.rs` / `runtime_mode_tests.rs`：native-first 与显式 tmux 兼容模式选择及回归测试。
 - `terminal_runtime.rs` / `terminal_runtime/`：内嵌终端的 pane、解析引擎、Native PTY、会话传输协议与分片 worker runtime。
-- `terminal_workspace.rs`：原生终端 tab/split/label/profile 的版本化 JSON 加载与原子持久化；不保存 PTY 实时状态，损坏或未来版本文件先隔离保留再重建。
-- `cli.rs` / `cli_tests.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
+- `terminal_workspace.rs` / `terminal_workspace_tests.rs`：原生终端 tab/split/label/profile 的版本化 JSON 加载、原子持久化与回归测试；不保存 PTY 实时状态，损坏或未来版本文件先隔离保留再重建。
+- `cli.rs` / `cli_tests.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `terminal_tests.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
 - `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
 - `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
 - `time.rs` / `logger.rs` / `shell_quote.rs` / `shell_quote_tests.rs` / `text_match.rs` / `text_match_tests.rs` / `text_normalize.rs` / `text_normalize_tests.rs`：crate 内共享时间戳、debug log、shell quoting、文本匹配与文本归一化 helper。
-- `panic_boundary.rs`：标记可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
+- `panic_boundary.rs` / `panic_boundary_tests.rs`：标记并测试可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
