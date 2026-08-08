@@ -1,5 +1,43 @@
-mod command;
-mod text;
+mod command {
+    use std::ffi::OsString;
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    pub(super) fn open_opencode_web(cwd: &Path, command: &OsString) -> io::Result<()> {
+        let status = Command::new("tmux")
+            .args(["new-window", "-c"])
+            .arg(cwd)
+            .arg(web_command(command))
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "tmux new-window exited with {status}"
+            )))
+        }
+    }
+
+    pub(in crate::app::actions) fn web_command(command: &OsString) -> String {
+        format!(
+            "{} web",
+            crate::codex_runtime::shell_single_quote(&command.to_string_lossy())
+        )
+    }
+}
+mod text {
+    use super::super::helpers::localized;
+    use crate::i18n::Locale;
+
+    pub(super) fn web_opened_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode Web 已打开", "OpenCode Web Opened")
+    }
+
+    pub(super) fn web_failed_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode Web 失败", "OpenCode Web Failed")
+    }
+}
 
 use super::*;
 use std::path::PathBuf;

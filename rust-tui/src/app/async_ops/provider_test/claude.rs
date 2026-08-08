@@ -2,9 +2,53 @@ use super::client::claude_post_json;
 use super::types::ProbeOutcome;
 use serde_json::json;
 
-mod error;
+mod error {
+    pub(super) fn classify_error(status: u16, body: &str) -> &'static str {
+        let lower = body.to_ascii_lowercase();
+        if status == 401 || status == 403 {
+            "auth"
+        } else if status == 404 {
+            "not_found"
+        } else if status == 408 || lower.contains("timeout") {
+            "timeout"
+        } else if status == 429 {
+            "rate_limit"
+        } else if lower.contains("model")
+            && (lower.contains("not") || lower.contains("invalid") || lower.contains("unsupported"))
+        {
+            "model"
+        } else if status >= 500 {
+            "server_error"
+        } else {
+            "http_error"
+        }
+    }
+
+    pub(super) fn truncate_message(input: &str, max_chars: usize) -> String {
+        let mut out = String::new();
+        for ch in input.trim().chars().take(max_chars) {
+            if ch.is_control() {
+                out.push(' ');
+            } else {
+                out.push(ch);
+            }
+        }
+        out
+    }
+}
 mod model;
-mod response_text;
+mod response_text {
+    pub(super) fn extract_response_text(payload: &serde_json::Value) -> Option<String> {
+        let mut out = String::new();
+        let content = payload.get("content")?.as_array()?;
+        for item in content {
+            if let Some(text) = item.get("text").and_then(|value| value.as_str()) {
+                out.push_str(text);
+            }
+        }
+        Some(out)
+    }
+}
 mod stream;
 
 use error::{classify_error, truncate_message};

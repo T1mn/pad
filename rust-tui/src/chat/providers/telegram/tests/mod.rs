@@ -115,9 +115,181 @@ pub(super) fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
     result
 }
 mod approval;
-mod core;
-mod help;
+mod core {
+    use super::*;
+
+    #[test]
+    fn chunk_text_splits_long_messages() {
+        let chunks = chunk_text("abcdef", 3);
+        assert_eq!(chunks, vec!["abc", "def"]);
+    }
+    #[test]
+    fn slash_command_builder_preserves_optional_args() {
+        assert_eq!(build_slash_command_text("/status", ""), "/status");
+        assert_eq!(build_slash_command_text("/fast", "status"), "/fast status");
+    }
+    #[test]
+    fn summarize_pane_capture_trims_blank_edges_and_keeps_tail() {
+        let capture = "\n\none\n\ntwo\nthree\n\n";
+        assert_eq!(summarize_pane_capture(capture), "one\n\ntwo\nthree");
+    }
+
+    #[test]
+    fn summarize_pane_capture_keeps_last_eighteen_non_edge_lines() {
+        let capture = format!(
+            "\n{}\n\n",
+            (1..=20)
+                .map(|idx| format!("line {idx}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        let expected = (3..=20)
+            .map(|idx| format!("line {idx}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert_eq!(summarize_pane_capture(&capture), expected);
+    }
+
+    #[test]
+    fn agent_keyboard_uses_clickable_use_callbacks() {
+        let panel = sample_panel_with_turns(Vec::new());
+        let keyboard = build_agent_keyboard(&[panel], crate::i18n::Locale::En);
+        assert_eq!(keyboard.len(), 1);
+        assert_eq!(keyboard[0][0]["callback_data"], "use-pane:%42");
+    }
+    #[test]
+    fn telegram_sound_helper_records_enabled_event() {
+        with_temp_home("telegram-sound", |_home| {
+            crate::sound::with_test_sound_capture(|| {
+                let _ = crate::sound::take_test_playbacks();
+                let mut config = crate::theme::Config::default();
+                config.sound.approval.enabled = true;
+
+                play_sound_event(&config, crate::sound::SoundEvent::Approval);
+
+                assert_eq!(
+                    crate::sound::take_test_playbacks(),
+                    vec![crate::sound::TestPlayback {
+                        event: Some(crate::sound::SoundEvent::Approval),
+                        preset: "ping".into(),
+                    }]
+                );
+            });
+        });
+    }
+}
+mod help {
+    use super::*;
+
+    #[test]
+    fn help_page_callbacks_parse() {
+        assert_eq!(
+            HelpPage::from_callback("help:overview"),
+            Some(HelpPage::Overview)
+        );
+        assert_eq!(HelpPage::from_callback("help:codex"), Some(HelpPage::Codex));
+        assert_eq!(
+            HelpPage::from_callback("help:workflow"),
+            Some(HelpPage::Workflow)
+        );
+        assert_eq!(HelpPage::from_callback("help:list"), None);
+    }
+    #[test]
+    fn help_page_html_includes_target_and_commands() {
+        let state = TelegramState {
+            selected_target: Some(SelectedTarget {
+                pane_id: "%7".into(),
+                label: "X rust-tui".into(),
+            }),
+            ..TelegramState::default()
+        };
+        let codex_html = help_page_html(crate::i18n::Locale::En, &state, HelpPage::Codex);
+        assert!(codex_html.contains("Pad Telegram"));
+        assert!(codex_html.contains("X rust-tui"));
+        assert!(codex_html.contains("/status"));
+        assert!(codex_html.contains("/compact"));
+
+        let overview_html = help_page_html(crate::i18n::Locale::En, &state, HelpPage::Overview);
+        assert!(overview_html.contains("/history"));
+        assert!(overview_html.contains("/diag"));
+        assert!(overview_html.contains("/restart"));
+        assert!(overview_html.contains("/reset"));
+    }
+
+    #[test]
+    fn help_page_html_escapes_target_label() {
+        let state = TelegramState {
+            selected_target: Some(SelectedTarget {
+                pane_id: "%7".into(),
+                label: "A&B <codex> 東".into(),
+            }),
+            ..TelegramState::default()
+        };
+
+        let html = help_page_html(crate::i18n::Locale::En, &state, HelpPage::Overview);
+        assert!(html.contains("A&amp;B &lt;codex&gt; 東"));
+        assert!(!html.contains("A&B <codex> 東"));
+    }
+
+    #[test]
+    fn help_keyboard_marks_active_page() {
+        let keyboard = build_help_keyboard(crate::i18n::Locale::En, HelpPage::Workflow);
+        assert_eq!(keyboard.len(), 2);
+        assert_eq!(keyboard[0][2]["callback_data"], "help:workflow");
+        assert_eq!(keyboard[1][0]["callback_data"], "help:list");
+    }
+}
 mod history_restart;
-mod journal;
+mod journal {
+    use super::*;
+
+    #[test]
+    fn journal_recovery_runs_immediately_for_pending_on_startup() {
+        let state = TelegramState {
+            pending_requests: vec![sample_pending("tg-1", "%1", "awaiting_submit")],
+            ..TelegramState::default()
+        };
+
+        assert!(should_probe_hook_journal_inner(&state, true, 100));
+    }
+    #[test]
+    fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
+        let state = TelegramState {
+            last_journal_recovery_at: 100,
+            pending_requests: vec![PendingRequest {
+                sent_at: 101,
+                sent_at_ms: 101_000,
+                ..sample_pending("tg-1", "%1", "awaiting_submit")
+            }],
+            ..TelegramState::default()
+        };
+
+        assert!(!should_probe_hook_journal_inner(&state, true, 103));
+        assert!(should_probe_hook_journal_inner(&state, true, 106));
+    }
+    #[test]
+    fn journal_recovery_probes_if_any_pending_request_is_stalled() {
+        let state = TelegramState {
+            last_journal_recovery_at: 100,
+            pending_requests: vec![
+                PendingRequest {
+                    sent_at: 103,
+                    sent_at_ms: 103_000,
+                    ..sample_pending("tg-1", "%1", "awaiting_submit")
+                },
+                PendingRequest {
+                    accepted_at: Some(101),
+                    accepted_at_ms: Some(101_000),
+                    turn_id: Some("turn-2".into()),
+                    ..sample_pending("tg-2", "%2", "awaiting_stop")
+                },
+            ],
+            ..TelegramState::default()
+        };
+
+        assert!(should_probe_hook_journal_inner(&state, true, 106));
+    }
+}
 mod pending;
 mod state;

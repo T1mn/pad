@@ -3,7 +3,7 @@
 - `mod.rs`：`App` 状态与少量通用方法。
 - `lifecycle.rs`：`App::new` 初始化。
 - `display_scope.rs`：侧边栏缓存失效、live/all session scope 与 thread list view helper。
-- `time.rs`：app 级时间戳与 handoff trace id helper。
+- `mod.rs` 内联 `time`：app 级时间戳与 handoff trace id helper。
 - `terminal.rs` / `terminal/`：UI 侧 Native terminal workspace；管理可持久化的 tab/二叉 split/profile/label、native agent sidebar registry、跨 tab focus，以及共享 controller 上每 pane 独立的 frame、输入、scroll、resize、关闭与公平背压重试。
 - `state/`：UI 与运行态结构。
 - `actions.rs` / `actions/`：用户动作封装。

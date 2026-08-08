@@ -4,5 +4,5 @@
 - `model.rs`: JSON request/response schema.
 - `handler.rs` / `handler/` / `handler_tests.rs`: actions and tests for status, inbox, prompt, recipe, resume, browser and remote.
 - `server.rs`: Unix socket JSONL listener at `~/.pad/pad-api.sock`.
-- `client.rs`: JSONL client helper.
-- `cli.rs`: `pad __internal socket-api ...` command entry.
+- `mod.rs` 内联 `client`: JSONL client helper.
+- `mod.rs` 内联 `cli`: `pad __internal socket-api ...` command entry.

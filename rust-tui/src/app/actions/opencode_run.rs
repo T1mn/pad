@@ -1,6 +1,74 @@
-mod command;
-mod prompt;
-mod text;
+mod command {
+    use std::ffi::OsString;
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    pub(super) fn run_opencode_prompt(
+        prompt: &str,
+        session_id: Option<&str>,
+        cwd: &Path,
+        command: &OsString,
+    ) -> io::Result<()> {
+        let status = Command::new("tmux")
+            .args(["new-window", "-c"])
+            .arg(cwd)
+            .arg(run_command(prompt, session_id, command))
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "tmux new-window exited with {status}"
+            )))
+        }
+    }
+
+    pub(in crate::app::actions) fn run_command(
+        prompt: &str,
+        session_id: Option<&str>,
+        command: &OsString,
+    ) -> String {
+        let mut command_line = crate::codex_runtime::shell_single_quote(&command.to_string_lossy());
+        command_line.push_str(" run");
+        if let Some(session_id) = session_id {
+            command_line.push_str(" --session ");
+            command_line.push_str(&crate::codex_runtime::shell_single_quote(session_id));
+        }
+        command_line.push_str(" -- ");
+        command_line.push_str(&crate::codex_runtime::shell_single_quote(prompt));
+        command_line
+    }
+}
+mod prompt {
+    pub(in crate::app::actions) fn normalize_prompt(text: &str) -> Result<String, &'static str> {
+        let prompt = text.trim();
+        if prompt.is_empty() {
+            Err("Clipboard is empty")
+        } else {
+            Ok(prompt.to_string())
+        }
+    }
+
+    pub(in crate::app::actions) fn prompt_preview(prompt: &str) -> &str {
+        prompt
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or(prompt)
+    }
+}
+mod text {
+    use super::super::helpers::localized;
+    use crate::i18n::Locale;
+
+    pub(super) fn run_started_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode run 已启动", "OpenCode Run Started")
+    }
+
+    pub(super) fn run_failed_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode run 失败", "OpenCode Run Failed")
+    }
+}
 
 use super::*;
 use std::path::PathBuf;

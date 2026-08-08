@@ -5,8 +5,113 @@ use ratatui::{
     text::{Line, Span},
 };
 
-mod style;
-mod width;
+mod style {
+    use crate::theme::Theme;
+    use crate::ui::selection::SelectionItem;
+    use ratatui::style::{Color, Modifier, Style};
+
+    pub(super) fn marker_style(
+        item: &SelectionItem,
+        theme: &Theme,
+        row_bg: Color,
+        is_selected: bool,
+    ) -> Style {
+        if item.disabled {
+            Style::default()
+                .fg(theme.comment)
+                .bg(row_bg)
+                .add_modifier(Modifier::DIM)
+        } else if is_selected {
+            Style::default()
+                .fg(theme.border_focused)
+                .bg(row_bg)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().bg(row_bg)
+        }
+    }
+
+    pub(super) fn value_style(
+        item: &SelectionItem,
+        theme: &Theme,
+        row_bg: Color,
+        is_selected: bool,
+    ) -> Style {
+        if item.disabled {
+            Style::default()
+                .fg(theme.comment)
+                .bg(row_bg)
+                .add_modifier(Modifier::DIM)
+        } else if is_selected {
+            Style::default()
+                .fg(theme.highlight_fg)
+                .bg(row_bg)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.accent).bg(row_bg)
+        }
+    }
+}
+mod width {
+    pub(super) fn display_width(s: &str) -> usize {
+        s.chars().map(char_display_width).sum()
+    }
+
+    pub(super) fn truncate_to_width(text: &str, max_width: usize) -> String {
+        if max_width == 0 {
+            return String::new();
+        }
+        if display_width(text) <= max_width {
+            return text.to_string();
+        }
+
+        let ellipsis = "…";
+        let target_width = max_width.saturating_sub(display_width(ellipsis));
+        let mut out = String::new();
+        let mut used = 0usize;
+
+        for ch in text.chars() {
+            let width = char_display_width(ch);
+            if used + width > target_width {
+                break;
+            }
+            out.push(ch);
+            used += width;
+        }
+
+        out.push_str(ellipsis);
+        out
+    }
+
+    fn char_display_width(c: char) -> usize {
+        if c == '\t' {
+            return 4;
+        }
+        if c.is_control() {
+            return 0;
+        }
+
+        let code = c as u32;
+        if matches!(
+            code,
+            0x1100..=0x115F
+                | 0x2329..=0x232A
+                | 0x2E80..=0xA4CF
+                | 0xAC00..=0xD7A3
+                | 0xF900..=0xFAFF
+                | 0xFE10..=0xFE19
+                | 0xFE30..=0xFE6F
+                | 0xFF00..=0xFF60
+                | 0xFFE0..=0xFFE6
+                | 0x1F300..=0x1FAFF
+                | 0x20000..=0x3FFFD
+        ) {
+            2
+        } else {
+            1
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;

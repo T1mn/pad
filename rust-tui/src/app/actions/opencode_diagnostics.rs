@@ -1,6 +1,21 @@
 mod collect;
 mod report;
-mod text;
+mod text {
+    use super::super::helpers::localized;
+    use crate::i18n::Locale;
+
+    pub(super) fn diagnostics_saved_title(locale: Locale) -> &'static str {
+        localized(
+            locale,
+            "OpenCode 诊断已导出",
+            "OpenCode Diagnostics Exported",
+        )
+    }
+
+    pub(super) fn diagnostics_failed_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode 诊断失败", "OpenCode Diagnostics Failed")
+    }
+}
 
 use super::*;
 use std::ffi::OsString;

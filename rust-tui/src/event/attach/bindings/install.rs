@@ -1,7 +1,183 @@
-mod context;
+mod context {
+    use crate::app::App;
+    use crate::log_debug;
+
+    use super::super::super::tmux::writable_client_for_pane;
+
+    pub(super) struct InstallContext {
+        pub(super) trace_id: String,
+        pub(super) pad_pane_id: String,
+        pub(super) pad_win_target: String,
+        pub(super) pad_session: String,
+        pub(super) pad_client: Option<String>,
+    }
+
+    impl InstallContext {
+        pub(super) fn load(
+            app: &mut App,
+            target_pane_id: &str,
+            target_session: &str,
+        ) -> Option<Self> {
+            let trace_id = app
+                .same_session_trace_id
+                .clone()
+                .unwrap_or_else(|| crate::app::new_handoff_trace("attach"));
+            app.same_session_trace_id = Some(trace_id.clone());
+
+            let pad_pane_id = match std::env::var("TMUX_PANE") {
+                Ok(id) => id,
+                Err(_) => {
+                    log_debug!(
+                        "handoff trace={} stage=attach.skip reason=tmux_pane_missing",
+                        trace_id
+                    );
+                    return None;
+                }
+            };
+
+            log_debug!(
+                "handoff trace={} stage=attach.begin target_pane={} target_session={} pad_pane={}",
+                trace_id,
+                target_pane_id,
+                target_session,
+                pad_pane_id
+            );
+
+            let pad_win_target = tmux_display(&pad_pane_id, "#{session_name}:#{window_index}")?;
+            if pad_win_target.is_empty() {
+                log_debug!(
+                    "install_return_bindings: pad_win_target empty, pad_pane_id={}",
+                    pad_pane_id
+                );
+                return None;
+            }
+
+            let pad_session = tmux_display(&pad_pane_id, "#{session_name}")?;
+            if pad_session.is_empty() {
+                log_debug!(
+                    "install_return_bindings: pad_session empty, pad_pane_id={}",
+                    pad_pane_id
+                );
+                return None;
+            }
+            let pad_client = writable_client_for_pane(&pad_pane_id);
+
+            Some(Self {
+                trace_id,
+                pad_pane_id,
+                pad_win_target,
+                pad_session,
+                pad_client,
+            })
+        }
+    }
+
+    fn tmux_display(target: &str, format: &str) -> Option<String> {
+        std::process::Command::new("tmux")
+            .args(["display-message", "-t", target, "-p", format])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+}
 mod return_cmd;
-mod saved;
-mod zoom;
+mod saved {
+    use crate::app::App;
+    use crate::log_debug;
+    use crate::tmux_bindings::{current_root_binding, PAD_SIDER_TOGGLE_KEYS};
+
+    use super::super::super::tmux::summarize_log_text;
+
+    pub(super) struct SavedBindings {
+        pub(super) f12: Option<String>,
+        pub(super) cq: Option<String>,
+        pub(super) sider: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl SavedBindings {
+        pub(super) fn capture_into_app(app: &mut App) -> Self {
+            let f12 = current_root_binding("F12");
+            let cq = current_root_binding("C-q");
+            let sider = PAD_SIDER_TOGGLE_KEYS
+                .iter()
+                .map(|key| (*key, current_root_binding(key)))
+                .collect::<Vec<_>>();
+
+            app.saved_tmux_bindings.clear();
+            if let Some(line) = &f12 {
+                app.saved_tmux_bindings.push(line.clone());
+            }
+            if let Some(line) = &cq {
+                app.saved_tmux_bindings.push(line.clone());
+            }
+            for (_, saved_binding) in &sider {
+                if let Some(line) = saved_binding {
+                    app.saved_tmux_bindings.push(line.clone());
+                }
+            }
+
+            log_debug!(
+                "install_return_bindings: saved_bindings f12={} cq={}",
+                f12.as_deref()
+                    .map(summarize_log_text)
+                    .unwrap_or_else(|| "-".to_string()),
+                cq.as_deref()
+                    .map(summarize_log_text)
+                    .unwrap_or_else(|| "-".to_string())
+            );
+
+            Self { f12, cq, sider }
+        }
+    }
+}
+mod zoom {
+    use crate::app::App;
+
+    pub(super) struct ZoomDecision {
+        pub(super) already_zoomed: bool,
+        pub(super) pane_count: usize,
+        pub(super) should_zoom: bool,
+        pub(super) restore_zoom_cmd: String,
+    }
+
+    impl ZoomDecision {
+        pub(super) fn for_target(app: &App, target_pane_id: &str) -> Self {
+            let zoom_info = std::process::Command::new("tmux")
+                .args([
+                    "display-message",
+                    "-t",
+                    target_pane_id,
+                    "-p",
+                    "#{window_zoomed_flag} #{window_panes}",
+                ])
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+                .unwrap_or_default();
+
+            let mut parts = zoom_info.split_whitespace();
+            let already_zoomed = parts.next().unwrap_or("0") == "1";
+            let pane_count = parts.next().unwrap_or("1").parse().unwrap_or(1);
+            let want_zoom = app.config.desired_agent_style.zoom == "auto";
+            let should_zoom = want_zoom && pane_count > 1 && !already_zoomed;
+            let restore_zoom_cmd = if should_zoom {
+                // Do NOT zoom here — zoom happens after select-pane so user sees it instantly.
+                format!("tmux resize-pane -Z -t '{}'", target_pane_id)
+            } else {
+                String::new()
+            };
+
+            Self {
+                already_zoomed,
+                pane_count,
+                should_zoom,
+                restore_zoom_cmd,
+            }
+        }
+    }
+}
 
 use crate::app::App;
 use crate::log_debug;

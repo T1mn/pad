@@ -6,6 +6,6 @@
 - `api.rs`：对外查询入口，历史根目录跟随 `CLAUDE_CONFIG_DIR`。
 - `db.rs`：数据存取 facade，保持对外导出路径稳定。
 - `db/`：schema/open、查询、写入/归档实现。
-- `model.rs`：历史数据模型。
-- `util.rs`：公共辅助。
+- `../claude_history.rs` 内联 `model`：历史数据模型。
+- `../claude_history.rs` 内联 `util`：公共辅助。
 - `tests.rs` / `tests/`：按 parse、sync、archive 分组的测试。

@@ -1,11 +1,134 @@
 use std::io;
 
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
-mod command;
+mod command {
+    use std::io;
+    #[cfg(any(target_os = "linux", test))]
+    use std::path::Path;
+    use std::process::{Command, Stdio};
+
+    pub(super) fn spawn_notification(program: &str, args: &[String]) -> io::Result<()> {
+        let mut child = Command::new(program)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+
+        Ok(())
+    }
+
+    #[cfg(any(target_os = "linux", test))]
+    pub(super) fn command_exists(program: &str) -> bool {
+        let Some(paths) = std::env::var_os("PATH") else {
+            return false;
+        };
+
+        std::env::split_paths(&paths).any(|dir| executable_exists(&dir.join(program)))
+    }
+
+    #[cfg(any(target_os = "linux", test))]
+    fn executable_exists(path: &Path) -> bool {
+        std::fs::metadata(path)
+            .map(|meta| {
+                if !meta.is_file() {
+                    return false;
+                }
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    meta.permissions().mode() & 0o111 != 0
+                }
+                #[cfg(not(unix))]
+                {
+                    true
+                }
+            })
+            .unwrap_or(false)
+    }
+}
 #[cfg(any(target_os = "linux", test))]
-mod linux;
+mod linux {
+    use super::NotificationRequest;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) struct NotificationEnv {
+        pub(super) has_display: bool,
+        pub(super) has_wayland: bool,
+        pub(super) has_dbus_session: bool,
+    }
+
+    #[cfg(target_os = "linux")]
+    impl NotificationEnv {
+        pub(super) fn from_current() -> Self {
+            Self {
+                has_display: std::env::var_os("DISPLAY").is_some(),
+                has_wayland: std::env::var_os("WAYLAND_DISPLAY").is_some(),
+                has_dbus_session: std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some(),
+            }
+        }
+    }
+
+    pub(super) fn command_spec(
+        env: &NotificationEnv,
+        request: &NotificationRequest,
+        has_command: impl Fn(&str) -> bool,
+    ) -> Option<LinuxCommandSpec> {
+        if (env.has_display || env.has_wayland || env.has_dbus_session)
+            && has_command("notify-send")
+        {
+            Some(LinuxCommandSpec {
+                program: "notify-send".into(),
+                args: vec![
+                    "--app-name".into(),
+                    "PAD".into(),
+                    "--icon".into(),
+                    "dialog-information".into(),
+                    request.title.clone(),
+                    request.body.clone(),
+                ],
+            })
+        } else {
+            None
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(super) struct LinuxCommandSpec {
+        pub(super) program: String,
+        pub(super) args: Vec<String>,
+    }
+}
 #[cfg(any(target_os = "macos", test))]
-mod macos;
+mod macos {
+    use super::NotificationRequest;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(super) struct MacCommandSpec {
+        pub(super) program: String,
+        pub(super) args: Vec<String>,
+    }
+
+    pub(super) fn command_spec(request: &NotificationRequest) -> MacCommandSpec {
+        MacCommandSpec {
+            program: "osascript".into(),
+            args: vec![
+                "-e".into(),
+                "on run argv".into(),
+                "-e".into(),
+                "display notification (item 2 of argv) with title (item 1 of argv)".into(),
+                "-e".into(),
+                "end run".into(),
+                request.title.clone(),
+                request.body.clone(),
+            ],
+        }
+    }
+}
 #[cfg(test)]
 mod tests;
 

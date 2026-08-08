@@ -3,11 +3,193 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 
 mod click;
-mod hit_test;
-mod hover;
-mod regions;
+mod hit_test {
+    use ratatui::layout::Rect;
+
+    pub(super) fn rect_contains(area: Rect, column: u16, row: u16) -> bool {
+        area.width > 0
+            && area.height > 0
+            && column >= area.x
+            && column < area.x.saturating_add(area.width)
+            && row >= area.y
+            && row < area.y.saturating_add(area.height)
+    }
+
+    pub(super) fn panel_index_at_position(
+        panel_inner: Rect,
+        row: u16,
+        table_offset: usize,
+        items: &[crate::sidebar::SidebarItem],
+    ) -> Option<usize> {
+        if items.is_empty() || !rect_contains(panel_inner, panel_inner.x, row) {
+            return None;
+        }
+
+        let mut remaining = row.saturating_sub(panel_inner.y) as usize;
+        for (index, item) in items.iter().enumerate().skip(table_offset) {
+            let height = sidebar_item_height(item) as usize;
+            if remaining < height {
+                return Some(index);
+            }
+            remaining = remaining.saturating_sub(height);
+        }
+
+        None
+    }
+
+    fn sidebar_item_height(item: &crate::sidebar::SidebarItem) -> u16 {
+        if item.as_folder().is_some() {
+            1
+        } else {
+            2
+        }
+    }
+
+    pub(super) fn session_turn_index_at_position(
+        preview_content_area: Rect,
+        row: u16,
+        scroll: u16,
+        turn_count: usize,
+    ) -> Option<usize> {
+        if turn_count == 0 || !rect_contains(preview_content_area, preview_content_area.x, row) {
+            return None;
+        }
+
+        let line = scroll as usize + row.saturating_sub(preview_content_area.y) as usize;
+        crate::ui::preview::session_turn_index_at_line(line, turn_count)
+    }
+}
+mod hover {
+    use crate::app::App;
+    use ratatui::layout::Rect;
+
+    pub(super) fn update_hovered_folder(app: &mut App, terminal_area: Rect, column: u16, row: u16) {
+        if app.should_defer_ui_updates() || app.frame_budget_exceeded {
+            return;
+        }
+
+        let regions = super::normal_mouse_regions(app, terminal_area);
+        let hovered_folder_key = if super::hit_test::rect_contains(regions.panel_inner, column, row)
+        {
+            let table_offset = app.table_state.offset();
+            let items = app.visible_sidebar_items_ref();
+            super::hit_test::panel_index_at_position(regions.panel_inner, row, table_offset, items)
+                .and_then(|index| items.get(index).cloned())
+                .and_then(|item| item.as_folder().map(|folder| folder.key.clone()))
+        } else {
+            None
+        };
+
+        if hovered_folder_key != app.sidebar.hovered_folder_key {
+            app.sidebar.hovered_folder_key = hovered_folder_key;
+            app.dirty = true;
+        }
+    }
+}
+mod regions {
+    use crate::app::App;
+    use crate::ui;
+    use ratatui::layout::{Constraint, Direction, Layout, Rect};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(in crate::event) struct NormalMouseRegions {
+        pub(in crate::event) panel_area: Rect,
+        pub(in crate::event) panel_inner: Rect,
+        pub(in crate::event) preview_area: Rect,
+        pub(in crate::event) preview_inner: Rect,
+        pub(in crate::event) preview_info_area: Option<Rect>,
+        pub(in crate::event) preview_content_area: Rect,
+    }
+
+    fn inner_rect(area: Rect) -> Rect {
+        Rect::new(
+            area.x.saturating_add(1),
+            area.y.saturating_add(1),
+            area.width.saturating_sub(2),
+            area.height.saturating_sub(2),
+        )
+    }
+
+    pub(in crate::event) fn normal_mouse_regions(
+        app: &mut App,
+        terminal_area: Rect,
+    ) -> NormalMouseRegions {
+        let preferred_left_width = Some(ui::panel_list::preferred_panel_width(app));
+        let (_, body_layout) =
+            ui::layout::compute_layout(terminal_area, false, preferred_left_width);
+        let panel_area = body_layout[0];
+        let preview_area = body_layout[1];
+        let panel_inner = inner_rect(panel_area);
+        let preview_inner = inner_rect(preview_area);
+
+        let (preview_info_area, preview_content_area) = if app.selected_preview_thread().is_some() {
+            let split = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![
+                    Constraint::Length(ui::preview::PREVIEW_INFO_CARD_HEIGHT),
+                    Constraint::Min(0),
+                ])
+                .split(preview_inner);
+            (Some(split[0]), split[1])
+        } else {
+            (None, preview_inner)
+        };
+
+        NormalMouseRegions {
+            panel_area,
+            panel_inner,
+            preview_area,
+            preview_inner,
+            preview_info_area,
+            preview_content_area,
+        }
+    }
+}
 mod scroll;
-mod selection;
+mod selection {
+    use crate::app::App;
+    use crate::ui;
+    use ratatui::layout::Rect;
+
+    pub(super) fn update_preview_mouse_selection(
+        app: &mut App,
+        terminal_area: Rect,
+        column: u16,
+        row: u16,
+    ) {
+        let regions = super::normal_mouse_regions(app, terminal_area);
+        let (column, row) = clamp_to_preview_content(regions.preview_content_area, column, row);
+        let _ = app.update_preview_mouse_selection(column, row);
+    }
+
+    pub(super) fn finish_preview_mouse_selection(
+        app: &mut App,
+        terminal_area: Rect,
+        column: u16,
+        row: u16,
+    ) {
+        let Some(selection) = app.finish_preview_mouse_selection() else {
+            return;
+        };
+
+        let regions = super::normal_mouse_regions(app, terminal_area);
+        if let Some(text) = ui::preview::extract_preview_selection_text(
+            app,
+            regions.preview_content_area,
+            (selection.anchor_column, selection.anchor_row),
+            (column, row),
+        ) {
+            let _ = app.copy_text_with_toast("内容", &text);
+        }
+    }
+
+    fn clamp_to_preview_content(area: Rect, column: u16, row: u16) -> (u16, u16) {
+        (
+            column.clamp(area.x, area.right().saturating_sub(1)),
+            row.clamp(area.y, area.bottom().saturating_sub(1)),
+        )
+    }
+}
 
 pub(in crate::event) use regions::normal_mouse_regions;
 #[cfg(test)]

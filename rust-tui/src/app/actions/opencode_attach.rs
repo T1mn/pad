@@ -1,6 +1,76 @@
-mod command;
-mod text;
-mod url;
+mod command {
+    use std::ffi::OsString;
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    pub(super) fn attach_opencode_server(
+        url: &str,
+        cwd: &Path,
+        command: &OsString,
+    ) -> io::Result<()> {
+        let status = Command::new("tmux")
+            .args(["new-window", "-c"])
+            .arg(cwd)
+            .arg(attach_command(url, command))
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "tmux new-window exited with {status}"
+            )))
+        }
+    }
+
+    pub(in crate::app::actions) fn attach_command(url: &str, command: &OsString) -> String {
+        format!(
+            "{} attach {}",
+            crate::codex_runtime::shell_single_quote(&command.to_string_lossy()),
+            crate::codex_runtime::shell_single_quote(url)
+        )
+    }
+}
+mod text {
+    use super::super::helpers::localized;
+    use crate::i18n::Locale;
+
+    pub(super) fn attach_saved_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode 已 attach", "OpenCode Attached")
+    }
+
+    pub(super) fn attach_failed_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode attach 失败", "OpenCode Attach Failed")
+    }
+}
+mod url {
+    use super::super::helpers::trim_wrapping_quotes;
+
+    pub(in crate::app::actions) fn normalize_server_url(
+        text: &str,
+    ) -> Result<String, &'static str> {
+        let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
+        let Some(first) = lines.next() else {
+            return Err("Clipboard is empty");
+        };
+        if lines.next().is_some() {
+            return Err("Clipboard must contain one OpenCode server URL");
+        }
+        let url = trim_wrapping_quotes(first).trim_end_matches('/');
+        if is_http_url(url) && !url.contains(char::is_whitespace) {
+            Ok(url.to_string())
+        } else {
+            Err("Clipboard must contain an http(s) OpenCode server URL")
+        }
+    }
+
+    fn is_http_url(value: &str) -> bool {
+        let rest = value
+            .strip_prefix("http://")
+            .or_else(|| value.strip_prefix("https://"));
+        rest.is_some_and(|rest| !rest.is_empty() && !rest.starts_with('/'))
+    }
+}
 
 use super::*;
 use std::path::PathBuf;

@@ -2,9 +2,81 @@ use super::client::bearer_post_json;
 use super::types::ProbeOutcome;
 use serde_json::json;
 
-mod error;
-mod model;
-mod response_text;
+mod error {
+    pub(super) fn classify_error(status: u16, body: &str) -> &'static str {
+        let lower = body.to_ascii_lowercase();
+        if status == 401 || status == 403 {
+            "auth"
+        } else if status == 404 {
+            "not_found"
+        } else if status == 408 || lower.contains("timeout") {
+            "timeout"
+        } else if status == 429 {
+            "rate_limit"
+        } else if lower.contains("model")
+            && (lower.contains("not") || lower.contains("invalid") || lower.contains("unsupported"))
+        {
+            "model"
+        } else if status >= 500 {
+            "server_error"
+        } else {
+            "http_error"
+        }
+    }
+
+    pub(super) fn truncate_message(input: &str, max_chars: usize) -> String {
+        let mut out = String::new();
+        for ch in input.trim().chars().take(max_chars) {
+            if ch.is_control() {
+                out.push(' ');
+            } else {
+                out.push(ch);
+            }
+        }
+        out
+    }
+}
+mod model {
+    pub(super) fn codex_probe_model() -> String {
+        std::env::var("PAD_CODEX_PROVIDER_TEST_MODEL")
+            .ok()
+            .filter(|model| !model.trim().is_empty())
+            .or_else(read_configured_codex_model)
+            .unwrap_or_else(|| "gpt-5.5".to_string())
+    }
+
+    fn read_configured_codex_model() -> Option<String> {
+        let content = std::fs::read_to_string(crate::paths::pad_codex_config_path()).ok()?;
+        let parsed = content.parse::<toml::Value>().ok()?;
+        parsed
+            .get("model")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+            .map(ToOwned::to_owned)
+    }
+}
+mod response_text {
+    pub(super) fn extract_response_text(payload: &serde_json::Value) -> Option<String> {
+        if let Some(text) = payload.get("output_text").and_then(|value| value.as_str()) {
+            return Some(text.to_string());
+        }
+
+        let mut out = String::new();
+        let output = payload.get("output").and_then(|value| value.as_array())?;
+        for item in output {
+            let Some(content) = item.get("content").and_then(|value| value.as_array()) else {
+                continue;
+            };
+            for content_item in content {
+                if let Some(text) = content_item.get("text").and_then(|value| value.as_str()) {
+                    out.push_str(text);
+                }
+            }
+        }
+        Some(out)
+    }
+}
 mod stream;
 
 use error::{classify_error, truncate_message};

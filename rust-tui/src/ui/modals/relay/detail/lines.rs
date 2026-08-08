@@ -1,7 +1,84 @@
-mod codex;
-mod default;
+mod codex {
+    use crate::theme::{AgentConfig, ProviderConfig, Theme};
+    use ratatui::{
+        style::Style,
+        text::{Line, Span},
+    };
+
+    pub(super) fn append_codex_source_line(
+        detail_lines: &mut Vec<Line<'static>>,
+        agent: &AgentConfig,
+        provider: &ProviderConfig,
+        theme: &Theme,
+    ) {
+        if agent.name != "codex" {
+            return;
+        }
+        detail_lines.push(Line::from(""));
+        detail_lines.push(Line::from(Span::styled(
+            format!(
+                "auth.json: {}  ·  pad.config.toml: {}",
+                super::super::super::layout::yes_no(provider.codex_auth_token().is_some()),
+                super::super::super::layout::yes_no(!provider.base_url.trim().is_empty())
+            ),
+            Style::default().fg(theme.comment),
+        )));
+    }
+}
+mod default {
+    use crate::i18n::Locale;
+    use crate::theme::{ProviderConfig, Theme};
+    use ratatui::{
+        style::Style,
+        text::{Line, Span},
+    };
+
+    pub(super) fn default_detail_lines(
+        provider: &ProviderConfig,
+        theme: &Theme,
+        locale: Locale,
+        make_val: &impl Fn(usize, &str) -> String,
+        field_style: &impl Fn(usize) -> Style,
+        masked_api_key: String,
+    ) -> Vec<Line<'static>> {
+        vec![
+            super::detail_line(theme, locale, "relay.label"),
+            Line::from(Span::styled(make_val(0, &provider.label), field_style(0))),
+            Line::from(""),
+            super::detail_line(theme, locale, "relay.base_url"),
+            Line::from(Span::styled(
+                make_val(1, &provider.base_url),
+                field_style(1),
+            )),
+            Line::from(""),
+            super::detail_line(theme, locale, "relay.api_key"),
+            Line::from(Span::styled(masked_api_key, field_style(2))),
+        ]
+    }
+}
 mod edit;
-mod secret;
+mod secret {
+    use super::super::super::super::common::mask_secret_prefix;
+    use crate::app::App;
+    use crate::theme::{AgentConfig, ProviderConfig};
+
+    pub(super) fn masked_api_key(
+        app: &App,
+        agent: &AgentConfig,
+        provider: &ProviderConfig,
+    ) -> String {
+        if app.relay_editing && app.relay_edit_field == 2 {
+            format!("{}|", app.relay_edit_buffer)
+        } else if agent.name == "codex" {
+            mask_secret_prefix(
+                provider.codex_auth_token().as_deref().unwrap_or_default(),
+                10,
+            )
+        } else {
+            mask_secret_prefix(&provider.api_key, 12)
+        }
+    }
+}
 
 use super::opencode::{opencode_detail_lines, OpencodeDetailContext};
 use super::test_status::{append_provider_test_lines, ProviderTestStatus};

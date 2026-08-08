@@ -1,6 +1,6 @@
 # paths/paths_tests
 
-- `support.rs`：共享临时 HOME helper。
+- `../paths_tests.rs` 内联 `support`：共享临时 HOME helper。
 - `bridge_hooks.rs`：Claude/Codex bridge 模板、Codex hooks feature key 与 TOML helper 测试。
 - `claude_paths.rs`：Claude 自定义配置目录与空值回退测试。
 - `runtime_layout.rs`：runtime layout、wrapper 安装与 PAD Codex profile hooks 测试。

@@ -2,14 +2,74 @@ use std::fs;
 use std::io;
 
 mod base;
-mod claude;
+mod claude {
+    use std::path::PathBuf;
+
+    pub fn claude_config_dir() -> PathBuf {
+        std::env::var_os("CLAUDE_CONFIG_DIR")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home_dir().join(".claude"))
+    }
+
+    pub fn claude_projects_dir() -> PathBuf {
+        claude_config_dir().join("projects")
+    }
+
+    pub fn claude_settings_path() -> PathBuf {
+        claude_config_dir().join("settings.json")
+    }
+
+    fn home_dir() -> PathBuf {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+}
 mod codex_home;
 mod codex_hooks;
 mod codex_wrapper;
 mod hook_bridge;
 mod prompts;
-mod runtime_files;
-mod sounds;
+mod runtime_files {
+    use std::path::PathBuf;
+
+    pub fn hook_socket_path() -> PathBuf {
+        super::pad_home_dir().join("pad-hook.sock")
+    }
+
+    pub fn api_socket_path() -> PathBuf {
+        super::pad_home_dir().join("pad-api.sock")
+    }
+
+    pub fn pad_status_path() -> PathBuf {
+        super::pad_home_dir().join("pad-status.json")
+    }
+
+    pub fn telegram_bot_status_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-bot-status.json")
+    }
+
+    pub fn telegram_state_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-state.json")
+    }
+
+    pub fn telegram_hook_socket_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-hook.sock")
+    }
+}
+mod sounds {
+    use std::path::PathBuf;
+
+    pub fn sounds_dir() -> PathBuf {
+        super::pad_home_dir().join("sounds")
+    }
+
+    pub fn sound_file_path(preset_id: &str) -> PathBuf {
+        sounds_dir().join(format!("{preset_id}.wav"))
+    }
+}
 
 #[cfg(test)]
 pub(crate) use claude::claude_config_dir;

@@ -1,5 +1,51 @@
-mod command;
-mod text;
+mod command {
+    use std::ffi::OsString;
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    pub(super) fn install_github_agent(cwd: &Path, command: &OsString) -> io::Result<()> {
+        let status = Command::new("tmux")
+            .args(["new-window", "-c"])
+            .arg(cwd)
+            .arg(github_install_command(command))
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "tmux new-window exited with {status}"
+            )))
+        }
+    }
+
+    pub(in crate::app::actions) fn github_install_command(command: &OsString) -> String {
+        format!(
+            "{} github install",
+            crate::codex_runtime::shell_single_quote(&command.to_string_lossy())
+        )
+    }
+}
+mod text {
+    use super::super::helpers::localized;
+    use crate::i18n::Locale;
+
+    pub(super) fn github_started_title(locale: Locale) -> &'static str {
+        localized(
+            locale,
+            "OpenCode GitHub install 已启动",
+            "OpenCode GitHub Install Started",
+        )
+    }
+
+    pub(super) fn github_failed_title(locale: Locale) -> &'static str {
+        localized(
+            locale,
+            "OpenCode GitHub install 失败",
+            "OpenCode GitHub Install Failed",
+        )
+    }
+}
 
 use super::*;
 use std::path::PathBuf;
