@@ -1,7 +1,7 @@
 #[test]
 fn preview_update_identical_plain_view_preserves_plain_cache() {
     let mut app = App::new();
-    app.preview.source = PreviewSource::Tmux;
+    app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;
     app.preview.pane_id = Some("%1".into());
     app.preview.content = "plain".into();
@@ -20,7 +20,7 @@ fn preview_update_identical_plain_view_preserves_plain_cache() {
             target_key: "%1".into(),
             live_pane_id: Some("%1".into()),
             content: "plain".into(),
-            source: PreviewSource::Tmux,
+            source: PreviewSource::Plain,
             session_origin: None,
             session_id: None,
             turns: Default::default(),
@@ -36,7 +36,7 @@ fn preview_update_identical_plain_view_preserves_plain_cache() {
 #[test]
 fn preview_update_changed_plain_content_bumps_revision_and_drops_cache() {
     let mut app = App::new();
-    app.preview.source = PreviewSource::Tmux;
+    app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;
     app.preview.pane_id = Some("%1".into());
     app.preview.content = "plain".into();
@@ -56,7 +56,7 @@ fn preview_update_changed_plain_content_bumps_revision_and_drops_cache() {
             target_key: "%1".into(),
             live_pane_id: Some("%1".into()),
             content: "changed".into(),
-            source: PreviewSource::Tmux,
+            source: PreviewSource::Plain,
             session_origin: None,
             session_id: None,
             turns: Default::default(),

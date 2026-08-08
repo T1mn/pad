@@ -70,4 +70,5 @@ mod tests;
 pub use draw::draw_panel_list;
 pub use file_tree::draw_file_tree;
 pub use status::draw_agent_status_bar;
+pub(crate) use viewport::item_row_height;
 pub use width::preferred_panel_width;

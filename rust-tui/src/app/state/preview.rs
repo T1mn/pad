@@ -61,7 +61,7 @@ impl PreviewState {
             content: String::from("Select a panel to preview"),
             content_revision: 0,
             pane_id: None,
-            source: PreviewSource::Tmux,
+            source: PreviewSource::Plain,
             view: PreviewView::Plain,
             session_origin: None,
             session_id: None,

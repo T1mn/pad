@@ -80,27 +80,41 @@ fn handle_terminal_command_key(app: &mut App, key: KeyEvent) -> bool {
             }
         }
         TerminalCommandAction::PreviousPane => {
-            app.cycle_terminal_pane(-1);
+            let result = app.cycle_terminal_pane(-1);
+            show_terminal_result(app, result);
         }
         TerminalCommandAction::NextPane => {
-            app.cycle_terminal_pane(1);
+            let result = app.cycle_terminal_pane(1);
+            show_terminal_result(app, result);
         }
         TerminalCommandAction::PreviousTab => {
-            app.cycle_terminal_tab(-1);
+            let result = app.cycle_terminal_tab(-1);
+            show_terminal_result(app, result);
         }
         TerminalCommandAction::NextTab => {
-            app.cycle_terminal_tab(1);
+            let result = app.cycle_terminal_tab(1);
+            show_terminal_result(app, result);
         }
         TerminalCommandAction::ClosePane => {
             // Keep one live pane so the workspace always has a keyboard entry
             // point for opening more tabs/splits.
             if app.terminal_workspace().panes.len() > 1 {
-                app.close_focused_terminal();
+                let result = app.close_focused_terminal();
+                show_terminal_result(app, result);
             }
         }
         TerminalCommandAction::RenamePane => unreachable!("rename handled above"),
     }
     true
+}
+
+fn show_terminal_result(
+    app: &mut App,
+    result: Result<bool, crate::terminal_runtime::TerminalError>,
+) {
+    if let Err(error) = result {
+        app.show_action_toast("PAD Terminal", &error.to_string());
+    }
 }
 
 fn handle_terminal_rename_key(app: &mut App, key: KeyEvent) -> bool {
@@ -144,6 +158,7 @@ fn terminal_command_action(key: KeyEvent) -> Option<TerminalCommandAction> {
         KeyCode::Char('2') => Some(TerminalCommandAction::NewTab(TerminalProfile::Codex)),
         KeyCode::Char('3') => Some(TerminalCommandAction::NewTab(TerminalProfile::Claude)),
         KeyCode::Char('4') => Some(TerminalCommandAction::NewTab(TerminalProfile::GithubCli)),
+        KeyCode::Char('5') => Some(TerminalCommandAction::NewTab(TerminalProfile::OpenCode)),
         KeyCode::Char('v') => Some(TerminalCommandAction::Split(
             TerminalSplitAxis::Columns,
             TerminalProfile::Shell,
@@ -163,6 +178,10 @@ fn terminal_command_action(key: KeyEvent) -> Option<TerminalCommandAction> {
         KeyCode::Char('g') => Some(TerminalCommandAction::Split(
             TerminalSplitAxis::Columns,
             TerminalProfile::GithubCli,
+        )),
+        KeyCode::Char('o') => Some(TerminalCommandAction::Split(
+            TerminalSplitAxis::Columns,
+            TerminalProfile::OpenCode,
         )),
         KeyCode::Char('h' | 'k') | KeyCode::Left | KeyCode::Up => {
             Some(TerminalCommandAction::PreviousPane)

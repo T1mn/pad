@@ -63,8 +63,6 @@ fn visible_thread_count_ignores_folder_rows() {
         sort_updated_at: 0,
         live_pane_id: None,
         live_location: None,
-        pid: None,
-        git_info: None,
         state: crate::model::AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),
@@ -119,8 +117,6 @@ fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
         sort_updated_at: 0,
         live_pane_id: None,
         live_location: None,
-        pid: None,
-        git_info: None,
         state: crate::model::AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),
@@ -214,7 +210,7 @@ mod width {
     use super::super::width::preferred_panel_width;
     use crate::app::state::PreferredPanelWidthCache;
     use crate::app::App;
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::model::{AgentPanel, AgentState, AgentType};
 
     #[test]
     fn preferred_panel_width_keeps_short_name_visible() {
@@ -229,13 +225,9 @@ mod width {
             working_dir: "/tmp/rust-tui".into(),
             is_active: true,
             state: AgentState::Busy,
-            state_source: AgentStateSource::Scanner,
             transcript_path: None,
             cached_preview_turns: Default::default(),
             session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: None,
             last_user_prompt: None,
             last_assistant_message: None,

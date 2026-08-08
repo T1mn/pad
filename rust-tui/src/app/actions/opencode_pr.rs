@@ -1,34 +1,6 @@
 mod command {
-    use std::ffi::OsString;
-    use std::io;
-    use std::path::Path;
-    use std::process::Command;
-
-    pub(super) fn open_opencode_pr(
-        pr_number: &str,
-        cwd: &Path,
-        command: &OsString,
-    ) -> io::Result<()> {
-        let status = Command::new("tmux")
-            .args(["new-window", "-c"])
-            .arg(cwd)
-            .arg(pr_command(pr_number, command))
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!(
-                "tmux new-window exited with {status}"
-            )))
-        }
-    }
-
-    pub(in crate::app::actions) fn pr_command(pr_number: &str, command: &OsString) -> String {
-        format!(
-            "{} pr {}",
-            crate::codex_runtime::shell_single_quote(&command.to_string_lossy()),
-            pr_number
-        )
+    pub(in crate::app::actions) fn pr_command(pr_number: &str, command: &str) -> String {
+        super::super::opencode_cli::command_with_args(command, ["pr", pr_number])
     }
 }
 mod parse {
@@ -100,17 +72,14 @@ impl App {
             .map(|thread| PathBuf::from(thread.working_dir))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-        match command::open_opencode_pr(
-            &pr_number,
-            &cwd,
-            &opencode_cli::opencode_command(&self.config),
-        ) {
-            Ok(()) => {
+        let command =
+            command::pr_command(&pr_number, &opencode_cli::opencode_command(&self.config));
+        match self.launch_native_agent_action("OpenCode PR", &command, AgentType::OpenCode, cwd) {
+            Ok(_) => {
                 self.show_action_toast(
                     text::pr_started_title(self.locale),
                     &format!("PR #{pr_number}"),
                 );
-                self.schedule_delayed_scan(800);
                 true
             }
             Err(err) => {

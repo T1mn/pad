@@ -11,7 +11,7 @@ case "${agent_name}" in
     ;;
   claude)
     echo "claude mock ready"
-    echo "Q: inspect tmux pipeline"
+    echo "Q: inspect native terminal pipeline"
     echo "A: smoke preview sentinel claude"
     ;;
   grok)

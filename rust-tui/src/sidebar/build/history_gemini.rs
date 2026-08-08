@@ -11,7 +11,6 @@ pub(super) fn merge_gemini_threads(
     folder: &mut SidebarFolder,
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
-    startup_thread_sort_activity: &HashMap<String, i64>,
     gemini_threads: Option<&[GeminiThreadRef]>,
     archived_threads_view: bool,
 ) -> usize {
@@ -56,8 +55,6 @@ pub(super) fn merge_gemini_threads(
             sort_updated_at,
             live_pane_id: None,
             live_location: None,
-            pid: None,
-            git_info: None,
             state: AgentState::Idle,
             is_active: false,
             cached_preview_turns: Default::default(),
@@ -74,7 +71,6 @@ pub(super) fn merge_gemini_threads(
             history_entry,
             activity_overrides,
             thread_sort_activity,
-            startup_thread_sort_activity,
         );
         merged += 1;
     }

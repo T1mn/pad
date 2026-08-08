@@ -106,7 +106,7 @@ pub use base::{
     opencode_diagnostics_dir, opencode_exports_dir, opencode_stats_dir, pad_codex_wrapper_path,
     pad_db_path, pad_home_dir, prompts_dir, relay_export_path, scripts_dir,
     session_continuity_log_path, session_continuity_state_path, sessions_dir, sessions_index_path,
-    telegram_bot_log_path, terminal_workspace_path, workspace_recipes_path,
+    telegram_bot_log_path, terminal_workspace_path,
 };
 
 pub fn ensure_pad_codex_wrapper() -> io::Result<()> {

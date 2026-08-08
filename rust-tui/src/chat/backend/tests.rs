@@ -1,5 +1,5 @@
 use super::{leaf_name, panel_display_title, summarize_pane_capture};
-use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+use crate::model::{AgentPanel, AgentState, AgentType};
 use std::path::Path;
 
 fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
@@ -17,13 +17,9 @@ fn sample_panel(session_id: Option<&str>) -> AgentPanel {
         working_dir: "/tmp/rust-tui".into(),
         is_active: false,
         state: AgentState::Idle,
-        state_source: AgentStateSource::Scanner,
         transcript_path: None,
         cached_preview_turns: Default::default(),
         session_cache_state: None,
-        git_info: None,
-        pid: None,
-        start_time: None,
         agent_session_id: session_id.map(str::to_string),
         last_user_prompt: None,
         last_assistant_message: None,

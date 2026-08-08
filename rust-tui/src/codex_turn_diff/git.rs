@@ -51,11 +51,6 @@ pub fn diff_trees(repo_root: &Path, base_tree: &str, end_tree: &str) -> io::Resu
     )
 }
 
-pub fn diff_pending_to_worktree(repo_root: &Path, base_tree: &str) -> io::Result<String> {
-    let end = capture_worktree_tree(repo_root)?;
-    diff_trees(&end.repo_root, base_tree, &end.tree)
-}
-
 fn head_exists(repo_root: &Path) -> io::Result<bool> {
     let output = Command::new("git")
         .arg("-C")

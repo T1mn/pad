@@ -83,14 +83,14 @@ pub(in crate::ui::modals::dialogs) fn thread_action_live_warning(
     agent_type: AgentType,
 ) -> &'static str {
     match (is_cjk_locale(locale), agent_type) {
-        (true, AgentType::Codex) => "这个会话仍然绑定 live pane。归档只会隐藏 pad 中的线程，并同步修改 Codex 的 sqlite/jsonl；不会关闭 tmux pane 或进程。",
-        (false, AgentType::Codex) => "This thread still has a live pane. Archiving only hides it in pad and updates Codex sqlite/jsonl. It does not kill the tmux pane or process.",
-        (true, AgentType::Claude) => "这个会话仍然绑定 live pane。归档只会隐藏 pad 中的线程，并更新 pad 的 Claude sqlite 索引；不会关闭 tmux pane 或进程，也不会修改 ~/.claude 原始 jsonl。",
-        (false, AgentType::Claude) => "This thread still has a live pane. Archiving only hides it in pad and updates pad's Claude sqlite index. It does not kill the tmux pane or process, and it does not modify the original ~/.claude jsonl.",
-        (true, AgentType::Gemini) => "这个会话仍然绑定 live pane。Pad 侧归档只会隐藏 pad 中的条目，不会修改 ~/.gemini，也不会关闭 tmux pane 或进程。",
-        (false, AgentType::Gemini) => "This thread still has a live pane. Pad-side archiving only hides it in pad. It does not modify ~/.gemini or kill the tmux pane/process.",
-        (true, _) => "这个会话仍然绑定 live pane。归档不会关闭 tmux pane 或进程。",
-        (false, _) => "This thread still has a live pane. Archiving does not kill the tmux pane or process.",
+        (true, AgentType::Codex) => "这个会话仍然绑定 live pane。归档只会隐藏 pad 中的线程，并同步修改 Codex 的 sqlite/jsonl；不会关闭原生终端 pane 或进程。",
+        (false, AgentType::Codex) => "This thread still has a live pane. Archiving only hides it in pad and updates Codex sqlite/jsonl. It does not close the native pane or process.",
+        (true, AgentType::Claude) => "这个会话仍然绑定 live pane。归档只会隐藏 pad 中的线程，并更新 pad 的 Claude sqlite 索引；不会关闭原生终端 pane 或进程，也不会修改 ~/.claude 原始 jsonl。",
+        (false, AgentType::Claude) => "This thread still has a live pane. Archiving only hides it in pad and updates pad's Claude sqlite index. It does not close the native pane or process, and it does not modify the original ~/.claude jsonl.",
+        (true, AgentType::Gemini) => "这个会话仍然绑定 live pane。Pad 侧归档只会隐藏 pad 中的条目，不会修改 ~/.gemini，也不会关闭原生终端 pane 或进程。",
+        (false, AgentType::Gemini) => "This thread still has a live pane. Pad-side archiving only hides it in pad. It does not modify ~/.gemini or close the native pane/process.",
+        (true, _) => "这个会话仍然绑定 live pane。归档不会关闭原生终端 pane 或进程。",
+        (false, _) => "This thread still has a live pane. Archiving does not close the native pane or process.",
     }
 }
 

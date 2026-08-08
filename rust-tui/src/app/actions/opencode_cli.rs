@@ -1,15 +1,42 @@
 use crate::theme::Config;
-use std::ffi::OsString;
+use std::io;
+use std::path::Path;
+use std::process::{Command, Output};
 
-pub(super) fn opencode_command(config: &Config) -> OsString {
+pub(super) fn opencode_command(config: &Config) -> String {
     config
         .agents
         .iter()
         .find(|agent| agent.name == "opencode")
-        .map(|agent| first_command_token(&agent.cmd))
+        .map(|agent| agent.cmd.trim().to_string())
         .filter(|cmd| !cmd.is_empty())
-        .map(OsString::from)
         .unwrap_or_else(default_opencode_command)
+}
+
+pub(in crate::app::actions) fn command_with_args<'a>(
+    command: &str,
+    args: impl IntoIterator<Item = &'a str>,
+) -> String {
+    let mut command_line = command.trim().to_string();
+    for arg in args {
+        command_line.push(' ');
+        command_line.push_str(&crate::shell_quote::single_quote(arg));
+    }
+    command_line
+}
+
+pub(in crate::app::actions) fn run_with_args(
+    command: &str,
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> io::Result<Output> {
+    let command_line = command_with_args(command, args.iter().copied());
+    let mut process = Command::new("/bin/sh");
+    process.args(["-lc", &command_line]);
+    if let Some(cwd) = cwd {
+        process.current_dir(cwd);
+    }
+    process.output()
 }
 
 pub(super) fn safe_filename(value: &str) -> String {
@@ -46,22 +73,13 @@ pub(super) fn safe_filename(value: &str) -> String {
     }
 }
 
-pub(in crate::app::actions) fn first_command_token(command: &str) -> String {
-    command
-        .split_whitespace()
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_string()
-}
-
-fn default_opencode_command() -> OsString {
+fn default_opencode_command() -> String {
     let home_bin = crate::paths::pad_home_dir()
         .parent()
         .map(|home| home.join(".opencode").join("bin").join("opencode"));
     if let Some(path) = home_bin.filter(|path| path.exists()) {
-        path.into_os_string()
+        crate::shell_quote::single_quote(&path.to_string_lossy())
     } else {
-        OsString::from("opencode")
+        "opencode".to_string()
     }
 }

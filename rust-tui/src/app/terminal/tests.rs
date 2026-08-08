@@ -123,11 +123,20 @@ fn all_builtin_profiles_have_deterministic_commands() {
         (TerminalProfile::Shell, None),
         (TerminalProfile::Codex, Some("codex")),
         (TerminalProfile::Claude, Some("claude")),
+        (TerminalProfile::OpenCode, Some("opencode")),
         (TerminalProfile::GithubCli, None),
     ];
     for (profile, expected) in cases {
         assert_eq!(profile.default_command().program.as_deref(), expected);
     }
+    assert_eq!(
+        agent_registry::native_profile_agent_type(TerminalProfile::OpenCode),
+        Some(AgentType::OpenCode)
+    );
+    assert_eq!(
+        agent_registry::native_profile_agent_type(TerminalProfile::Shell),
+        None
+    );
 }
 
 #[test]
@@ -139,6 +148,138 @@ fn labels_are_trimmed_and_control_characters_are_rejected() {
     assert!(model::normalize_label(" ").is_err());
     assert!(model::normalize_label("bad\nlabel").is_err());
     assert!(model::normalize_label(&"x".repeat(121)).is_err());
+}
+
+#[test]
+fn configured_agent_is_the_direct_pty_child_of_a_known_shell() {
+    assert_eq!(
+        native_agent_command("opencode --model 'fast'"),
+        TerminalCommandDefinition {
+            program: Some("/bin/sh".into()),
+            args: vec!["-lc".into(), "opencode --model 'fast'".into()],
+        }
+    );
+}
+
+#[test]
+fn exited_native_agent_rejects_later_prompt_input() {
+    let mut app = App::new();
+    let pane_id = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::Shell, cwd())
+        .unwrap();
+    let definition = app.terminal.workspace.pane(pane_id).unwrap().clone();
+    app.terminal
+        .install_pane_runtime(&definition, TerminalSize::new(20, 5));
+    app.terminal.panes.get_mut(&pane_id).unwrap().lifecycle = TerminalPaneLifecycle::Exited;
+
+    let error = app
+        .send_native_pane_input(
+            &agent_registry::native_agent_pane_id(pane_id),
+            b"do not run in a shell\r".to_vec(),
+        )
+        .unwrap_err();
+
+    assert!(error.to_string().contains("not running"));
+    assert!(app
+        .terminal
+        .panes
+        .get(&pane_id)
+        .unwrap()
+        .pending_io
+        .is_empty());
+}
+
+#[test]
+fn closing_an_earlier_tab_reindexes_native_sidebar_entries() {
+    let mut app = App::new();
+    let first = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::OpenCode, cwd())
+        .unwrap();
+    let second = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::Codex, cwd())
+        .unwrap();
+    app.register_native_agent_panel(first, AgentType::OpenCode, "OpenCode".into(), cwd());
+    app.register_native_agent_panel(second, AgentType::Codex, "Codex".into(), cwd());
+    assert_eq!(app.panels[1].window_index, "2");
+
+    assert!(app.close_terminal_pane(first).unwrap());
+
+    assert_eq!(app.panels.len(), 1);
+    assert_eq!(app.panels[0].pane_id, format!("native:{}", second.serial()));
+    assert_eq!(app.panels[0].window_index, "1");
+}
+
+#[test]
+fn native_pane_focus_keeps_sidebar_selection_on_the_same_agent() {
+    let mut app = App::new();
+    let first = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::OpenCode, cwd())
+        .unwrap();
+    let second = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::Codex, cwd())
+        .unwrap();
+    app.register_native_agent_panel(first, AgentType::OpenCode, "OpenCode".into(), cwd());
+    app.register_native_agent_panel(second, AgentType::Codex, "Codex".into(), cwd());
+
+    app.mark_native_agent_panel_active(first);
+
+    let expected = format!("live:{}", agent_registry::native_agent_pane_id(first));
+    assert_eq!(
+        app.sidebar.selected_sidebar_key.as_deref(),
+        Some(expected.as_str())
+    );
+}
+
+#[test]
+fn app_refuses_to_close_the_last_terminal_pane() {
+    let mut app = App::new();
+    let only = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::OpenCode, cwd())
+        .unwrap();
+    app.register_native_agent_panel(only, AgentType::OpenCode, "OpenCode".into(), cwd());
+
+    let error = app.close_terminal_pane(only).unwrap_err();
+
+    assert!(error.to_string().contains("at least one pane"));
+    assert_eq!(app.terminal.workspace.panes.len(), 1);
+    assert_eq!(app.panels.len(), 1);
+}
+
+#[test]
+fn failed_workspace_save_rolls_back_a_close_before_runtime_mutation() {
+    let mut app = App::new();
+    let first = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::OpenCode, cwd())
+        .unwrap();
+    let second = app
+        .terminal
+        .workspace
+        .add_tab(TerminalProfile::Codex, cwd())
+        .unwrap();
+    app.register_native_agent_panel(first, AgentType::OpenCode, "OpenCode".into(), cwd());
+    app.register_native_agent_panel(second, AgentType::Codex, "Codex".into(), cwd());
+    runtime_io::fail_next_workspace_save();
+
+    let error = app.close_terminal_pane(first).unwrap_err();
+
+    assert!(error.to_string().contains("injected"));
+    assert!(app.terminal.workspace.pane(first).is_some());
+    assert!(app.terminal.workspace.pane(second).is_some());
+    assert_eq!(app.panels.len(), 2);
 }
 
 #[test]
@@ -421,4 +562,86 @@ fn restarting_the_same_app_relaunches_the_retained_workspace() {
     assert_eq!(app.terminal_workspace(), &snapshot);
     assert_eq!(app.terminal.panes.len(), snapshot.panes.len());
     app.shutdown_native_terminal().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn builtin_opencode_profile_registers_and_restores_its_live_sidebar_entry() {
+    crate::test_support::with_temp_home("pad-terminal-profile", "opencode-registry", |home| {
+        let cwd = home.join("project");
+        std::fs::create_dir_all(&cwd).unwrap();
+        let mut app = App::new();
+        app.start_native_terminal(TerminalSize::new(40, 10))
+            .unwrap();
+        let pane_id = app
+            .create_terminal_tab_at(
+                TerminalProfile::OpenCode,
+                cwd.clone(),
+                TerminalSize::new(40, 10),
+            )
+            .unwrap();
+
+        assert_eq!(app.panels.len(), 1);
+        assert_eq!(app.panels[0].agent_type, AgentType::OpenCode);
+        assert_eq!(app.panels[0].working_dir, cwd.to_string_lossy());
+        assert_eq!(
+            app.panels[0].pane_id,
+            format!("native:{}", pane_id.serial())
+        );
+
+        let snapshot = app.terminal_workspace_snapshot();
+        app.shutdown_native_terminal().unwrap();
+
+        let mut restored = App::new();
+        restored
+            .restore_native_terminal_workspace(snapshot, TerminalSize::new(40, 10))
+            .unwrap();
+        assert_eq!(restored.panels.len(), 1);
+        assert_eq!(restored.panels[0].agent_type, AgentType::OpenCode);
+        assert_eq!(restored.panels[0].working_dir, cwd.to_string_lossy());
+        restored.shutdown_native_terminal().unwrap();
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn builtin_opencode_profile_uses_the_full_configured_shell_command() {
+    use std::os::unix::fs::PermissionsExt;
+
+    crate::test_support::with_temp_home("pad-terminal-profile", "opencode-command", |home| {
+        let bin_dir = home.join(".opencode/bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let command = bin_dir.join("opencode");
+        std::fs::write(
+            &command,
+            "#!/bin/sh\nprintf '%s' \"$*\" > \"$HOME/opencode-profile-args\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&command, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let cwd = home.join("project");
+        std::fs::create_dir_all(&cwd).unwrap();
+
+        let mut app = App::new();
+        app.config
+            .agents
+            .iter_mut()
+            .find(|agent| agent.name == "opencode")
+            .unwrap()
+            .cmd = "~/.opencode/bin/opencode --pure".into();
+        app.start_native_terminal(TerminalSize::new(40, 10))
+            .unwrap();
+        app.create_terminal_tab_at(TerminalProfile::OpenCode, cwd, TerminalSize::new(40, 10))
+            .unwrap();
+
+        let marker = home.join("opencode-profile-args");
+        for _ in 0..100 {
+            app.poll_native_terminal();
+            if marker.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(std::fs::read_to_string(marker).unwrap(), "--pure");
+        app.shutdown_native_terminal().unwrap();
+    });
 }

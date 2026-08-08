@@ -1,5 +1,5 @@
 use super::*;
-use crate::hook::HookTmuxInfo;
+use crate::hook::HookTerminalInfo;
 
 mod completion {
     use super::*;

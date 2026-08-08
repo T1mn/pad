@@ -1,6 +1,5 @@
 mod attach {
     use super::super::opencode_attach::{attach_command, normalize_server_url};
-    use std::ffi::OsString;
 
     #[test]
     fn attach_url_accepts_single_http_url_and_strips_quotes() {
@@ -23,25 +22,22 @@ mod attach {
     }
 
     #[test]
-    fn attach_command_quotes_url_and_command() {
+    fn attach_command_preserves_configured_command_and_quotes_url() {
         assert_eq!(
-            attach_command(
-                "http://localhost:4096/a'b",
-                &OsString::from("/opt/opencode")
-            ),
-            "'/opt/opencode' attach 'http://localhost:4096/a'\\''b'"
+            attach_command("http://localhost:4096/a'b", "/opt/opencode --pure"),
+            "/opt/opencode --pure 'attach' 'http://localhost:4096/a'\\''b'"
         );
     }
 }
 
 mod cli {
-    use super::super::opencode_cli::{first_command_token, safe_filename};
+    use super::super::opencode_cli::{command_with_args, safe_filename};
 
     #[test]
-    fn opencode_command_uses_first_configured_token() {
+    fn configured_command_keeps_shell_expansion_and_flags() {
         assert_eq!(
-            first_command_token("/opt/bin/opencode --pure"),
-            "/opt/bin/opencode"
+            command_with_args("~/.opencode/bin/opencode --pure", ["web"]),
+            "~/.opencode/bin/opencode --pure 'web'"
         );
     }
 
@@ -89,13 +85,12 @@ mod export {
 
 mod github {
     use super::super::opencode_github::github_install_command;
-    use std::ffi::OsString;
 
     #[test]
-    fn github_install_command_quotes_configured_command() {
+    fn github_install_command_preserves_configured_command() {
         assert_eq!(
-            github_install_command(&OsString::from("/opt/open code/bin/opencode")),
-            "'/opt/open code/bin/opencode' github install"
+            github_install_command("'/opt/open code/bin/opencode' --pure"),
+            "'/opt/open code/bin/opencode' --pure 'github' 'install'"
         );
     }
 }
@@ -126,9 +121,82 @@ mod import {
     }
 }
 
+mod native_launch {
+    use crate::app::{App, TerminalPaneId};
+    use crate::model::AgentType;
+    use crate::terminal_runtime::TerminalSize;
+
+    #[cfg(unix)]
+    #[test]
+    fn action_launches_opencode_in_native_terminal_and_registry() {
+        crate::test_support::with_temp_home("pad-opencode-action", "native-launch", |home| {
+            let cwd = home.join("project");
+            std::fs::create_dir_all(&cwd).unwrap();
+            let marker = home.join("native-action-launched");
+            let command = format!(
+                "printf native-action > {}",
+                crate::codex_runtime::shell_single_quote(&marker.to_string_lossy())
+            );
+
+            let mut app = App::new();
+            app.start_native_terminal(TerminalSize::new(101, 33))
+                .unwrap();
+            let initial_pane_id = app.focused_terminal_pane_id().unwrap();
+            wait_for_pane_size(&mut app, initial_pane_id, TerminalSize::new(101, 33));
+            app.sidebar.show_tree = true;
+            let pane_id = app
+                .launch_native_agent_action(
+                    "OpenCode Test",
+                    &command,
+                    AgentType::OpenCode,
+                    cwd.clone(),
+                )
+                .unwrap();
+            wait_for_pane_size(&mut app, pane_id, TerminalSize::new(101, 33));
+
+            assert!(app.terminal_is_focused());
+            assert_eq!(
+                app.terminal_pane(pane_id).unwrap().size(),
+                Some(TerminalSize::new(101, 33))
+            );
+            assert_eq!(app.terminal_pane(pane_id).unwrap().cwd(), cwd);
+            assert_eq!(app.terminal_pane(pane_id).unwrap().label(), "OpenCode Test");
+            assert_eq!(app.panels.len(), 1);
+            assert_eq!(app.panels[0].agent_type, AgentType::OpenCode);
+            assert_eq!(app.panels[0].working_dir, cwd.to_string_lossy());
+            assert!(App::is_native_agent_terminal_id(&app.panels[0].pane_id));
+            assert_eq!(
+                app.sidebar.selected_sidebar_key.as_deref(),
+                Some(format!("live:{}", app.panels[0].pane_id).as_str())
+            );
+            for _ in 0..100 {
+                if marker.exists() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            assert_eq!(std::fs::read_to_string(marker).unwrap(), "native-action");
+            app.shutdown_native_terminal().unwrap();
+        });
+    }
+
+    fn wait_for_pane_size(app: &mut App, pane_id: TerminalPaneId, expected: TerminalSize) {
+        for _ in 0..100 {
+            app.poll_native_terminal();
+            if app.terminal_pane(pane_id).and_then(|pane| pane.size()) == Some(expected) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(
+            app.terminal_pane(pane_id).and_then(|pane| pane.size()),
+            Some(expected)
+        );
+    }
+}
+
 mod plugin {
     use super::super::opencode_plugin::{normalize_plugin_module, plugin_command};
-    use std::ffi::OsString;
 
     #[test]
     fn plugin_module_accepts_npm_names_scope_and_versions() {
@@ -152,20 +220,19 @@ mod plugin {
     }
 
     #[test]
-    fn plugin_command_quotes_configured_command_and_module() {
+    fn plugin_command_preserves_configured_command_and_quotes_module() {
         assert_eq!(
             plugin_command(
                 "@scope/opencode-plugin@1.2.3",
-                &OsString::from("/opt/open code/bin/opencode"),
+                "'/opt/open code/bin/opencode' --pure",
             ),
-            "'/opt/open code/bin/opencode' plugin '@scope/opencode-plugin@1.2.3'"
+            "'/opt/open code/bin/opencode' --pure 'plugin' '@scope/opencode-plugin@1.2.3'"
         );
     }
 }
 
 mod pr {
     use super::super::opencode_pr::{normalize_pr_number, pr_command};
-    use std::ffi::OsString;
 
     #[test]
     fn pr_number_accepts_plain_hash_and_github_url() {
@@ -187,17 +254,16 @@ mod pr {
     }
 
     #[test]
-    fn pr_command_quotes_configured_command() {
+    fn pr_command_preserves_configured_command() {
         assert_eq!(
-            pr_command("123", &OsString::from("/opt/open code/bin/opencode")),
-            "'/opt/open code/bin/opencode' pr 123"
+            pr_command("123", "'/opt/open code/bin/opencode' --pure"),
+            "'/opt/open code/bin/opencode' --pure 'pr' '123'"
         );
     }
 }
 
 mod run {
     use super::super::opencode_run::{normalize_prompt, prompt_preview, run_command};
-    use std::ffi::OsString;
 
     #[test]
     fn run_prompt_trims_outer_blank_space_but_keeps_multiline_body() {
@@ -214,17 +280,28 @@ mod run {
             run_command(
                 "fix Bob's bug\nnow",
                 Some("ses'sion"),
-                &OsString::from("/opt/open code/bin/opencode"),
+                "'/opt/open code/bin/opencode' --pure",
             ),
-            "'/opt/open code/bin/opencode' run --session 'ses'\\''sion' -- 'fix Bob'\\''s bug\nnow'"
+            "'/opt/open code/bin/opencode' --pure run --session 'ses'\\''sion' -- \"$(printf '%b' 'fix Bob'\\''s bug\\0012now')\""
         );
     }
 
     #[test]
     fn run_command_can_start_new_session_without_selected_opencode_thread() {
         assert_eq!(
-            run_command("hello", None, &OsString::from("opencode")),
-            "'opencode' run -- 'hello'"
+            run_command("hello", None, "opencode"),
+            "opencode run -- \"$(printf '%b' 'hello')\""
+        );
+    }
+
+    #[test]
+    fn run_command_is_one_shell_line_and_preserves_backslashes() {
+        let command = run_command("first\\path\t\r\nsecond", None, "opencode");
+
+        assert!(!command.contains(['\r', '\n']));
+        assert_eq!(
+            command,
+            "opencode run -- \"$(printf '%b' 'first\\\\path\\0011\\0015\\0012second')\""
         );
     }
 
@@ -236,13 +313,12 @@ mod run {
 
 mod serve {
     use super::super::opencode_serve::serve_command;
-    use std::ffi::OsString;
 
     #[test]
     fn serve_command_stays_local_and_uses_random_port() {
         assert_eq!(
-            serve_command(&OsString::from("/opt/open code/bin/opencode")),
-            "'/opt/open code/bin/opencode' serve --hostname 127.0.0.1 --port 0"
+            serve_command("'/opt/open code/bin/opencode' --pure"),
+            "'/opt/open code/bin/opencode' --pure 'serve' '--hostname' '127.0.0.1' '--port' '0'"
         );
     }
 }
@@ -262,13 +338,12 @@ mod stats {
 
 mod web {
     use super::super::opencode_web::web_command;
-    use std::ffi::OsString;
 
     #[test]
-    fn web_command_quotes_configured_opencode_command() {
+    fn web_command_preserves_configured_opencode_command() {
         assert_eq!(
-            web_command(&OsString::from("/opt/open code/bin/opencode")),
-            "'/opt/open code/bin/opencode' web"
+            web_command("~/.opencode/bin/opencode --pure"),
+            "~/.opencode/bin/opencode --pure 'web'"
         );
     }
 }

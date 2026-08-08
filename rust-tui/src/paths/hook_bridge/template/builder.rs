@@ -6,7 +6,6 @@ pub(in crate::paths) fn claude_hook_bridge_template() -> String {
     build_hook_bridge_template(HookBridgeTemplateOptions {
         version: CLAUDE_BRIDGE_VERSION,
         silence_stdio_block: "",
-        tmux_stderr_arg: "",
         load_payload_block: "",
         main_start_line: "    raw = sys.stdin.read()",
         payload_expr: "json.loads(raw)",
@@ -28,7 +27,6 @@ pub(in crate::paths) fn codex_hook_bridge_template() -> String {
     sys.stdout = devnull
     sys.stderr = devnull
 "#,
-        tmux_stderr_arg: ",\n            stderr=subprocess.DEVNULL",
         load_payload_block: r#"def load_payload():
     if sys.stdin.isatty():
         return {}
@@ -78,7 +76,6 @@ fn build_hook_bridge_template(options: HookBridgeTemplateOptions) -> String {
     HOOK_BRIDGE_TEMPLATE_BASE
         .replace("__PAD_BRIDGE_VERSION__", options.version)
         .replace("__PAD_SILENCE_STDIO_BLOCK__", options.silence_stdio_block)
-        .replace("__PAD_TMUX_STDERR_ARG__", options.tmux_stderr_arg)
         .replace("__PAD_LOAD_PAYLOAD_BLOCK__", options.load_payload_block)
         .replace("__PAD_MAIN_START_LINE__", options.main_start_line)
         .replace("__PAD_PAYLOAD_EXPR__", options.payload_expr)

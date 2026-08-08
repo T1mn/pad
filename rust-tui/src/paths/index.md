@@ -13,7 +13,6 @@
 - `~/.pad/notifications/inbox.json`：notification inbox 持久化文件。
 - `~/.pad/opencode-exports/` / `~/.pad/opencode-stats/` / `~/.pad/opencode-diagnostics/`：OpenCode 导出 JSON、stats 与诊断报告。
 
-- `~/.pad/workspace-recipes.toml`：workspace recipe 配置文件。
 - `~/.pad/terminal-workspace.json`：原生终端的 tab、split、label 与启动 profile 工作区快照；不保存 PTY 进程内容；无效文件隔离为同目录 `terminal-workspace.invalid*.json`。
 - `~/.pad/pad-api.sock`：socket API 监听地址。
 - `~/.pad/codex-turn-diffs/`：Codex 单轮问答 diff 的 pending、patch 与索引存储目录。

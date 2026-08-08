@@ -9,13 +9,11 @@ mod restart;
 mod slash;
 mod update;
 
-const PAD_DEFAULT_SESSION_NAME: &str = "pad";
 const PAD_CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum PadRestartTarget {
-    RespawnPane(String),
-    NewDetachedSession(String),
+    NativeProcess,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,4 +49,4 @@ pub(super) use diag::build_pad_status_body;
 #[cfg(test)]
 pub(super) use history::{format_recent_history_message, recent_history_turns};
 #[cfg(test)]
-pub(super) use restart::{build_pad_restart_shell_command, select_pad_restart_target};
+pub(super) use restart::build_pad_restart_shell_command;

@@ -1,13 +1,11 @@
 use super::mode::ExportMode;
 use super::path::opencode_export_path;
-use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
 pub(super) fn export_opencode_session(
     session_id: &str,
-    command: &OsString,
+    command: &str,
     mode: ExportMode,
 ) -> io::Result<PathBuf> {
     let body = run_opencode_export(session_id, command, mode)?;
@@ -23,16 +21,12 @@ pub(super) fn export_opencode_session(
     Ok(path)
 }
 
-fn run_opencode_export(
-    session_id: &str,
-    command: &OsString,
-    mode: ExportMode,
-) -> io::Result<String> {
+fn run_opencode_export(session_id: &str, command: &str, mode: ExportMode) -> io::Result<String> {
     let mut args = vec!["export", session_id];
     if matches!(mode, ExportMode::Sanitized) {
         args.push("--sanitize");
     }
-    let output = Command::new(command).args(args).output()?;
+    let output = super::super::opencode_cli::run_with_args(command, &args, None)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(if stderr.is_empty() {

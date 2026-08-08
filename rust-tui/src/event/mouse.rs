@@ -27,7 +27,7 @@ mod hit_test {
 
         let mut remaining = row.saturating_sub(panel_inner.y) as usize;
         for (index, item) in items.iter().enumerate().skip(table_offset) {
-            let height = sidebar_item_height(item) as usize;
+            let height = crate::ui::panel_list::item_row_height(item);
             if remaining < height {
                 return Some(index);
             }
@@ -36,15 +36,6 @@ mod hit_test {
 
         None
     }
-
-    fn sidebar_item_height(item: &crate::sidebar::SidebarItem) -> u16 {
-        if item.as_folder().is_some() {
-            1
-        } else {
-            2
-        }
-    }
-
     pub(super) fn session_turn_index_at_position(
         preview_content_area: Rect,
         row: u16,

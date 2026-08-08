@@ -186,7 +186,7 @@ fn draw_command_layer(f: &mut Frame, app: &App, area: Rect) {
     let text = match app.terminal_interaction() {
         TerminalInteractionState::Direct => return,
         TerminalInteractionState::Command => {
-            " PAD TERM  1 Shell  2 Codex  3 Claude  4 GitHub  v/s split  h/j pane  [/] tab  r rename  x close  Esc cancel ".to_string()
+            " PAD TERM  1 Shell  2 Codex  3 Claude  4 GitHub  5 OpenCode  v/s split  c/a/g/o agent split  h/j pane  [/] tab  r rename  x close  Esc cancel ".to_string()
         }
         TerminalInteractionState::Rename { buffer, .. } => {
             format!(" Rename pane: {buffer}▏  Enter save · Esc cancel ")

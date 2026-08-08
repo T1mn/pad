@@ -6,7 +6,7 @@ PAD 对 OpenCode 的支持以 2026-07-17 官方 stable `1.18.3` 审计为基准�
 
 ## 已接入能力
 
-- 启动 / attach：native 模式在所选项目目录创建真实 PTY，再执行配置的 `opencode` 命令；这对应官方 `cd /path/to/project && opencode` 用法，也等价于 `opencode /path/to/project`。启动后立即登记到左侧 live session，`Enter` 可跳回对应 tab/pane，不依赖 tmux。
+- 启动 / attach：PAD 在所选项目目录创建真实 PTY，再执行配置的完整 `opencode` 命令；`~` 路径、用户引号和附加参数会在 C launcher、F11 tab/split 及所有 OpenCode action 中保持一致。这对应官方 `cd /path/to/project && opencode` 用法，也等价于 `opencode /path/to/project`。启动后立即登记到左侧 live session，`Enter` 可跳回对应 tab/pane。终端聚焦时也可用 `F11` 后按 `5` 新建 OpenCode tab，或按 `o` 创建 OpenCode split。
 - relay/model：在 PAD relay 设置中维护 OpenCode provider/model，并写入 `opencode.jsonc`。
 - history：读取 OpenCode 官方 SQLite 数据库，合入 session 侧栏。
 - preview：从 `session` / `message` / `part` 表解析最近问答。
@@ -17,15 +17,15 @@ PAD 对 OpenCode 的支持以 2026-07-17 官方 stable `1.18.3` 审计为基准�
 - export：`E` 调用 `opencode export <session>`，保存到 `~/.pad/opencode-exports/`。
 - sanitized export：`S` 调用 `opencode export <session> --sanitize`。
 - import：`I` 从剪贴板读取 JSON 路径或 OpenCode share URL，调用 `opencode import <file>`。
-- GitHub agent install：`H` 在当前选中线程工作目录新开 tmux window 调用 `opencode github install`，交给 OpenCode 完成 GitHub agent 安装流程。
-- plugin：`L` 从剪贴板读取 npm module 名称，在当前选中线程工作目录新开 tmux window 调用 `opencode plugin <module>`；不默认追加 `--global` 或 `--force`。
-- PR：`G` 从剪贴板读取 PR 编号、`#123` 或 GitHub `/pull/<number>` URL，在当前选中线程工作目录新开 tmux window 调用 `opencode pr <number>`。该命令会由 OpenCode fetch/checkout PR 分支。
-- run：`X` 从剪贴板读取 prompt，在当前选中线程工作目录新开 tmux window 调用 `opencode run <prompt>`；如果选中的是 OpenCode 会话，会追加 `--session <session_id>`。
-- serve：`B` 在当前选中线程工作目录新开 tmux window 调用 `opencode serve --hostname 127.0.0.1 --port 0`，启动仅本机可访问的随机端口 headless server；关闭窗口即停止。
+- GitHub agent install：`H` 在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode github install`，交给 OpenCode 完成 GitHub agent 安装流程。
+- plugin：`M` 从剪贴板读取 npm module 名称，在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode plugin <module>`；不默认追加 `--global` 或 `--force`。
+- PR：`G` 从剪贴板读取 PR 编号、`#123` 或 GitHub `/pull/<number>` URL，在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode pr <number>`。该命令会由 OpenCode fetch/checkout PR 分支。
+- run：`X` 从剪贴板读取 prompt，在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode run <prompt>`；如果选中的是 OpenCode 会话，会追加 `--session <session_id>`。
+- serve：`B` 在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode serve --hostname 127.0.0.1 --port 0`，启动仅本机可访问的随机端口 headless server；关闭 tab 即停止。
 - stats：`O` 在选中线程工作目录调用 `opencode stats --project "" --models 10 --tools 10`，按 OpenCode 当前项目统计并保存到 `~/.pad/opencode-stats/`。
 - diagnostics：`P` 调用 `opencode --version`、`db path`、`debug info`、`debug paths`、`debug config`、`providers list`、`models --verbose`、`agent list`、`mcp list`，保存到 `~/.pad/opencode-diagnostics/`。
-- remote attach：`Y` 从剪贴板读取 http(s) server URL，新开 tmux window 调用 `opencode attach <url>`；工作目录优先使用当前选中线程。
-- web：`W` 在当前选中线程工作目录新开 tmux window 调用 `opencode web`，由 OpenCode 启动本地 server 并打开浏览器。
+- remote attach：`Y` 从剪贴板读取 http(s) server URL，新开 PAD terminal tab 调用 `opencode attach <url>`；工作目录优先使用当前选中线程。
+- web：`W` 在当前选中线程工作目录新开 PAD terminal tab 调用 `opencode web`，由 OpenCode 启动本地 server 并打开浏览器。
 
 ## 已验证但暂未接入
 
@@ -40,7 +40,7 @@ PAD 对 OpenCode 的支持以 2026-07-17 官方 stable `1.18.3` 审计为基准�
 ## 兼容与安全边界
 
 - history / preview 直接读取 OpenCode 本地 SQLite；未来 schema 变化需要重新审计。
-- PAD 不接入 OpenCode hook 实时事件；native 模式的 live 存在性与焦点由 PAD 自己的 pane registry 管理，细粒度 Busy/Waiting 状态暂不从 OpenCode hook 推断；`--tmux` 兼容模式仍以 tmux pane 扫描为准。
+- PAD 不接入 OpenCode hook 实时事件；live 存在性与焦点由 PAD 自己的 pane registry 管理，细粒度 Busy/Waiting 状态暂不从 OpenCode hook 推断。
 - relay 写配置前必须能解析现有 `opencode.jsonc`；解析失败时应停止，不覆盖用户文件。
 - 启动 pad 时只应用 runtime permission overlay，不写 OpenCode live provider/model；provider 同步仅在用户改 relay、外部 reload 配置、或 launcher 选中 OpenCode 时发生。
 - diagnostics 即使经过敏感字段清理，分享前仍应人工检查；PAD 不自动上传诊断文件。

@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::{AgentPanel, AgentState, AgentStateSource};
+use crate::model::{AgentPanel, AgentState};
 
 fn assert_command_parts(command: &str, suffix: &str) {
     assert!(
@@ -31,13 +31,9 @@ fn test_panel(agent_type: AgentType, state: AgentState) -> AgentPanel {
         working_dir: "/tmp".into(),
         is_active: false,
         state,
-        state_source: AgentStateSource::Scanner,
         transcript_path: None,
         cached_preview_turns: Default::default(),
         session_cache_state: None,
-        git_info: None,
-        pid: None,
-        start_time: None,
         agent_session_id: None,
         last_user_prompt: None,
         last_assistant_message: None,

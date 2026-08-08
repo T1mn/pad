@@ -7,15 +7,11 @@ pub mod hooks;
 mod lifecycle;
 pub mod navigation;
 pub mod preview;
+mod socket_api;
 pub mod state;
 mod terminal;
 mod time {
     pub(crate) use crate::time::unix_now_ts;
-
-    pub(crate) fn new_handoff_trace(prefix: &str) -> String {
-        let stamp = crate::time::unix_now_millis();
-        format!("{prefix}-{stamp}-{}", std::process::id())
-    }
 }
 
 use crate::fuzzy::FuzzyPicker;
@@ -23,7 +19,7 @@ use crate::hook::HookEvent;
 use crate::model::AgentPanel;
 use crate::theme::{Config, Theme};
 pub use async_ops::CodexCliVersionInfo;
-use async_ops::{CodexCliUpdateResult, CodexCliVersionCheckResult, ProviderTestResult, ScanResult};
+use async_ops::{CodexCliUpdateResult, CodexCliVersionCheckResult, ProviderTestResult};
 use ratatui::widgets::TableState;
 use state::{
     CodexSettingsView, Mode, PreviewState, RelayPopupMode, RelayView, SettingsDetailKind,
@@ -37,14 +33,13 @@ pub use state::{
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-pub(crate) use time::{new_handoff_trace, unix_now_ts};
+pub(crate) use time::unix_now_ts;
 use tokio::sync::mpsc;
 
 const THREAD_PREVIEW_CACHE_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_MAX_ENTRIES: usize = 256;
 const APP_THREAD_ACTIVITY_TTL_SECS: i64 = 12 * 60 * 60;
 pub struct App {
-    pub runtime_mode: crate::runtime_mode::RuntimeMode,
     pub terminal: TerminalUiState,
     pub panels: Vec<AgentPanel>,
     pub table_state: TableState,
@@ -63,17 +58,10 @@ pub struct App {
     pub active_settings_detail: Option<SettingsDetailKind>,
     pub theme_selected: usize,
     pub language_selected: usize,
-    pub scan_in_progress: bool,
-    pub scan_rx: Option<mpsc::Receiver<ScanResult>>,
     pub hook_rx: Option<mpsc::Receiver<HookEvent>>,
-    pub refresh_after_attach: bool,
+    pub api_rx: Option<crate::socket_api::ApiReceiver>,
     pub should_quit: bool,
     pub dirty: bool,
-    pub same_session_attached: bool,
-    pub same_session_trace_id: Option<String>,
-    pub saved_tmux_bindings: Vec<String>,
-    pub saved_tmux_status: Option<String>,
-    pub saved_tmux_status_target: Option<String>,
     pub fuzzy_picker: Option<FuzzyPicker>,
     /// Whether the fuzzy picker was opened from Normal mode (for 'c' key flow)
     pub fuzzy_from_normal: bool,
@@ -91,8 +79,6 @@ pub struct App {
     pub relay_popup_buffer: String,
     pub settings_search: String,
     pub settings_searching: bool,
-    /// Scheduled delayed scan — Some(Instant) means scan after this time
-    pub delayed_scan_at: Option<Instant>,
     /// Whether terminal needs a full clear before next draw
     pub needs_clear: bool,
     // Provider connectivity test
@@ -108,8 +94,6 @@ pub struct App {
     pub title_summary_tx: Option<mpsc::Sender<crate::title_summary::TitleSummaryResult>>,
     pub title_summary_rx: Option<mpsc::Receiver<crate::title_summary::TitleSummaryResult>>,
     pub title_summary_in_flight: HashSet<String>,
-    // Agent style settings
-    pub agent_style_selected: usize,
     pub codex_settings_view: CodexSettingsView,
     pub codex_settings_category_selected: usize,
     pub codex_settings_selected: usize,
@@ -123,7 +107,6 @@ pub struct App {
     pub last_draw_elapsed: Duration,
     pub frame_budget_exceeded: bool,
     pub deferred_hook_events: Vec<HookEvent>,
-    pub deferred_scan_result: Option<Vec<AgentPanel>>,
     pub notification_inbox: crate::notification_inbox::NotificationInbox,
     pub notification_inbox_selected: usize,
     relay_config_last_poll_at: Instant,

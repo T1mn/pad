@@ -140,6 +140,11 @@ impl NativePtyCommand {
         command.args(self.args);
         if let Some(cwd) = self.cwd {
             command.cwd(cwd);
+        } else if let Ok(cwd) = std::env::current_dir() {
+            // portable-pty otherwise defaults an explicit command to HOME.
+            // In tests and embedding hosts HOME may change independently;
+            // match std::process::Command and inherit the process cwd.
+            command.cwd(cwd);
         }
         for (key, value) in self.env {
             command.env(key, value);
@@ -154,7 +159,7 @@ impl NativePtyCommand {
 /// A production session transport backed by the operating system's PTY.
 ///
 /// This transport launches and owns the child process directly. It does not
-/// execute, connect to, or require tmux.
+/// execute, connect to, or require an external terminal multiplexer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativePtyTransport {
     id: TransportId,

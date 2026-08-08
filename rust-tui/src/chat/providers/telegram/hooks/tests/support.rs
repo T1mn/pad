@@ -47,7 +47,7 @@ pub(super) fn stop_event(turn_id: Option<&str>, last_assistant_message: &str) ->
         prompt: None,
         last_assistant_message: Some(last_assistant_message.into()),
         timestamp: Some("2026-04-08T00:00:00Z".into()),
-        tmux: HookTmuxInfo {
+        terminal: HookTerminalInfo {
             pane_id: Some("%1".into()),
             session_name: Some("0".into()),
             window_index: Some("1".into()),

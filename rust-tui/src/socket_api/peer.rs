@@ -1,7 +1,7 @@
 use std::io;
 use std::os::fd::{AsRawFd, RawFd};
 
-/// socket API 能执行 ssh / 注入 tmux prompt / 拉起进程，所以只接受和本进程同一个
+/// socket API 能执行 ssh / 向原生终端注入 prompt / 拉起进程，所以只接受和本进程同一个
 /// uid 的本地连接；root 也不特殊放行（root 本来就能绕过一切，无需在这里开口子）。
 pub(super) fn peer_uid_is_allowed(peer_uid: u32, owner_uid: u32) -> bool {
     peer_uid == owner_uid

@@ -10,7 +10,6 @@ mod finalize {
     pub(super) fn finalize_folder_threads(
         folder: &mut SidebarFolder,
         thread_sort_activity: &HashMap<String, i64>,
-        startup_thread_sort_activity: &HashMap<String, i64>,
         retain_deleted_with_live_pane_only: bool,
     ) {
         if retain_deleted_with_live_pane_only {
@@ -19,11 +18,7 @@ mod finalize {
                 .retain(|thread| !thread.deleted || thread.live_pane_id.is_some());
         }
         for thread in &mut folder.threads {
-            apply_sort_activity(
-                Arc::make_mut(thread),
-                thread_sort_activity,
-                startup_thread_sort_activity,
-            );
+            apply_sort_activity(Arc::make_mut(thread), thread_sort_activity);
         }
         folder.threads.sort_by(thread_sort_key);
         folder.updated_at = folder
@@ -51,7 +46,6 @@ mod history_grok {
         folder: &mut SidebarFolder,
         activity_overrides: &[ThreadActivityOverride],
         thread_sort_activity: &HashMap<String, i64>,
-        startup_thread_sort_activity: &HashMap<String, i64>,
         grok_threads: Option<&[GrokThreadRef]>,
         archived_threads_view: bool,
     ) -> usize {
@@ -90,8 +84,6 @@ mod history_grok {
                 sort_updated_at: 0,
                 live_pane_id: None,
                 live_location: None,
-                pid: None,
-                git_info: None,
                 state: AgentState::Idle,
                 is_active: false,
                 cached_preview_turns: Default::default(),
@@ -107,7 +99,6 @@ mod history_grok {
                 history_entry,
                 activity_overrides,
                 thread_sort_activity,
-                startup_thread_sort_activity,
             );
             merged += 1;
         }
@@ -213,7 +204,6 @@ pub fn build_sidebar_folders(
     panels: &[AgentPanel],
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
-    startup_thread_sort_activity: &HashMap<String, i64>,
     thread_list_view: ThreadListView,
     live_only: bool,
 ) -> Vec<SidebarFolder> {
@@ -265,7 +255,6 @@ pub fn build_sidebar_folders(
         panels,
         activity_overrides,
         thread_sort_activity,
-        startup_thread_sort_activity,
         history_sources: &history_sources,
         live_only,
         archived_threads_view,
@@ -276,12 +265,7 @@ pub fn build_sidebar_folders(
 
     apply_thread_metadata(&mut folders);
     for folder in folders.values_mut() {
-        finalize_folder_threads(
-            folder,
-            thread_sort_activity,
-            startup_thread_sort_activity,
-            true,
-        );
+        finalize_folder_threads(folder, thread_sort_activity, true);
     }
 
     let final_sort_started_at = Instant::now();

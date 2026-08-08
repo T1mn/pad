@@ -52,8 +52,6 @@ pub fn thread_from_live_panel(panel: &AgentPanel) -> SidebarThread {
             "{}:{}.{}",
             panel.session, panel.window_index, panel.pane
         )),
-        pid: panel.pid.clone(),
-        git_info: panel.git_info.clone(),
         state: panel.state.clone(),
         is_active: panel.is_active,
         cached_preview_turns: panel.cached_preview_turns.clone(),

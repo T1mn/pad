@@ -31,7 +31,7 @@ fn begin_turn(event: &HookEvent) -> io::Result<Option<PendingTurnDiff>> {
         id: key,
         session_id: clean(event.session_id.as_deref()),
         turn_id: clean(event.turn_id.as_deref()),
-        pane_id: clean(event.tmux.pane_id.as_deref()),
+        pane_id: clean(event.terminal.pane_id.as_deref()),
         repo_root: snapshot.repo_root.to_string_lossy().into_owned(),
         cwd: cwd.to_string_lossy().into_owned(),
         prompt: clean(event.prompt.as_deref()),
@@ -65,7 +65,7 @@ fn finish_turn(event: &HookEvent) -> io::Result<Option<CompletedTurnDiff>> {
         id: record_id,
         session_id: session_id.or_else(|| clean(event.session_id.as_deref())),
         turn_id: turn_id.or_else(|| clean(event.turn_id.as_deref())),
-        pane_id: pane_id.or_else(|| clean(event.tmux.pane_id.as_deref())),
+        pane_id: pane_id.or_else(|| clean(event.terminal.pane_id.as_deref())),
         repo_root,
         cwd,
         prompt: prompt.or_else(|| clean(event.prompt.as_deref())),
@@ -83,7 +83,7 @@ fn finish_turn(event: &HookEvent) -> io::Result<Option<CompletedTurnDiff>> {
 
 fn event_cwd(event: &HookEvent) -> Option<PathBuf> {
     clean(event.cwd.as_deref())
-        .or_else(|| clean(event.tmux.pane_current_path.as_deref()))
+        .or_else(|| clean(event.terminal.pane_current_path.as_deref()))
         .map(PathBuf::from)
 }
 

@@ -18,7 +18,6 @@ pub(super) struct FolderBuildContext<'a> {
     pub(super) panels: &'a [AgentPanel],
     pub(super) activity_overrides: &'a [ThreadActivityOverride],
     pub(super) thread_sort_activity: &'a HashMap<String, i64>,
-    pub(super) startup_thread_sort_activity: &'a HashMap<String, i64>,
     pub(super) history_sources: &'a HistorySources,
     pub(super) live_only: bool,
     pub(super) archived_threads_view: bool,
@@ -38,12 +37,7 @@ pub(super) fn populate_folder_threads(
         merge_history_threads(folder, ctx, stats);
     }
 
-    finalize_folder_threads(
-        folder,
-        ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
-        false,
-    );
+    finalize_folder_threads(folder, ctx.thread_sort_activity, false);
     log_slow_folder(&folder.path, folder.threads.len(), folder_started_at);
 }
 
@@ -76,7 +70,6 @@ fn merge_history_threads(
         folder,
         ctx.activity_overrides,
         ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
         &ctx.history_sources.codex_session_snapshots,
         ctx.archived_threads_view,
     );
@@ -84,7 +77,6 @@ fn merge_history_threads(
         folder,
         ctx.activity_overrides,
         ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
         ctx.history_sources.claude_threads.as_deref(),
         ctx.archived_threads_view,
     );
@@ -92,7 +84,6 @@ fn merge_history_threads(
         folder,
         ctx.activity_overrides,
         ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
         ctx.history_sources.gemini_threads.as_deref(),
         ctx.archived_threads_view,
     );
@@ -100,7 +91,6 @@ fn merge_history_threads(
         folder,
         ctx.activity_overrides,
         ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
         ctx.history_sources.grok_threads.as_deref(),
         ctx.archived_threads_view,
     );
@@ -108,7 +98,6 @@ fn merge_history_threads(
         folder,
         ctx.activity_overrides,
         ctx.thread_sort_activity,
-        ctx.startup_thread_sort_activity,
         ctx.history_sources.opencode_threads.as_deref(),
         ctx.archived_threads_view,
     );

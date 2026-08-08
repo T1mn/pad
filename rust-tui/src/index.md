@@ -1,12 +1,9 @@
 # src
 
-- `main.rs`：入口与主循环；默认 native runtime，显式 `--tmux` 才进入兼容启动路径。
-- `runtime_mode.rs` / `runtime_mode_tests.rs`：native-first 与显式 tmux 兼容模式选择及回归测试。
+- `main.rs`：native terminal 入口与主循环。
 - `terminal_runtime.rs` / `terminal_runtime/`：内嵌终端的 pane、解析引擎、Native PTY、会话传输协议与分片 worker runtime。
 - `terminal_workspace.rs` / `terminal_workspace_tests.rs`：原生终端 tab/split/label/profile 的版本化 JSON 加载、原子持久化与回归测试；不保存 PTY 实时状态，损坏或未来版本文件先隔离保留再重建。
-- `cli.rs` / `cli_tests.rs` / `bootstrap.rs` / `bootstrap_tests.rs` / `terminal.rs` / `terminal_tests.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、tmux bootstrap、终端生命周期、启动服务与退出信号。
-- `system_check.rs` / `system_check/`：启动前 tmux 可用性、安装提示与能力兼容性检查。
-- `session.rs` / `session/`：创建/切换 tmux agent session、返回绑定与状态栏恢复。
+- `cli.rs` / `cli_tests.rs` / `terminal.rs` / `terminal_tests.rs` / `startup.rs` / `shutdown.rs`：CLI 命令、终端生命周期、启动服务与退出信号。
 - `model.rs` / `model/`：agent、pane、preview 等共享模型。
 - `time.rs` / `logger.rs` / `shell_quote.rs` / `shell_quote_tests.rs` / `text_match.rs` / `text_match_tests.rs` / `text_normalize.rs` / `text_normalize_tests.rs`：crate 内共享时间戳、debug log、shell quoting、文本匹配与文本归一化 helper。
 - `panic_boundary.rs` / `panic_boundary_tests.rs`：标记并测试可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
@@ -15,8 +12,7 @@
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
 - `theme.rs` / `theme/`：配置模型、加载保存、主题。
 - `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
-- `pad_sider/`：Codex pane 左侧全屏辅助栏，负责 tree、文件/代码预览、`/` fuzzy 搜索与 Codex diff 审阅。
-- `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照、patch 持久化与 sider 数据源。
+- `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照与 patch 持久化。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
 - `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/` / `codex_rollout.rs`：同步 PAD 私有 Codex home provider 元数据，解析普通或冷压缩 rollout，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
@@ -33,17 +29,9 @@
 - `title_summary.rs` / `title_summary/`：Codex 会话自动标题摘要的窗口选择、请求、响应解析与清理。
 - `session_continuity.rs` / `session_continuity/`：agent session continuity ledger、预览 fallback 健康判断与诊断日志。
 - `runtime_status.rs` / `runtime_status/`：PAD/Telegram 运行状态文件、进程存活探测与 stale pid 描述。
-- `agent_resume/`：从缓存记录列出并恢复 agent 会话。
-- `workspace_recipe/`：工作区 recipe 解析、dry-run 与 tmux 启动。
 - `browser_remote/`：浏览器打开与远程 SSH 命令联动。
 - `socket_api/`：本地 Unix socket JSONL API。
 - `paths.rs` / `paths/`：运行目录、prompt、hook bridge 路径与安装。
 - `codex_runtime.rs` / `codex_runtime/`：pad 启动 Codex 时改走 `pad-codex` wrapper、校验 relay token，并在启动 Claude 时避免继承环境覆盖 relay settings。
-- `tmux_capabilities.rs` / `tmux_capabilities/`：tmux 版本解析、能力探测和报告摘要。
-- `tmux_bindings.rs`：PAD 临时 root binding 保存、恢复和 sider toggle 命令 helpers。
-- `pipe.rs` / `pipe/`：tmux control mode 监听、事件解析与重连。
-- `pty.rs` / `pty/`：tmux pane PTY attach、detach/F12 按键识别和 pane capture。
-- `tmux_dispatch.rs` / `tmux_dispatch/` / `tmux_dispatch_tests.rs`：tmux prompt 投递、pane/session 操作与查询。
 - `tree.rs` / `tree/` / `tree_tests.rs` / `fuzzy.rs` / `fuzzy/` / `fuzzy_tests.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
-- `scanner.rs` / `scanner/` / `detector.rs` / `detector_tests.rs`：tmux pane 扫描、进程快照与 agent 状态识别。
 - `event.rs` / `event/`：键鼠事件分发。

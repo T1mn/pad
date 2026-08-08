@@ -1,5 +1,6 @@
 mod codex_restart;
 mod helpers;
+mod native_launch;
 mod notification_inbox;
 mod opencode_attach;
 mod opencode_cli;

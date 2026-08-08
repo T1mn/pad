@@ -48,7 +48,7 @@ pub fn event_key(event: &HookEvent) -> Option<String> {
             .as_deref()
             .filter(|value| !value.is_empty()),
         event
-            .tmux
+            .terminal
             .pane_id
             .as_deref()
             .filter(|value| !value.is_empty()),

@@ -43,10 +43,6 @@ pub fn opencode_diagnostics_dir() -> PathBuf {
     pad_home_dir().join("opencode-diagnostics")
 }
 
-pub fn workspace_recipes_path() -> PathBuf {
-    pad_home_dir().join("workspace-recipes.toml")
-}
-
 pub fn terminal_workspace_path() -> PathBuf {
     pad_home_dir().join("terminal-workspace.json")
 }

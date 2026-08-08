@@ -64,7 +64,7 @@ mod cache {
         ) -> bool {
             context.is_some_and(|context| {
                 self.preview.pane_id.as_deref() == Some(context.target_key.as_str())
-                    && self.preview.source == PreviewSource::Tmux
+                    && self.preview.source == PreviewSource::Plain
                     && self.preview.view == crate::model::PreviewView::Plain
                     && self.theme.name == context.theme_name
                     && self.preview.content_revision == context.content_revision
@@ -89,10 +89,6 @@ mod defer {
         pub fn flush_deferred_ui_updates(&mut self) {
             if self.should_defer_ui_updates() {
                 return;
-            }
-
-            if let Some(panels) = self.deferred_scan_result.take() {
-                self.apply_scan_panels(panels);
             }
 
             if let Some(update) = self.preview.deferred_preview_update.take() {

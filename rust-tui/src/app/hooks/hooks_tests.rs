@@ -1,7 +1,7 @@
 mod activity {
     use super::support::{stop_event, submit_event};
     use crate::app::{App, APP_THREAD_ACTIVITY_MAX_ENTRIES, APP_THREAD_ACTIVITY_TTL_SECS};
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::model::{AgentPanel, AgentState, AgentType};
     use crate::sidebar::ThreadActivityOverride;
 
     #[test]
@@ -65,13 +65,9 @@ mod activity {
             working_dir: "/tmp/demo".into(),
             is_active: true,
             state: AgentState::Idle,
-            state_source: AgentStateSource::Scanner,
             transcript_path: None,
             cached_preview_turns: Default::default(),
             session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: Some("session-1".into()),
             last_user_prompt: None,
             last_assistant_message: None,
@@ -93,7 +89,7 @@ mod activity {
         assert!(app.sidebar.thread_sort_activity.is_empty());
 
         let mut event = stop_event("%1");
-        event.tmux.pane_id = None;
+        event.terminal.pane_id = None;
         event.cwd = Some("/tmp/demo".into());
         app.apply_hook_event(event);
         assert!(app.sidebar.thread_sort_activity.is_empty());
@@ -104,7 +100,7 @@ mod notification {
         create_codex_threads_db, insert_codex_thread, stop_event, with_temp_home,
     };
     use crate::app::App;
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::model::{AgentPanel, AgentState, AgentType};
     use crate::notify::NotificationRequest;
 
     #[test]
@@ -204,13 +200,9 @@ mod notification {
                     working_dir: "/tmp/demo".into(),
                     is_active: true,
                     state: AgentState::Busy,
-                    state_source: AgentStateSource::Scanner,
                     transcript_path: None,
                     cached_preview_turns: Default::default(),
                     session_cache_state: None,
-                    git_info: None,
-                    pid: None,
-                    start_time: None,
                     agent_session_id: Some("session-1".into()),
                     last_user_prompt: Some("ship it".into()),
                     last_assistant_message: None,
@@ -244,13 +236,9 @@ mod notification {
             working_dir: "/tmp/demo".into(),
             is_active: true,
             state: AgentState::Busy,
-            state_source: AgentStateSource::Scanner,
             transcript_path: Some("/tmp/demo/transcript.jsonl".into()),
             cached_preview_turns: Default::default(),
             session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: Some("session-1".into()),
             last_user_prompt: Some("ship it".into()),
             last_assistant_message: None,
@@ -271,8 +259,8 @@ mod notification {
 mod session_cache {
     use super::support::with_temp_home;
     use crate::app::App;
-    use crate::hook::{HookEvent, HookTmuxInfo};
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::hook::{HookEvent, HookTerminalInfo};
+    use crate::model::{AgentPanel, AgentState, AgentType};
 
     fn panel_with_old_session() -> AgentPanel {
         AgentPanel {
@@ -285,13 +273,9 @@ mod session_cache {
             working_dir: "/tmp/demo".into(),
             is_active: false,
             state: AgentState::Idle,
-            state_source: AgentStateSource::Scanner,
             transcript_path: Some("/tmp/old.jsonl".into()),
             cached_preview_turns: Default::default(),
             session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: Some("old".into()),
             last_user_prompt: Some("old prompt".into()),
             last_assistant_message: Some("old answer".into()),
@@ -309,7 +293,7 @@ mod session_cache {
             prompt: None,
             last_assistant_message: None,
             timestamp: None,
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some("%1".into()),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -334,8 +318,8 @@ mod session_cache {
             assert_eq!(panel.last_user_prompt, None);
             assert_eq!(panel.last_assistant_message, None);
 
-            let cached =
-                crate::session_cache::find_cached_session("new").expect("new session cache");
+            let cached = crate::session_cache::load_snapshots_by_agent_type(&AgentType::Codex);
+            let cached = cached.get("new").expect("new session cache");
             assert_eq!(cached.transcript_path, None);
             assert_eq!(cached.last_user_prompt, None);
             assert_eq!(cached.last_assistant_message, None);
@@ -343,7 +327,7 @@ mod session_cache {
     }
 }
 mod support {
-    use crate::hook::{HookEvent, HookTmuxInfo};
+    use crate::hook::{HookEvent, HookTerminalInfo};
     use rusqlite::Connection;
     use std::path::Path;
 
@@ -400,7 +384,7 @@ mod support {
             prompt: None,
             last_assistant_message: Some("done".into()),
             timestamp: None,
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some(pane_id.into()),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -420,7 +404,7 @@ mod support {
             prompt: Some("ship it".into()),
             last_assistant_message: None,
             timestamp: None,
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: pane_id.map(str::to_string),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -434,7 +418,7 @@ mod unread {
     use super::support::stop_event;
     use crate::app::state::FocusTarget;
     use crate::app::App;
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+    use crate::model::{AgentPanel, AgentState, AgentType};
 
     fn panel_for_unread_test(state: AgentState) -> AgentPanel {
         AgentPanel {
@@ -447,13 +431,9 @@ mod unread {
             working_dir: "/tmp/demo".into(),
             is_active: matches!(state, AgentState::Busy),
             state,
-            state_source: AgentStateSource::Scanner,
             transcript_path: None,
             cached_preview_turns: Default::default(),
             session_cache_state: None,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: None,
             last_user_prompt: None,
             last_assistant_message: None,
@@ -477,7 +457,6 @@ mod unread {
     fn focusing_panel_clears_unread_stop_marker() {
         let mut app = App::new();
         let mut panel = panel_for_unread_test(AgentState::Waiting);
-        panel.state_source = AgentStateSource::Hook;
         panel.last_assistant_message = Some("done".into());
         panel.has_unread_stop = true;
         app.panels.push(panel);

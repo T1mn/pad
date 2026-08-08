@@ -5,17 +5,17 @@
   <p><a href="README.md">English</a> | 中文</p>
 </div>
 
-如果你平时会在 tmux 里同时开两个以上 agent session，PAD 基本很快就能派上用场。
+如果你平时会同时开两个以上 agent session，PAD 基本很快就能派上用场。
 
 ## 一句话总结（太长不看）
 
-- 纯 Rust 打造，默认使用 PAD 自己托管的原生 PTY，tmux 仅为显式兼容模式。
+- 纯 Rust 打造，使用 PAD 自己托管的原生 PTY 终端。
 - 看清谁动了，先读 preview，再进对的 pane。
 - 当前 macOS 实测：dist 二进制约 3.7 MB，空闲运行时约 12 MB RSS。
 
 ## 安装
 
-默认原生终端不依赖 `tmux`。只有使用 `pad --tmux` 或旧的 tmux 专属工作流时才需要安装 tmux。
+PAD 内置原生终端运行时，不需要额外安装终端复用器。
 
 支持的运行环境：
 
@@ -33,7 +33,7 @@ cd pad
 ./install.sh
 ```
 
-安装脚本会优先尝试下载预编译 release，并在 Linux 上按运行时环境优先选择匹配的 glibc 或 musl 包；下载后还会验证二进制能否在当前机器上运行。只有在没有可用预编译包时，才会提示后回退到本地源码构建。设置 `PAD_INSTALL_TMUX_COMPAT=1` 才会安装可选 tmux 兼容能力；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
+安装脚本会优先尝试下载预编译 release，并在 Linux 上按运行时环境优先选择匹配的 glibc 或 musl 包；下载后还会验证二进制能否在当前机器上运行。只有在没有可用预编译包时，才会提示后回退到本地源码构建；进入源码构建路径时，还会按需补齐 Rust 和常见构建依赖。
 
 安装器源码已经拆到 `install/` 目录。修改这些模块后，请重新生成仓库里提交的单文件 `install.sh`：
 
@@ -49,16 +49,15 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
-PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只有显式运行 `pad --tmux` 才进入旧兼容路径。
-如果你在 WSL2 下使用，请在 WSL 内运行 PAD；只有兼容模式需要在同一 WSL 环境安装 tmux。
+`pad` 直接托管 Shell PTY 与终端网格。如果你在 WSL2 下使用，请在同一个 WSL 环境里运行 PAD 与 agent CLI。
 
 ### 原生终端工作区
 
 - `Tab` 聚焦右侧终端，`F12` 返回左侧。
 - `C` 仍然打开 PAD 的全局目录索引，不再承担终端聚焦。
-- 在全局索引里选择目录和 Agent 后，会在该目录新建 native terminal tab，并运行配置中的 Agent 命令；native 模式不会创建 tmux session。
+- 在全局索引里选择目录和 Agent 后，会在该目录新建 native terminal tab，并运行配置中的 Agent 命令。
 - `F11` 打开 PAD Terminal 命令层（支持增强键盘协议时也可用 `Ctrl+Shift+Space`）。
-- 命令层中：`1`～`4` 新建 Shell / Codex / Claude / GitHub CLI 标签，`v`/`s` 左右/上下分屏，`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
+- 命令层中：`1`～`5` 新建 Shell / Codex / Claude / GitHub CLI / OpenCode 标签；`v`/`s` 创建 Shell 左右/上下分屏，`c`/`a`/`g`/`o` 创建对应 Agent 分屏。`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
 - `Shift+PgUp/PgDn/Home/End` 控制历史视口；鼠标滚轮会在应用鼠标上报与 PAD scrollback 之间自动仲裁。
 - tab、split、label、profile 与启动目录保存到 `~/.pad/terminal-workspace.json`；重启会创建新的 PTY，不会伪装成恢复旧进程。损坏或来自更新 schema 的文件会先原样保留为 `terminal-workspace.invalid*.json`，再创建干净工作区。
 - 全局 Agent Launcher 选中的命令只在本次运行中启动；PAD 重启后相应标签会安全恢复为交互式 Shell，不会静默重新执行配置文本。
@@ -69,7 +68,7 @@ PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只�
 
 实际用起来大概就是这样：
 
-- 在左侧树里扫一眼 live sessions，不用再回 tmux 到处找 pane
+- 在左侧树里扫一眼 live sessions，不用再到处切终端窗口找 pane
 - 在右侧先读最新 preview，再决定要不要 attach
 - 按 `Tab` 进入最新 detail，再用 `Shift+J` / `Shift+K` 在 Q/A 间切换
 - 按 `F2` 改 thread 标题，按 `T` 编辑标签，不用离开 PAD
@@ -80,7 +79,7 @@ PAD 现在是 native-first：`pad` 直接托管 Shell PTY 与终端网格。只�
 
 ## 为什么要有 PAD
 
-tmux 里同时跑多个 agent 之后，最烦的往往不是“不会用”，而是这些很碎的事：
+同时跑多个 agent 之后，最烦的往往不是“不会用”，而是这些很碎的事：
 
 - 哪个 pane 刚刚动过？
 - 哪个 session 现在还在工作？
@@ -93,9 +92,9 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 
 1. 运行 `pad`
 2. 在左侧 sidebar 找到刚刚有变化的 session
-3. 在 agent pane 里按 `F10`，需要时打开项目侧边浏览
+3. 需要浏览项目时按 `t`，打开内建文件树与文件预览
 4. 先在 preview 里看最近几轮对话，再决定要不要 attach
-5. 用 `Enter` 进入，用 `F12` 或 `Ctrl+Q` 回来
+5. 用 `Enter` 进入，用 `F12` 回来
 
 ## 核心能力
 
@@ -104,8 +103,8 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 - 纯 Rust TUI，体积小，session-aware preview 响应快
 - 当前 macOS 实测：dist 二进制约 3.7 MB，空闲 RSS 约 12 MB
 - session 级监听，活动追踪更聚焦，也更省资源
-- 原生模式用 `Tab` 进入右侧终端、`F12` 返回；`--tmux` 兼容模式保留 `Enter` attach 与 `Ctrl+Q`
-- `F10` 打开 pad-sider，在 agent 旁边看 tree、index map、changes 和文件预览
+- 用 `Tab` 进入右侧终端、`F12` 返回；在 live entry 上按 `Enter` 会跳到对应的 PAD pane
+- 不离开工作区即可使用内建文件树和文件预览
 - archive / restore 按 agent 使用不同适配，但不会删除上游原始历史
 - 支持的 agent relay / proxy 配置
 - 在支持的平台上，在 agent 完成任务后发送桌面通知
@@ -114,8 +113,8 @@ PAD 把这些动作收进一个地方：扫描、预览、attach、archive，然
 
 ## PAD 不做什么
 
-- 原生模式不实现 tmux server 的断线常驻或多客户端共享；需要这些能力时使用 `pad --tmux`
-- 原生 tabs/splits 是 PAD 自己托管的真实 PTY，不是在 tmux 上叠一层外观
+- PAD 重启后不会保留原有子进程，也不提供多客户端共享同一终端
+- 原生 tabs/splits 是 PAD 自己托管的真实 PTY
 - 它不会在 archive 时删除上游 agent 的原始历史；部分适配会更新上游 archive 元数据
 - 它不接管 agent runtime，本质上是让你更快地看清、跳转、返回
 
@@ -164,15 +163,6 @@ Tree 模式适合在不离开 PAD 的情况下浏览代码、预览文件，或�
 2. 文件树：快速展开、折叠并移动目录与文件
 3. 文件预览：右侧即时显示当前文件内容
 4. Tree 底栏：tree 模式下的按键提示会固定显示，包括导航、展开、attach、create 和 help
-
-### Pad Sider
-
-`F10` 会在当前 agent pane 旁边打开一个辅助栏。它的作用很直接：不离开对话，也能顺手看代码。
-
-1. 左侧：tree 或 index map，用来快速找项目结构
-2. 右侧：文件预览，Markdown 会用更紧凑的方式渲染，并带行号
-3. `II`：在 tree 和 index map 间切换
-4. `[` / `]`：三档调整 sider 宽度
 
 ### 帮助 Help
 
@@ -231,7 +221,7 @@ Linux 发布产物现在按运行时家族分开：
 | `J/K` 或 `Shift+J/K` | 在 preview turns 中快速移动 |
 | `1-9` | 快速跳转到面板 |
 | `Enter` | attach 到 pane |
-| `F12` / `Ctrl+Q` | 返回 PAD |
+| `F12` | 返回 PAD |
 | `Tab` | 切换 panel / preview 焦点 |
 | `Tab` 双击 | 进入最新 preview detail，或从 detail 返回 turns list |
 | `?` | 打开帮助 |
@@ -242,16 +232,11 @@ Linux 发布产物现在按运行时家族分开：
 | `Shift+Delete` | 编辑标题时清空输入 |
 | `Space` | 展开 / 折叠目录 |
 | `Space` 双击 | 展开 / 折叠全部 session 文件夹 |
-| `F10` | 在当前 pane 旁切换 pad-sider |
-| `[` / `]` | 调整 pad-sider 宽度 |
-| `II` | 在 pad-sider 中切换 tree / index map |
-| `pad-sider 中 /` | 模糊搜索文件 |
-| `pad-sider 中对 .md 按 Space` | 打开全屏 Markdown 预览 |
 | `c` | 创建新 session |
 | `d` | 删除 pane |
 | `A` / `U` | 归档 / 恢复选中 session |
 | `Z` | 切换归档 session 视图 |
-| `E` / `S` / `I` / `H` / `L` / `G` / `X` / `B` / `O` / `P` / `Y` / `W` | 导出/导入 OpenCode JSON、安装 GitHub agent/plugin、打开 PR、运行剪贴板 prompt、启动本地 server、stats、诊断、attach server URL，或打开 OpenCode Web |
+| `E` / `S` / `I` / `H` / `M` / `G` / `X` / `B` / `O` / `P` / `Y` / `W` | 导出/导入 OpenCode JSON、安装 GitHub agent/plugin、打开 PR、运行剪贴板 prompt、启动本地 server、stats、诊断、attach server URL，或打开 OpenCode Web |
 | `r` | 刷新 |
 | `Ctrl+F` | 搜索 panel |
 | `/` | 打开设置 |

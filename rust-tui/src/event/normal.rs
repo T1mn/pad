@@ -48,43 +48,14 @@ mod terminal_keys;
 use crate::app::App;
 use crate::log_debug;
 use crossterm::event::{KeyCode, KeyEvent};
-#[cfg(not(test))]
-use ratatui::backend::CrosstermBackend;
 use ratatui::{backend::Backend, Terminal};
 use std::io;
 
-#[cfg(not(test))]
-use super::attach::handle_attach;
-
-#[cfg(not(test))]
-pub(super) fn handle_normal_mode(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    app: &mut App,
-    key: KeyEvent,
-) -> io::Result<()> {
-    handle_normal_mode_impl(terminal, app, key, handle_attach)
-}
-
-#[cfg(test)]
 pub(super) fn handle_normal_mode<B: Backend>(
-    terminal: &mut Terminal<B>,
+    _terminal: &mut Terminal<B>,
     app: &mut App,
     key: KeyEvent,
 ) -> io::Result<()> {
-    handle_normal_mode_impl(terminal, app, key, |_terminal, _app| {
-        Err(io::Error::other("attach is not supported in event tests"))
-    })
-}
-
-pub(super) fn handle_normal_mode_impl<B: Backend, F>(
-    terminal: &mut Terminal<B>,
-    app: &mut App,
-    key: KeyEvent,
-    mut attach_fn: F,
-) -> io::Result<()>
-where
-    F: FnMut(&mut Terminal<B>, &mut App) -> io::Result<()>,
-{
     log_debug!(
         "normal_mode key={:?} show_tree={} panels={}",
         key.code,
@@ -121,5 +92,6 @@ where
         return Ok(());
     }
 
-    sidebar_keys::handle_sidebar_key(terminal, app, key, is_space, &mut attach_fn)
+    sidebar_keys::handle_sidebar_key(app, key, is_space);
+    Ok(())
 }

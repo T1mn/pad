@@ -13,7 +13,8 @@ mod poll {
         let mut stable_hits = 0usize;
 
         loop {
-            let capture = tmux_dispatch::capture_pane_tail(pane_id, 28).map_err(telegram_error)?;
+            let capture =
+                terminal_remote::capture_pane_tail(pane_id, 28).map_err(telegram_error)?;
             let capture = summarize_pane_capture(&capture);
             if !capture.is_empty() && capture != baseline {
                 if !capture_looks_like_echo_only(&capture, slash) {
@@ -135,10 +136,10 @@ pub(crate) async fn dispatch_codex_slash_command(
     };
 
     let slash = build_slash_command_text(command, arg);
-    let baseline = tmux_dispatch::capture_pane_tail(&panel.pane_id, 28)
+    let baseline = terminal_remote::capture_pane_tail(&panel.pane_id, 28)
         .map(|capture| summarize_pane_capture(&capture))
         .unwrap_or_default();
-    tmux_dispatch::dispatch_prompt(&panel.pane_id, &slash).map_err(telegram_error)?;
+    terminal_remote::dispatch_prompt(&panel.pane_id, &slash).map_err(telegram_error)?;
     invalidate_live_panels();
     log_debug!(
         "telegram: dispatched codex slash command pane={} command={}",

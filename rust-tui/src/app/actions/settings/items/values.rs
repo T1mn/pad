@@ -14,12 +14,8 @@ pub(super) fn toggle_label(locale: Locale, enabled: bool) -> String {
 }
 
 pub(super) fn preview_mode_label(config: &Config, locale: Locale) -> String {
-    let key = match config.preview.mode.as_str() {
-        "tmux" => "settings.preview_mode_tmux",
-        "session" => "settings.preview_mode_session",
-        _ => "settings.preview_mode_auto",
-    };
-    t(locale, key).to_string()
+    let _ = config;
+    t(locale, "settings.preview_mode_session").to_string()
 }
 
 pub(super) fn display_mode_label(config: &Config, locale: Locale) -> String {

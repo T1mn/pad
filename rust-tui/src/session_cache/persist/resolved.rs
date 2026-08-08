@@ -1,5 +1,3 @@
-use super::super::bindings::upsert_binding;
-use super::super::model::HookBindingContext;
 use super::super::storage::{load_index, prune_index, save_index};
 use super::super::turns::normalize_turns;
 use super::super::util::now_ts;
@@ -49,13 +47,6 @@ pub fn persist_resolved_session(
     record.last_seen_at = now;
     record.updated_at = now;
 
-    upsert_binding(
-        &mut index,
-        panel,
-        agent_session_id,
-        HookBindingContext::default(),
-        now,
-    );
     save_index(&index)?;
     crate::session_continuity::record_cache_write(
         &panel.agent_type,

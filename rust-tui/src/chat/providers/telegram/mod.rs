@@ -5,6 +5,7 @@ mod daemon;
 mod help;
 mod hooks;
 mod locale;
+mod native_terminal;
 mod pending;
 mod render;
 mod state;
@@ -22,6 +23,7 @@ use self::callbacks::{approval_callback_data, parse_approval_callback_data};
 use self::help::{build_help_keyboard, help_page_html};
 use self::help::{help_message_payload, HelpPage};
 use self::locale::{locale_prefers_chinese, telegram_locale, tg, tg_fmt, tg_fmt2, tg_fmt3};
+use self::native_terminal as terminal_remote;
 use self::state::{
     journal_len, load_state, mark_update_processed, next_draft_id, next_request_id, now_ms_i64,
     now_ts, pending_request_index_by_id, pending_request_index_by_pane, remove_pending_request,
@@ -39,7 +41,6 @@ use crate::model::{AgentPanel, AgentState, AgentType};
 use crate::runtime_status;
 use crate::sound::SoundEvent;
 use crate::theme::Config;
-use crate::tmux_dispatch;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;

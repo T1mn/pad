@@ -8,7 +8,7 @@ Security problems go to `SECURITY.md`, not to the issue tracker.
 
 ## Repository layout
 
-- `rust-tui/` — the crate. `pad` and the `pad-sider` panel live here.
+- `rust-tui/` — the crate containing the `pad` TUI and native terminal runtime.
 - `install/` — installer modules; `install.sh` at the root is generated from them.
 - `scripts/` — build helpers, hook bridge, CI checks.
 - `docs/` — platform support, agent compatibility, release checklist.
@@ -91,12 +91,12 @@ Use [Conventional Commits](https://www.conventionalcommits.org/), matching the e
 
 ```
 feat(relay): add real chat provider probes
-fix(tmux): target writable client on handoff
+fix(terminal): preserve pane focus on handoff
 perf(sidebar): reduce search allocations
 ```
 
 Common types here: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `ci`, `chore`. The scope is the
-subsystem (`relay`, `tmux`, `pad-sider`, `session-cache`, ...). Keep the subject in the imperative
+subsystem (`relay`, `terminal`, `sidebar`, `session-cache`, ...). Keep the subject in the imperative
 and lowercase.
 
 ## Pull requests

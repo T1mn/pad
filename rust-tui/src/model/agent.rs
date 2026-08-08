@@ -35,20 +35,6 @@ impl AgentType {
         }
     }
 
-    pub fn emoji(&self) -> &'static str {
-        match self {
-            AgentType::Claude => "🟣C",
-            AgentType::Codex => "🔵X",
-            AgentType::Grok => "🔴G",
-            AgentType::Kimi => "🟢K",
-            AgentType::Gemini => "🔷G",
-            AgentType::OpenCode => "🟠O",
-            AgentType::Aider => "🟡A",
-            AgentType::Cursor => "🟤R",
-            AgentType::Unknown => "⚪?",
-        }
-    }
-
     pub fn from_processes(processes: &str) -> Self {
         if contains_ascii_ignore_case(processes, "claude") {
             AgentType::Claude
@@ -72,45 +58,9 @@ impl AgentType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GitInfo {
-    pub branch: Option<String>,
-    pub commit: Option<String>,
-    pub changed_files: usize,
-}
-
-/// Agent state detected from pane content
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AgentState {
     Idle,
     Busy,
     Waiting,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AgentStateSource {
-    Scanner,
-    Hook,
-    Native,
-}
-
-impl AgentState {
-    pub fn icon(&self, animation_frame: usize) -> &'static str {
-        match self {
-            AgentState::Idle => " ",
-            AgentState::Busy => match animation_frame % 10 {
-                0 => "⠋",
-                1 => "⠙",
-                2 => "⠹",
-                3 => "⠸",
-                4 => "⠼",
-                5 => "⠴",
-                6 => "⠦",
-                7 => "⠧",
-                8 => "⠇",
-                _ => "⠏",
-            },
-            AgentState::Waiting => "●",
-        }
-    }
 }

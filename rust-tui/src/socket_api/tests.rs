@@ -23,7 +23,7 @@ mod handler {
     }
 
     #[test]
-    fn prompt_dry_run_does_not_touch_tmux() {
+    fn prompt_dry_run_does_not_touch_native_pane() {
         let response = handle_request(ApiRequest {
             action: "prompt".into(),
             pane_id: Some("%1".into()),
@@ -70,12 +70,76 @@ mod peer {
 }
 
 mod server {
-    use super::super::server::start_api_listener;
+    use super::super::model::ApiResponse;
+    use super::super::server::{
+        command_output_bounded, requires_ui_state, start_api_listener, ApiCall,
+    };
     use super::super::socket_file::bind_private_listener;
     use std::io::ErrorKind;
     use std::os::unix::fs::PermissionsExt;
     use std::os::unix::net::UnixListener as StdUnixListener;
     use std::path::{Path, PathBuf};
+    use std::time::{Duration, Instant};
+    use tokio::sync::oneshot;
+
+    #[test]
+    fn only_native_pane_actions_are_routed_through_the_ui() {
+        for action in ["status", "prompt", "capture", "escape", "approval"] {
+            assert!(requires_ui_state(action));
+        }
+        for action in [
+            "inbox",
+            "mark_read",
+            "browser_open",
+            "remote_exec",
+            "missing",
+        ] {
+            assert!(!requires_ui_state(action));
+        }
+    }
+
+    #[test]
+    fn ui_call_execution_is_claimed_once_and_cancelled_at_the_boundary() {
+        let (response, _receiver) = oneshot::channel::<ApiResponse>();
+        let pending = ApiCall {
+            request: Default::default(),
+            response,
+            deadline: Instant::now() + Duration::from_secs(1),
+            state: Default::default(),
+        };
+        assert!(pending.try_begin());
+        assert!(!pending.try_begin());
+
+        let (response, receiver) = oneshot::channel::<ApiResponse>();
+        drop(receiver);
+        let dropped = ApiCall {
+            request: Default::default(),
+            response,
+            deadline: Instant::now() + Duration::from_secs(1),
+            state: Default::default(),
+        };
+        assert!(!dropped.try_begin());
+
+        let (response, _receiver) = oneshot::channel::<ApiResponse>();
+        let expired = ApiCall {
+            request: Default::default(),
+            response,
+            deadline: Instant::now() - Duration::from_millis(1),
+            state: Default::default(),
+        };
+        assert!(!expired.try_begin());
+    }
+
+    #[tokio::test]
+    async fn background_command_output_has_a_hard_memory_limit() {
+        let result = command_output_bounded(
+            "/bin/sh".into(),
+            vec!["-c".into(), "while :; do printf 1234567890; done".into()],
+        )
+        .await;
+
+        assert!(result.unwrap_err().contains("byte limit"));
+    }
 
     fn mode_of(path: &Path) -> u32 {
         std::fs::metadata(path)

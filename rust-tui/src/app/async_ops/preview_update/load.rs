@@ -75,10 +75,6 @@ mod tick {
 
     impl App {
         pub fn check_preview_update(&mut self) {
-            if self.scan_in_progress && !self.preview.priority_refresh {
-                return;
-            }
-
             if !self.preview_navigation_debounce_elapsed() {
                 return;
             }

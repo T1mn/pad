@@ -47,9 +47,7 @@ use self::simple::{detail_body_line, draw_simple_detail, simple_value_line};
 use self::telegram::draw_telegram_detail;
 use super::super::relay::draw_relay_in_area;
 use super::codex::draw_codex_detail;
-use super::detail_lists::{
-    draw_agent_style_detail, draw_language_detail, draw_sound_detail, draw_theme_detail,
-};
+use super::detail_lists::{draw_language_detail, draw_sound_detail, draw_theme_detail};
 use crate::app::state::SettingsDetailKind;
 use crate::app::App;
 use crate::i18n::t;
@@ -84,7 +82,6 @@ pub(super) fn draw_settings_detail_panel(f: &mut Frame, app: &App, area: Rect) {
         SettingsDetailKind::Sound => draw_sound_detail(f, app, area),
         SettingsDetailKind::Relay => draw_relay_in_area(f, app, area),
         SettingsDetailKind::Telegram => draw_telegram_detail(f, app, area),
-        SettingsDetailKind::AgentStyle => draw_agent_style_detail(f, app, area),
         SettingsDetailKind::PreviewMode => draw_simple_detail(
             f,
             app,

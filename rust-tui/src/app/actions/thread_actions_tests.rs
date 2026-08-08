@@ -28,8 +28,6 @@ fn opencode_thread_can_open_archive_confirm() {
         sort_updated_at: 1,
         live_pane_id: None,
         live_location: None,
-        pid: None,
-        git_info: None,
         state: crate::model::AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),

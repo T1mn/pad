@@ -2,9 +2,7 @@ use super::super::*;
 use crate::app::state::FocusTarget;
 use crate::event::mouse;
 use crate::event::normal::handle_normal_mode;
-use crate::model::{
-    AgentPanel, AgentState, AgentStateSource, AgentType, PreviewSource, PreviewTurn, PreviewView,
-};
+use crate::model::{AgentPanel, AgentState, AgentType, PreviewSource, PreviewTurn, PreviewView};
 use crossterm::event::{
     KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent,
     MouseEventKind,
@@ -25,13 +23,9 @@ pub(super) fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
         working_dir: working_dir.into(),
         is_active: true,
         state: AgentState::Idle,
-        state_source: AgentStateSource::Scanner,
         transcript_path: None,
         cached_preview_turns: Default::default(),
         session_cache_state: None,
-        git_info: None,
-        pid: None,
-        start_time: None,
         agent_session_id: None,
         last_user_prompt: None,
         last_assistant_message: None,
@@ -109,9 +103,10 @@ mod mouse_tests {
         assert_eq!(app.table_state.selected(), Some(3));
     }
     #[test]
-    fn mouse_click_on_second_line_of_thread_row_selects_same_item() {
+    fn mouse_click_on_second_thread_row_selects_the_second_thread() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
+        app.panels.push(sample_panel("%2", "/tmp/alpha"));
         app.sidebar.expanded_folders.insert("/tmp/alpha".into());
         app.invalidate_sidebar_visible_cache();
 
@@ -121,7 +116,7 @@ mod mouse_tests {
 
         mouse::handle_normal_mouse(&mut app, area, click);
 
-        assert_eq!(app.table_state.selected(), Some(1));
+        assert_eq!(app.table_state.selected(), Some(2));
     }
     #[test]
     fn mouse_click_on_session_turn_selects_then_expands_on_repeat() {
@@ -377,7 +372,6 @@ mod sidebar_keys {
             let target = home.join("project");
             std::fs::create_dir_all(&target).unwrap();
             let mut app = App::new();
-            app.runtime_mode = crate::runtime_mode::RuntimeMode::Native;
             app.start_native_terminal(crate::terminal_runtime::TerminalSize::new(80, 24))
                 .unwrap();
             let native_pane = app
@@ -390,7 +384,7 @@ mod sidebar_keys {
                 )
                 .unwrap();
 
-            assert!(app.focus_terminal_tab(0));
+            assert!(app.focus_terminal_tab(0).unwrap());
             app.focus_panel();
             let mut terminal = test_terminal();
             handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Enter)).unwrap();
@@ -399,5 +393,27 @@ mod sidebar_keys {
             assert!(app.terminal_is_focused());
             app.shutdown_native_terminal().unwrap();
         });
+    }
+
+    #[test]
+    fn enter_on_stale_external_live_entry_shows_native_mode_notice() {
+        let mut app = App::new();
+        app.panels.push(sample_panel("%legacy", "/tmp/legacy"));
+        app.sidebar.expanded_folders.insert("/tmp/legacy".into());
+        app.invalidate_sidebar_visible_cache();
+        app.sync_sidebar_selection();
+        app.select_sidebar_index(1, false);
+
+        let mut terminal = test_terminal();
+        handle_normal_mode(&mut terminal, &mut app, key(KeyCode::Enter)).unwrap();
+
+        let toast = app
+            .preview
+            .copy_toast
+            .as_ref()
+            .expect("stale live entry should show a notice");
+        assert_eq!(toast.title, "Terminal unavailable");
+        assert!(toast.content_preview.contains("Native mode"));
+        assert!(!app.terminal_is_focused());
     }
 }

@@ -1,34 +1,6 @@
 mod command {
-    use std::ffi::OsString;
-    use std::io;
-    use std::path::Path;
-    use std::process::Command;
-
-    pub(super) fn attach_opencode_server(
-        url: &str,
-        cwd: &Path,
-        command: &OsString,
-    ) -> io::Result<()> {
-        let status = Command::new("tmux")
-            .args(["new-window", "-c"])
-            .arg(cwd)
-            .arg(attach_command(url, command))
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!(
-                "tmux new-window exited with {status}"
-            )))
-        }
-    }
-
-    pub(in crate::app::actions) fn attach_command(url: &str, command: &OsString) -> String {
-        format!(
-            "{} attach {}",
-            crate::codex_runtime::shell_single_quote(&command.to_string_lossy()),
-            crate::codex_runtime::shell_single_quote(url)
-        )
+    pub(in crate::app::actions) fn attach_command(url: &str, command: &str) -> String {
+        super::super::opencode_cli::command_with_args(command, ["attach", url])
     }
 }
 mod text {
@@ -89,14 +61,11 @@ impl App {
             .map(|thread| PathBuf::from(thread.working_dir))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-        match command::attach_opencode_server(
-            &url,
-            &cwd,
-            &opencode_cli::opencode_command(&self.config),
-        ) {
-            Ok(()) => {
+        let command = command::attach_command(&url, &opencode_cli::opencode_command(&self.config));
+        match self.launch_native_agent_action("OpenCode Attach", &command, AgentType::OpenCode, cwd)
+        {
+            Ok(_) => {
                 self.show_action_toast(text::attach_saved_title(self.locale), &url);
-                self.schedule_delayed_scan(800);
                 true
             }
             Err(err) => {

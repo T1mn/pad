@@ -13,7 +13,6 @@ fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
         );
 
         let mut app = App::new();
-        app.runtime_mode = crate::runtime_mode::RuntimeMode::Native;
         app.start_native_terminal(TerminalSize::new(80, 24))
             .unwrap();
         app.open_agent_launcher(target.clone());
@@ -28,7 +27,6 @@ fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
         assert!(app.terminal_is_focused());
         assert_eq!(app.terminal_workspace().tabs.len(), 2);
         assert_eq!(app.terminal_workspace().panes.len(), 2);
-        assert!(app.delayed_scan_at.is_none());
         let agent_pane_id = app.focused_terminal_pane_id().unwrap();
         let pane = app.focused_terminal_pane().unwrap();
         assert_eq!(pane.cwd(), target);

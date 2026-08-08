@@ -7,7 +7,6 @@ REPO="T1mn/pad"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
-INSTALL_TMUX_COMPAT="${PAD_INSTALL_TMUX_COMPAT:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
 DISABLE_SOURCE_FALLBACK="${PAD_INSTALL_DISABLE_SOURCE_FALLBACK:-0}"
 DEFAULT_RELEASE_BASE_URL="https://github.com/${REPO}/releases/download"
@@ -52,10 +51,6 @@ ok() {
 
 err() {
   say "${RED}$*${NC}" >&2
-}
-
-check_tmux() {
-  command -v tmux >/dev/null 2>&1
 }
 
 check_rust() {
@@ -499,39 +494,6 @@ detect_build_install_plan() {
   return 1
 }
 
-detect_tmux_install_plan() {
-  case "$(get_os)" in
-    macos)
-      if check_command brew; then
-        echo "brew"
-        return 0
-      fi
-      ;;
-    linux)
-      for tool in apt-get dnf yum pacman zypper apk brew; do
-        if check_command "$tool"; then
-          echo "$tool"
-          return 0
-        fi
-      done
-      ;;
-  esac
-  return 1
-}
-
-tmux_manual_hint() {
-  case "$1" in
-    brew) echo "brew install tmux" ;;
-    apt-get) echo "sudo apt-get update && sudo apt-get install -y tmux" ;;
-    dnf) echo "sudo dnf install -y tmux" ;;
-    yum) echo "sudo yum install -y tmux" ;;
-    pacman) echo "sudo pacman -Sy --noconfirm tmux" ;;
-    zypper) echo "sudo zypper --non-interactive install tmux" ;;
-    apk) echo "sudo apk add tmux" ;;
-    *) echo "install tmux with your system package manager" ;;
-  esac
-}
-
 run_as_root_or_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
@@ -547,64 +509,9 @@ ensure_root_or_sudo() {
     return 0
   fi
 
-  err "✗ tmux installation requires root or sudo access"
-  say "  Manual command: $(tmux_manual_hint "$1")"
+  err "✗ build tool installation requires root or sudo access"
+  say "  Manual command: $(build_tools_manual_hint "$1")"
   exit 1
-}
-
-install_tmux() {
-  if check_tmux; then
-    ok "✓ tmux already installed: $(tmux -V 2>/dev/null || echo tmux)"
-    return 0
-  fi
-
-  local plan
-  if ! plan="$(detect_tmux_install_plan)"; then
-    err "✗ tmux compatibility was requested, but no supported package manager was detected"
-    say "  Native mode is already available; install tmux manually only for pad --tmux"
-    exit 1
-  fi
-
-  warn "! tmux is not installed"
-  if ! prompt_yes "Install optional tmux compatibility support now?"; then
-    warn "! Skipping optional tmux compatibility support"
-    say "  Manual command: $(tmux_manual_hint "$plan")"
-    return 0
-  fi
-
-  ensure_root_or_sudo "$plan"
-  say "${BLUE}Installing tmux via ${plan}...${NC}"
-  case "$plan" in
-    brew)
-      brew install tmux
-      ;;
-    apt-get)
-      run_as_root_or_sudo apt-get update
-      run_as_root_or_sudo apt-get install -y tmux
-      ;;
-    dnf)
-      run_as_root_or_sudo dnf install -y tmux
-      ;;
-    yum)
-      run_as_root_or_sudo yum install -y tmux
-      ;;
-    pacman)
-      run_as_root_or_sudo pacman -Sy --noconfirm tmux
-      ;;
-    zypper)
-      run_as_root_or_sudo zypper --non-interactive install tmux
-      ;;
-    apk)
-      run_as_root_or_sudo apk add tmux
-      ;;
-  esac
-
-  if check_tmux; then
-    ok "✓ tmux installed: $(tmux -V 2>/dev/null || echo tmux)"
-  else
-    err "✗ tmux install command completed but tmux is still missing"
-    exit 1
-  fi
 }
 
 build_tools_ready() {
@@ -1020,7 +927,7 @@ show_success() {
   say "  1. Run: pad"
   say "  2. Press Tab to focus PAD's native terminal"
   say "  3. Press F12 to return to PAD controls"
-  say "  4. Optional legacy mode: pad --tmux"
+  say "  4. Press F11 to open native terminal commands"
 }
 
 show_help() {
@@ -1035,14 +942,11 @@ What this script does:
   1. Try to download a matching release binary
   2. Verify it against the release SHA256SUMS before extracting
   3. Fall back to building from source if needed
-  4. Optionally install tmux compatibility when explicitly requested
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
   PAD_INSTALL_ASSUME_YES Auto-confirm installer prompts when set to 1
-  PAD_INSTALL_TMUX_COMPAT
-                         Install optional tmux support for pad --tmux when set to 1
   PAD_INSTALL_ALLOW_UNVERIFIED
                          Install even when the archive cannot be checked against
                          SHA256SUMS (unsafe; only for sources you fully trust)
@@ -1058,8 +962,8 @@ Environment variables:
                          Useful for CI and local installer smoke tests
 
 Notes:
-  - Native mode does not require tmux.
-  - On WSL2, run PAD inside WSL; tmux is needed there only for pad --tmux.
+  - PAD runs agent shells in its own native PTY terminal.
+  - On WSL2, install and run PAD inside the same WSL environment as the agent CLIs.
 EOF
 }
 
@@ -1090,13 +994,6 @@ main() {
     install_from_source
   fi
 
-  if [ "${INSTALL_TMUX_COMPAT}" = "1" ]; then
-    install_tmux
-  elif check_tmux; then
-    ok "✓ Optional tmux compatibility available: $(tmux -V 2>/dev/null || echo tmux)"
-  else
-    say "Native mode is ready; tmux compatibility was not requested."
-  fi
   ensure_default_codex_jailbreak_prompt
   ensure_default_codex_index_prompt
   show_path_hint

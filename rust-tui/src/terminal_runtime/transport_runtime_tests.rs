@@ -131,7 +131,7 @@ fn drain_events_returns_all_buffered_events_in_order() {
 #[test]
 fn worker_name_is_safe_and_visible_inside_transport() {
     let transport = ThreadNameTransport {
-        id: TransportId::new("tmux pane/\0unicode-界"),
+        id: TransportId::new("native pane/\0unicode-界"),
     };
     let mut handle = TransportRuntime::new(1, 1)
         .unwrap()

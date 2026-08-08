@@ -192,7 +192,6 @@ jobs:
           bash ./install.sh
           "${INSTALL_DIR}/pad" --help
           "${INSTALL_DIR}/pad" --version
-          "${INSTALL_DIR}/pad" --tmux-doctor
 
   linux-prebuilt-glibc-fixture:
     name: Linux prebuilt fixture (glibc)

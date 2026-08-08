@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PreviewSource {
-    Tmux,
+    Plain,
     Session,
 }
 

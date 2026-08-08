@@ -19,7 +19,7 @@ pub(super) async fn process_direct_hook_event(
         return Ok(());
     }
 
-    let Some(pane_id) = event.tmux.pane_id.as_deref() else {
+    let Some(pane_id) = event.terminal.pane_id.as_deref() else {
         return Ok(());
     };
 

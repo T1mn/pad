@@ -27,8 +27,6 @@ fn thread_with_dir(working_dir: &str) -> SidebarThread {
         sort_updated_at: 0,
         live_pane_id: None,
         live_location: None,
-        pid: None,
-        git_info: None,
         state: AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),

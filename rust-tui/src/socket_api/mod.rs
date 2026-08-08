@@ -28,7 +28,7 @@ mod cli {
         Ok(())
     }
 }
-mod client {
+pub(crate) mod client {
     use super::model::{ApiRequest, ApiResponse};
     use std::io::{self, BufRead, BufReader, Write};
     use std::os::unix::net::UnixStream;
@@ -48,14 +48,14 @@ mod client {
         })
     }
 }
-mod handler;
-mod model;
+pub(crate) mod handler;
+pub(crate) mod model;
 pub(crate) mod peer;
 mod server;
 pub(crate) mod socket_file;
 
 pub use cli::run_args;
-pub use server::start_api_listener;
+pub use server::{start_api_listener, ApiReceiver};
 
 #[cfg(test)]
 mod tests;

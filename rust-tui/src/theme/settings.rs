@@ -1,19 +1,4 @@
 #[derive(Clone, Debug, PartialEq)]
-pub struct DesiredAgentStyle {
-    pub zoom: String,
-    pub status: String,
-}
-
-impl Default for DesiredAgentStyle {
-    fn default() -> Self {
-        Self {
-            zoom: "auto".to_string(),
-            status: "show".to_string(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct PreviewConfig {
     pub mode: String,
 }
@@ -21,7 +6,7 @@ pub struct PreviewConfig {
 impl Default for PreviewConfig {
     fn default() -> Self {
         Self {
-            mode: "auto".to_string(),
+            mode: "session".to_string(),
         }
     }
 }

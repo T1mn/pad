@@ -1,6 +1,6 @@
 use super::codex::codex_thread_for_working_dir;
 use super::opencode::opencode_thread_for_working_dir;
-use crate::model::{AgentState, AgentType};
+use crate::model::AgentType;
 use crate::preview_source::PreviewRequest;
 use std::path::Path;
 
@@ -32,19 +32,6 @@ pub(crate) fn resolved_session_id_for_request(
                     .and_then(Path::file_name)
                     .and_then(|name| name.to_str())
                     .map(str::to_string)
-            } else {
-                None
-            }
-        })
-        .or_else(|| {
-            if request.transcript_path.is_none()
-                && request.agent_type == AgentType::Codex
-                && request.state == AgentState::Idle
-            {
-                request
-                    .live_pane_id
-                    .as_deref()
-                    .and_then(crate::preview_source::codex::resolve_live_session_id)
             } else {
                 None
             }

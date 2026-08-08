@@ -1,13 +1,11 @@
-use std::ffi::OsString;
 use std::io;
-use std::process::Command;
 
 pub(in crate::app::actions) struct DiagnosticsSection {
     pub(in crate::app::actions) title: &'static str,
     pub(in crate::app::actions) body: String,
 }
 
-pub(super) fn collect_diagnostics_sections(command: &OsString) -> Vec<DiagnosticsSection> {
+pub(super) fn collect_diagnostics_sections(command: &str) -> Vec<DiagnosticsSection> {
     [
         diagnostics_section(command, "version", &["--version"]),
         diagnostics_section(command, "db path", &["db", "path"]),
@@ -23,11 +21,7 @@ pub(super) fn collect_diagnostics_sections(command: &OsString) -> Vec<Diagnostic
     .collect()
 }
 
-fn diagnostics_section(
-    command: &OsString,
-    title: &'static str,
-    args: &[&str],
-) -> DiagnosticsSection {
+fn diagnostics_section(command: &str, title: &'static str, args: &[&str]) -> DiagnosticsSection {
     let body = match run_opencode(command, args) {
         Ok(output) => output,
         Err(err) => format!("ERROR: {err}"),
@@ -35,8 +29,8 @@ fn diagnostics_section(
     DiagnosticsSection { title, body }
 }
 
-fn run_opencode(command: &OsString, args: &[&str]) -> io::Result<String> {
-    let output = Command::new(command).args(args).output()?;
+fn run_opencode(command: &str, args: &[&str]) -> io::Result<String> {
+    let output = super::super::opencode_cli::run_with_args(command, args, None)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(if stderr.is_empty() {

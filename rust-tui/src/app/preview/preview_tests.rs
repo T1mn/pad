@@ -3,8 +3,7 @@ use crate::app::{
     App, PreviewDetailCache, ThreadPreviewCacheEntry, THREAD_PREVIEW_CACHE_MAX_ENTRIES,
 };
 use crate::model::{
-    AgentPanel, AgentState, AgentStateSource, AgentType, PreviewSource, PreviewTurn, PreviewView,
-    SessionCacheState,
+    AgentPanel, AgentState, AgentType, PreviewSource, PreviewTurn, PreviewView, SessionCacheState,
 };
 use crate::preview_source::PreviewUpdate;
 use crate::sidebar::ThreadActivityOverride;

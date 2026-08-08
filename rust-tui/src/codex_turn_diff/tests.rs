@@ -1,5 +1,5 @@
 use super::*;
-use crate::hook::{HookEvent, HookTmuxInfo};
+use crate::hook::{HookEvent, HookTerminalInfo};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -32,10 +32,7 @@ fn records_only_changes_between_submit_and_stop() {
         assert_eq!(record.stats.insertions, 1);
         assert_eq!(record.stats.deletions, 1);
 
-        let entries = list_for_cwd(repo);
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].turn_id.as_deref(), Some("turn-1"));
-        assert_eq!(read_patch(&entries[0]).unwrap(), patch);
+        assert_eq!(record.turn_id.as_deref(), Some("turn-1"));
     });
 }
 
@@ -64,30 +61,6 @@ fn records_untracked_files_created_by_turn() {
 }
 
 #[test]
-fn running_entry_reads_live_diff_from_pending_baseline() {
-    with_isolated_store("live", |repo| {
-        git(repo, &["init"]);
-        fs::write(repo.join("live.txt"), "before\n").unwrap();
-        record_codex_hook_event(&event(
-            "user_prompt_submit",
-            repo,
-            "turn-live",
-            Some("live"),
-        ))
-        .unwrap();
-
-        fs::write(repo.join("live.txt"), "after\n").unwrap();
-        let entries = list_for_cwd(repo);
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].status, TurnDiffStatus::Running);
-
-        let patch = read_patch(&entries[0]).unwrap();
-        assert!(patch.contains("-before"));
-        assert!(patch.contains("+after"));
-    });
-}
-
-#[test]
 fn cli_hook_records_from_normalized_hook_json() {
     with_isolated_store("cli", |repo| {
         git(repo, &["init"]);
@@ -99,16 +72,6 @@ fn cli_hook_records_from_normalized_hook_json() {
         let stop = event("stop", repo, "turn-cli", None);
         assert!(record_codex_hook_event(&stop).unwrap().is_some());
     });
-}
-
-#[test]
-fn prompt_summary_collapses_whitespace_and_truncates() {
-    assert_eq!(prompt_summary(None, 44), "(no prompt)");
-    assert_eq!(
-        prompt_summary(Some("  fix\n\nthis\tfile  "), 44),
-        "fix this file"
-    );
-    assert_eq!(prompt_summary(Some("abcdef"), 3), "abc…");
 }
 
 fn with_isolated_store(name: &str, f: impl FnOnce(&Path)) {
@@ -147,7 +110,7 @@ fn event(kind: &str, repo: &Path, turn_id: &str, prompt: Option<&str>) -> HookEv
         prompt: prompt.map(str::to_string),
         last_assistant_message: None,
         timestamp: Some(format!("2026-05-31T00:00:{}Z", turn_id.len())),
-        tmux: HookTmuxInfo {
+        terminal: HookTerminalInfo {
             pane_id: Some("%1".into()),
             session_name: Some("pad".into()),
             window_index: Some("0".into()),

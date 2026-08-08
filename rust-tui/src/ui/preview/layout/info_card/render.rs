@@ -32,7 +32,6 @@ pub(super) fn render_info_card(
         Line::from(info_badge_spans(theme, thread, values)),
         info_value_line("LOC", &values.location, label_width, inner.width, theme),
         info_value_line("PATH", &values.path_text, label_width, inner.width, theme),
-        info_value_line("GIT", &values.git_text, label_width, inner.width, theme),
         info_value_line("SID", &values.session_id, label_width, inner.width, theme),
         info_value_line(
             "PROV",
@@ -70,23 +69,9 @@ fn info_badge_spans(
     )];
     spans.push(Span::raw(" "));
     spans.push(preview_badge(values.status_label, theme.bg, status_color));
-    spans.push(Span::raw(" "));
-    spans.push(preview_badge(
-        &format!("PID {}", thread.pid.as_deref().unwrap_or("—")),
-        theme.fg,
-        theme.bg,
-    ));
     if let Some(label) = values.cache_badge_label {
         spans.push(Span::raw(" "));
         spans.push(preview_badge(label, theme.bg, theme.warning));
-    }
-    if let Some(branch) = values.branch.as_deref() {
-        spans.push(Span::raw(" "));
-        spans.push(preview_badge(
-            &truncate_to_width(branch, 16),
-            theme.fg,
-            theme.bg,
-        ));
     }
     spans
 }

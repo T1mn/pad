@@ -9,14 +9,9 @@ pub(in crate::sidebar::build) fn merge_or_insert_thread(
     mut history_entry: SidebarThread,
     activity_overrides: &[ThreadActivityOverride],
     thread_sort_activity: &HashMap<String, i64>,
-    startup_thread_sort_activity: &HashMap<String, i64>,
 ) {
     apply_activity_override(&mut history_entry, activity_overrides);
-    apply_sort_activity(
-        &mut history_entry,
-        thread_sort_activity,
-        startup_thread_sort_activity,
-    );
+    apply_sort_activity(&mut history_entry, thread_sort_activity);
 
     let Some(existing) = matching_existing_thread(threads, &history_entry) else {
         threads.push(Arc::new(history_entry));
@@ -25,7 +20,7 @@ pub(in crate::sidebar::build) fn merge_or_insert_thread(
 
     merge_history_into_existing(existing, history_entry);
     apply_activity_override(existing, activity_overrides);
-    apply_sort_activity(existing, thread_sort_activity, startup_thread_sort_activity);
+    apply_sort_activity(existing, thread_sort_activity);
 }
 
 fn matching_existing_thread<'a>(

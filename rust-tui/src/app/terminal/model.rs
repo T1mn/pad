@@ -41,6 +41,7 @@ pub enum TerminalProfile {
     Shell,
     Codex,
     Claude,
+    OpenCode,
     GithubCli,
 }
 
@@ -50,6 +51,7 @@ impl TerminalProfile {
             Self::Shell => "Shell",
             Self::Codex => "Codex",
             Self::Claude => "Claude",
+            Self::OpenCode => "OpenCode",
             Self::GithubCli => "GitHub CLI",
         }
     }
@@ -59,6 +61,7 @@ impl TerminalProfile {
             Self::Shell => TerminalCommandDefinition::default_shell(),
             Self::Codex => TerminalCommandDefinition::program("codex"),
             Self::Claude => TerminalCommandDefinition::program("claude"),
+            Self::OpenCode => TerminalCommandDefinition::program("opencode"),
             // `gh` is a one-shot CLI and exits immediately without a
             // subcommand. Keep this profile alive as an interactive shell in
             // a clearly labelled GitHub workspace instead.

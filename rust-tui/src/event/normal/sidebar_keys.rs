@@ -1,20 +1,9 @@
 use crate::app::state::Mode;
 use crate::app::App;
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{backend::Backend, Terminal};
-use std::io;
 use std::time::Duration;
 
-pub(super) fn handle_sidebar_key<B: Backend, F>(
-    terminal: &mut Terminal<B>,
-    app: &mut App,
-    key: KeyEvent,
-    is_space: bool,
-    attach_fn: &mut F,
-) -> io::Result<()>
-where
-    F: FnMut(&mut Terminal<B>, &mut App) -> io::Result<()>,
-{
+pub(super) fn handle_sidebar_key(app: &mut App, key: KeyEvent, is_space: bool) {
     const DOUBLE_SPACE_WINDOW: Duration = Duration::from_millis(250);
 
     if is_space && !app.sidebar.show_tree {
@@ -24,7 +13,7 @@ where
         } else {
             let _ = app.queue_pending_sidebar_space_action(DOUBLE_SPACE_WINDOW);
         }
-        return Ok(());
+        return;
     }
 
     match key.code {
@@ -79,9 +68,13 @@ where
                     .and_then(|thread| thread.live_pane_id)
                 {
                     if App::is_native_agent_terminal_id(&live_pane_id) {
-                        let _ = app.focus_native_agent_terminal(&live_pane_id);
+                        match app.focus_native_agent_terminal(&live_pane_id) {
+                            Ok(true) => {}
+                            Ok(false) => show_unavailable_terminal(app, &live_pane_id),
+                            Err(error) => app.show_action_toast("PAD Terminal", &error.to_string()),
+                        }
                     } else {
-                        attach_fn(terminal, app)?;
+                        show_unavailable_terminal(app, &live_pane_id);
                     }
                 } else {
                     app.invalidate_preview();
@@ -92,6 +85,11 @@ where
         },
         _ => {}
     }
+}
 
-    Ok(())
+fn show_unavailable_terminal(app: &mut App, pane_id: &str) {
+    app.show_action_toast(
+        "Terminal unavailable",
+        &format!("Native mode cannot open this legacy live entry ({pane_id})."),
+    );
 }

@@ -93,7 +93,7 @@ mod matching {
         state: &TelegramState,
         event: &HookEvent,
     ) -> Option<usize> {
-        let pane_id = event.tmux.pane_id.as_deref()?;
+        let pane_id = event.terminal.pane_id.as_deref()?;
         let pending_index = pending_request_index_by_pane(state, pane_id)?;
         let pending = state.pending_requests.get(pending_index)?;
         match event.event.as_str() {

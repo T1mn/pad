@@ -55,6 +55,4 @@ docker run --rm \
 
     "$HOME/.local/bin/pad" --help >/dev/null
     "$HOME/.local/bin/pad" --version
-    "$HOME/.local/bin/pad" --tmux-doctor
-    tmux -V
   '

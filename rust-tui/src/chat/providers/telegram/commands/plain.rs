@@ -70,7 +70,7 @@ pub(crate) async fn handle_plain_text(
         return Ok(());
     }
 
-    tmux_dispatch::dispatch_prompt(&panel.pane_id, text).map_err(telegram_error)?;
+    terminal_remote::dispatch_prompt(&panel.pane_id, text).map_err(telegram_error)?;
     invalidate_live_panels();
     let request_id = next_request_id();
     let transcript_path = panel.transcript_path.clone();

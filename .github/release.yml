@@ -22,7 +22,6 @@ changelog:
       labels:
         - ui
         - ux
-        - pad-sider
     - title: CI / Release
       labels:
         - ci

@@ -9,10 +9,7 @@ pub(super) async fn handle_restart_command(config: &Config, chat_id: &str) -> Te
             return Ok(());
         }
     };
-    let preparing_key = match plan.target {
-        PadRestartTarget::RespawnPane(_) => "restart.preparing",
-        PadRestartTarget::NewDetachedSession(_) => "restart.starting",
-    };
+    let preparing_key = "restart.starting";
     send_text(
         &config.telegram.bot_token,
         chat_id,

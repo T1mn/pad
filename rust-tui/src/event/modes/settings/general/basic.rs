@@ -59,11 +59,7 @@ pub(in crate::event::modes::settings) fn handle_preview_mode_detail_mode(
     match key {
         KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => app.leave_settings_detail(),
         KeyCode::Enter | KeyCode::Char(' ') => {
-            app.config.preview.mode = match app.config.preview.mode.as_str() {
-                "auto" => "tmux".to_string(),
-                "tmux" => "session".to_string(),
-                _ => "auto".to_string(),
-            };
+            app.config.preview.mode = "session".to_string();
             app.save_config();
             app.invalidate_preview();
             app.dirty = true;

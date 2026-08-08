@@ -1,5 +1,0 @@
-# tmux_dispatch
-
-- `prompt.rs` / `prompt/`: prompt delivery via literal send or tmux paste buffer, with submit delay helpers.
-- `pane.rs`: direct pane/session command helpers such as send key, respawn and detached session creation.
-- `query.rs` / `query_tests.rs`: capture, session existence and pane listing queries.

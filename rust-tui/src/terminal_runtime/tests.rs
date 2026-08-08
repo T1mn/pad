@@ -405,7 +405,7 @@ fn pane_runtime_keeps_label_outside_terminal_engine() {
                 id: pane_id.clone(),
                 label: "Codex · API".to_string(),
                 engine_id: EngineId::new(ALACRITTY_ENGINE_ID),
-                transport_id: TransportId::new("tmux-control"),
+                transport_id: TransportId::new("native-control"),
             },
             TerminalSize::new(20, 3),
         )

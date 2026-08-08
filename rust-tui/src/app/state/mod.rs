@@ -16,7 +16,6 @@ pub enum Mode {
     FuzzyPicker,
     RelaySettings,
     FilePreview,
-    AgentStyleSettings,
     TelegramSettings,
     NotificationInbox,
 }
@@ -42,7 +41,6 @@ pub enum SettingsDetailKind {
     Sound,
     Relay,
     Telegram,
-    AgentStyle,
     PreviewMode,
     DisplayMode,
     Trash,

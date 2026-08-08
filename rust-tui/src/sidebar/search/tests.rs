@@ -27,8 +27,6 @@ fn sample_thread(key: &str, title: &str) -> super::super::model::SidebarThread {
         sort_updated_at: 1,
         live_pane_id: Some("%1".into()),
         live_location: Some("0:1.1".into()),
-        pid: None,
-        git_info: None,
         state: AgentState::Idle,
         is_active: true,
         cached_preview_turns: Default::default(),

@@ -12,12 +12,12 @@ You can see which session moved, read recent conversation history, and only then
 
 - Manage multiple AI agent sessions from one workspace.
 - Read recent conversation history before you attach to a pane.
-- Pure Rust. Native PTY by default, with explicit tmux compatibility.
+- Pure Rust, with a PAD-owned native PTY terminal.
 - Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.
 
 ## Install
 
-The default native terminal has no tmux runtime requirement. Install `tmux` only if you use `pad --tmux` or legacy tmux-only workflows.
+PAD includes its own native terminal runtime; no external terminal multiplexer is required.
 
 Supported runtime environments:
 
@@ -35,7 +35,7 @@ cd pad
 ./install.sh
 ```
 
-The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. Set `PAD_INSTALL_TMUX_COMPAT=1` to install optional tmux support; source builds bootstrap Rust and common build tools as needed.
+The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. Source builds bootstrap Rust and common build tools as needed.
 
 Installer source is split under `install/`. After editing those modules, regenerate the checked-in single-file `install.sh` with:
 
@@ -51,17 +51,17 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
-PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `pad --tmux` to enter the legacy compatibility runtime. On WSL2, run PAD inside WSL; install tmux there only when using compatibility mode.
+`pad` directly owns the shell PTY and terminal grid. On WSL2, run PAD and the agent CLIs inside the same WSL environment.
 
 ### Native Terminal Workspace
 
 - Press `Tab` to focus the terminal and `F12` to return to the sidebar.
 - `C` still opens PAD's global directory index; it is not used for terminal focus.
-- Choosing a directory and agent from that index opens a native terminal tab in the selected directory and runs the configured agent command there. No tmux session is created in native mode.
+- Choosing a directory and agent from that index opens a native terminal tab in the selected directory and runs the configured agent command there.
 - The selected directory is the child shell's real working directory. For OpenCode this follows the documented `cd /path/to/project && opencode` form (equivalent to `opencode /path/to/project`).
 - The left sidebar is the agent workspace/session navigator: a launched native agent appears there immediately beside discovered history. Press `Enter` on a live native entry to focus its tab/pane; closing that pane removes the live entry.
 - Press `F11` for PAD Terminal commands (`Ctrl+Shift+Space` also works with enhanced keyboard protocols).
-- In the command layer: `1`–`4` create Shell / Codex / Claude / GitHub CLI tabs, `v`/`s` split right/below, `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
+- In the command layer: `1`–`5` create Shell / Codex / Claude / GitHub CLI / OpenCode tabs; `v`/`s` split a shell right/below, while `c`/`a`/`g`/`o` split an agent pane. `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
 - `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.
 - Tabs, splits, labels, profiles, and launch directories persist in `~/.pad/terminal-workspace.json`. Restarting launches fresh PTYs; it does not pretend to restore old processes. Corrupt or newer-schema files are preserved as `terminal-workspace.invalid*.json` before PAD creates a clean workspace.
 - Commands selected from the global agent launcher are runtime-only: after a PAD restart, their labelled tabs restore as safe interactive shells instead of silently re-running configuration text.
@@ -72,7 +72,7 @@ PAD is native-first: `pad` directly owns the shell PTY and terminal grid. Use `p
 
 What this looks like in practice:
 
-- Manage multiple agents in one workspace instead of hunting across tmux panes
+- Manage multiple agents in one workspace instead of hunting across terminal windows
 - Read the latest preview and recent turns on the right before you attach
 - Hit `Tab` to open the latest detail view and `Shift+J` / `Shift+K` to move across Q&A turns
 - Press `F2` to rename a thread, or `T` to edit tags without leaving PAD
@@ -83,7 +83,7 @@ If your Markdown viewer does not render inline video, open the [demo video](http
 
 ## Why PAD
 
-The usual tmux workflow breaks down in a very boring way:
+The usual multi-terminal agent workflow breaks down in a very boring way:
 
 - I have Codex, Claude Code, and Gemini open. Which one actually moved?
 - Which pane moved last?
@@ -97,9 +97,9 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 1. Run `pad`.
 2. Scan the left sidebar for the session that moved.
-3. Press `F10` in your agent pane when you want the project-side code view.
+3. Press `t` when you want the built-in project tree and file preview.
 4. Read the latest turns in preview before you attach.
-5. Hit `Enter` to jump in, then `F12` or `Ctrl+Q` to come back.
+5. Hit `Enter` to jump in, then `F12` to come back.
 
 ## Core Features
 
@@ -108,8 +108,8 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 - Pure Rust TUI with a small footprint and quick session-aware previews
 - Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
 - Session-level monitoring so activity tracking stays focused and cheap
-- In native mode, `Tab` focuses the terminal, `F12` returns, and `Enter` on a live sidebar entry jumps to its native pane; `--tmux` retains tmux attach and `Ctrl+Q`
-- `F10` pad-sider for tree, index map, changes, and file preview beside your agent pane
+- `Tab` focuses the terminal, `F12` returns, and `Enter` on a live sidebar entry jumps to its PAD-owned pane
+- Built-in project tree and file preview without leaving the workspace
 - Archive or restore with agent-specific adapters, without deleting upstream history
 - Relay / proxy settings for supported agents
 - Completion notifications when an agent finishes, on supported desktop backends
@@ -118,8 +118,8 @@ PAD gives you one workspace to scan, preview, attach, archive, and jump back out
 
 ## What PAD Does Not Do
 
-- Native mode does not implement tmux-server persistence or multi-client sharing; use `pad --tmux` when those capabilities matter.
-- Native tabs and splits are real PAD-owned PTYs, not visual tabs layered over tmux.
+- PAD does not preserve running child processes across application restarts or provide multi-client terminal sharing.
+- Native tabs and splits are real PAD-owned PTYs.
 - It does not delete upstream agent history when you archive a thread in PAD; some adapters update upstream archive metadata.
 - It does not take over the agent runtime. It helps you see and jump faster.
 
@@ -168,15 +168,6 @@ Use tree mode when you want to browse code, preview a file, or create a session 
 2. File tree: expand, collapse, and move through directories quickly.
 3. File preview: inspect code immediately on the right.
 4. Tree footer: tree-mode keys stay visible, including nav, expand, attach, create, and help.
-
-### Pad Sider
-
-`F10` opens a helper pane next to the current agent pane. It is for reading code without leaving the conversation flow.
-
-1. Left side: tree or index map for fast project navigation.
-2. Right side: file preview with compact Markdown rendering and line numbers.
-3. `II`: switch tree and index map.
-4. `[` / `]`: resize the sider width in three steps.
 
 ### Help
 
@@ -235,7 +226,7 @@ Linux release assets are published in separate families:
 | `J/K` or `Shift+J/K` | Move between preview turns / jump faster in preview |
 | `1-9` | Jump to panel |
 | `Enter` | Attach to panel |
-| `F12` / `Ctrl+Q` | Detach back to pad |
+| `F12` | Detach back to pad |
 | `Tab` | Toggle panel focus and preview focus |
 | `Tab` twice | Open the latest preview detail, or return detail back to the turns list |
 | `?` | Help |
@@ -246,16 +237,11 @@ Linux release assets are published in separate families:
 | `Shift+Delete` | Clear title input while editing |
 | `Space` | Expand/collapse directory |
 | `Space` twice | Expand/collapse all session folders |
-| `F10` | Toggle pad-sider beside the current pane |
-| `[` / `]` | Resize pad-sider width |
-| `II` | Switch tree and index map inside pad-sider |
-| `/` in pad-sider | Fuzzy-search files |
-| `Space` on `.md` in pad-sider | Open full Markdown preview |
 | `c` | Create new session |
 | `d` | Delete pane and hide thread in PAD |
 | `A` / `U` | Archive / restore selected session |
 | `Z` | Toggle archived session view |
-| `E` / `S` / `I` / `H` / `L` / `G` / `X` / `B` / `O` / `P` / `Y` / `W` | Export/import OpenCode JSON, install GitHub agent/plugin, open PR, run clipboard prompt, start local server, stats, diagnostics, attach server URL, or open OpenCode Web |
+| `E` / `S` / `I` / `H` / `M` / `G` / `X` / `B` / `O` / `P` / `Y` / `W` | Export/import OpenCode JSON, install GitHub agent/plugin, open PR, run clipboard prompt, start local server, stats, diagnostics, attach server URL, or open OpenCode Web |
 | `r` | Refresh |
 | `Ctrl+F` | Search panels |
 | `/` | Open settings |

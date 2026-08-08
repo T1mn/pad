@@ -1,43 +1,46 @@
 mod command {
-    use std::ffi::OsString;
-    use std::io;
-    use std::path::Path;
-    use std::process::Command;
-
-    pub(super) fn run_opencode_prompt(
-        prompt: &str,
-        session_id: Option<&str>,
-        cwd: &Path,
-        command: &OsString,
-    ) -> io::Result<()> {
-        let status = Command::new("tmux")
-            .args(["new-window", "-c"])
-            .arg(cwd)
-            .arg(run_command(prompt, session_id, command))
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!(
-                "tmux new-window exited with {status}"
-            )))
-        }
-    }
-
     pub(in crate::app::actions) fn run_command(
         prompt: &str,
         session_id: Option<&str>,
-        command: &OsString,
+        command: &str,
     ) -> String {
-        let mut command_line = crate::codex_runtime::shell_single_quote(&command.to_string_lossy());
+        let mut command_line = command.trim().to_string();
         command_line.push_str(" run");
         if let Some(session_id) = session_id {
             command_line.push_str(" --session ");
             command_line.push_str(&crate::codex_runtime::shell_single_quote(session_id));
         }
         command_line.push_str(" -- ");
-        command_line.push_str(&crate::codex_runtime::shell_single_quote(prompt));
+        command_line.push_str(&single_line_shell_value(prompt));
         command_line
+    }
+
+    fn single_line_shell_value(value: &str) -> String {
+        let mut escaped = String::with_capacity(value.len());
+        for character in value.chars() {
+            match character {
+                '\0' => escaped.push('\0'),
+                '\\' => escaped.push_str("\\\\"),
+                character if character.is_control() => {
+                    let mut encoded = [0; 4];
+                    for byte in character.encode_utf8(&mut encoded).bytes() {
+                        push_octal_byte(&mut escaped, byte);
+                    }
+                }
+                character => escaped.push(character),
+            }
+        }
+        format!(
+            "\"$(printf '%b' {})\"",
+            crate::codex_runtime::shell_single_quote(&escaped)
+        )
+    }
+
+    fn push_octal_byte(output: &mut String, byte: u8) {
+        output.push_str("\\0");
+        output.push(char::from(b'0' + ((byte >> 6) & 7)));
+        output.push(char::from(b'0' + ((byte >> 3) & 7)));
+        output.push(char::from(b'0' + (byte & 7)));
     }
 }
 mod prompt {
@@ -95,18 +98,17 @@ impl App {
             .map(str::trim)
             .filter(|session_id| !session_id.is_empty());
 
-        match command::run_opencode_prompt(
+        let command = command::run_command(
             &prompt,
             session_id,
-            &cwd,
             &opencode_cli::opencode_command(&self.config),
-        ) {
-            Ok(()) => {
+        );
+        match self.launch_native_agent_action("OpenCode Run", &command, AgentType::OpenCode, cwd) {
+            Ok(_) => {
                 self.show_action_toast(
                     text::run_started_title(self.locale),
                     prompt::prompt_preview(&prompt),
                 );
-                self.schedule_delayed_scan(800);
                 true
             }
             Err(err) => {

@@ -61,8 +61,6 @@ pub(super) fn live_codex_thread_without_prompt() -> Arc<SidebarThread> {
         sort_updated_at: 1,
         live_pane_id: Some("%1".into()),
         live_location: None,
-        pid: None,
-        git_info: None,
         state: AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),

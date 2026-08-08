@@ -44,7 +44,7 @@ pub(super) async fn handle_approval_callback(
         }
     };
     let approval_send_error = {
-        let send_result = tmux_dispatch::send_approval_key(&pending_snapshot.pane_id, key);
+        let send_result = terminal_remote::send_approval_key(&pending_snapshot.pane_id, key);
         send_result.err().map(|err| err.to_string())
     };
     match approval_send_error {

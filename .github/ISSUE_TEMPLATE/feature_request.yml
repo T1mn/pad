@@ -6,9 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        PAD is deliberately narrow: it is a tmux-first workspace for agent sessions. It does not
-        replace tmux, does not fake tabs on top of panes, and does not take over the agent runtime.
-        Requests that stay inside that scope are much easier to accept.
+        PAD is deliberately narrow: it owns a native PTY workspace for agent sessions, while each
+        agent CLI remains responsible for its own runtime and history. Requests that stay inside
+        that scope are much easier to accept.
 
   - type: textarea
     id: problem
@@ -33,8 +33,8 @@ body:
       options:
         - Sidebar / session list
         - Preview and session history
-        - pad-sider (F10 panel)
-        - Attach / detach and tmux integration
+        - File tree and preview
+        - Native terminal / tabs / splits
         - Relay and provider settings
         - Notifications / Telegram daemon
         - Installer and release
@@ -53,7 +53,7 @@ body:
     id: alternatives
     attributes:
       label: Alternatives you considered
-      description: Existing keys, tmux configuration, or scripts you already tried.
+      description: Existing keys, shell configuration, or scripts you already tried.
 
   - type: checkboxes
     id: contribution

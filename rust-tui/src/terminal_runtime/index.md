@@ -1,7 +1,7 @@
 # terminal_runtime
 
 - `model.rs`：pane ID、终端尺寸、cell、cursor、mode、backend-neutral scroll 与含 viewport metadata 的不可变 snapshot。
-- `native_pty.rs`：无需 tmux 的本地 PTY transport facade 与 command 构建、主控制循环。
+- `native_pty.rs`：本地 PTY transport facade 与 command 构建、主控制循环。
 - `native_pty/reader_io.rs`：PTY reader worker、bounded output/input queue、resize 与 nonblocking I/O。
 - `native_pty/process.rs`：owned child 的 signal escalation、deadline wait、reap 与 drop cleanup。
 - `controller.rs`：UI-facing controller handle、pane epoch、有界 input/resize/scroll command 与 frame reader。
@@ -11,7 +11,7 @@
 - `live_pane.rs`：组合 PaneRuntime 与 TransportRuntime 的 open/pump/input/resize/exit 生命周期。
 - `live_pane/events.rs`：engine output、parser PTY replies 与 coalesced host events 的 bounded routing。
 - `alacritty.rs`：基于 `alacritty_terminal` 的首个生产解析引擎。
-- `transport.rs`：tmux/native PTY 共用的 transport command/event 协议。
+- `transport.rs`：native PTY 与 replay 共用的 transport command/event 协议。
 - `transport_runtime.rs`：在独立线程托管 transport 的有界 command/event 通道与关闭协议。
 - `widget.rs`：把 immutable terminal snapshot 和 pane label 绘制到 Ratatui buffer。
 - `worker.rs`：按 pane 分片的有界多线程 engine runtime。

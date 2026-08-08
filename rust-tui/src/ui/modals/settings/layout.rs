@@ -45,7 +45,6 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
                 recommended_list_modal_height(row_count, 2, 1, 1).clamp(12, 18),
             )
         }
-        Some(SettingsDetailKind::AgentStyle) => (64, 12),
         Some(SettingsDetailKind::CodexSettings) => codex_modal_size(app),
         Some(SettingsDetailKind::Sound) => {
             (78, recommended_list_modal_height(9, 2, 1, 1).clamp(16, 22))

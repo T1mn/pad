@@ -85,7 +85,7 @@ fn hook_event_signature(event: &HookEvent) -> String {
     format!(
         "{}|{}|{}|{}|{}|{}",
         event.event,
-        event.tmux.pane_id.as_deref().unwrap_or(""),
+        event.terminal.pane_id.as_deref().unwrap_or(""),
         event.turn_id.as_deref().unwrap_or(""),
         event.timestamp.as_deref().unwrap_or(""),
         event.session_id.as_deref().unwrap_or(""),

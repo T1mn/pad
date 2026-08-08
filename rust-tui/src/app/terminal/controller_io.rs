@@ -370,7 +370,8 @@ fn native_command(
         Some(program) => NativePtyCommand::new(program).args(&definition.args),
         None => NativePtyCommand::default_program(),
     };
-    command
-        .cwd(cwd)
-        .env("PAD_PANE_ID", format!("native-{}", pane_id.serial()))
+    command.cwd(cwd).env(
+        "PAD_PANE_ID",
+        super::agent_registry::native_agent_pane_id(pane_id),
+    )
 }

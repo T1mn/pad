@@ -77,7 +77,7 @@ mod effects {
 mod panel_update {
     use crate::hook::HookEvent;
     use crate::log_debug;
-    use crate::model::{AgentPanel, AgentState, AgentStateSource, SessionCacheState};
+    use crate::model::{AgentPanel, AgentState, SessionCacheState};
     use crate::session_cache::SessionCacheSnapshot;
 
     pub(super) fn apply_panel_hook_event(
@@ -115,7 +115,6 @@ mod panel_update {
             "session_start" => {}
             "user_prompt_submit" => {
                 panel.state = AgentState::Busy;
-                panel.state_source = AgentStateSource::Hook;
                 panel.is_active = true;
                 panel.last_user_prompt = event.prompt.clone();
                 panel.last_assistant_message = None;
@@ -123,7 +122,6 @@ mod panel_update {
             }
             "stop" => {
                 panel.state = AgentState::Waiting;
-                panel.state_source = AgentStateSource::Hook;
                 panel.is_active = false;
                 panel.has_unread_stop = !panel_item_focused;
                 if event.last_assistant_message.is_some() {

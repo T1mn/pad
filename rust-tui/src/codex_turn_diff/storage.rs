@@ -1,5 +1,5 @@
 mod completed {
-    use super::json::{read_json_dir, write_json};
+    use super::json::write_json;
     use super::paths::{index_path, patches_dir, record_path, records_dir};
     use crate::codex_turn_diff::model::CompletedTurnDiff;
     use std::fs::{self, OpenOptions};
@@ -19,27 +19,6 @@ mod completed {
         write_json(&record_path(&record.id), &record)?;
         append_index(&record)?;
         Ok(record)
-    }
-
-    pub(super) fn list_completed_all() -> io::Result<Vec<CompletedTurnDiff>> {
-        let from_index = read_index_records()?;
-        if !from_index.is_empty() {
-            return Ok(from_index);
-        }
-        read_json_dir(&records_dir())
-    }
-
-    fn read_index_records() -> io::Result<Vec<CompletedTurnDiff>> {
-        let path = index_path();
-        let content = match fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(err) => return Err(err),
-        };
-        Ok(content
-            .lines()
-            .filter_map(|line| serde_json::from_str::<CompletedTurnDiff>(line).ok())
-            .collect())
     }
 
     fn append_index(record: &CompletedTurnDiff) -> io::Result<()> {
@@ -145,7 +124,7 @@ mod pending {
             }
         }
         if let Some(pane_id) = event
-            .tmux
+            .terminal
             .pane_id
             .as_deref()
             .filter(|value| !value.is_empty())
@@ -154,16 +133,12 @@ mod pending {
                 return false;
             }
         }
-        event.session_id.is_some() || event.tmux.pane_id.is_some()
+        event.session_id.is_some() || event.terminal.pane_id.is_some()
     }
 }
 
-use super::git::repo_root_for_cwd;
-use super::model::TurnDiffEntry;
 use super::storage_paths as paths;
-use std::fs;
 use std::io;
-use std::path::Path;
 
 pub use paths::{event_key, new_record_id, now_stamp};
 pub use pending::{load_pending_for_stop, remove_pending, save_pending};
@@ -173,34 +148,4 @@ pub fn save_completed(
     patch: &str,
 ) -> io::Result<super::model::CompletedTurnDiff> {
     completed::save_completed(record, patch)
-}
-
-pub fn list_for_cwd(cwd: &Path, limit: usize) -> io::Result<Vec<TurnDiffEntry>> {
-    let root = repo_root_for_cwd(cwd).or_else(|_| fs::canonicalize(cwd))?;
-    let root_label = root.to_string_lossy();
-
-    let mut entries = Vec::new();
-    entries.extend(
-        pending::list_pending_all()?
-            .into_iter()
-            .filter(|pending| pending.repo_root == root_label.as_ref())
-            .map(TurnDiffEntry::from),
-    );
-    entries.extend(
-        completed::list_completed_all()?
-            .into_iter()
-            .filter(|record| record.repo_root == root_label.as_ref())
-            .map(TurnDiffEntry::from),
-    );
-
-    entries.sort_by(|left, right| {
-        right
-            .sort_key()
-            .cmp(left.sort_key())
-            .then_with(|| right.id.cmp(&left.id))
-    });
-    if entries.len() > limit {
-        entries.truncate(limit);
-    }
-    Ok(entries)
 }

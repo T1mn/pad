@@ -7,6 +7,5 @@
 - `modes.rs` / `modes/`: per-mode key handlers, including notification inbox navigation.
 - `mouse.rs` / `mouse/` / `mouse_pipeline.rs` / `mouse_pipeline_tests.rs`: mouse dispatch facade、hit testing、click/selection/hover，以及 child mouse-reporting 与 PAD terminal scrollback 仲裁和回归测试。
 - `../event.rs` 内联 `loop_core` / `../event.rs` 内联 `loop_state`: main event loop state.
-- `refresh_pipeline.rs` / `refresh_pipeline/`：周期刷新、异步结果与 pipe/hook drain；每帧轮询 terminal controller，并用共享 split placement 批量 resize 当前 tab 的可见 panes。
-- `attach.rs` / `attach/` / `attach_tests.rs`: tmux attach handoff、return bindings 与 focus helpers.
+- `refresh_pipeline.rs` / `refresh_pipeline/`：周期刷新、异步结果与 hook drain；每帧轮询 terminal controller，并用共享 split placement 批量 resize 当前 tab 的可见 panes。
 - `tests/`: event behavior regression tests.

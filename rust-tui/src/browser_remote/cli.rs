@@ -48,16 +48,11 @@ fn run_remote_exec(args: &[String]) -> Result<(), Box<dyn Error>> {
         println!("{}", format_args(&ssh));
         return Ok(());
     }
-    let output = Command::new(&ssh[0]).args(&ssh[1..]).output()?;
-    if output.status.success() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+    let status = Command::new(&ssh[0]).args(&ssh[1..]).status()?;
+    if status.success() {
         return Ok(());
     }
-    Err(format!(
-        "remote exec failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    )
-    .into())
+    Err(format!("remote exec failed with {status}").into())
 }
 
 fn value_after(args: &[String], key: &str) -> Option<String> {

@@ -4,7 +4,6 @@ use crate::app::{state::Mode, App};
 use crate::log_debug;
 use crate::model::AgentType;
 use crate::relay;
-use crate::session;
 use crate::terminal_runtime::TerminalSize;
 use crossterm::event::KeyCode;
 
@@ -75,12 +74,7 @@ fn launch_selected_agent(
         }
     };
     log_debug!(
-        "agent_launcher: launching runtime={} name={} cmd={} dir={}",
-        if app.runtime_mode.uses_tmux() {
-            "tmux"
-        } else {
-            "native"
-        },
+        "agent_launcher: launching runtime=native name={} cmd={} dir={}",
         agent_name,
         agent_cmd,
         target_dir.display()
@@ -89,13 +83,8 @@ fn launch_selected_agent(
     app.close_agent_launcher();
     app.dirty = true;
 
-    if !app.runtime_mode.uses_tmux() {
-        launch_native_agent(app, &agent_name, &agent_cmd, target_dir);
-        return;
-    }
-
-    launch_tmux_agent(app, from_fuzzy, target_dir, agent_cmd);
-    app.schedule_delayed_scan(800);
+    let _ = from_fuzzy;
+    launch_native_agent(app, &agent_name, &agent_cmd, target_dir);
 }
 
 fn launch_native_agent(app: &mut App, agent_name: &str, agent_cmd: &str, target_dir: PathBuf) {
@@ -117,54 +106,6 @@ fn launch_native_agent(app: &mut App, agent_name: &str, agent_cmd: &str, target_
             app.show_action_toast("Agent launch failed", &error.to_string());
         }
     }
-}
-
-fn launch_tmux_agent(app: &mut App, from_fuzzy: bool, target_dir: PathBuf, agent_cmd: String) {
-    if from_fuzzy {
-        let dir_str = target_dir.to_string_lossy().to_string();
-        if !app.saved_tmux_bindings.is_empty() || app.same_session_attached {
-            crate::event::restore_tmux_bindings(app);
-            app.same_session_attached = false;
-        }
-        log_debug!(
-            "agent_launcher: from_fuzzy=true, create_session_with_agent dir={} cmd={}",
-            dir_str,
-            agent_cmd
-        );
-        match session::create_session_with_agent(app, &dir_str, &agent_cmd) {
-            Ok(()) => log_debug!("agent_launcher: create_session_with_agent 成功"),
-            Err(error) => {
-                log_debug!("agent_launcher: create_session_with_agent 失败: {}", error)
-            }
-        }
-        return;
-    }
-
-    std::thread::spawn(move || {
-        if matches!(agent_cmd.trim(), "gemini" | "gemini-cli") {
-            let target_dir = target_dir.to_string_lossy().to_string();
-            if let Ok(out) = std::process::Command::new("tmux")
-                .args(["new-window", "-P", "-F", "#{pane_id}", "-c", &target_dir])
-                .output()
-            {
-                if out.status.success() {
-                    let pane_id = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    let script = format!(
-                        "sleep 0.2; tmux send-keys -t '{}' C-c; tmux send-keys -t '{}' 'clear' Enter; tmux send-keys -t '{}' '{}' Enter",
-                        pane_id, pane_id, pane_id, agent_cmd
-                    );
-                    let _ = std::process::Command::new("tmux")
-                        .args(["run-shell", "-b", &script])
-                        .output();
-                }
-            }
-        } else {
-            let _ = std::process::Command::new("tmux")
-                .args(["new-window", "-c", &target_dir.to_string_lossy()])
-                .arg(&agent_cmd)
-                .spawn();
-        }
-    });
 }
 
 fn native_agent_label(agent_name: &str, target_dir: &Path) -> String {

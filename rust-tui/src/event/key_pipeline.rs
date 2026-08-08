@@ -47,7 +47,6 @@ pub(super) fn handle_key_event(
         Mode::FuzzyPicker => super::mode_dispatch::handle_fuzzy_picker_mode(app, key),
         Mode::RelaySettings => super::mode_dispatch::handle_relay_settings_mode(app, key.code),
         Mode::FilePreview => super::mode_dispatch::handle_file_preview_mode(app, key.code),
-        Mode::AgentStyleSettings => super::mode_dispatch::handle_agent_style_mode(app, key.code),
         Mode::TelegramSettings => {
             super::mode_dispatch::handle_telegram_settings_mode(app, key.code)
         }

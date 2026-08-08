@@ -131,15 +131,42 @@ impl App {
             &panel.working_dir,
             panel.agent_session_id.as_deref(),
         );
+        let cwd = std::path::PathBuf::from(&panel.working_dir);
+        let directory = cwd
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("workspace");
+        let label = format!("Codex · {directory}");
+        let size = self
+            .focused_terminal_pane()
+            .and_then(|pane| pane.size())
+            .unwrap_or_else(|| crate::terminal_runtime::TerminalSize::new(80, 24));
 
-        match crate::tmux_dispatch::respawn_pane_shell(&panel.pane_id, &panel.working_dir, &command)
-        {
-            Ok(()) => {
+        match self.launch_native_agent_terminal_at(
+            &label,
+            &command,
+            crate::model::AgentType::Codex,
+            cwd,
+            size,
+        ) {
+            Ok(_) => {
+                if App::is_native_agent_terminal_id(&panel.pane_id) {
+                    if let Err(error) = self.close_native_agent_terminal(&panel.pane_id) {
+                        self.show_action_toast(
+                            restart_failed_title(self.locale),
+                            &format!(
+                                "new Codex pane started, but the previous pane could not close: {error}"
+                            ),
+                        );
+                        return true;
+                    }
+                }
+                self.focus_terminal();
                 self.show_action_toast(
                     restart_started_title(self.locale),
                     &restart_started_body(self.locale, panel.agent_session_id.as_deref()),
                 );
-                self.refresh_panels();
                 true
             }
             Err(err) => {

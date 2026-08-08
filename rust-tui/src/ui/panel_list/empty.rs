@@ -3,7 +3,6 @@ use super::labels::{
 };
 use crate::app::state::ThreadListView;
 use crate::i18n::Locale;
-use crate::runtime_mode::RuntimeMode;
 use crate::theme::Theme;
 use ratatui::{
     style::{Modifier, Style},
@@ -13,7 +12,6 @@ use ratatui::{
 pub(super) fn empty_message(
     locale: Locale,
     view: ThreadListView,
-    runtime_mode: RuntimeMode,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
     if view != ThreadListView::Normal {
@@ -37,51 +35,21 @@ pub(super) fn empty_message(
         ];
     }
 
-    if runtime_mode == RuntimeMode::Native {
-        return vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(locale, "panel.native_title"),
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                crate::i18n::t(locale, "panel.native_hint"),
-                Style::default().fg(theme.fg),
-            )),
-            Line::from(Span::styled(
-                crate::i18n::t(locale, "panel.native_focus"),
-                Style::default().fg(theme.comment),
-            )),
-        ];
-    }
-
     vec![
         Line::from(""),
         Line::from(Span::styled(
-            crate::i18n::t(locale, "panel.empty_title"),
+            crate::i18n::t(locale, "panel.native_title"),
             Style::default()
-                .fg(theme.warning)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from(Span::styled(
-            crate::i18n::t(locale, "panel.empty_hint"),
+            crate::i18n::t(locale, "panel.native_hint"),
             Style::default().fg(theme.fg),
         )),
         Line::from(Span::styled(
-            crate::i18n::t(locale, "panel.empty_agents"),
-            Style::default().fg(theme.accent),
-        )),
-        Line::from(""),
-        Line::from(Span::styled(
-            crate::i18n::t(locale, "panel.empty_create"),
-            Style::default().fg(theme.fg),
-        )),
-        Line::from(Span::styled(
-            crate::i18n::t(locale, "panel.empty_refresh"),
+            crate::i18n::t(locale, "panel.native_focus"),
             Style::default().fg(theme.comment),
         )),
     ]

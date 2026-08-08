@@ -2,7 +2,7 @@
 
 中文读者可先看 [README_ZH.md](README_ZH.md) 了解项目；安全问题请按下面的流程私下报告，不要开公开 issue。
 
-PAD runs on your machine, launches other agent CLIs through tmux, and reads and writes agent
+PAD runs on your machine, launches other agent CLIs through its native PTY terminal, and reads and writes agent
 configuration under your home directory. A bug on that surface can expose API keys or let another
 local process act as you, so we treat those reports privately rather than in the public tracker.
 
@@ -32,7 +32,7 @@ in the subject.
 
 Useful things to include:
 
-- `pad --version`, OS, and `tmux -V`
+- `pad --version`, OS, shell, and terminal environment
 - what an attacker gains, and what access they need to start with
 - reproduction steps or a minimal proof of concept
 - any config or state paths involved, with tokens redacted
@@ -56,15 +56,15 @@ has passed.
 
 In scope:
 
-- the `pad` binary and its `pad-sider` panel
+- the `pad` binary and its native terminal runtime
 - `install.sh` and the installer modules under `install/`
 - relay and provider configuration handling, including credentials written into agent config files
-- the local control socket, hook bridge, and tmux integration
+- the local control socket, hook bridge, and native terminal runtime
 - release artifacts published from this repository
 
 Out of scope, unless PAD is what makes them exploitable:
 
-- bugs in tmux, in the agent CLIs (Codex, Claude Code, Grok Build, OpenCode, Gemini), or in upstream
+- bugs in the agent CLIs (Codex, Claude Code, Grok Build, OpenCode, Gemini) or in upstream
   crates — report those to their maintainers, and tell us if PAD widens the impact
 - anything that already requires code execution as the same user on the same machine
 - missing hardening with no demonstrated impact, and automated scanner output without a scenario

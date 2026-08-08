@@ -62,13 +62,6 @@ impl App {
                 true,
             ),
             (
-                "agent_style",
-                crate::i18n::t(l, "settings.configure").to_string(),
-                "settings.agent_style",
-                "settings.agent_style",
-                true,
-            ),
-            (
                 "preview_mode",
                 preview_mode_label(&self.config, l),
                 "settings.preview_mode",

@@ -16,41 +16,11 @@ SOCKET_PATHS = [
 
 
 __PAD_SILENCE_STDIO_BLOCK__
-def tmux_info_from_env():
-    tmux_pane = os.environ.get("TMUX_PANE")
-    if not tmux_pane:
-        return {
-            "inside_tmux": False,
-            "pane_id": None,
-        }
-
-    fmt = json.dumps({
-        "session_name": "#{session_name}",
-        "session_id": "#{session_id}",
-        "window_index": "#{window_index}",
-        "window_name": "#{window_name}",
-        "pane_index": "#{pane_index}",
-        "pane_id": "#{pane_id}",
-        "pane_current_command": "#{pane_current_command}",
-        "pane_current_path": "#{pane_current_path}",
-    })
-
-    try:
-        out = subprocess.check_output(
-            ["tmux", "display-message", "-p", "-t", tmux_pane, fmt],
-            text=True__PAD_TMUX_STDERR_ARG__,
-        ).strip()
-        info = json.loads(out)
-        info["inside_tmux"] = True
-        info["tmux_pane_env"] = tmux_pane
-        return info
-    except Exception as e:
-        return {
-            "inside_tmux": True,
-            "tmux_pane_env": tmux_pane,
-            "tmux_error": str(e),
-            "pane_id": tmux_pane,
-        }
+def terminal_info_from_env():
+    return {
+        "runtime": "native",
+        "pane_id": os.environ.get("PAD_PANE_ID"),
+    }
 
 
 def normalized_event_name(name):
@@ -71,7 +41,7 @@ __PAD_MAIN_START_LINE__
         return
     payload = __PAD_PAYLOAD_EXPR__
 __PAD_HOOK_TYPE_LINE__
-    tmux = tmux_info_from_env()
+    terminal = terminal_info_from_env()
     event_name = __PAD_EVENT_NAME_EXPR__
 
     message = {
@@ -84,7 +54,7 @@ __PAD_HOOK_TYPE_LINE__
         "prompt": payload.get("prompt"),
         "last_assistant_message": payload.get("last_assistant_message"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "tmux": tmux,
+        "terminal": terminal,
     }
 
     record_codex_turn_diff(message)

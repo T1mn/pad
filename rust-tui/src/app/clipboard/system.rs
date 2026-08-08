@@ -36,15 +36,6 @@ pub fn read_text_from_clipboard() -> io::Result<String> {
         }
     }
 
-    if std::env::var_os("TMUX").is_some() {
-        if let Some(text) = remember_clipboard_result(
-            read_clipboard_command("tmux", &["save-buffer", "-"]),
-            &mut last_error,
-        ) {
-            return Ok(text);
-        }
-    }
-
     Err(last_error.unwrap_or_else(|| {
         io::Error::new(
             io::ErrorKind::NotFound,
@@ -93,16 +84,6 @@ pub(super) fn copy_text_to_clipboard(text: &str) -> io::Result<()> {
         {
             return Ok(());
         }
-    }
-
-    if std::env::var_os("TMUX").is_some()
-        && remember_clipboard_result(
-            write_clipboard_command("tmux", &["load-buffer", "-w", "-"], text),
-            &mut last_error,
-        )
-        .is_some()
-    {
-        return Ok(());
     }
 
     Err(last_error.unwrap_or_else(|| {

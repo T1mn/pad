@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 #[test]
 fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
     let mut app = App::new();
-    app.preview.source = PreviewSource::Tmux;
+    app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;
     app.preview.pane_id = Some("%1".into());
     app.preview.content = "abcd\nefgh".into();
@@ -22,7 +22,7 @@ fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
 #[test]
 fn preview_selection_text_preserves_multiline_range() {
     let mut app = App::new();
-    app.preview.source = PreviewSource::Tmux;
+    app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;
     app.preview.pane_id = Some("%1".into());
     app.preview.content = "alpha\nbravo\ncharlie".into();

@@ -21,7 +21,7 @@ show_success() {
   say "  1. Run: pad"
   say "  2. Press Tab to focus PAD's native terminal"
   say "  3. Press F12 to return to PAD controls"
-  say "  4. Optional legacy mode: pad --tmux"
+  say "  4. Press F11 to open native terminal commands"
 }
 
 show_help() {
@@ -36,14 +36,11 @@ What this script does:
   1. Try to download a matching release binary
   2. Verify it against the release SHA256SUMS before extracting
   3. Fall back to building from source if needed
-  4. Optionally install tmux compatibility when explicitly requested
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
   PAD_INSTALL_ASSUME_YES Auto-confirm installer prompts when set to 1
-  PAD_INSTALL_TMUX_COMPAT
-                         Install optional tmux support for pad --tmux when set to 1
   PAD_INSTALL_ALLOW_UNVERIFIED
                          Install even when the archive cannot be checked against
                          SHA256SUMS (unsafe; only for sources you fully trust)
@@ -59,8 +56,8 @@ Environment variables:
                          Useful for CI and local installer smoke tests
 
 Notes:
-  - Native mode does not require tmux.
-  - On WSL2, run PAD inside WSL; tmux is needed there only for pad --tmux.
+  - PAD runs agent shells in its own native PTY terminal.
+  - On WSL2, install and run PAD inside the same WSL environment as the agent CLIs.
 EOF
 }
 
@@ -91,13 +88,6 @@ main() {
     install_from_source
   fi
 
-  if [ "${INSTALL_TMUX_COMPAT}" = "1" ]; then
-    install_tmux
-  elif check_tmux; then
-    ok "✓ Optional tmux compatibility available: $(tmux -V 2>/dev/null || echo tmux)"
-  else
-    say "Native mode is ready; tmux compatibility was not requested."
-  fi
   ensure_default_codex_jailbreak_prompt
   ensure_default_codex_index_prompt
   show_path_hint

@@ -41,7 +41,9 @@ pub(super) fn preprocess_scroll_burst(
                 return Ok(true);
             };
             app.focus_terminal();
-            app.focus_terminal_pane(pane_id);
+            if let Err(error) = app.focus_terminal_pane(pane_id) {
+                app.show_action_toast("PAD Terminal", &error.to_string());
+            }
             let mode = app
                 .terminal_pane(pane_id)
                 .map(|pane| pane.mode())
@@ -111,7 +113,9 @@ pub(super) fn handle_mouse_event(
                         .iter()
                         .find(|tab| tab.rect.contains((mouse.column, mouse.row).into()))
                     {
-                        app.focus_terminal_tab(tab.index);
+                        if let Err(error) = app.focus_terminal_tab(tab.index) {
+                            app.show_action_toast("PAD Terminal", &error.to_string());
+                        }
                     }
                     return Ok(());
                 }
@@ -126,7 +130,9 @@ pub(super) fn handle_mouse_event(
                 };
                 if matches!(mouse.kind, MouseEventKind::Down(_)) {
                     app.focus_terminal();
-                    app.focus_terminal_pane(pane_id);
+                    if let Err(error) = app.focus_terminal_pane(pane_id) {
+                        app.show_action_toast("PAD Terminal", &error.to_string());
+                    }
                 }
                 if app.terminal_is_focused()
                     && app.focused_terminal_pane_id() == Some(pane_id)

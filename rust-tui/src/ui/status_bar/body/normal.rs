@@ -6,11 +6,6 @@ use crate::model::PreviewSource;
 pub(in crate::ui::status_bar) fn compose_status_body(app: &App, width: u16) -> String {
     let l = app.locale;
     let elapsed = app.last_refresh.elapsed().as_secs();
-    let scan_status = if app.scan_in_progress {
-        format!(" {}", t(l, "status.scanning"))
-    } else {
-        String::new()
-    };
     let left = if app.sidebar.show_tree {
         if let Some(path) = &app.preview.file_preview_path {
             format!("📁 {}", path.display())
@@ -18,7 +13,7 @@ pub(in crate::ui::status_bar) fn compose_status_body(app: &App, width: u16) -> S
             t(l, "tree.explorer").to_string()
         }
     } else {
-        format!("{}s {}{}", elapsed, t(l, "status.ago"), scan_status)
+        format!("{}s {}", elapsed, t(l, "status.ago"))
     };
 
     let right_hint = if app.sidebar.show_tree {
@@ -40,13 +35,7 @@ pub(in crate::ui::status_bar) fn compose_status_body(app: &App, width: u16) -> S
     };
 
     let left_text = if app.sidebar.show_tree {
-        format!(
-            "{}  {}s {}{}",
-            left,
-            elapsed,
-            t(l, "status.ago"),
-            scan_status
-        )
+        format!("{}  {}s {}", left, elapsed, t(l, "status.ago"))
     } else {
         format!(" {}", left)
     };

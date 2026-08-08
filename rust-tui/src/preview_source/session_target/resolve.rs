@@ -1,6 +1,6 @@
 mod panel {
     use super::super::target::SessionTarget;
-    use crate::model::{AgentPanel, AgentState, AgentStateSource};
+    use crate::model::{AgentPanel, AgentState};
     use crate::preview_source::PreviewRequest;
 
     pub(crate) fn persistence_panel_from_request(
@@ -18,13 +18,9 @@ mod panel {
             working_dir: request.working_dir.clone(),
             is_active: matches!(request.state, AgentState::Busy | AgentState::Waiting),
             state: request.state.clone(),
-            state_source: AgentStateSource::Scanner,
             transcript_path: Some(target.transcript_path.to_string_lossy().to_string()),
             cached_preview_turns: request.cached_preview_turns.clone(),
             session_cache_state: request.session_cache_state,
-            git_info: None,
-            pid: None,
-            start_time: None,
             agent_session_id: target.session_id.clone(),
             last_user_prompt: request
                 .cached_preview_turns

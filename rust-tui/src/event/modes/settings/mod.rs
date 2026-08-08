@@ -37,9 +37,6 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
     match app.current_settings_detail_kind() {
         Some(SettingsDetailKind::Theme) => appearance::handle_theme_detail_mode(app, key),
         Some(SettingsDetailKind::Language) => appearance::handle_language_detail_mode(app, key),
-        Some(SettingsDetailKind::AgentStyle) => {
-            appearance::handle_agent_style_detail_mode(app, key)
-        }
         Some(SettingsDetailKind::CodexSettings) => {
             codex::handle_codex_settings_detail_mode(app, key)
         }

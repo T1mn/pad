@@ -30,7 +30,6 @@ mod enter {
                 SettingsDetailKind::Language => self.prepare_language_detail(),
                 SettingsDetailKind::Relay => self.prepare_relay_detail(),
                 SettingsDetailKind::Telegram => self.prepare_telegram_detail(),
-                SettingsDetailKind::AgentStyle => self.agent_style_selected = 0,
                 SettingsDetailKind::CodexSettings => self.reset_codex_settings_detail(),
                 SettingsDetailKind::Sound => self.sound_settings_selected = 0,
                 SettingsDetailKind::Trash => {}
@@ -103,7 +102,6 @@ mod kind {
                 "sound" => SettingsDetailKind::Sound,
                 "relay" => SettingsDetailKind::Relay,
                 "telegram" => SettingsDetailKind::Telegram,
-                "agent_style" => SettingsDetailKind::AgentStyle,
                 "preview_mode" => SettingsDetailKind::PreviewMode,
                 "display_mode" => SettingsDetailKind::DisplayMode,
                 "trash" => SettingsDetailKind::Trash,

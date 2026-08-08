@@ -6,9 +6,6 @@ pub(super) fn render(config: &Config) -> String {
     content.push_str(&format!("auto_refresh = {}\n", config.auto_refresh));
     content.push_str(&format!("refresh_interval = {}\n", config.refresh_interval));
     push_str_line(&mut content, "language", &config.language);
-    content.push_str("\n[desired_agent_style]\n");
-    push_str_line(&mut content, "zoom", &config.desired_agent_style.zoom);
-    push_str_line(&mut content, "status", &config.desired_agent_style.status);
     content.push_str("\n[preview]\n");
     push_str_line(&mut content, "mode", &config.preview.mode);
     content.push_str("\n[display]\n");

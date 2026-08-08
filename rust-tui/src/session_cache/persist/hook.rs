@@ -1,5 +1,4 @@
-use super::super::bindings::upsert_binding;
-use super::super::model::{snapshot_from_record, HookBindingContext, SessionCacheSnapshot};
+use super::super::model::{snapshot_from_record, SessionCacheSnapshot};
 use super::super::storage::{load_index, prune_index, save_index};
 use super::super::turns::{merge_recent_turns, normalize_cached_codex_prompt};
 use super::super::util::{clean_text, first_non_empty_str, now_ts, prefer_non_empty_str};
@@ -82,13 +81,6 @@ pub fn persist_hook_event(
     index.sessions[record_idx].last_user_prompt = last_user_prompt;
     index.sessions[record_idx].last_assistant_message = last_assistant_message;
 
-    upsert_binding(
-        &mut index,
-        panel,
-        agent_session_id,
-        HookBindingContext::from_event(event),
-        now,
-    );
     save_index(&index)?;
 
     crate::session_continuity::record_cache_write(

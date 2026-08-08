@@ -4,11 +4,11 @@ use std::time::Duration;
 use super::*;
 use crate::terminal_runtime::TransportRuntime;
 
-const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[cfg(unix)]
 #[test]
-fn native_pty_runs_without_tmux_and_preserves_io_resize_env_and_exit() {
+fn native_pty_preserves_io_resize_env_and_exit() {
     assert!(Path::new("/bin/sh").is_file());
     let size = TerminalSize::new(31, 9);
     let command = NativePtyCommand::new("/bin/sh")

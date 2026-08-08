@@ -154,7 +154,6 @@ fn settings_item_aliases(id: &str) -> &'static [&'static str] {
             "opencode provider",
         ],
         "telegram" => &["telegram", "bot", "telegram bot"],
-        "agent_style" => &["agent style", "attach style", "status bar", "zoom"],
         "preview_mode" => &[
             "preview",
             "preview mode",

@@ -1,34 +1,6 @@
 mod command {
-    use std::ffi::OsString;
-    use std::io;
-    use std::path::Path;
-    use std::process::Command;
-
-    pub(super) fn install_opencode_plugin(
-        module: &str,
-        cwd: &Path,
-        command: &OsString,
-    ) -> io::Result<()> {
-        let status = Command::new("tmux")
-            .args(["new-window", "-c"])
-            .arg(cwd)
-            .arg(plugin_command(module, command))
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!(
-                "tmux new-window exited with {status}"
-            )))
-        }
-    }
-
-    pub(in crate::app::actions) fn plugin_command(module: &str, command: &OsString) -> String {
-        format!(
-            "{} plugin {}",
-            crate::codex_runtime::shell_single_quote(&command.to_string_lossy()),
-            crate::codex_runtime::shell_single_quote(module)
-        )
+    pub(in crate::app::actions) fn plugin_command(module: &str, command: &str) -> String {
+        super::super::opencode_cli::command_with_args(command, ["plugin", module])
     }
 }
 mod module {
@@ -92,14 +64,16 @@ impl App {
             .map(|thread| PathBuf::from(thread.working_dir))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-        match command::install_opencode_plugin(
-            &module,
-            &cwd,
-            &opencode_cli::opencode_command(&self.config),
+        let command =
+            command::plugin_command(&module, &opencode_cli::opencode_command(&self.config));
+        match self.launch_native_agent_action(
+            "OpenCode Plugin Install",
+            &command,
+            AgentType::OpenCode,
+            cwd,
         ) {
-            Ok(()) => {
+            Ok(_) => {
                 self.show_action_toast(text::plugin_started_title(self.locale), &module);
-                self.schedule_delayed_scan(800);
                 true
             }
             Err(err) => {

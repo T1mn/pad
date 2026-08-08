@@ -2,7 +2,6 @@ use super::super::super::App;
 use crate::app::state::sidebar::ThreadListView;
 use crate::log_debug;
 use crate::sidebar::SidebarThread;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 impl App {
@@ -54,18 +53,10 @@ impl App {
                     .cloned()
                     .collect::<Vec<_>>()
             };
-            let empty_startup_thread_sort_activity = HashMap::new();
-            let startup_thread_sort_activity = if self.thread_list_view() != ThreadListView::Normal
-            {
-                &empty_startup_thread_sort_activity
-            } else {
-                &self.sidebar.startup_thread_sort_activity
-            };
             let mut folders = crate::sidebar::build_sidebar_folders(
                 &self.panels,
                 &overrides,
                 &self.sidebar.thread_sort_activity,
-                startup_thread_sort_activity,
                 self.thread_list_view(),
                 self.thread_list_view() == ThreadListView::Normal && self.showing_live_sessions(),
             );

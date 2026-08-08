@@ -42,7 +42,7 @@ fn preview_update_plain_view_follow_bottom_depends_on_target_change() {
     for case in cases {
         let mut app = App::new();
         app.preview.pane_id = case.previous_pane.map(|pane| pane.to_string());
-        app.preview.source = PreviewSource::Tmux;
+        app.preview.source = PreviewSource::Plain;
         app.preview.view = PreviewView::Plain;
         app.preview.content = "before".into();
         app.preview.follow_bottom = case.initial_follow_bottom;
@@ -55,7 +55,7 @@ fn preview_update_plain_view_follow_bottom_depends_on_target_change() {
                 target_key: case.target.into(),
                 live_pane_id: Some(case.target.into()),
                 content: "after".into(),
-                source: PreviewSource::Tmux,
+                source: PreviewSource::Plain,
                 session_origin: None,
                 session_id: None,
                 turns: Default::default(),

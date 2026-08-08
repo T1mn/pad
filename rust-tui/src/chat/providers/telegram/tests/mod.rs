@@ -4,7 +4,7 @@ use super::{
     chunk_text,
     commands::{
         build_pad_restart_shell_command, build_pad_status_body, format_recent_history_message,
-        recent_history_turns, select_pad_restart_target, PadRestartTarget,
+        recent_history_turns,
     },
     help_page_html,
     hooks::matching_pending_request_index,
@@ -19,9 +19,8 @@ use super::{
     summarize_pane_capture, CodexApprovalRequest, HelpPage, PendingRequest, SelectedTarget,
     TelegramState,
 };
-use crate::hook::{HookEvent, HookTmuxInfo};
-use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType, PreviewTurn};
-use crate::tmux_dispatch::SessionPaneInfo;
+use crate::hook::{HookEvent, HookTerminalInfo};
+use crate::model::{AgentPanel, AgentState, AgentType, PreviewTurn};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -70,13 +69,9 @@ pub(super) fn sample_panel_with_turns(turns: Vec<PreviewTurn>) -> AgentPanel {
         working_dir: "/tmp/rust-tui".into(),
         is_active: false,
         state: AgentState::Idle,
-        state_source: AgentStateSource::Scanner,
         transcript_path: None,
         cached_preview_turns: turns.into(),
         session_cache_state: None,
-        git_info: None,
-        pid: None,
-        start_time: None,
         agent_session_id: Some("session-42".into()),
         last_user_prompt: None,
         last_assistant_message: None,
@@ -463,7 +458,7 @@ mod pending {
             prompt: Some("second".into()),
             last_assistant_message: None,
             timestamp: Some("2026-04-14T00:00:00Z".into()),
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some("%2".into()),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -494,7 +489,7 @@ mod pending {
             prompt: None,
             last_assistant_message: Some("old answer".into()),
             timestamp: Some("2026-04-14T00:00:00Z".into()),
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some("%1".into()),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -503,7 +498,7 @@ mod pending {
             },
         };
         let valid_event = HookEvent {
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some("%2".into()),
                 session_name: Some("0".into()),
                 window_index: Some("1".into()),
@@ -675,7 +670,7 @@ mod state {
             prompt: Some("hello".into()),
             last_assistant_message: Some("done".into()),
             timestamp: Some("2026-03-26T03:38:06Z".into()),
-            tmux: HookTmuxInfo {
+            terminal: HookTerminalInfo {
                 pane_id: Some("%14".into()),
                 session_name: Some("0".into()),
                 window_index: Some("2".into()),

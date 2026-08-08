@@ -62,8 +62,8 @@ fn refresh_window_keeps_six_newest_turns() {
 #[test]
 fn title_normalization_trims_wrappers_and_prefixes() {
     assert_eq!(
-        normalize_generated_title("Title: \"Refactor tmux popup flow\"").as_deref(),
-        Some("Refactor tmux popup flow")
+        normalize_generated_title("Title: \"Refactor terminal popup flow\"").as_deref(),
+        Some("Refactor terminal popup flow")
     );
     assert_eq!(
         normalize_generated_title("《修复会话标题自动摘要》").as_deref(),

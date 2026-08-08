@@ -18,7 +18,6 @@ mod text {
 }
 
 use super::*;
-use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
 
@@ -43,7 +42,7 @@ impl App {
     }
 }
 
-fn export_diagnostics(command: &OsString) -> io::Result<PathBuf> {
+fn export_diagnostics(command: &str) -> io::Result<PathBuf> {
     let sections = collect::collect_diagnostics_sections(command);
     let path = report::diagnostics_path(
         crate::paths::opencode_diagnostics_dir().as_path(),

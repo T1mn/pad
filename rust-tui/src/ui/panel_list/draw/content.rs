@@ -34,21 +34,13 @@ pub(super) fn render_panel_list_content(
 ) -> PanelListRenderState {
     let locale = app.locale;
     let thread_list_view = app.thread_list_view();
-    let runtime_mode = app.runtime_mode;
     let selected_idx = params.selected_idx;
     let items = app.visible_sidebar_items_ref();
     let actual_item_count = params.visible_stats.item_count;
     let show_scrollbar = params.visible_stats.row_count > inner.height as usize;
 
     if items.is_empty() {
-        render_empty_message(
-            f,
-            inner,
-            locale,
-            thread_list_view,
-            runtime_mode,
-            params.theme,
-        );
+        render_empty_message(f, inner, locale, thread_list_view, params.theme);
         return PanelListRenderState {
             show_scrollbar,
             actual_item_count,
@@ -103,16 +95,10 @@ fn render_empty_message(
     inner: Rect,
     locale: crate::i18n::Locale,
     thread_list_view: ThreadListView,
-    runtime_mode: crate::runtime_mode::RuntimeMode,
     theme: &Theme,
 ) {
-    let empty = Paragraph::new(empty::empty_message(
-        locale,
-        thread_list_view,
-        runtime_mode,
-        theme,
-    ))
-    .alignment(ratatui::layout::Alignment::Center)
-    .wrap(Wrap { trim: false });
+    let empty = Paragraph::new(empty::empty_message(locale, thread_list_view, theme))
+        .alignment(ratatui::layout::Alignment::Center)
+        .wrap(Wrap { trim: false });
     f.render_widget(empty, inner);
 }

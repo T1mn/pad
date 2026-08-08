@@ -29,4 +29,4 @@ Change hygiene:
 
 ## Verification
 
-<!-- What you ran, on which platform, and what you saw. Mention tmux version if relevant. -->
+<!-- What you ran, on which platform and shell, and what you saw. -->

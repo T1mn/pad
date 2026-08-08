@@ -4,7 +4,17 @@ use crate::terminal_runtime::{
     PaneFrame, TerminalError, TerminalMode, TerminalScroll, TerminalSize, TransportExit,
 };
 
-use super::{App, TerminalInteractionState, TerminalPaneId};
+use super::{App, TerminalInteractionState, TerminalPaneId, TerminalPaneLifecycle};
+
+#[cfg(test)]
+thread_local! {
+    static FAIL_NEXT_WORKSPACE_SAVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(super) fn fail_next_workspace_save() {
+    FAIL_NEXT_WORKSPACE_SAVE.with(|flag| flag.set(true));
+}
 
 impl App {
     pub fn terminal_mode(&self) -> TerminalMode {
@@ -36,6 +46,45 @@ impl App {
     pub fn send_terminal_mouse_input(&mut self, bytes: Vec<u8>) -> Result<(), TerminalError> {
         let pane_id = self.require_focused_terminal_pane()?;
         self.terminal.queue_input(pane_id, bytes, false)
+    }
+
+    pub fn send_native_pane_input(
+        &mut self,
+        live_pane_id: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), TerminalError> {
+        let pane_id = super::agent_registry::parse_native_agent_pane_id(live_pane_id)
+            .ok_or_else(|| TerminalError::new("unknown native terminal pane id"))?;
+        let lifecycle = self
+            .terminal
+            .pane(pane_id)
+            .ok_or_else(|| TerminalError::new("native terminal pane no longer exists"))?
+            .lifecycle();
+        if !matches!(
+            lifecycle,
+            TerminalPaneLifecycle::Opening | TerminalPaneLifecycle::Running
+        ) {
+            return Err(TerminalError::new(format!(
+                "native terminal pane is not running ({lifecycle:?})"
+            )));
+        }
+        let result = self.terminal.queue_input(pane_id, bytes, true);
+        self.dirty = true;
+        result
+    }
+
+    pub fn native_pane_text(&self, live_pane_id: &str) -> Option<String> {
+        let pane_id = super::agent_registry::parse_native_agent_pane_id(live_pane_id)?;
+        let frame = self.terminal.pane(pane_id)?.frame()?;
+        let mut output = String::new();
+        for row in 0..frame.terminal.size.rows {
+            let text = frame.terminal.row_text(row)?;
+            if !output.is_empty() {
+                output.push('\n');
+            }
+            output.push_str(&text);
+        }
+        Some(output.trim_end_matches('\n').to_string())
     }
 
     pub fn scroll_terminal(&mut self, scroll: TerminalScroll) -> Result<(), TerminalError> {
@@ -89,10 +138,27 @@ impl App {
             .ok_or_else(|| TerminalError::new("native terminal workspace has no focused pane"))
     }
 
-    pub(super) fn persist_terminal_workspace(&self) {
+    pub(super) fn persist_terminal_workspace(
+        &self,
+        workspace: &super::TerminalWorkspace,
+    ) -> Result<(), TerminalError> {
+        #[cfg(test)]
+        {
+            workspace.validate().map_err(TerminalError::new)?;
+            if FAIL_NEXT_WORKSPACE_SAVE.with(|flag| flag.replace(false)) {
+                Err(TerminalError::new(
+                    "injected terminal workspace save failure",
+                ))
+            } else {
+                Ok(())
+            }
+        }
         #[cfg(not(test))]
-        if let Err(error) = crate::terminal_workspace::save(&self.terminal.workspace) {
-            crate::log_debug!("terminal workspace save failed: {}", error);
+        {
+            crate::terminal_workspace::save(workspace).map_err(|error| {
+                crate::log_debug!("terminal workspace save failed: {}", error);
+                TerminalError::new(format!("terminal workspace save failed: {error}"))
+            })
         }
     }
 }

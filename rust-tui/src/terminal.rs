@@ -34,7 +34,7 @@ fn panic_requires_terminal_restore() -> bool {
     !crate::panic_boundary::is_isolated()
 }
 
-pub fn enter(configure_tmux_focus_events: bool) -> Result<TerminalHandle, Box<dyn Error>> {
+pub fn enter() -> Result<TerminalHandle, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(
@@ -44,12 +44,6 @@ pub fn enter(configure_tmux_focus_events: bool) -> Result<TerminalHandle, Box<dy
         EnableFocusChange,
         EnableBracketedPaste
     )?;
-
-    if configure_tmux_focus_events {
-        let _ = std::process::Command::new("tmux")
-            .args(["set", "-g", "focus-events", "on"])
-            .output();
-    }
 
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)

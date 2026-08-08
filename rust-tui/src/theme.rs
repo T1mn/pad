@@ -15,7 +15,6 @@ mod config {
         pub refresh_interval: u64,
         pub agents: Vec<AgentConfig>,
         pub language: String,
-        pub desired_agent_style: DesiredAgentStyle,
         pub preview: PreviewConfig,
         pub display: DisplayConfig,
         pub sound: SoundConfig,
@@ -32,7 +31,6 @@ mod config {
                 refresh_interval: 10,
                 agents: default_agents(),
                 language: "en".to_string(),
-                desired_agent_style: DesiredAgentStyle::default(),
                 preview: PreviewConfig::default(),
                 display: DisplayConfig::default(),
                 sound: SoundConfig::default(),
@@ -164,8 +162,8 @@ pub use load::ConfigRecovery;
 pub use palette_core::Theme;
 pub use provider::{normalize_provider_key, ProviderConfig};
 pub use settings::{
-    AgentPermissionsConfig, CodexConfig, DesiredAgentStyle, DisplayConfig, PreviewConfig,
-    SoundConfig, SoundEventConfig, TelegramConfig,
+    AgentPermissionsConfig, CodexConfig, DisplayConfig, PreviewConfig, SoundConfig,
+    SoundEventConfig, TelegramConfig,
 };
 
 pub(crate) use provider::codex_api_base_candidates;

@@ -36,8 +36,8 @@ mod listener;
 mod model {
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct HookTmuxInfo {
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct HookTerminalInfo {
         pub pane_id: Option<String>,
         pub session_name: Option<String>,
         pub window_index: Option<String>,
@@ -56,11 +56,12 @@ mod model {
         pub prompt: Option<String>,
         pub last_assistant_message: Option<String>,
         pub timestamp: Option<String>,
-        pub tmux: HookTmuxInfo,
+        #[serde(default)]
+        pub terminal: HookTerminalInfo,
     }
 }
 
 pub use listener::{hook_socket_is_active, start_hook_listener};
 pub use model::HookEvent;
 #[cfg(test)]
-pub use model::HookTmuxInfo;
+pub use model::HookTerminalInfo;

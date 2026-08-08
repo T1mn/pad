@@ -18,7 +18,7 @@ pub(super) fn preview_sid_text_at(
         .session_id
         .as_deref()
         .or(thread.session_id.as_deref())?;
-    preview_info_value_text_at(area, column, row, 4, session_id)
+    preview_info_value_text_at(area, column, row, 3, session_id)
 }
 
 pub(super) fn preview_share_url_text_at(
@@ -29,7 +29,7 @@ pub(super) fn preview_share_url_text_at(
 ) -> Option<String> {
     let thread = app.selected_preview_thread()?;
     let share_url = thread.share_url.as_deref()?;
-    preview_info_value_text_at(area, column, row, 7, share_url)
+    preview_info_value_text_at(area, column, row, 6, share_url)
 }
 
 pub(in crate::ui::preview::layout) fn preview_info_value_text_at(

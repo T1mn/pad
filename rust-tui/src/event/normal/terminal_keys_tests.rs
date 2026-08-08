@@ -41,6 +41,17 @@ fn command_actions_cover_layout_profiles_and_navigation() {
         Some(TerminalCommandAction::NewTab(TerminalProfile::Claude))
     );
     assert_eq!(
+        terminal_command_action(key(KeyCode::Char('5'), KeyModifiers::NONE)),
+        Some(TerminalCommandAction::NewTab(TerminalProfile::OpenCode))
+    );
+    assert_eq!(
+        terminal_command_action(key(KeyCode::Char('o'), KeyModifiers::NONE)),
+        Some(TerminalCommandAction::Split(
+            TerminalSplitAxis::Columns,
+            TerminalProfile::OpenCode
+        ))
+    );
+    assert_eq!(
         terminal_command_action(key(KeyCode::Char(']'), KeyModifiers::NONE)),
         Some(TerminalCommandAction::NextTab)
     );

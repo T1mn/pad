@@ -84,7 +84,7 @@ pub(in crate::app::hooks) fn completion_notification_for_activity(
                 .transcript_path
                 .clone()
                 .or_else(|| event.transcript_path.clone()),
-            pane_id: event.tmux.pane_id.clone(),
+            pane_id: event.terminal.pane_id.clone(),
         },
         request,
     })

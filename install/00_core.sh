@@ -7,7 +7,6 @@ REPO="T1mn/pad"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION_INPUT="${VERSION:-latest}"
 ASSUME_YES="${PAD_INSTALL_ASSUME_YES:-0}"
-INSTALL_TMUX_COMPAT="${PAD_INSTALL_TMUX_COMPAT:-0}"
 FORCE_SOURCE="${PAD_INSTALL_FORCE_SOURCE:-0}"
 DISABLE_SOURCE_FALLBACK="${PAD_INSTALL_DISABLE_SOURCE_FALLBACK:-0}"
 DEFAULT_RELEASE_BASE_URL="https://github.com/${REPO}/releases/download"
@@ -52,10 +51,6 @@ ok() {
 
 err() {
   say "${RED}$*${NC}" >&2
-}
-
-check_tmux() {
-  command -v tmux >/dev/null 2>&1
 }
 
 check_rust() {

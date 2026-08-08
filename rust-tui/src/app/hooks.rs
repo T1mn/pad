@@ -103,7 +103,7 @@ impl App {
     pub fn apply_hook_event(&mut self, event: HookEvent) {
         activity::normalize_codex_rollout_paths_if_needed(&event);
 
-        let Some(pane_id) = event.tmux.pane_id.clone() else {
+        let Some(pane_id) = event.terminal.pane_id.clone() else {
             self.apply_app_thread_hook_event(event);
             return;
         };

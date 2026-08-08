@@ -1,10 +1,8 @@
 mod command {
-    use std::ffi::OsString;
     use std::io;
-    use std::process::Command;
 
-    pub(super) fn import_opencode_session(source: &str, command: &OsString) -> io::Result<String> {
-        let output = Command::new(command).args(["import", source]).output()?;
+    pub(super) fn import_opencode_session(source: &str, command: &str) -> io::Result<String> {
+        let output = super::super::opencode_cli::run_with_args(command, &["import", source], None)?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(io::Error::other(if stderr.is_empty() {

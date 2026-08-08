@@ -129,7 +129,7 @@ mod item {
 mod thread {
     use super::activity::thread_sort_activity_keys;
     use crate::model::{
-        AgentState, AgentType, GitInfo, PreviewSessionOrigin, SessionCacheState, SharedPreviewTurns,
+        AgentState, AgentType, PreviewSessionOrigin, SessionCacheState, SharedPreviewTurns,
     };
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,8 +157,6 @@ mod thread {
         pub sort_updated_at: i64,
         pub live_pane_id: Option<String>,
         pub live_location: Option<String>,
-        pub pid: Option<String>,
-        pub git_info: Option<GitInfo>,
         pub state: AgentState,
         pub is_active: bool,
         pub cached_preview_turns: SharedPreviewTurns,

@@ -16,7 +16,7 @@ pub(super) async fn handle_stop_command(
         return Ok(());
     };
     let stop_send_error = {
-        let send_result = tmux_dispatch::send_escape(&target.pane_id);
+        let send_result = terminal_remote::send_escape(&target.pane_id);
         send_result.err().map(|err| err.to_string())
     };
     match stop_send_error {
