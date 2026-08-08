@@ -116,7 +116,3 @@ fn url_from_clipboard() -> Result<String, String> {
 pub(in crate::app::actions) use command::attach_command;
 #[cfg(test)]
 pub(in crate::app::actions) use url::normalize_server_url;
-
-#[cfg(test)]
-#[path = "opencode_attach_tests.rs"]
-mod opencode_attach_tests;

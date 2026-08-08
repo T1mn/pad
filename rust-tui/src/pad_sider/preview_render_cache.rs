@@ -37,7 +37,3 @@ impl App {
 fn file_preview_body_changed(previous: &FilePreview, next: &FilePreview) -> bool {
     previous.title != next.title || previous.kind != next.kind || previous.content != next.content
 }
-
-#[cfg(test)]
-#[path = "preview_render_cache_tests.rs"]
-mod tests;

@@ -1,9 +1,5 @@
 mod cache;
 
-#[cfg(test)]
-#[path = "file_preview_tests.rs"]
-mod file_preview_tests;
-
 use super::super::app::{App, Focus};
 use super::super::preview::PreviewKind;
 use super::diff::render_diff_patch;

@@ -54,7 +54,7 @@ pub fn next_width_level(current: u16, wider: bool) -> u16 {
     }
 }
 
-fn nearest_width_level(current: u16) -> u16 {
+pub(super) fn nearest_width_level(current: u16) -> u16 {
     WIDTH_LEVELS
         .iter()
         .copied()
@@ -118,7 +118,3 @@ fn run_tmux(args: &[&str]) -> Result<String, String> {
         ))
     }
 }
-
-#[cfg(test)]
-#[path = "sizing_tests.rs"]
-mod tests;

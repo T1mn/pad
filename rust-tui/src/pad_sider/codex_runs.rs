@@ -92,7 +92,3 @@ fn codex_diff_preview(entry: &TurnDiffEntry) -> FilePreview {
         PreviewKind::Diff,
     )
 }
-
-#[cfg(test)]
-#[path = "codex_runs_tests.rs"]
-mod tests;

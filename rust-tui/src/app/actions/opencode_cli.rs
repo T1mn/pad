@@ -46,7 +46,7 @@ pub(super) fn safe_filename(value: &str) -> String {
     }
 }
 
-fn first_command_token(command: &str) -> String {
+pub(in crate::app::actions) fn first_command_token(command: &str) -> String {
     command
         .split_whitespace()
         .next()
@@ -65,7 +65,3 @@ fn default_opencode_command() -> OsString {
         OsString::from("opencode")
     }
 }
-
-#[cfg(test)]
-#[path = "opencode_cli_tests.rs"]
-mod tests;

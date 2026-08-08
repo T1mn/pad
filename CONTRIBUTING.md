@@ -19,15 +19,18 @@ Security problems go to `SECURITY.md`, not to the issue tracker.
 
 **1. Rust source files have role-based size limits.**
 Tracked production files under `rust-tui/src/**/*.rs` may contain up to 500 lines, while external
-test files (`*_tests.rs`, `tests.rs`, or files below a `tests/` directory) may contain up to 800.
+test files (`*_tests.rs`, `tests.rs`, or files below `tests/` and `*_tests/` directories) may
+contain up to 800.
 No Rust file may exceed the absolute 1000-line limit. Only `rust-tui/src/i18n/` is exempt from the
 role-based limit because translation tables are intentionally dense; the absolute limit still
 applies. Prefer one cohesive module over several tiny forwarding files, then split by responsibility
 when a file approaches its limit.
 
 **2. Unit tests live in external files.**
-Ordinary source files must not contain the literal `mod tests {`. Put the tests in a sibling file
-whose name ends in `_tests.rs` (or under a `tests/` directory) and attach it from the source file:
+Ordinary source files must not contain the literal `mod tests {`. Put tests in a sibling file whose
+name ends in `_tests.rs` (or below a `tests/` / `*_tests/` directory) and attach it from the source
+file. Prefer one cohesive feature-level test file over several one- or two-test files when the tests
+can share the same parent module without broadening public API visibility:
 
 ```rust
 #[cfg(test)]

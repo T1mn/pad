@@ -1,7 +1,7 @@
 mod export;
 mod mode {
     #[derive(Clone, Copy)]
-    pub(in crate::app::actions::opencode_export) enum ExportMode {
+    pub(in crate::app::actions) enum ExportMode {
         Raw,
         Sanitized,
     }
@@ -10,7 +10,11 @@ mod path {
     use super::mode::ExportMode;
     use std::path::{Path, PathBuf};
 
-    pub(super) fn opencode_export_path(session_id: &str, dir: &Path, mode: ExportMode) -> PathBuf {
+    pub(in crate::app::actions) fn opencode_export_path(
+        session_id: &str,
+        dir: &Path,
+        mode: ExportMode,
+    ) -> PathBuf {
         let suffix = match mode {
             ExportMode::Raw => "json",
             ExportMode::Sanitized => "sanitized.json",
@@ -59,7 +63,7 @@ mod text {
 
 use super::{opencode_cli, App};
 use crate::model::AgentType;
-use mode::ExportMode;
+pub(in crate::app::actions) use mode::ExportMode;
 use text::{
     export_failed_title, export_saved_title, missing_session_message, no_thread_message,
     opencode_only_message,
@@ -122,8 +126,4 @@ impl App {
 }
 
 #[cfg(test)]
-use path::opencode_export_path;
-
-#[cfg(test)]
-#[path = "opencode_export_tests.rs"]
-mod opencode_export_tests;
+pub(in crate::app::actions) use path::opencode_export_path;

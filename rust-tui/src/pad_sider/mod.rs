@@ -214,6 +214,9 @@ mod tmux_args;
 mod tree;
 mod ui;
 
+#[cfg(test)]
+mod tests;
+
 pub fn run_args<I>(args: I) -> Result<(), Box<dyn std::error::Error>>
 where
     I: Iterator<Item = String>,

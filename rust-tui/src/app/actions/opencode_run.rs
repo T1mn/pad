@@ -126,7 +126,3 @@ fn prompt_from_clipboard() -> Result<String, String> {
 pub(in crate::app::actions) use command::run_command;
 #[cfg(test)]
 pub(in crate::app::actions) use prompt::{normalize_prompt, prompt_preview};
-
-#[cfg(test)]
-#[path = "opencode_run_tests.rs"]
-mod opencode_run_tests;

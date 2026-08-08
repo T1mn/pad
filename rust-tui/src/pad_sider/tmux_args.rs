@@ -8,7 +8,3 @@ pub(super) fn format_tmux_args(args: &[&str]) -> String {
     }
     formatted
 }
-
-#[cfg(test)]
-#[path = "tmux_args_tests.rs"]
-mod tests;

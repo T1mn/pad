@@ -76,7 +76,3 @@ impl App {
 
 #[cfg(test)]
 pub(in crate::app::actions) use command::github_install_command;
-
-#[cfg(test)]
-#[path = "opencode_github_tests.rs"]
-mod opencode_github_tests;

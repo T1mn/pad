@@ -78,7 +78,3 @@ impl App {
 
 #[cfg(test)]
 pub(in crate::app::actions) use path::opencode_stats_path;
-
-#[cfg(test)]
-#[path = "opencode_stats_tests.rs"]
-mod opencode_stats_tests;

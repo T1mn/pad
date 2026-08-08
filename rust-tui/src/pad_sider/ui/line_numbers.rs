@@ -33,7 +33,3 @@ pub fn text_lines(content: &str) -> Text<'static> {
         .collect::<Vec<_>>();
     Text::from(lines)
 }
-
-#[cfg(test)]
-#[path = "line_numbers_tests.rs"]
-mod tests;

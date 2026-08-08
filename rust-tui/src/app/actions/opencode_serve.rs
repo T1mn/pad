@@ -68,7 +68,3 @@ impl App {
 
 #[cfg(test)]
 pub(in crate::app::actions) use command::serve_command;
-
-#[cfg(test)]
-#[path = "opencode_serve_tests.rs"]
-mod opencode_serve_tests;

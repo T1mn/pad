@@ -69,4 +69,8 @@ use crate::sidebar::{SidebarItem, SidebarThread};
 pub(crate) use helpers::settings_item_search_blob;
 
 #[cfg(test)]
+#[path = "actions/opencode_tests.rs"]
+mod opencode_tests;
+
+#[cfg(test)]
 mod tests;

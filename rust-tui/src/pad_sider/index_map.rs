@@ -55,7 +55,3 @@ fn dir_label(root: &Path, dir: &Path) -> String {
         .unwrap_or(".")
         .to_string()
 }
-
-#[cfg(test)]
-#[path = "index_map_tests.rs"]
-mod tests;

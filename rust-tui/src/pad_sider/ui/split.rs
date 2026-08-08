@@ -27,7 +27,3 @@ pub fn left_column_width(total_width: u16) -> u16 {
         .clamp(MIN_LEFT_WIDTH, MAX_LEFT_WIDTH)
         .min(max_left_for_preview)
 }
-
-#[cfg(test)]
-#[path = "split_tests.rs"]
-mod tests;

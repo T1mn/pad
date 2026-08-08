@@ -28,10 +28,6 @@ fn roomy(text: Text<'static>, extra_blank_lines: usize) -> Text<'static> {
     Text::from(lines)
 }
 
-fn is_blank(line: &Line<'_>) -> bool {
+pub(super) fn is_blank(line: &Line<'_>) -> bool {
     line.spans.iter().all(|span| span.content.trim().is_empty())
 }
-
-#[cfg(test)]
-#[path = "text_zoom_tests.rs"]
-mod tests;

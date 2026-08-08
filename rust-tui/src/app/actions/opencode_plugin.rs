@@ -119,7 +119,3 @@ fn module_from_clipboard() -> Result<String, String> {
 pub(in crate::app::actions) use command::plugin_command;
 #[cfg(test)]
 pub(in crate::app::actions) use module::normalize_plugin_module;
-
-#[cfg(test)]
-#[path = "opencode_plugin_tests.rs"]
-mod opencode_plugin_tests;

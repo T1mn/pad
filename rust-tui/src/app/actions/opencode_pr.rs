@@ -130,7 +130,3 @@ fn pr_number_from_clipboard() -> Result<String, String> {
 pub(in crate::app::actions) use command::pr_command;
 #[cfg(test)]
 pub(in crate::app::actions) use parse::normalize_pr_number;
-
-#[cfg(test)]
-#[path = "opencode_pr_tests.rs"]
-mod opencode_pr_tests;

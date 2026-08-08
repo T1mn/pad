@@ -38,6 +38,9 @@ mod split;
 mod syntax;
 mod text_zoom;
 
+#[cfg(test)]
+mod tests;
+
 use super::app::App;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseEventKind},

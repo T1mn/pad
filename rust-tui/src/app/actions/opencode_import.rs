@@ -107,7 +107,3 @@ fn source_from_clipboard() -> Result<String, String> {
 pub(in crate::app::actions) use super::helpers::trim_wrapping_quotes;
 #[cfg(test)]
 pub(in crate::app::actions) use source::normalize_import_source;
-
-#[cfg(test)]
-#[path = "opencode_import_tests.rs"]
-mod opencode_import_tests;

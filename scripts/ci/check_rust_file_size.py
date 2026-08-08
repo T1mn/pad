@@ -33,7 +33,10 @@ def line_count(text: str) -> int:
 
 
 def is_test_file(path: str) -> bool:
-    return path.endswith("tests.rs") or "/tests/" in path
+    parts = path.split("/")
+    return path.endswith("tests.rs") or any(
+        part == "tests" or part.endswith("_tests") for part in parts[:-1]
+    )
 
 
 def is_exempt(path: str) -> bool:

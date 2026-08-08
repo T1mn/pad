@@ -23,7 +23,3 @@ pub(super) fn relative_selection(selected: usize, range: &Range<usize>) -> Optio
 pub(super) fn list_viewport_height(area_height: u16) -> usize {
     area_height.saturating_sub(2) as usize
 }
-
-#[cfg(test)]
-#[path = "nav_window_tests.rs"]
-mod tests;

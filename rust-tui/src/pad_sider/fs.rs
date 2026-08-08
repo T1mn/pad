@@ -48,7 +48,3 @@ pub fn read_file_stats(path: &Path) -> FileStats {
         modified,
     }
 }
-
-#[cfg(test)]
-#[path = "fs_tests.rs"]
-mod tests;

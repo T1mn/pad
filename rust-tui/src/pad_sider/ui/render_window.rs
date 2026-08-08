@@ -55,7 +55,7 @@ fn line_wrapped_rows(line: &Line<'_>, viewport_width: usize) -> usize {
     }
 }
 
-fn display_width(text: &str) -> usize {
+pub(super) fn display_width(text: &str) -> usize {
     if text.bytes().all(|byte| (b' '..=b'~').contains(&byte)) {
         return text.len();
     }
@@ -90,7 +90,3 @@ fn char_display_width(ch: char) -> usize {
         1
     }
 }
-
-#[cfg(test)]
-#[path = "render_window_tests.rs"]
-mod tests;
