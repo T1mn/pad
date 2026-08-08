@@ -1,4 +1,0 @@
-# navigation/cache
-
-- `folders.rs`：重建 sidebar folder 缓存，并把 preview cache 合并进 thread。
-- `../cache.rs` 内联 `visible`：重建可见 sidebar item 缓存和对外只读访问器。

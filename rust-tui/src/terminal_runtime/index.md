@@ -6,7 +6,7 @@
 - `native_pty/process.rs`：owned child 的 signal escalation、deadline wait、reap 与 drop cleanup。
 - `controller.rs`：UI-facing controller handle、pane epoch、有界 input/resize/scroll command 与 frame reader。
 - `controller/host.rs`：后台 host 的 per-pane operation queue、round-robin pump、frame/error 发布与关闭。
-- `engine.rs`：可替换的 `TerminalEngine`、factory 与多引擎 registry。
+- `../terminal_runtime.rs`：可替换的 `TerminalEngine`、factory 与多引擎 registry。
 - `input.rs`：crossterm 按键与 bracketed paste 到 xterm 字节序列的无状态编码。
 - `live_pane.rs`：组合 PaneRuntime 与 TransportRuntime 的 open/pump/input/resize/exit 生命周期。
 - `live_pane/events.rs`：engine output、parser PTY replies 与 coalesced host events 的 bounded routing。
@@ -18,4 +18,4 @@
 - `pane.rs`：label/engine/transport metadata 与 engine runtime 的组合层。
 - `*_tests.rs`：与生产模块同级的外置单元测试，覆盖 alacritty、controller、input、live pane、Native PTY、pane、transport、widget 与 worker；`live_pane_tests/support.rs` 集中测试 transport helper。
 - `tests.rs`：ANSI、resize、多引擎和 worker 线程隔离测试。
-- `stress_tests.rs`：8 panes 并发输出、resize、snapshot 与关闭压力回归。
+- `../terminal_runtime.rs`：8 panes 并发输出、resize、snapshot 与关闭压力回归。

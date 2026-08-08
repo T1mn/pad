@@ -1,9 +1,6 @@
 # app
 
-- `mod.rs`：`App` 状态与少量通用方法。
-- `lifecycle.rs`：`App::new` 初始化。
-- `display_scope.rs`：侧边栏缓存失效、live/all session scope 与 thread list view helper。
-- `mod.rs` 内联 `time`：app 级时间戳 helper。
+- `mod.rs`：`App` 状态、初始化、侧边栏缓存失效、session scope、thread list view 与内联时间 helper。
 - `terminal.rs` / `terminal/`：UI 侧 Native terminal workspace；管理可持久化的 tab/二叉 split/profile/label、native agent sidebar registry、跨 tab focus，以及共享 controller 上每 pane 独立的 frame、输入、scroll、resize、关闭与公平背压重试。
 - `socket_api.rs`：在主 UI 线程处理并测试 native pane 状态、输入、截屏与审批请求，外部服务不直接管理终端进程。
 - `state/`：UI 与运行态结构。

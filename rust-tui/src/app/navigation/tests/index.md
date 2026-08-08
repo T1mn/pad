@@ -1,5 +1,0 @@
-# navigation/tests
-
-- `mod.rs` 内联 `movement`：sidebar 上下移动、数字跳转、folder 跳过与排序回归。
-- `mod.rs` 内联 `selection`：当前 sidebar/thread/panel 选择同步回归。
-- `mod.rs`：测试模块入口。

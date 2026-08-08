@@ -1,5 +1,0 @@
-# settings/codex/tests
-
-- `mod.rs`：测试公共 app 初始化、共享临时 HOME wrapper 和分类打开辅助。
-- `mod.rs` 内联 `navigation`：Codex settings 二级目录导航和返回边界测试。
-- `mod.rs` 内联 `actions`：runtime/status/prompt/preview 子项原有开关行为回归测试。

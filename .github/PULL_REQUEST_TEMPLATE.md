@@ -7,8 +7,7 @@
 Structural rules, all enforced by CI (details in `CONTRIBUTING.md`):
 
 - [ ] Every touched `rust-tui/src/**/*.rs` file is at most 200 lines (`rust-tui/src/i18n/` is exempt).
-- [ ] No inline `mod tests {` in ordinary source files; unit tests live in an external `*_tests.rs`
-      attached with `#[cfg(test)] #[path = "..."] mod tests;`.
+- [ ] Cohesive implementation and tests stay discoverable together; avoid recreating tiny leaf modules.
 - [ ] `python3 scripts/ci/check_rust_file_size.py` passes.
 - [ ] Every new directory has an `index.md` of at most 50 lines, and the `index.md` files touched by
       this change still point at paths that exist.

@@ -27,8 +27,144 @@ mod candidates {
             && (pending.accepted_at.is_some() || pending.phase == "awaiting_confirm")
     }
 }
-mod notify;
-mod scan;
+mod notify {
+    use super::super::*;
+    use super::scan::ApprovalScanOutcome;
+
+    pub(super) async fn notify_approval_change(
+        config: &Config,
+        state: &mut TelegramState,
+        request_id: &str,
+        snapshot: &PendingRequest,
+        outcome: ApprovalScanOutcome,
+    ) -> TelegramResult<()> {
+        refresh_pending_feedback(config, state, true);
+        if let Some(request) = outcome.next_request {
+            notify_new_approval_request(config, state, request_id, &request).await
+        } else {
+            log_cleared_approval(snapshot, outcome.previous_call_id);
+            Ok(())
+        }
+    }
+
+    async fn notify_new_approval_request(
+        config: &Config,
+        state: &TelegramState,
+        request_id: &str,
+        request: &CodexApprovalRequest,
+    ) -> TelegramResult<()> {
+        let Some(pending) = state
+            .pending_requests
+            .iter()
+            .find(|pending| pending.request_id == request_id)
+            .cloned()
+        else {
+            return Ok(());
+        };
+        send_codex_approval_prompt(config, &pending.chat_id, &pending, request).await?;
+        play_sound_event(config, crate::sound::SoundEvent::Approval);
+        log_debug!(
+            "telegram: codex approval detected request={} pane={} call_id={}",
+            pending.request_id,
+            pending.pane_id,
+            request.call_id
+        );
+        Ok(())
+    }
+
+    fn log_cleared_approval(snapshot: &PendingRequest, previous_call_id: Option<String>) {
+        if let Some(previous_call_id) = previous_call_id {
+            log_debug!(
+                "telegram: codex approval cleared pane={} call_id={}",
+                snapshot.pane_id,
+                previous_call_id
+            );
+        }
+    }
+}
+mod scan {
+    use super::super::*;
+    use std::path::Path;
+
+    pub(super) struct ApprovalScanOutcome {
+        pub(super) changed: bool,
+        pub(super) previous_call_id: Option<String>,
+        pub(super) next_request: Option<CodexApprovalRequest>,
+    }
+
+    pub(super) fn scan_and_apply_approval_state(
+        state: &mut TelegramState,
+        request_id: &str,
+        snapshot: &PendingRequest,
+        transcript_path: &str,
+    ) -> TelegramResult<ApprovalScanOutcome> {
+        let previous_call_id = snapshot.approval_call_id.clone();
+        let scan_result = scan_codex_approval_updates(
+            Path::new(transcript_path),
+            snapshot.approval_scan_offset,
+            current_approval_request(snapshot),
+        )?;
+
+        let next_request = scan_result.active_request.clone();
+        let changed = previous_call_id.as_deref()
+            != next_request
+                .as_ref()
+                .map(|request| request.call_id.as_str());
+
+        apply_approval_scan_result(
+            state,
+            request_id,
+            scan_result.next_offset,
+            next_request.as_ref(),
+        );
+
+        Ok(ApprovalScanOutcome {
+            changed,
+            previous_call_id,
+            next_request,
+        })
+    }
+
+    fn current_approval_request(snapshot: &PendingRequest) -> Option<CodexApprovalRequest> {
+        snapshot
+            .approval_call_id
+            .clone()
+            .zip(snapshot.approval_justification.clone())
+            .map(|(call_id, justification)| CodexApprovalRequest {
+                call_id,
+                justification,
+            })
+    }
+
+    fn apply_approval_scan_result(
+        state: &mut TelegramState,
+        request_id: &str,
+        next_offset: u64,
+        next_request: Option<&CodexApprovalRequest>,
+    ) {
+        let Some(index) = pending_request_index_by_id(state, request_id) else {
+            return;
+        };
+        let pending = &mut state.pending_requests[index];
+        pending.approval_scan_offset = next_offset;
+        match next_request {
+            Some(request) => {
+                pending.phase = "awaiting_confirm".to_string();
+                pending.approval_call_id = Some(request.call_id.clone());
+                pending.approval_justification = Some(request.justification.clone());
+                pending.last_status_at = None;
+            }
+            None => {
+                pending.approval_call_id = None;
+                pending.approval_justification = None;
+                if pending.phase == "awaiting_confirm" {
+                    pending.phase = "awaiting_stop".to_string();
+                }
+                pending.last_status_at = None;
+            }
+        }
+    }
+}
 mod transcript {
     use super::super::*;
 

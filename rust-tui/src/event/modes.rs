@@ -146,9 +146,208 @@ mod search {
     }
 }
 mod settings;
-mod telegram;
+mod telegram {
+    use crate::app::App;
+    use crate::log_debug;
+    use crate::telegram;
+    use crossterm::event::KeyCode;
+
+    pub(crate) fn handle_telegram_settings_mode(app: &mut App, key: KeyCode) {
+        if app.telegram_editing {
+            match key {
+                KeyCode::Esc => {
+                    app.telegram_editing = false;
+                    app.telegram_edit_buffer.clear();
+                    app.dirty = true;
+                }
+                KeyCode::Enter => {
+                    let mut restart_needed = false;
+                    match app.telegram_selected_field {
+                        1 => {
+                            restart_needed =
+                                app.config.telegram.bot_token != app.telegram_edit_buffer;
+                            app.config.telegram.bot_token = app.telegram_edit_buffer.clone();
+                        }
+                        2 => app.config.telegram.chat_id = app.telegram_edit_buffer.clone(),
+                        _ => {}
+                    }
+                    app.save_config();
+                    let daemon_result = if restart_needed {
+                        telegram::restart_daemon(&app.config)
+                    } else {
+                        telegram::sync_daemon(&app.config)
+                    };
+                    if let Err(err) = daemon_result {
+                        log_debug!("telegram: daemon sync failed after settings save: {}", err);
+                    }
+                    app.telegram_editing = false;
+                    app.telegram_edit_buffer.clear();
+                    app.dirty = true;
+                }
+                KeyCode::Backspace => {
+                    app.telegram_edit_buffer.pop();
+                    app.dirty = true;
+                }
+                KeyCode::Char(c) => {
+                    app.telegram_edit_buffer.push(c);
+                    app.dirty = true;
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match key {
+            KeyCode::Esc => {
+                app.mode = crate::app::state::Mode::Settings;
+                app.dirty = true;
+            }
+            KeyCode::Char('r') => {
+                restart_telegram_daemon(app);
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                if app.telegram_selected_field < 3 {
+                    app.telegram_selected_field += 1;
+                }
+                app.dirty = true;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if app.telegram_selected_field > 0 {
+                    app.telegram_selected_field -= 1;
+                }
+                app.dirty = true;
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                match app.telegram_selected_field {
+                    0 => {
+                        app.config.telegram.enabled = !app.config.telegram.enabled;
+                        app.save_config();
+                        if let Err(err) = telegram::sync_daemon(&app.config) {
+                            log_debug!("telegram: daemon sync failed after toggle: {}", err);
+                        }
+                    }
+                    1 => {
+                        app.telegram_edit_buffer = app.config.telegram.bot_token.clone();
+                        app.telegram_editing = true;
+                    }
+                    2 => {
+                        app.telegram_edit_buffer = app.config.telegram.chat_id.clone();
+                        app.telegram_editing = true;
+                    }
+                    3 => {
+                        restart_telegram_daemon(app);
+                    }
+                    _ => {}
+                }
+                app.dirty = true;
+            }
+            _ => {}
+        }
+    }
+
+    fn restart_telegram_daemon(app: &mut App) {
+        if let Err(err) = telegram::restart_daemon(&app.config) {
+            log_debug!("telegram: restart failed from settings: {}", err);
+        }
+        app.dirty = true;
+    }
+}
 mod thread_action_confirm;
-mod tree;
+mod tree {
+    use crate::app::state::Mode;
+    use crate::app::App;
+    use crate::log_debug;
+    use crossterm::event::KeyCode;
+
+    pub(crate) fn handle_tree_mode(app: &mut App, key: KeyCode) {
+        if let Some(ref mut tree) = app.sidebar.file_tree {
+            log_debug!(
+                "tree_mode key={:?} path={} selected={:?}",
+                key,
+                tree.current_path.display(),
+                tree.state.selected()
+            );
+            match key {
+                KeyCode::Esc => {
+                    app.close_tree();
+                    app.dirty = true;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    tree.next();
+                    app.update_file_preview();
+                    app.dirty = true;
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    tree.previous();
+                    app.update_file_preview();
+                    app.dirty = true;
+                }
+                KeyCode::Char(' ') => {
+                    tree.toggle();
+                    app.update_file_preview();
+                    app.dirty = true;
+                }
+                KeyCode::Enter => {
+                    let entry_name = tree.selected().map(|e| e.name.clone()).unwrap_or_default();
+                    log_debug!("tree_mode enter: entry={}", entry_name);
+                    let selected_is_dir = tree.selected().map(|e| e.is_dir).unwrap_or(false);
+                    if selected_is_dir {
+                        tree.enter();
+                        app.update_file_preview();
+                    } else {
+                        app.mode = Mode::FilePreview;
+                        app.preview.file_preview_scroll = 0;
+                    }
+                    app.dirty = true;
+                }
+                KeyCode::Backspace => {
+                    tree.go_up();
+                    app.update_file_preview();
+                    app.dirty = true;
+                }
+                KeyCode::Char('/') => {
+                    app.mode = Mode::TreeSearch;
+                    tree.start_search();
+                    app.dirty = true;
+                }
+                KeyCode::Char('c') => {
+                    let target_path = tree.selected().filter(|e| e.is_dir).map(|e| e.path.clone());
+                    if let Some(path) = target_path {
+                        log_debug!("tree_mode: open agent launcher at {}", path.display());
+                        app.open_agent_launcher(path);
+                    }
+                }
+                KeyCode::Char('T') => {
+                    app.open_tree_in_home();
+                }
+                KeyCode::Char('t') => {
+                    app.toggle_tree();
+                }
+                KeyCode::Char('J') => {
+                    app.preview.file_preview_scroll =
+                        app.preview.file_preview_scroll.saturating_add(3);
+                    app.dirty = true;
+                }
+                KeyCode::Char('K') => {
+                    app.preview.file_preview_scroll =
+                        app.preview.file_preview_scroll.saturating_sub(3);
+                    app.dirty = true;
+                }
+                KeyCode::PageDown => {
+                    app.preview.file_preview_scroll =
+                        app.preview.file_preview_scroll.saturating_add(10);
+                    app.dirty = true;
+                }
+                KeyCode::PageUp => {
+                    app.preview.file_preview_scroll =
+                        app.preview.file_preview_scroll.saturating_sub(10);
+                    app.dirty = true;
+                }
+                _ => {}
+            }
+        }
+    }
+}
 mod tree_search {
     use crate::app::state::Mode;
     use crate::app::App;

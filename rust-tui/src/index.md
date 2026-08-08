@@ -35,3 +35,4 @@
 - `codex_runtime.rs` / `codex_runtime/`：pad 启动 Codex 时改走 `pad-codex` wrapper、校验 relay token，并在启动 Claude 时避免继承环境覆盖 relay settings。
 - `tree.rs` / `tree/` / `tree_tests.rs` / `fuzzy.rs` / `fuzzy/` / `fuzzy_tests.rs`：内置文件 tree、预览类型、agent launcher 与目录 fuzzy picker。
 - `event.rs` / `event/`：键鼠事件分发。
+- 代码导航约定：本文件负责 crate 总览，一级功能目录的 `index.md` 负责域内路由；实现叶子不再重复创建索引。相关实现与小型单元测试优先保持在同一文件，只有独立子系统才继续拆目录，普通 Rust 模块以 800 行为上限。

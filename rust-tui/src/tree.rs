@@ -58,8 +58,201 @@ mod agent_launcher {
     }
 }
 mod navigation;
-mod preview_type;
-mod render;
+mod preview_type {
+    use std::path::Path;
+
+    const MARKDOWN_SUFFIXES: &[&str] = &[".md", ".markdown"];
+    const IMAGE_SUFFIXES: &[&str] = &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"];
+    const BINARY_SUFFIXES: &[&str] = &[".exe", ".dll", ".so", ".dylib", ".bin"];
+    const TEXT_SUFFIXES: &[&str] = &[
+        ".rs",
+        ".py",
+        ".js",
+        ".ts",
+        ".go",
+        ".java",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".rb",
+        ".php",
+        ".swift",
+        ".kt",
+        ".scala",
+        ".r",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".fish",
+        ".json",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".html",
+        ".css",
+        ".sql",
+        ".txt",
+        ".log",
+        ".conf",
+        ".config",
+        ".ini",
+        ".env",
+        ".gitignore",
+        ".dockerignore",
+    ];
+
+    /// File preview type
+    #[derive(Clone, Copy, PartialEq, Debug)]
+    pub enum PreviewType {
+        Text,      // Source code, config files
+        Markdown,  // Markdown files
+        Image,     // Image files (PNG, JPG, etc)
+        Binary,    // Binary files (cannot preview)
+        Directory, // Directory
+        Unknown,   // Unknown type
+    }
+
+    impl PreviewType {
+        /// Detect preview type from file path
+        pub fn from_path(path: &Path) -> Self {
+            if path.is_dir() {
+                return PreviewType::Directory;
+            }
+
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+            if has_any_suffix(name, MARKDOWN_SUFFIXES) {
+                PreviewType::Markdown
+            } else if has_any_suffix(name, IMAGE_SUFFIXES) {
+                PreviewType::Image
+            } else if has_any_suffix(name, BINARY_SUFFIXES) {
+                PreviewType::Binary
+            } else if has_any_suffix(name, TEXT_SUFFIXES) {
+                PreviewType::Text
+            } else {
+                PreviewType::Unknown
+            }
+        }
+
+        /// Check if file can be previewed as text
+        pub fn is_text(&self) -> bool {
+            matches!(self, PreviewType::Text | PreviewType::Markdown)
+        }
+
+        /// Check if file is an image
+        pub fn is_image(&self) -> bool {
+            matches!(self, PreviewType::Image)
+        }
+    }
+
+    fn has_any_suffix(name: &str, suffixes: &[&str]) -> bool {
+        suffixes
+            .iter()
+            .any(|suffix| has_suffix_ignore_ascii_case(name, suffix))
+    }
+
+    fn has_suffix_ignore_ascii_case(name: &str, suffix: &str) -> bool {
+        let name = name.as_bytes();
+        let suffix = suffix.as_bytes();
+        if name.len() < suffix.len() {
+            return false;
+        }
+        name[name.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+    }
+}
+mod render {
+    use super::{FileTree, TreeEntry};
+    use crate::theme::Theme;
+    use ratatui::{
+        layout::Rect,
+        style::{Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, Borders, List, ListItem},
+        Frame,
+    };
+
+    impl FileTree {
+        /// Get icon for file type
+        fn file_icon(entry: &TreeEntry) -> &'static str {
+            if entry.is_dir {
+                if entry.name == ".." {
+                    "⬆️"
+                } else if entry.is_expanded {
+                    "📂"
+                } else {
+                    "📁"
+                }
+            } else {
+                let name = &entry.name;
+                if name.ends_with(".rs") {
+                    "🦀"
+                } else if name.ends_with(".py") {
+                    "🐍"
+                } else if name.ends_with(".js") || name.ends_with(".ts") {
+                    "📜"
+                } else if name.ends_with(".go") {
+                    "🔵"
+                } else if name.ends_with(".java") {
+                    "☕"
+                } else if name.ends_with(".md") {
+                    "📝"
+                } else if name.ends_with(".json")
+                    || name.ends_with(".toml")
+                    || name.ends_with(".yaml")
+                    || name.ends_with(".yml")
+                {
+                    "⚙️"
+                } else if name.ends_with(".sh") || name.ends_with(".bash") || name.ends_with(".zsh")
+                {
+                    "🐚"
+                } else if name.ends_with(".html") || name.ends_with(".css") {
+                    "🌐"
+                } else {
+                    "📄"
+                }
+            }
+        }
+
+        /// Render tree view
+        pub fn render(&mut self, f: &mut Frame, area: Rect, theme: &Theme) {
+            // Create list items
+            let items: Vec<ListItem> = self
+                .entries
+                .iter()
+                .map(|entry| {
+                    let icon = Self::file_icon(entry);
+                    let content = format!("{} {}", icon, entry.name);
+
+                    let style = if entry.is_dir {
+                        Style::default().fg(theme.accent)
+                    } else {
+                        Style::default().fg(theme.fg)
+                    };
+
+                    ListItem::new(Line::from(vec![Span::styled(content, style)]))
+                })
+                .collect();
+
+            // Create block with title
+            let title = format!("📁 {}", self.current_path.display());
+            let block = Block::default()
+                .title(title)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border_focused));
+
+            let list = List::new(items).block(block).highlight_style(
+                Style::default()
+                    .bg(theme.highlight_bg)
+                    .fg(theme.highlight_fg)
+                    .add_modifier(Modifier::BOLD),
+            );
+
+            f.render_stateful_widget(list, area, &mut self.state);
+        }
+    }
+}
 mod search {
     use super::{FileTree, TreeMode};
     use crate::text_match::contains_ignore_case;

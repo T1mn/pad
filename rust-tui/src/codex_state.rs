@@ -157,7 +157,15 @@ mod pathing {
     }
 }
 mod query;
-mod util;
+mod util {
+    use std::io;
+
+    pub(crate) use crate::time::unix_now_ts;
+
+    pub(crate) fn to_io_error(err: rusqlite::Error) -> io::Error {
+        io::Error::other(err)
+    }
+}
 
 pub use archive::{archive_thread, unarchive_thread};
 pub use migration::normalize_pad_codex_home_rollout_paths;
