@@ -2,7 +2,7 @@ use crossterm::event::{KeyEventKind, KeyEventState};
 
 use super::*;
 
-pub(crate) fn command_layer_has_one_explicit_prefix() {
+pub(crate) fn command_layer_accepts_explicit_prefixes() {
     assert!(is_command_chord(key(KeyCode::F(11), KeyModifiers::NONE)));
     assert!(is_command_chord(key(
         KeyCode::Char(' '),
@@ -11,6 +11,14 @@ pub(crate) fn command_layer_has_one_explicit_prefix() {
     assert!(is_command_chord(key(
         KeyCode::Char(' '),
         KeyModifiers::CONTROL
+    )));
+    assert!(is_command_chord(key(
+        KeyCode::Char('g'),
+        KeyModifiers::CONTROL
+    )));
+    assert!(!is_command_chord(key(
+        KeyCode::Char('g'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT
     )));
     assert!(!is_command_chord(key(
         KeyCode::Char('q'),

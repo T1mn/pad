@@ -60,7 +60,7 @@ fn event_normal_suite() {
     run_cases!(
         crate::event::normal::global_keys::primary::tests::c_keeps_opening_the_global_index_in_native_mode,
         crate::event::normal::terminal_keys::tests::command_actions_cover_layout_profiles_and_navigation,
-        crate::event::normal::terminal_keys::tests::command_layer_has_one_explicit_prefix,
+        crate::event::normal::terminal_keys::tests::command_layer_accepts_explicit_prefixes,
         crate::event::normal::terminal_keys::tests::shift_navigation_keys_control_pad_scrollback,
     );
 }

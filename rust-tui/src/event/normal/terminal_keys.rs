@@ -225,6 +225,9 @@ fn terminal_scroll(key: KeyEvent) -> Option<TerminalScroll> {
 fn is_command_chord(key: KeyEvent) -> bool {
     key.code == KeyCode::F(11)
         || (key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL))
+        || (key.code == KeyCode::Char('g')
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+            && !key.modifiers.contains(KeyModifiers::ALT))
 }
 
 #[cfg(test)]

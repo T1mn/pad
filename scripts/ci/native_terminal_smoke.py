@@ -95,6 +95,21 @@ def main() -> int:
             if not ready:
                 raise RuntimeError("PAD did not render its initial frame")
 
+            command_layer_start = len(output)
+            os.write(master, b"\x07")  # Ctrl+G: portable PAD Terminal prefix.
+            if not wait_until(
+                proc,
+                master,
+                output,
+                time.monotonic() + 3.0,
+                lambda: b"PAD TERM" in output[command_layer_start:],
+            ):
+                raise RuntimeError("Ctrl+G did not open the PAD Terminal command layer")
+            os.write(master, b"\x07")
+            time.sleep(0.2)
+            os.write(master, b"\x1b[24~")
+            time.sleep(0.2)
+
             os.write(master, b"\t")
             time.sleep(0.4)
             command = f"printf native-pty-ok > {shlex.quote(str(marker))}\r"
