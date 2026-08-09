@@ -8,6 +8,10 @@ pub(crate) fn command_layer_has_one_explicit_prefix() {
         KeyCode::Char(' '),
         KeyModifiers::CONTROL | KeyModifiers::SHIFT
     )));
+    assert!(is_command_chord(key(
+        KeyCode::Char(' '),
+        KeyModifiers::CONTROL
+    )));
     assert!(!is_command_chord(key(
         KeyCode::Char('q'),
         KeyModifiers::NONE
@@ -17,6 +21,27 @@ pub(crate) fn command_layer_has_one_explicit_prefix() {
         KeyModifiers::CONTROL
     )));
     assert!(!is_command_chord(key(KeyCode::Tab, KeyModifiers::NONE)));
+
+    #[cfg(unix)]
+    crate::test_support::with_temp_home("pad-terminal-keys", "global-command", |_| {
+        let mut app = App::new();
+        app.start_native_terminal(TerminalSize::new(80, 24))
+            .unwrap();
+        app.focus_panel();
+        assert!(!app.terminal_is_focused());
+
+        assert!(handle_terminal_key(
+            &mut app,
+            key(KeyCode::F(11), KeyModifiers::NONE)
+        ));
+        assert!(app.terminal_is_focused());
+        assert_eq!(
+            app.terminal_interaction(),
+            &TerminalInteractionState::Command
+        );
+
+        app.shutdown_native_terminal().unwrap();
+    });
 }
 
 pub(crate) fn command_actions_cover_layout_profiles_and_navigation() {

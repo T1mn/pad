@@ -3,6 +3,23 @@ use crate::terminal_runtime::{TerminalScroll, TerminalSize};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
+    if is_command_chord(key) {
+        // The command layer is a PAD-level terminal control, so it must also
+        // work while focus is still on the sidebar. Otherwise F11 appears to
+        // do nothing even though a native terminal workspace is visible.
+        if !app.terminal_is_active() {
+            return false;
+        }
+        if !app.terminal_is_focused() && !app.focus_terminal() {
+            return false;
+        }
+        if matches!(app.terminal_interaction(), TerminalInteractionState::Direct) {
+            app.enter_terminal_command_layer();
+        } else {
+            app.cancel_terminal_command_layer();
+        }
+        return true;
+    }
     if !app.terminal_is_focused() {
         return false;
     }
@@ -16,17 +33,6 @@ pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
         TerminalInteractionState::Rename { .. }
     ) {
         return handle_terminal_rename_key(app, key);
-    }
-    if is_command_chord(key) {
-        if matches!(
-            app.terminal_interaction(),
-            TerminalInteractionState::Command
-        ) {
-            app.cancel_terminal_command_layer();
-        } else {
-            app.enter_terminal_command_layer();
-        }
-        return true;
     }
     if matches!(
         app.terminal_interaction(),
@@ -218,10 +224,7 @@ fn terminal_scroll(key: KeyEvent) -> Option<TerminalScroll> {
 
 fn is_command_chord(key: KeyEvent) -> bool {
     key.code == KeyCode::F(11)
-        || (key.code == KeyCode::Char(' ')
-            && key
-                .modifiers
-                .contains(KeyModifiers::CONTROL | KeyModifiers::SHIFT))
+        || (key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL))
 }
 
 #[cfg(test)]
