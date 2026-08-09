@@ -73,4 +73,4 @@ fn sort_entries_newest_first(entries: &mut [NotificationEntry]) {
 
 #[cfg(test)]
 #[path = "inbox_tests.rs"]
-mod tests;
+pub(crate) mod tests;

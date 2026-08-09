@@ -23,4 +23,4 @@ pub(crate) fn handle_notification_inbox_mode(app: &mut App, key: KeyCode) {
 
 #[cfg(test)]
 #[path = "notification_inbox_tests.rs"]
-mod tests;
+pub(crate) mod tests;

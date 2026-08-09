@@ -38,4 +38,4 @@ fn read_codex_session_provider_name(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 #[path = "provider_tests.rs"]
-mod tests;
+pub(crate) mod tests;

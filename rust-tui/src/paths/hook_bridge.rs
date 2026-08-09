@@ -8,7 +8,7 @@ mod template;
 pub(super) use template::{claude_hook_bridge_template, codex_hook_bridge_template};
 
 pub(super) const CLAUDE_BRIDGE_VERSION: &str = "claude-2026-04-08.1";
-pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-06-02.1";
+pub(super) const CODEX_BRIDGE_VERSION: &str = "codex-2026-08-09.1";
 const BRIDGE_VERSION_PREFIX: &str = "# pad-bridge-version: ";
 
 pub(super) fn install_bridge_scripts() -> io::Result<()> {

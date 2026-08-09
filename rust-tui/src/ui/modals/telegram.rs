@@ -1,6 +1,85 @@
-mod labels;
-mod row;
-mod values;
+mod labels {
+    pub(super) fn telegram_label(locale: crate::i18n::Locale, key: &str) -> String {
+        let zh = locale_prefers_chinese(locale);
+        match key {
+            "enabled" if zh => "启用".to_string(),
+            "enabled" => "Enabled".to_string(),
+            "bot_token" if zh => "Bot Token".to_string(),
+            "bot_token" => "Bot Token".to_string(),
+            "chat_id" if zh => "Chat ID".to_string(),
+            "chat_id" => "Chat ID".to_string(),
+            "restart_bot" if zh => "重启 Bot".to_string(),
+            "restart_bot" => "Restart Bot".to_string(),
+            "bot_username" if zh => "Bot Username".to_string(),
+            "bot_username" => "Bot Username".to_string(),
+            "pad_status" if zh => "Pad 状态".to_string(),
+            "pad_status" => "Pad Status".to_string(),
+            "bot_status" if zh => "Bot 守护进程".to_string(),
+            "bot_status" => "Bot Daemon".to_string(),
+            _ => key.to_string(),
+        }
+    }
+
+    pub(super) fn restart_value(locale: crate::i18n::Locale) -> String {
+        if locale_prefers_chinese(locale) {
+            "立即重启".to_string()
+        } else {
+            "Restart now".to_string()
+        }
+    }
+
+    pub(super) fn footer_text(locale: crate::i18n::Locale, editing: bool) -> &'static str {
+        match (locale_prefers_chinese(locale), editing) {
+            (true, true) => "输入编辑 | Enter: 保存 | Shift+Delete: 清空 | Esc: 取消",
+            (false, true) => "Type to edit | Enter: save | Shift+Delete: clear | Esc: cancel",
+            (true, false) => "j/k: 移动 | Enter/Space: 编辑/切换/重启 | r: 重启 | Esc: 返回",
+            (false, false) => {
+                "j/k: move | Enter/Space: edit/toggle/restart | r: restart | Esc: back"
+            }
+        }
+    }
+
+    fn locale_prefers_chinese(locale: crate::i18n::Locale) -> bool {
+        matches!(
+            locale,
+            crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW
+        )
+    }
+}
+mod row {
+    use crate::app::App;
+    use ratatui::{
+        style::{Modifier, Style},
+        widgets::{Cell, Row},
+    };
+
+    use super::values::TelegramRowValue;
+
+    pub(super) fn telegram_row(app: &App, row: TelegramRowValue) -> Row<'static> {
+        let theme = &app.theme;
+        let is_selected = row.editable && row.field_idx == app.telegram_selected_field;
+        let name_style = if is_selected {
+            Style::default()
+                .bg(theme.highlight_bg)
+                .fg(theme.highlight_fg)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.fg)
+        };
+        let value_style = if is_selected {
+            Style::default().bg(theme.highlight_bg).fg(theme.accent)
+        } else if row.editable {
+            Style::default().fg(theme.accent)
+        } else {
+            Style::default().fg(theme.comment)
+        };
+        Row::new(vec![
+            Cell::from(row.name).style(name_style),
+            Cell::from(row.value).style(value_style),
+        ])
+    }
+}
+pub(crate) mod values;
 
 use super::common::render_modal_surface;
 use crate::app::App;

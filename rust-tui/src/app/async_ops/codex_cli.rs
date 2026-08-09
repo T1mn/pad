@@ -1,9 +1,56 @@
 #[path = "codex_cli/commands.rs"]
-mod commands;
+pub(crate) mod commands;
 #[path = "codex_cli/toast.rs"]
-mod toast;
+mod toast {
+    use super::types::CodexCliVersionInfo;
+    use crate::app::App;
+
+    pub(super) fn show_codex_update_success_toast(app: &mut App, info: &CodexCliVersionInfo) {
+        let local = info
+            .local_version
+            .clone()
+            .unwrap_or_else(|| "?".to_string());
+        let latest = info
+            .latest_version
+            .clone()
+            .unwrap_or_else(|| "?".to_string());
+        if is_chinese_locale(app) {
+            app.show_action_toast("Codex 升级完成", &format!("当前 {local} · 最新 {latest}"));
+        } else {
+            app.show_action_toast(
+                "Codex updated",
+                &format!("Current {local} · latest {latest}"),
+            );
+        }
+    }
+
+    pub(super) fn show_codex_update_failure_toast(app: &mut App, err: &str) {
+        if is_chinese_locale(app) {
+            app.show_action_toast("Codex 升级失败", err);
+        } else {
+            app.show_action_toast("Codex update failed", err);
+        }
+    }
+
+    fn is_chinese_locale(app: &App) -> bool {
+        matches!(
+            app.locale,
+            crate::i18n::Locale::ZhCN | crate::i18n::Locale::ZhTW
+        )
+    }
+}
 #[path = "codex_cli/types.rs"]
-mod types;
+mod types {
+    #[derive(Clone, Debug, Default)]
+    pub struct CodexCliVersionInfo {
+        pub binary_path: Option<String>,
+        pub local_version: Option<String>,
+        pub latest_version: Option<String>,
+    }
+
+    pub(crate) type CodexCliVersionCheckResult = CodexCliVersionInfo;
+    pub(crate) type CodexCliUpdateResult = Result<CodexCliVersionInfo, String>;
+}
 
 use self::commands::{detect_codex_cli_version_info, update_codex_cli};
 use self::toast::{show_codex_update_failure_toast, show_codex_update_success_toast};

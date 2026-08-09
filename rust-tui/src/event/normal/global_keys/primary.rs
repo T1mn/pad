@@ -62,3 +62,7 @@ pub(super) fn handle_primary_key(app: &mut App, key: KeyEvent) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+#[path = "primary_tests.rs"]
+pub(crate) mod tests;

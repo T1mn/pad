@@ -1,8 +1,7 @@
 use super::visible_plain_line_window;
 use ratatui::text::Line;
 
-#[test]
-fn visible_plain_line_window_keeps_only_rows_needed_for_viewport() {
+pub(crate) fn visible_plain_line_window_keeps_only_rows_needed_for_viewport() {
     let lines = (0..100)
         .map(|idx| Line::from(format!("line {idx}")))
         .collect::<Vec<_>>();
@@ -13,8 +12,7 @@ fn visible_plain_line_window_keeps_only_rows_needed_for_viewport() {
     assert_eq!(local_scroll, 0);
 }
 
-#[test]
-fn visible_plain_line_window_starts_inside_wrapped_line() {
+pub(crate) fn visible_plain_line_window_starts_inside_wrapped_line() {
     let lines = vec![
         Line::from("abcdef"),
         Line::from("gh"),

@@ -27,4 +27,4 @@ pub(crate) fn contains_ignore_case(value: &str, query: &str) -> bool {
 
 #[cfg(test)]
 #[path = "text_match_tests.rs"]
-mod tests;
+pub(crate) mod tests;

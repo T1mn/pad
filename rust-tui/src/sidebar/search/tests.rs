@@ -27,8 +27,6 @@ fn sample_thread(key: &str, title: &str) -> super::super::model::SidebarThread {
         sort_updated_at: 1,
         live_pane_id: Some("%1".into()),
         live_location: Some("0:1.1".into()),
-        pid: None,
-        git_info: None,
         state: AgentState::Idle,
         is_active: true,
         cached_preview_turns: Default::default(),
@@ -41,8 +39,7 @@ fn sample_thread(key: &str, title: &str) -> super::super::model::SidebarThread {
     }
 }
 
-#[test]
-fn search_expands_matching_folder_threads() {
+pub(crate) fn search_expands_matching_folder_threads() {
     let folder = SidebarFolder {
         key: "/tmp/demo".into(),
         path: "/tmp/demo".into(),
@@ -67,8 +64,7 @@ fn search_expands_matching_folder_threads() {
     }
 }
 
-#[test]
-fn visible_items_reuse_thread_allocation_when_folder_is_expanded() {
+pub(crate) fn visible_items_reuse_thread_allocation_when_folder_is_expanded() {
     let shared_thread = Arc::new(sample_thread("a", "hello world"));
     let folder = SidebarFolder {
         key: "/tmp/demo".into(),
@@ -87,8 +83,7 @@ fn visible_items_reuse_thread_allocation_when_folder_is_expanded() {
     assert!(Arc::ptr_eq(&shared_thread, visible_thread));
 }
 
-#[test]
-fn visible_items_keep_collapsed_folder_without_threads() {
+pub(crate) fn visible_items_keep_collapsed_folder_without_threads() {
     let folder = SidebarFolder {
         key: "/tmp/demo".into(),
         path: "/tmp/demo".into(),
@@ -103,8 +98,7 @@ fn visible_items_keep_collapsed_folder_without_threads() {
     assert!(matches!(items[0], SidebarItem::Folder(_)));
 }
 
-#[test]
-fn source_json_detects_subagent_thread() {
+pub(crate) fn source_json_detects_subagent_thread() {
     let thread_spawn_source = r#"{"subagent":{"thread_spawn":{"parent_thread_id":"019d28e6-0bc0-79c3-b529-a718f803d3c2","depth":1,"agent_path":"/root/audit_event_rs","agent_nickname":"Socrates","agent_role":"explorer"}}}"#;
     let review_source = r#"{"subagent":"review"}"#;
     assert!(is_subagent_source(Some(thread_spawn_source)));
@@ -112,8 +106,7 @@ fn source_json_detects_subagent_thread() {
     assert!(!is_subagent_source(Some("vscode")));
 }
 
-#[test]
-fn search_matches_ascii_case_insensitively_without_lowercase_copy() {
+pub(crate) fn search_matches_ascii_case_insensitively_without_lowercase_copy() {
     let mut thread = sample_thread("a", "Release Notes");
     thread.tags = vec!["HotFix".into()];
     let folder = SidebarFolder {
@@ -129,8 +122,7 @@ fn search_matches_ascii_case_insensitively_without_lowercase_copy() {
     assert!(matches!(items[1], SidebarItem::Thread(_)));
 }
 
-#[test]
-fn search_keeps_unicode_case_fold_behavior() {
+pub(crate) fn search_keeps_unicode_case_fold_behavior() {
     let folder = SidebarFolder {
         key: "/tmp/demo".into(),
         path: "/tmp/demo".into(),
@@ -144,8 +136,7 @@ fn search_keeps_unicode_case_fold_behavior() {
     assert!(matches!(items[1], SidebarItem::Thread(_)));
 }
 
-#[test]
-fn search_matches_agent_type_without_string_allocation() {
+pub(crate) fn search_matches_agent_type_without_string_allocation() {
     let folder = SidebarFolder {
         key: "/tmp/demo".into(),
         path: "/tmp/demo".into(),

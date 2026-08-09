@@ -144,4 +144,4 @@ pub(super) fn mask_secret_prefix(value: &str, prefix_len: usize) -> String {
 
 #[cfg(test)]
 #[path = "common_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -1,15 +1,169 @@
 use std::fs;
 use std::io;
 
-mod base;
-mod claude;
-mod codex_home;
+pub(crate) mod base;
+mod claude {
+    use std::path::PathBuf;
+
+    pub fn claude_config_dir() -> PathBuf {
+        std::env::var_os("CLAUDE_CONFIG_DIR")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home_dir().join(".claude"))
+    }
+
+    pub fn claude_projects_dir() -> PathBuf {
+        claude_config_dir().join("projects")
+    }
+
+    pub fn claude_settings_path() -> PathBuf {
+        claude_config_dir().join("settings.json")
+    }
+
+    fn home_dir() -> PathBuf {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+}
+mod codex_home {
+    use std::fs;
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    use super::pad_home_dir;
+
+    pub(super) const PAD_CODEX_PROFILE: &str = "pad";
+
+    /// PAD-private Codex home. Official Codex App continues to use `~/.codex`.
+    pub(crate) fn pad_codex_home_dir() -> PathBuf {
+        pad_home_dir().join("codex-home")
+    }
+
+    pub(crate) fn canonical_codex_home_dir() -> PathBuf {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".codex")
+    }
+
+    pub(crate) fn pad_codex_config_path() -> PathBuf {
+        pad_codex_home_dir().join(format!("{PAD_CODEX_PROFILE}.config.toml"))
+    }
+
+    /// PAD relay auth lives outside `~/.codex` so Codex App auth stays untouched.
+    pub(crate) fn pad_codex_auth_path() -> PathBuf {
+        pad_codex_home_dir().join("auth.json")
+    }
+
+    /// Hooks live in PAD's private Codex home; official Codex App hooks stay untouched.
+    pub(crate) fn pad_codex_hooks_path() -> PathBuf {
+        pad_codex_home_dir().join("hooks.json")
+    }
+
+    pub(crate) fn ensure_pad_codex_home_layout() -> io::Result<()> {
+        fs::create_dir_all(pad_codex_home_dir())?;
+        unlink_legacy_shared_state_symlinks()?;
+        seed_pad_profile_from_canonical()?;
+
+        Ok(())
+    }
+
+    fn unlink_legacy_shared_state_symlinks() -> io::Result<()> {
+        for name in [
+            "sessions",
+            "archived_sessions",
+            "state_5.sqlite",
+            "state_5.sqlite-shm",
+            "state_5.sqlite-wal",
+        ] {
+            let path = pad_codex_home_dir().join(name);
+            let Ok(meta) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if !meta.file_type().is_symlink() {
+                continue;
+            }
+            remove_symlink(&path)?;
+            crate::log_debug!(
+                "codex_home: removed legacy shared Codex state symlink {}",
+                path.display()
+            );
+        }
+        Ok(())
+    }
+
+    fn remove_symlink(path: &Path) -> io::Result<()> {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(file_err) => match fs::remove_dir(path) {
+                Ok(()) => Ok(()),
+                Err(_) => Err(file_err),
+            },
+        }
+    }
+
+    fn seed_pad_profile_from_canonical() -> io::Result<()> {
+        let target = pad_codex_config_path();
+        if path_exists_or_symlink(&target) {
+            return Ok(());
+        }
+
+        let source = canonical_codex_home_dir().join("config.toml");
+        if source.exists() {
+            fs::copy(source, target)?;
+        }
+        Ok(())
+    }
+
+    fn path_exists_or_symlink(path: &Path) -> bool {
+        path.exists() || fs::symlink_metadata(path).is_ok()
+    }
+}
 mod codex_hooks;
-mod codex_wrapper;
+pub(crate) mod codex_wrapper;
 mod hook_bridge;
 mod prompts;
-mod runtime_files;
-mod sounds;
+mod runtime_files {
+    use std::path::PathBuf;
+
+    pub fn hook_socket_path() -> PathBuf {
+        super::pad_home_dir().join("pad-hook.sock")
+    }
+
+    pub fn api_socket_path() -> PathBuf {
+        super::pad_home_dir().join("pad-api.sock")
+    }
+
+    pub fn pad_status_path() -> PathBuf {
+        super::pad_home_dir().join("pad-status.json")
+    }
+
+    pub fn telegram_bot_status_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-bot-status.json")
+    }
+
+    pub fn telegram_state_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-state.json")
+    }
+
+    pub fn telegram_hook_socket_path() -> PathBuf {
+        super::pad_home_dir().join("telegram-hook.sock")
+    }
+}
+mod sounds {
+    use std::path::PathBuf;
+
+    pub fn sounds_dir() -> PathBuf {
+        super::pad_home_dir().join("sounds")
+    }
+
+    pub fn sound_file_path(preset_id: &str) -> PathBuf {
+        sounds_dir().join(format!("{preset_id}.wav"))
+    }
+}
 
 #[cfg(test)]
 pub(crate) use claude::claude_config_dir;
@@ -46,7 +200,7 @@ pub use base::{
     opencode_diagnostics_dir, opencode_exports_dir, opencode_stats_dir, pad_codex_wrapper_path,
     pad_db_path, pad_home_dir, prompts_dir, relay_export_path, scripts_dir,
     session_continuity_log_path, session_continuity_state_path, sessions_dir, sessions_index_path,
-    telegram_bot_log_path, workspace_recipes_path,
+    telegram_bot_log_path, terminal_workspace_path,
 };
 
 pub fn ensure_pad_codex_wrapper() -> io::Result<()> {
@@ -96,4 +250,4 @@ use hook_bridge::{
 };
 
 #[cfg(test)]
-mod paths_tests;
+pub(crate) mod paths_tests;

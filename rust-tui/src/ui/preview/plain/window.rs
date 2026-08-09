@@ -58,4 +58,4 @@ pub(super) fn line_wrapped_rows(line: &Line<'_>, viewport_width: usize) -> usize
 
 #[cfg(test)]
 #[path = "window_tests.rs"]
-mod tests;
+pub(crate) mod tests;

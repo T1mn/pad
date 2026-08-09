@@ -1,12 +1,8 @@
 use std::error::Error;
 
 pub fn is_info_only_command(args: &[String]) -> bool {
-    args.iter().any(|arg| {
-        matches!(
-            arg.as_str(),
-            "--help" | "-h" | "--version" | "-V" | "--tmux-doctor"
-        )
-    })
+    args.iter()
+        .any(|arg| matches!(arg.as_str(), "--help" | "-h" | "--version" | "-V"))
 }
 
 pub fn is_telegram_daemon_command(args: &[String]) -> bool {
@@ -19,10 +15,7 @@ pub fn is_internal_command(args: &[String]) -> bool {
 
 pub fn run_internal_command(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.get(2).map(String::as_str) {
-        Some("pad-sider") => crate::pad_sider::run_args(args.iter().skip(3).cloned()),
-        Some("workspace-recipe") => crate::workspace_recipe::run_args(args.iter().skip(3).cloned()),
         Some("browser-remote") => crate::browser_remote::run_args(args.iter().skip(3).cloned()),
-        Some("agent-resume") => crate::agent_resume::run_args(args.iter().skip(3).cloned()),
         Some("socket-api") => crate::socket_api::run_args(args.iter().skip(3).cloned()),
         Some("codex-turn-diff") => crate::codex_turn_diff::run_args(args.iter().skip(3).cloned()),
         Some(other) => Err(format!("unknown internal command: {other}").into()),
@@ -45,34 +38,7 @@ pub fn handle_info_command(args: &[String]) -> Result<bool, Box<dyn Error>> {
         return Ok(true);
     }
 
-    if args.iter().any(|a| a == "--tmux-doctor") {
-        let report = crate::system_check::tmux_doctor()?;
-        for line in report.summary_lines() {
-            println!("{line}");
-        }
-        let required = report.missing_required_capabilities();
-        if !required.is_empty() {
-            println!("required missing: {}", format_list(&required, ", "));
-        }
-        let optional = report.missing_optional_capabilities();
-        if !optional.is_empty() {
-            println!("optional missing: {}", format_list(&optional, ", "));
-        }
-        return Ok(true);
-    }
-
     Ok(false)
-}
-
-fn format_list<T: AsRef<str>>(items: &[T], separator: &str) -> String {
-    let mut formatted = String::new();
-    for item in items {
-        if !formatted.is_empty() {
-            formatted.push_str(separator);
-        }
-        formatted.push_str(item.as_ref());
-    }
-    formatted
 }
 
 fn print_help() {
@@ -85,18 +51,18 @@ fn print_help() {
     println!("  -h, --help     Show help");
     println!("  -V, --version  Show version");
     println!("  -d, --debug    Enable debug logging (~/.pad/logs/pad.log)");
-    println!("      --tmux-doctor  Probe tmux compatibility and print capability details");
+    println!("                    PAD always uses its built-in native terminal runtime");
     println!();
     println!("Key bindings:");
     println!("  j/k or ↑/↓     Move selection");
     println!("  1-9            Jump to visible session");
-    println!("  Enter          Attach to panel (F12 / Ctrl+Q to return)");
+    println!("  Tab            Focus the native terminal (F12 to return)");
     println!("  t              Toggle file tree");
     println!("  Space          Expand or collapse directory");
     println!("  /              Open settings");
     println!("  ?              Help");
     println!("  r              Refresh");
-    println!("  c              Create session");
+    println!("  c              Choose a directory and launch an agent terminal");
     println!("  d              Delete pane + hide thread");
     println!("  F1             Settings");
     println!("  q              Quit");
@@ -104,4 +70,4 @@ fn print_help() {
 
 #[cfg(test)]
 #[path = "cli_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -15,7 +15,7 @@ body:
       label: What happened
       description: What you did, what you expected, and what PAD did instead.
       placeholder: |
-        Pressed Enter on a Codex thread, expected to attach to the pane, PAD stayed on the list.
+        Pressed Enter on a Codex thread, expected to focus its pane, PAD stayed on the list.
     validations:
       required: true
 
@@ -54,9 +54,9 @@ body:
   - type: input
     id: env
     attributes:
-      label: OS and tmux version
-      description: Distribution or macOS version, plus the output of `tmux -V`.
-      placeholder: Ubuntu 24.04, tmux 3.4
+      label: OS and shell
+      description: Distribution or macOS version, shell, and terminal environment.
+      placeholder: Ubuntu 24.04, zsh, TERM=xterm-256color
     validations:
       required: true
 
@@ -80,9 +80,9 @@ body:
       placeholder: Codex, Claude Code, Grok Build, OpenCode, Gemini, none
 
   - type: textarea
-    id: doctor
+    id: diagnostics
     attributes:
       label: Diagnostics
       description: |
-        Output of `pad --tmux-doctor`, plus any relevant logs. Redact tokens and API keys.
+        Relevant output and logs from `~/.pad/logs/`. Redact tokens and API keys.
       render: shell

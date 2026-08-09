@@ -1,4 +1,4 @@
-mod render;
+pub(crate) mod render;
 
 use super::*;
 

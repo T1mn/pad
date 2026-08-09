@@ -3,8 +3,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[test]
-fn settings_on_is_defined_for_all_locales() {
+pub(crate) fn settings_on_is_defined_for_all_locales() {
     assert_eq!(t(Locale::ZhCN, "settings.on"), "开");
     assert_eq!(t(Locale::ZhTW, "settings.on"), "開");
     assert_eq!(t(Locale::En, "settings.on"), "On");
@@ -13,8 +12,7 @@ fn settings_on_is_defined_for_all_locales() {
     assert_eq!(t(Locale::Fr, "settings.on"), "Activé");
 }
 
-#[test]
-fn all_static_i18n_keys_are_defined() {
+pub(crate) fn all_static_i18n_keys_are_defined() {
     let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let defined = parse_defined_i18n_keys(&src_dir.join("i18n"));
 

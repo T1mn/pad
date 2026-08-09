@@ -15,8 +15,7 @@ fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
     })
 }
 
-#[test]
-fn codex_agent_command_uses_pad_profile_without_codex_home() {
+pub(crate) fn codex_agent_command_uses_pad_profile_without_codex_home() {
     with_temp_home("profile", |_home| {
         let command = with_pad_codex_runtime("codex --model gpt-5");
         assert!(command.starts_with("'"));
@@ -26,8 +25,7 @@ fn codex_agent_command_uses_pad_profile_without_codex_home() {
     });
 }
 
-#[test]
-fn codex_agent_command_replaces_existing_profile_with_pad() {
+pub(crate) fn codex_agent_command_replaces_existing_profile_with_pad() {
     with_temp_home("replace-profile", |_home| {
         let command = with_pad_codex_runtime("codex --profile work --model gpt-5");
 
@@ -36,8 +34,7 @@ fn codex_agent_command_replaces_existing_profile_with_pad() {
     });
 }
 
-#[test]
-fn codex_agent_command_strips_profile_variants() {
+pub(crate) fn codex_agent_command_strips_profile_variants() {
     with_temp_home("strip-profile-variants", |_home| {
         let short = with_pad_codex_runtime("codex -p work --model gpt-5");
         let equals = with_pad_codex_runtime("codex --profile=work --model gpt-5");
@@ -49,8 +46,7 @@ fn codex_agent_command_strips_profile_variants() {
     });
 }
 
-#[test]
-fn codex_agent_command_uses_wrapper_instead_of_inlining_auth() {
+pub(crate) fn codex_agent_command_uses_wrapper_instead_of_inlining_auth() {
     with_temp_home("auth", |_home| {
         let auth_path = crate::paths::pad_codex_auth_path();
         std::fs::create_dir_all(auth_path.parent().expect("auth parent"))
@@ -64,8 +60,7 @@ fn codex_agent_command_uses_wrapper_instead_of_inlining_auth() {
     });
 }
 
-#[test]
-fn codex_prepare_fails_when_pad_provider_requires_auth_but_key_is_missing() {
+pub(crate) fn codex_prepare_fails_when_pad_provider_requires_auth_but_key_is_missing() {
     with_temp_home("missing-auth", |_home| {
         let config_path = crate::paths::pad_codex_config_path();
         std::fs::create_dir_all(config_path.parent().expect("config parent"))
@@ -88,8 +83,7 @@ requires_openai_auth = true
     });
 }
 
-#[test]
-fn codex_prepare_allows_required_auth_when_pad_key_exists() {
+pub(crate) fn codex_prepare_allows_required_auth_when_pad_key_exists() {
     with_temp_home("ready-auth", |_home| {
         let config_path = crate::paths::pad_codex_config_path();
         std::fs::create_dir_all(config_path.parent().expect("config parent"))
@@ -116,21 +110,18 @@ requires_openai_auth = true
     });
 }
 
-#[test]
-fn first_command_token_accepts_absolute_codex_path() {
+pub(crate) fn first_command_token_accepts_absolute_codex_path() {
     assert_eq!(
         command::first_command_token("/opt/bin/codex --version"),
         Some("codex")
     );
 }
 
-#[test]
-fn non_codex_agent_is_not_wrapped() {
+pub(crate) fn non_codex_agent_is_not_wrapped() {
     assert!(!command::is_codex_agent("claude", "claude"));
 }
 
-#[test]
-fn claude_agent_command_unsets_inherited_anthropic_env() {
+pub(crate) fn claude_agent_command_unsets_inherited_anthropic_env() {
     let command =
         prepare_agent_command("claude", "claude --model opus[1m]").expect("claude command");
 
@@ -142,8 +133,7 @@ fn claude_agent_command_unsets_inherited_anthropic_env() {
     assert!(command.ends_with(" claude --model opus[1m]"));
 }
 
-#[test]
-fn claude_agent_command_defaults_to_claude_when_empty() {
+pub(crate) fn claude_agent_command_defaults_to_claude_when_empty() {
     let command = command::with_pad_claude_runtime("");
 
     assert!(command.ends_with(" claude"));

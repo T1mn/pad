@@ -53,10 +53,6 @@ err() {
   say "${RED}$*${NC}" >&2
 }
 
-check_tmux() {
-  command -v tmux >/dev/null 2>&1
-}
-
 check_rust() {
   command -v cargo >/dev/null 2>&1
 }
@@ -498,39 +494,6 @@ detect_build_install_plan() {
   return 1
 }
 
-detect_tmux_install_plan() {
-  case "$(get_os)" in
-    macos)
-      if check_command brew; then
-        echo "brew"
-        return 0
-      fi
-      ;;
-    linux)
-      for tool in apt-get dnf yum pacman zypper apk brew; do
-        if check_command "$tool"; then
-          echo "$tool"
-          return 0
-        fi
-      done
-      ;;
-  esac
-  return 1
-}
-
-tmux_manual_hint() {
-  case "$1" in
-    brew) echo "brew install tmux" ;;
-    apt-get) echo "sudo apt-get update && sudo apt-get install -y tmux" ;;
-    dnf) echo "sudo dnf install -y tmux" ;;
-    yum) echo "sudo yum install -y tmux" ;;
-    pacman) echo "sudo pacman -Sy --noconfirm tmux" ;;
-    zypper) echo "sudo zypper --non-interactive install tmux" ;;
-    apk) echo "sudo apk add tmux" ;;
-    *) echo "install tmux with your system package manager" ;;
-  esac
-}
-
 run_as_root_or_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
@@ -546,64 +509,9 @@ ensure_root_or_sudo() {
     return 0
   fi
 
-  err "✗ tmux installation requires root or sudo access"
-  say "  Manual command: $(tmux_manual_hint "$1")"
+  err "✗ build tool installation requires root or sudo access"
+  say "  Manual command: $(build_tools_manual_hint "$1")"
   exit 1
-}
-
-install_tmux() {
-  if check_tmux; then
-    ok "✓ tmux already installed: $(tmux -V 2>/dev/null || echo tmux)"
-    return 0
-  fi
-
-  local plan
-  if ! plan="$(detect_tmux_install_plan)"; then
-    err "✗ tmux is required at runtime, but no supported package manager was detected"
-    say "  Install tmux manually, then run pad in the same environment"
-    exit 1
-  fi
-
-  warn "! tmux is not installed"
-  if ! prompt_yes "PAD requires tmux at runtime. Install tmux now?"; then
-    err "✗ tmux installation was declined"
-    say "  Manual command: $(tmux_manual_hint "$plan")"
-    exit 1
-  fi
-
-  ensure_root_or_sudo "$plan"
-  say "${BLUE}Installing tmux via ${plan}...${NC}"
-  case "$plan" in
-    brew)
-      brew install tmux
-      ;;
-    apt-get)
-      run_as_root_or_sudo apt-get update
-      run_as_root_or_sudo apt-get install -y tmux
-      ;;
-    dnf)
-      run_as_root_or_sudo dnf install -y tmux
-      ;;
-    yum)
-      run_as_root_or_sudo yum install -y tmux
-      ;;
-    pacman)
-      run_as_root_or_sudo pacman -Sy --noconfirm tmux
-      ;;
-    zypper)
-      run_as_root_or_sudo zypper --non-interactive install tmux
-      ;;
-    apk)
-      run_as_root_or_sudo apk add tmux
-      ;;
-  esac
-
-  if check_tmux; then
-    ok "✓ tmux installed: $(tmux -V 2>/dev/null || echo tmux)"
-  else
-    err "✗ tmux install command completed but tmux is still missing"
-    exit 1
-  fi
 }
 
 build_tools_ready() {
@@ -1016,10 +924,10 @@ show_success() {
   say "  pad --help     Show help"
   say ""
   say "Quick start:"
-  say "  1. Start an AI agent inside tmux"
-  say "  2. Run: pad"
-  say "  3. Use j/k to navigate, Enter to attach"
-  say "  4. F12 or Ctrl+Q to return to PAD"
+  say "  1. Run: pad"
+  say "  2. Press Tab to focus PAD's native terminal"
+  say "  3. Press F12 to return to PAD controls"
+  say "  4. Press F11 to open native terminal commands"
 }
 
 show_help() {
@@ -1034,12 +942,11 @@ What this script does:
   1. Try to download a matching release binary
   2. Verify it against the release SHA256SUMS before extracting
   3. Fall back to building from source if needed
-  4. Offer to install tmux if it is missing
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
-  PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_ASSUME_YES Auto-confirm installer prompts when set to 1
   PAD_INSTALL_ALLOW_UNVERIFIED
                          Install even when the archive cannot be checked against
                          SHA256SUMS (unsafe; only for sources you fully trust)
@@ -1055,8 +962,8 @@ Environment variables:
                          Useful for CI and local installer smoke tests
 
 Notes:
-  - PAD requires tmux at runtime.
-  - On WSL2, install and run both tmux and pad inside WSL.
+  - PAD runs agent shells in its own native PTY terminal.
+  - On WSL2, install and run PAD inside the same WSL environment as the agent CLIs.
 EOF
 }
 
@@ -1087,11 +994,6 @@ main() {
     install_from_source
   fi
 
-  install_tmux
-  if ! check_tmux; then
-    err "✗ PAD was installed, but tmux is still unavailable"
-    exit 1
-  fi
   ensure_default_codex_jailbreak_prompt
   ensure_default_codex_index_prompt
   show_path_hint

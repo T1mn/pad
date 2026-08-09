@@ -67,7 +67,7 @@ async fn handle_stream(
         log_debug!(
             "hook_listener: event={} pane={:?} cwd={:?}",
             event.event,
-            event.tmux.pane_id,
+            event.terminal.pane_id,
             event.cwd
         );
         append_hook_event_journal(&event);

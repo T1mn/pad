@@ -1,9 +1,7 @@
 use super::collect_stats_output;
-use std::ffi::OsString;
 
 #[cfg(unix)]
-#[test]
-fn stats_uses_selected_project_as_cwd_and_empty_current_project_filter() {
+pub(crate) fn stats_uses_selected_project_as_cwd_and_empty_current_project_filter() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = crate::test_support::temp_path("pad-opencode-stats", "mock");
@@ -25,7 +23,7 @@ printf 'stats ok\n'
 
     let output = collect_stats_output(
         project.to_str().expect("utf-8 project path"),
-        &OsString::from(command.as_os_str()),
+        &crate::shell_quote::single_quote(&command.to_string_lossy()),
     )
     .expect("collect stats");
 

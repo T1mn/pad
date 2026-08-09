@@ -1,11 +1,118 @@
-mod export;
-mod mode;
-mod path;
-mod text;
+mod export {
+    use super::mode::ExportMode;
+    use super::path::opencode_export_path;
+    use std::io;
+    use std::path::PathBuf;
+
+    pub(super) fn export_opencode_session(
+        session_id: &str,
+        command: &str,
+        mode: ExportMode,
+    ) -> io::Result<PathBuf> {
+        let body = run_opencode_export(session_id, command, mode)?;
+        let path = opencode_export_path(
+            session_id,
+            crate::paths::opencode_exports_dir().as_path(),
+            mode,
+        );
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, body.as_bytes())?;
+        Ok(path)
+    }
+
+    fn run_opencode_export(
+        session_id: &str,
+        command: &str,
+        mode: ExportMode,
+    ) -> io::Result<String> {
+        let mut args = vec!["export", session_id];
+        if matches!(mode, ExportMode::Sanitized) {
+            args.push("--sanitize");
+        }
+        let output = super::super::opencode_cli::run_with_args(command, &args, None)?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(io::Error::other(if stderr.is_empty() {
+                format!("opencode export exited with {}", output.status)
+            } else {
+                stderr
+            }));
+        }
+
+        let body = String::from_utf8_lossy(&output.stdout).to_string();
+        if body.trim().is_empty() {
+            return Err(io::Error::other("opencode export returned empty output"));
+        }
+        Ok(body)
+    }
+}
+mod mode {
+    #[derive(Clone, Copy)]
+    pub(in crate::app::actions) enum ExportMode {
+        Raw,
+        Sanitized,
+    }
+}
+mod path {
+    use super::mode::ExportMode;
+    use std::path::{Path, PathBuf};
+
+    pub(in crate::app::actions) fn opencode_export_path(
+        session_id: &str,
+        dir: &Path,
+        mode: ExportMode,
+    ) -> PathBuf {
+        let suffix = match mode {
+            ExportMode::Raw => "json",
+            ExportMode::Sanitized => "sanitized.json",
+        };
+        dir.join(format!(
+            "{}.{}",
+            super::super::opencode_cli::safe_filename(session_id),
+            suffix
+        ))
+    }
+}
+mod text {
+    use super::super::helpers::{is_cjk_locale, localized};
+    use super::mode::ExportMode;
+    use crate::i18n::Locale;
+
+    pub(super) fn export_saved_title(locale: Locale, mode: ExportMode) -> &'static str {
+        match (is_cjk_locale(locale), mode) {
+            (true, ExportMode::Raw) => "OpenCode 已导出",
+            (true, ExportMode::Sanitized) => "OpenCode 已脱敏导出",
+            (false, ExportMode::Raw) => "OpenCode Exported",
+            (false, ExportMode::Sanitized) => "OpenCode Sanitized Exported",
+        }
+    }
+
+    pub(super) fn export_failed_title(locale: Locale) -> &'static str {
+        localized(locale, "OpenCode 导出失败", "OpenCode Export Failed")
+    }
+
+    pub(super) fn no_thread_message(locale: Locale) -> &'static str {
+        localized(locale, "没有选中的线程", "No selected thread")
+    }
+
+    pub(super) fn opencode_only_message(locale: Locale) -> &'static str {
+        localized(locale, "只支持 OpenCode 会话", "Only OpenCode sessions")
+    }
+
+    pub(super) fn missing_session_message(locale: Locale) -> &'static str {
+        localized(
+            locale,
+            "选中的 OpenCode 线程缺少 session id",
+            "Missing OpenCode session id",
+        )
+    }
+}
 
 use super::{opencode_cli, App};
 use crate::model::AgentType;
-use mode::ExportMode;
+pub(in crate::app::actions) use mode::ExportMode;
 use text::{
     export_failed_title, export_saved_title, missing_session_message, no_thread_message,
     opencode_only_message,
@@ -68,8 +175,4 @@ impl App {
 }
 
 #[cfg(test)]
-use path::opencode_export_path;
-
-#[cfg(test)]
-#[path = "opencode_export_tests.rs"]
-mod opencode_export_tests;
+pub(in crate::app::actions) use path::opencode_export_path;

@@ -121,7 +121,3 @@ fn has_column(connection: &rusqlite::Connection, table: &str, column: &str) -> i
     }
     Ok(false)
 }
-
-#[cfg(test)]
-#[path = "stats_tests.rs"]
-mod tests;

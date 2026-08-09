@@ -1,5 +1,39 @@
 mod system;
-mod toast;
+mod toast {
+    use crate::app::CopyToast;
+    use crate::text_normalize::collapse_whitespace;
+    use std::time::{Duration, Instant};
+
+    pub(super) fn show_action_toast(slot: &mut Option<CopyToast>, title: &str, content: &str) {
+        *slot = Some(CopyToast {
+            title: title.to_string(),
+            content_preview: summarize_copy_preview(content, 24),
+            expires_at: Instant::now() + Duration::from_millis(1800),
+        });
+    }
+
+    pub(super) fn copy_toast_expired(slot: &Option<CopyToast>) -> bool {
+        slot.as_ref()
+            .is_some_and(|toast| Instant::now() >= toast.expires_at)
+    }
+
+    pub(super) fn summarize_copy_preview(text: &str, max_chars: usize) -> String {
+        let condensed = collapse_whitespace(text);
+        if condensed.is_empty() {
+            return String::from("-");
+        }
+
+        let mut preview = String::new();
+        for (idx, ch) in condensed.chars().enumerate() {
+            if idx >= max_chars {
+                preview.push_str("...");
+                return preview;
+            }
+            preview.push(ch);
+        }
+        preview
+    }
+}
 
 use super::App;
 use crate::log_debug;
@@ -47,4 +81,4 @@ impl App {
 
 #[cfg(test)]
 #[path = "clipboard_tests.rs"]
-mod tests;
+pub(crate) mod tests;

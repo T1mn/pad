@@ -1,11 +1,26 @@
 use std::path::PathBuf;
 
 pub fn pad_home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".pad")
+    resolve_pad_home_dir(
+        std::env::var_os("PAD_HOME").map(PathBuf::from),
+        std::env::var_os("HOME").map(PathBuf::from),
+        dirs::home_dir(),
+    )
+}
+
+fn resolve_pad_home_dir(
+    override_dir: Option<PathBuf>,
+    environment_home: Option<PathBuf>,
+    platform_home: Option<PathBuf>,
+) -> PathBuf {
+    override_dir
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| {
+            environment_home
+                .or(platform_home)
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".pad")
+        })
 }
 
 pub fn config_path() -> PathBuf {
@@ -28,8 +43,8 @@ pub fn opencode_diagnostics_dir() -> PathBuf {
     pad_home_dir().join("opencode-diagnostics")
 }
 
-pub fn workspace_recipes_path() -> PathBuf {
-    pad_home_dir().join("workspace-recipes.toml")
+pub fn terminal_workspace_path() -> PathBuf {
+    pad_home_dir().join("terminal-workspace.json")
 }
 
 pub fn pad_db_path() -> PathBuf {
@@ -106,3 +121,7 @@ pub fn codex_hook_bridge_path() -> PathBuf {
 pub fn pad_codex_wrapper_path() -> PathBuf {
     scripts_dir().join("pad-codex")
 }
+
+#[cfg(test)]
+#[path = "base_tests.rs"]
+pub(crate) mod tests;

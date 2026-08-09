@@ -32,8 +32,7 @@ fn status_for(pid: u32, started_at: i64) -> ProcessStatus {
     }
 }
 
-#[test]
-fn plan_stop_maps_every_case() {
+pub(crate) fn plan_stop_maps_every_case() {
     let status = status_for(4242, 100);
     assert_eq!(plan_stop(None, 7, |_| true), StopPlan::CleanupStale);
     assert_eq!(
@@ -50,8 +49,7 @@ fn plan_stop_maps_every_case() {
 }
 
 #[cfg(unix)]
-#[test]
-fn recycled_pid_is_never_signalled() {
+pub(crate) fn recycled_pid_is_never_signalled() {
     let status_path = temp_path("recycled");
     let socket_path = temp_path("recycled-sock");
     let mut child = spawn_live_child();
@@ -82,8 +80,7 @@ fn recycled_pid_is_never_signalled() {
 }
 
 #[cfg(unix)]
-#[test]
-fn terminate_rechecks_identity_before_signalling() {
+pub(crate) fn terminate_rechecks_identity_before_signalling() {
     let mut child = spawn_live_child();
     let stale = status_for(child.id(), crate::time::unix_now_ts() - 86_400);
 
@@ -95,8 +92,7 @@ fn terminate_rechecks_identity_before_signalling() {
 }
 
 #[cfg(unix)]
-#[test]
-fn stop_preserves_a_new_status_written_during_termination() {
+pub(crate) fn stop_preserves_a_new_status_written_during_termination() {
     let status_path = temp_path("replacement");
     let socket_path = temp_path("replacement-sock");
     let mut child = spawn_live_child();
@@ -125,8 +121,7 @@ fn stop_preserves_a_new_status_written_during_termination() {
 }
 
 #[cfg(unix)]
-#[test]
-fn matching_started_at_runs_the_stop_flow() {
+pub(crate) fn matching_started_at_runs_the_stop_flow() {
     let status_path = temp_path("match");
     let socket_path = temp_path("match-sock");
     let mut child = spawn_live_child();

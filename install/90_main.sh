@@ -18,10 +18,10 @@ show_success() {
   say "  pad --help     Show help"
   say ""
   say "Quick start:"
-  say "  1. Start an AI agent inside tmux"
-  say "  2. Run: pad"
-  say "  3. Use j/k to navigate, Enter to attach"
-  say "  4. F12 or Ctrl+Q to return to PAD"
+  say "  1. Run: pad"
+  say "  2. Press Tab to focus PAD's native terminal"
+  say "  3. Press F12 to return to PAD controls"
+  say "  4. Press F11 to open native terminal commands"
 }
 
 show_help() {
@@ -36,12 +36,11 @@ What this script does:
   1. Try to download a matching release binary
   2. Verify it against the release SHA256SUMS before extracting
   3. Fall back to building from source if needed
-  4. Offer to install tmux if it is missing
 
 Environment variables:
   INSTALL_DIR            Install destination (default: ~/.local/bin)
   VERSION                Release tag to install, e.g. v0.6.0 (default: latest)
-  PAD_INSTALL_ASSUME_YES Auto-confirm tmux install prompt when set to 1
+  PAD_INSTALL_ASSUME_YES Auto-confirm installer prompts when set to 1
   PAD_INSTALL_ALLOW_UNVERIFIED
                          Install even when the archive cannot be checked against
                          SHA256SUMS (unsafe; only for sources you fully trust)
@@ -57,8 +56,8 @@ Environment variables:
                          Useful for CI and local installer smoke tests
 
 Notes:
-  - PAD requires tmux at runtime.
-  - On WSL2, install and run both tmux and pad inside WSL.
+  - PAD runs agent shells in its own native PTY terminal.
+  - On WSL2, install and run PAD inside the same WSL environment as the agent CLIs.
 EOF
 }
 
@@ -89,11 +88,6 @@ main() {
     install_from_source
   fi
 
-  install_tmux
-  if ! check_tmux; then
-    err "✗ PAD was installed, but tmux is still unavailable"
-    exit 1
-  fi
   ensure_default_codex_jailbreak_prompt
   ensure_default_codex_index_prompt
   show_path_hint

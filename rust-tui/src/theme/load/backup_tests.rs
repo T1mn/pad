@@ -6,8 +6,7 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-#[test]
-fn backup_reuses_slot_for_identical_content_and_advances_for_new_damage() {
+pub(crate) fn backup_reuses_slot_for_identical_content_and_advances_for_new_damage() {
     let dir = temp_dir("slots");
     let path = dir.join("config.toml");
     std::fs::write(&path, "broken = [").expect("write broken config");
@@ -31,8 +30,7 @@ fn backup_reuses_slot_for_identical_content_and_advances_for_new_damage() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn backup_returns_none_when_source_is_unreadable() {
+pub(crate) fn backup_returns_none_when_source_is_unreadable() {
     let dir = temp_dir("missing-source");
     assert!(preserve_broken_config(&dir.join("nope.toml")).is_none());
     let _ = std::fs::remove_dir_all(&dir);

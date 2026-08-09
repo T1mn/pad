@@ -2,8 +2,7 @@ use super::handle_thread_action_confirm_mode;
 use crate::app::App;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-#[test]
-fn shift_delete_clears_thread_meta_buffer() {
+pub(crate) fn shift_delete_clears_thread_meta_buffer() {
     let mut app = editing_app("Very long title");
 
     handle_thread_action_confirm_mode(
@@ -15,8 +14,7 @@ fn shift_delete_clears_thread_meta_buffer() {
     assert!(app.dirty);
 }
 
-#[test]
-fn plain_delete_does_not_clear_thread_meta_buffer() {
+pub(crate) fn plain_delete_does_not_clear_thread_meta_buffer() {
     let mut app = editing_app("Keep me");
 
     handle_thread_action_confirm_mode(&mut app, KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));

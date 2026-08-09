@@ -64,4 +64,4 @@ fn push_diag_line(out: &mut String, line: &str) {
 
 #[cfg(test)]
 #[path = "format_tests.rs"]
-mod tests;
+pub(crate) mod tests;

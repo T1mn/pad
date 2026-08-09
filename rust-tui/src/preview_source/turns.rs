@@ -63,4 +63,4 @@ pub(super) fn format_session_turns(turns: &[PreviewTurn]) -> String {
 
 #[cfg(test)]
 #[path = "turns_tests.rs"]
-mod tests;
+pub(crate) mod tests;

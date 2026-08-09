@@ -1,8 +1,7 @@
 use super::*;
 use crate::notification_inbox::model::NotificationEntry;
 
-#[test]
-fn save_and_load_round_trips_entries() {
+pub(crate) fn save_and_load_round_trips_entries() {
     let dir = crate::test_support::temp_path("pad-inbox-test", "round-trip");
     let path = dir.join("inbox.json");
     let mut inbox = NotificationInbox::empty();

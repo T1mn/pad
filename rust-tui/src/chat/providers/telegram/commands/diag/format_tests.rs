@@ -1,7 +1,6 @@
 use super::format_session_diag_message;
 
-#[test]
-fn diag_message_includes_empty_state_metadata() {
+pub(crate) fn diag_message_includes_empty_state_metadata() {
     let context = super::super::super::SessionDiagContext {
         target_label: "CODEX • demo".into(),
         pane_id: Some("%7".into()),

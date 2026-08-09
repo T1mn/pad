@@ -22,16 +22,14 @@ fn provider() -> ProviderConfig {
     }
 }
 
-#[test]
-fn provider_subtitle_keeps_opencode_summary_shape() {
+pub(crate) fn provider_subtitle_keeps_opencode_summary_shape() {
     assert_eq!(
         provider_list_subtitle("opencode", &provider()),
         "1 models  |  @ai-sdk/openai-compat...  |  https://api.example.com/v1  |  probe ok"
     );
 }
 
-#[test]
-fn provider_subtitle_falls_back_when_empty() {
+pub(crate) fn provider_subtitle_falls_back_when_empty() {
     let mut provider = provider();
     provider.base_url.clear();
     provider.test_status = None;

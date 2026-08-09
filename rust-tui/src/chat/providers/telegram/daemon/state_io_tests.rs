@@ -1,8 +1,7 @@
 use super::{save_state_if_changed, serialized_state};
 use crate::chat::providers::telegram::TelegramState;
 
-#[test]
-pub(super) fn serialized_state_matches_disk_format() {
+pub(crate) fn serialized_state_matches_disk_format() {
     let state = TelegramState::default();
     let body = serialized_state(&state).expect("serialize telegram state");
     assert_eq!(
@@ -11,8 +10,7 @@ pub(super) fn serialized_state_matches_disk_format() {
     );
 }
 
-#[test]
-pub(super) fn save_state_if_changed_skips_identical_body() {
+pub(crate) fn save_state_if_changed_skips_identical_body() {
     let state = TelegramState::default();
     let mut last_saved = Some(serialized_state(&state).expect("serialize initial state"));
 

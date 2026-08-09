@@ -19,8 +19,7 @@ fn provider_with_models(models: Vec<OpenCodeModelConfig>) -> ProviderConfig {
     }
 }
 
-#[test]
-fn opencode_models_summary_formats_first_two_models() {
+pub(crate) fn opencode_models_summary_formats_first_two_models() {
     let provider = provider_with_models(vec![
         OpenCodeModelConfig {
             id: "gpt-5".into(),
@@ -35,8 +34,7 @@ fn opencode_models_summary_formats_first_two_models() {
     assert_eq!(opencode_models_summary(&provider), "GPT 5 (gpt-5), mini");
 }
 
-#[test]
-fn opencode_models_summary_counts_remaining_models() {
+pub(crate) fn opencode_models_summary_counts_remaining_models() {
     let provider = provider_with_models(vec![
         OpenCodeModelConfig {
             id: "a".into(),

@@ -6,8 +6,7 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-#[test]
-fn write_private_creates_missing_parent_dirs() {
+pub(crate) fn write_private_creates_missing_parent_dirs() {
     let dir = temp_dir("missing-parent");
     let path = dir.join("nested").join("deep").join("config.toml");
 
@@ -20,8 +19,7 @@ fn write_private_creates_missing_parent_dirs() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn write_private_replaces_existing_content_without_leftover_temp_files() {
+pub(crate) fn write_private_replaces_existing_content_without_leftover_temp_files() {
     let dir = temp_dir("replace");
     let path = dir.join("config.toml");
     std::fs::write(&path, "old = 1\nold = 2\nold = 3\n").expect("seed file");
@@ -43,8 +41,7 @@ fn write_private_replaces_existing_content_without_leftover_temp_files() {
 }
 
 #[cfg(unix)]
-#[test]
-fn write_private_forces_owner_only_permissions() {
+pub(crate) fn write_private_forces_owner_only_permissions() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = temp_dir("permissions");

@@ -22,7 +22,7 @@ Claude 的 rolling 版不是本轮稳定兼容基线。
 
 | 能力 | Codex | Claude Code | Grok Build | OpenCode |
 | --- | --- | --- | --- | --- |
-| 进程 / tmux pane 识别 | 部分 | 部分 | 完整 | 完整 |
+| 进程 / 原生 pane 识别 | 部分 | 部分 | 完整 | 完整 |
 | agent 类型 / 状态识别 | 部分 | 部分 | 部分 | 部分 |
 | 启动命令及参数 | 完整 | 完整 | 完整 | 完整 |
 | attach / detach | 完整 | 完整 | 完整 | 完整 |
@@ -48,4 +48,4 @@ Claude 的 rolling 版不是本轮稳定兼容基线。
   详见 [Grok 支持说明](grok-support.md)。
 - OpenCode history 依赖官方本地 SQLite 数据；数据库 schema 变化仍需重新审计。
   详见 [OpenCode 支持说明](opencode-support.md)。
-- live pane 仅在 cwd 唯一时回退；同 cwd 多 session 没有明确 ID 时退回 tmux 预览。
+- live pane 仅在 cwd 唯一时回退；同 cwd 多 session 没有明确 ID 时保持保守匹配，不抓取其他终端内容。

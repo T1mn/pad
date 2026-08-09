@@ -8,10 +8,10 @@ PAD (`pad`) is tested for:
 
 ## Runtime requirements
 
-- `tmux` is required at runtime.
-- `pad` and `tmux` must run in the same environment.
-- On WSL2, install and run both `pad` and `tmux` inside WSL.
-- `install.sh` can prompt to install `tmux` automatically on supported package managers.
+- PAD owns the shell PTY, terminal grid, tabs, splits, and child-process lifecycle.
+- No external terminal multiplexer is required.
+- On WSL2, run PAD and the agent CLIs inside the same WSL environment.
+- Set `PAD_HOME` to isolate PAD's config, runtime sockets, logs, and state from the default `~/.pad` directory.
 
 ## Supported release targets
 
@@ -24,10 +24,12 @@ PAD (`pad`) is tested for:
 ## Current non-goals
 
 - Windows native support
-- Mixed host setups such as Windows-host tmux with WSL `pad`
+- Starting PAD on the Windows host while agent CLIs run inside WSL
+- Preserving live child processes across a PAD restart
+- Multi-client sharing of one live terminal workspace
 
 ## Release validation
 
 - CI: format, clippy, tests, dist build
-- tmux smoke: macOS and Linux
+- native PTY interaction smoke: macOS and Linux
 - Manual smoke: WSL2 before release

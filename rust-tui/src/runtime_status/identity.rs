@@ -82,4 +82,4 @@ fn parse_field(raw: &str) -> Option<i64> {
 
 #[cfg(test)]
 #[path = "identity_tests.rs"]
-mod tests;
+pub(crate) mod tests;

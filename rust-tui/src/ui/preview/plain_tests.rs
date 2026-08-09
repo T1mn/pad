@@ -1,8 +1,7 @@
 use super::ensure_plain_preview_cache;
 use crate::app::App;
 
-#[test]
-fn ensure_plain_preview_cache_reuses_existing_cache_when_context_is_unchanged() {
+pub(crate) fn ensure_plain_preview_cache_reuses_existing_cache_when_context_is_unchanged() {
     let mut app = App::new();
     app.preview.pane_id = Some("%1".into());
     app.preview.content = "plain text".into();

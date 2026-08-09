@@ -39,4 +39,4 @@ pub(crate) fn handle_thread_action_confirm_mode(app: &mut App, key: KeyEvent) {
 
 #[cfg(test)]
 #[path = "thread_action_confirm_tests.rs"]
-mod tests;
+pub(crate) mod tests;

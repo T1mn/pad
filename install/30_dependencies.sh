@@ -52,39 +52,6 @@ detect_build_install_plan() {
   return 1
 }
 
-detect_tmux_install_plan() {
-  case "$(get_os)" in
-    macos)
-      if check_command brew; then
-        echo "brew"
-        return 0
-      fi
-      ;;
-    linux)
-      for tool in apt-get dnf yum pacman zypper apk brew; do
-        if check_command "$tool"; then
-          echo "$tool"
-          return 0
-        fi
-      done
-      ;;
-  esac
-  return 1
-}
-
-tmux_manual_hint() {
-  case "$1" in
-    brew) echo "brew install tmux" ;;
-    apt-get) echo "sudo apt-get update && sudo apt-get install -y tmux" ;;
-    dnf) echo "sudo dnf install -y tmux" ;;
-    yum) echo "sudo yum install -y tmux" ;;
-    pacman) echo "sudo pacman -Sy --noconfirm tmux" ;;
-    zypper) echo "sudo zypper --non-interactive install tmux" ;;
-    apk) echo "sudo apk add tmux" ;;
-    *) echo "install tmux with your system package manager" ;;
-  esac
-}
-
 run_as_root_or_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
@@ -100,64 +67,9 @@ ensure_root_or_sudo() {
     return 0
   fi
 
-  err "✗ tmux installation requires root or sudo access"
-  say "  Manual command: $(tmux_manual_hint "$1")"
+  err "✗ build tool installation requires root or sudo access"
+  say "  Manual command: $(build_tools_manual_hint "$1")"
   exit 1
-}
-
-install_tmux() {
-  if check_tmux; then
-    ok "✓ tmux already installed: $(tmux -V 2>/dev/null || echo tmux)"
-    return 0
-  fi
-
-  local plan
-  if ! plan="$(detect_tmux_install_plan)"; then
-    err "✗ tmux is required at runtime, but no supported package manager was detected"
-    say "  Install tmux manually, then run pad in the same environment"
-    exit 1
-  fi
-
-  warn "! tmux is not installed"
-  if ! prompt_yes "PAD requires tmux at runtime. Install tmux now?"; then
-    err "✗ tmux installation was declined"
-    say "  Manual command: $(tmux_manual_hint "$plan")"
-    exit 1
-  fi
-
-  ensure_root_or_sudo "$plan"
-  say "${BLUE}Installing tmux via ${plan}...${NC}"
-  case "$plan" in
-    brew)
-      brew install tmux
-      ;;
-    apt-get)
-      run_as_root_or_sudo apt-get update
-      run_as_root_or_sudo apt-get install -y tmux
-      ;;
-    dnf)
-      run_as_root_or_sudo dnf install -y tmux
-      ;;
-    yum)
-      run_as_root_or_sudo yum install -y tmux
-      ;;
-    pacman)
-      run_as_root_or_sudo pacman -Sy --noconfirm tmux
-      ;;
-    zypper)
-      run_as_root_or_sudo zypper --non-interactive install tmux
-      ;;
-    apk)
-      run_as_root_or_sudo apk add tmux
-      ;;
-  esac
-
-  if check_tmux; then
-    ok "✓ tmux installed: $(tmux -V 2>/dev/null || echo tmux)"
-  else
-    err "✗ tmux install command completed but tmux is still missing"
-    exit 1
-  fi
 }
 
 build_tools_ready() {

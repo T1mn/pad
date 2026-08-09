@@ -53,10 +53,6 @@ err() {
   say "${RED}$*${NC}" >&2
 }
 
-check_tmux() {
-  command -v tmux >/dev/null 2>&1
-}
-
 check_rust() {
   command -v cargo >/dev/null 2>&1
 }

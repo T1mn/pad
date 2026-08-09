@@ -100,4 +100,4 @@ fn codex_final_answer_line(value: &Value) -> Option<String> {
 
 #[cfg(test)]
 #[path = "answers_tests.rs"]
-mod tests;
+pub(crate) mod tests;

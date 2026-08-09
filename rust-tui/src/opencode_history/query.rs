@@ -1,7 +1,282 @@
-mod db;
-mod messages;
-mod model_parse;
-mod thread;
+mod db {
+    use super::super::model::OpenCodeThreadRef;
+    use super::super::stats::{read_session_stats, session_stats_select};
+    use super::super::util::{open_readonly, to_io_error};
+    use super::messages::{load_message_summaries, load_message_summaries_for_session};
+    use super::thread::{build_thread, SessionRow};
+    use rusqlite::OptionalExtension;
+    use std::collections::HashSet;
+    use std::io;
+    use std::path::Path;
+
+    pub(crate) fn query_threads_at(
+        db_path: &Path,
+        archived: Option<bool>,
+    ) -> io::Result<Vec<OpenCodeThreadRef>> {
+        let connection = open_readonly(db_path)?;
+        if !has_table(&connection, "session")? || !has_table(&connection, "message")? {
+            return Ok(Vec::new());
+        }
+
+        let where_clause = match archived {
+            Some(true) => "WHERE time_archived IS NOT NULL",
+            Some(false) => "WHERE time_archived IS NULL",
+            None => "",
+        };
+        let stats_select = session_stats_select(&connection)?;
+        let sql = format!(
+            "SELECT id, directory, path, title, time_updated, time_archived, model, {stats_select} FROM session {where_clause} ORDER BY time_updated DESC"
+        );
+        let mut statement = connection.prepare(&sql).map_err(to_io_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(SessionRow {
+                    id: row.get(0)?,
+                    directory: row.get(1)?,
+                    path: row.get(2)?,
+                    title: row.get(3)?,
+                    updated_at: row.get(4)?,
+                    archived_at: row.get(5)?,
+                    model: row.get(6)?,
+                    stats: read_session_stats(row, 7)?,
+                })
+            })
+            .map_err(to_io_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(to_io_error)?;
+
+        let session_ids = rows
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<HashSet<_>>();
+        let summaries = load_message_summaries(&connection, &session_ids)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| build_thread(db_path, &row, summaries.get(&row.id)))
+            .collect())
+    }
+
+    pub(super) fn query_thread_for_id_at(
+        db_path: &Path,
+        session_id: &str,
+    ) -> io::Result<Option<OpenCodeThreadRef>> {
+        let connection = open_readonly(db_path)?;
+        if !has_table(&connection, "session")? || !has_table(&connection, "message")? {
+            return Ok(None);
+        }
+        let stats_select = session_stats_select(&connection)?;
+        let sql = format!(
+            "SELECT id, directory, path, title, time_updated, time_archived, model, {stats_select} FROM session WHERE id = ?1 LIMIT 1"
+        );
+        let row = connection
+            .query_row(&sql, [session_id], |row| {
+                Ok(SessionRow {
+                    id: row.get(0)?,
+                    directory: row.get(1)?,
+                    path: row.get(2)?,
+                    title: row.get(3)?,
+                    updated_at: row.get(4)?,
+                    archived_at: row.get(5)?,
+                    model: row.get(6)?,
+                    stats: read_session_stats(row, 7)?,
+                })
+            })
+            .optional()
+            .map_err(to_io_error)?;
+        let Some(row) = row else { return Ok(None) };
+        let summaries = load_message_summaries_for_session(&connection, session_id)?;
+        Ok(build_thread(db_path, &row, summaries.get(session_id)))
+    }
+
+    fn has_table(connection: &rusqlite::Connection, table: &str) -> io::Result<bool> {
+        connection
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1 LIMIT 1",
+                [table],
+                |_| Ok(()),
+            )
+            .optional()
+            .map(|value| value.is_some())
+            .map_err(to_io_error)
+    }
+}
+mod messages {
+    use super::super::util::to_io_error;
+    use crate::opencode_text::{extract_any_part_text, message_role, OpenCodeRole};
+    use std::collections::{HashMap, HashSet};
+    use std::io;
+
+    #[derive(Default)]
+    pub(super) struct MessageSummary {
+        pub(super) first_user: Option<String>,
+        pub(super) last_user: Option<String>,
+        pub(super) last_assistant: Option<String>,
+    }
+
+    pub(super) fn load_message_summaries(
+        connection: &rusqlite::Connection,
+        session_ids: &HashSet<&str>,
+    ) -> io::Result<HashMap<String, MessageSummary>> {
+        let mut statement = connection
+            .prepare(
+                "SELECT m.session_id, m.data, p.data
+                 FROM message m
+                 LEFT JOIN part p ON p.message_id = m.id
+                 ORDER BY m.time_created ASC, p.time_created ASC, p.id ASC",
+            )
+            .map_err(to_io_error)?;
+        let mut rows = statement.query([]).map_err(to_io_error)?;
+        let mut summaries: HashMap<String, MessageSummary> = HashMap::new();
+        while let Some(row) = rows.next().map_err(to_io_error)? {
+            let session_id: String = row.get(0).map_err(to_io_error)?;
+            let message_data: String = row.get(1).map_err(to_io_error)?;
+            let part_data: Option<String> = row.get(2).map_err(to_io_error)?;
+            if session_ids.contains(session_id.as_str()) {
+                apply_part(
+                    &mut summaries,
+                    session_id,
+                    &message_data,
+                    part_data.as_deref(),
+                );
+            }
+        }
+        Ok(summaries)
+    }
+
+    pub(super) fn load_message_summaries_for_session(
+        connection: &rusqlite::Connection,
+        session_id: &str,
+    ) -> io::Result<HashMap<String, MessageSummary>> {
+        let mut statement = connection
+            .prepare(
+                "SELECT m.session_id, m.data, p.data
+                 FROM message m
+                 LEFT JOIN part p ON p.message_id = m.id
+                 WHERE m.session_id = ?1
+                 ORDER BY m.time_created ASC, p.time_created ASC, p.id ASC",
+            )
+            .map_err(to_io_error)?;
+        let mut rows = statement.query([session_id]).map_err(to_io_error)?;
+        let mut summaries: HashMap<String, MessageSummary> = HashMap::new();
+        while let Some(row) = rows.next().map_err(to_io_error)? {
+            let session_id: String = row.get(0).map_err(to_io_error)?;
+            let message_data: String = row.get(1).map_err(to_io_error)?;
+            let part_data: Option<String> = row.get(2).map_err(to_io_error)?;
+            apply_part(
+                &mut summaries,
+                session_id,
+                &message_data,
+                part_data.as_deref(),
+            );
+        }
+        Ok(summaries)
+    }
+
+    fn apply_part(
+        summaries: &mut HashMap<String, MessageSummary>,
+        session_id: String,
+        message_data: &str,
+        part_data: Option<&str>,
+    ) {
+        let Some(role) = message_role(message_data) else {
+            return;
+        };
+        let text = part_data
+            .and_then(extract_any_part_text)
+            .unwrap_or_default();
+        if text.trim().is_empty() {
+            return;
+        }
+        let summary = summaries.entry(session_id).or_default();
+        match role {
+            OpenCodeRole::User => {
+                if summary.first_user.is_none() {
+                    summary.first_user = Some(text.clone());
+                }
+                summary.last_user = Some(text);
+            }
+            OpenCodeRole::Assistant => summary.last_assistant = Some(text),
+        }
+    }
+}
+mod model_parse {
+    use serde_json::Value;
+
+    pub(super) fn parse_model(raw: &Option<String>) -> (Option<String>, Option<String>) {
+        let Some(raw) = raw.as_deref() else {
+            return (None, None);
+        };
+        let Ok(value) = serde_json::from_str::<Value>(raw) else {
+            return (None, None);
+        };
+        let provider = value
+            .get("providerID")
+            .or_else(|| value.get("provider"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let model = value
+            .get("modelID")
+            .or_else(|| value.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        (provider, model)
+    }
+}
+mod thread {
+    use super::super::model::OpenCodeThreadRef;
+    use super::super::stats::{format_cost, format_token_summary, SessionStats};
+    use super::messages::MessageSummary;
+    use super::model_parse::parse_model;
+    use std::path::{Path, PathBuf};
+
+    #[derive(Clone)]
+    pub(super) struct SessionRow {
+        pub(super) id: String,
+        pub(super) directory: String,
+        pub(super) path: Option<String>,
+        pub(super) title: Option<String>,
+        pub(super) updated_at: i64,
+        pub(super) archived_at: Option<i64>,
+        pub(super) model: Option<String>,
+        pub(super) stats: SessionStats,
+    }
+
+    pub(super) fn build_thread(
+        db_path: &Path,
+        row: &SessionRow,
+        summary: Option<&MessageSummary>,
+    ) -> Option<OpenCodeThreadRef> {
+        let cwd = if row.directory.trim().is_empty() {
+            row.path.as_deref().unwrap_or("")
+        } else {
+            row.directory.as_str()
+        };
+        if cwd.trim().is_empty() {
+            return None;
+        }
+        let (provider_name, model_name) = parse_model(&row.model);
+        Some(OpenCodeThreadRef {
+            session_id: row.id.clone(),
+            cwd: PathBuf::from(cwd),
+            updated_at: row.updated_at,
+            db_path: db_path.to_path_buf(),
+            title: row.title.clone().filter(|title| !title.trim().is_empty()),
+            first_user_message: summary.and_then(|summary| summary.first_user.clone()),
+            last_user_message: summary.and_then(|summary| summary.last_user.clone()),
+            last_assistant_message: summary.and_then(|summary| summary.last_assistant.clone()),
+            provider_name,
+            model_name,
+            share_url: row
+                .stats
+                .share_url
+                .clone()
+                .filter(|url| !url.trim().is_empty()),
+            cost: format_cost(row.stats.cost),
+            token_summary: format_token_summary(&row.stats),
+            archived: row.archived_at.is_some(),
+        })
+    }
+}
 
 use super::model::OpenCodeThreadRef;
 use super::util::default_db_paths;
@@ -48,7 +323,3 @@ pub(crate) fn db_path_for_session(session_id: &str) -> io::Result<Option<PathBuf
 fn normalize_path(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
-
-#[cfg(test)]
-#[path = "query_tests.rs"]
-mod query_tests;

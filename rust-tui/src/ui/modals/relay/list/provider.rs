@@ -143,4 +143,4 @@ fn push_subtitle_part(subtitle: &mut String, part: &str) {
 
 #[cfg(test)]
 #[path = "provider_tests.rs"]
-mod tests;
+pub(crate) mod tests;

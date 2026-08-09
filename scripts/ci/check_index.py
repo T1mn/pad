@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate repository index.md conventions."""
+"""Validate concise discovery indexes at repository and feature roots."""
 
 from __future__ import annotations
 
@@ -16,12 +16,16 @@ LOCAL_GLOB_SUFFIXES = LOCAL_REF_SUFFIXES
 
 
 def workspace_files() -> set[str]:
-    # Include intent-to-add and ordinary untracked files so a local check
-    # catches stale references before the change is staged or committed.
+    # Include intent-to-add and ordinary untracked files, while excluding
+    # tracked paths already deleted from the working tree. This keeps the
+    # local check accurate before staging structural cleanups.
     output = subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard"], text=True
     )
-    return {line for line in output.splitlines() if line}
+    deleted = subprocess.check_output(["git", "ls-files", "--deleted"], text=True)
+    return {line for line in output.splitlines() if line} - {
+        line for line in deleted.splitlines() if line
+    }
 
 
 def tracked_dirs(files: set[str]) -> set[str]:
@@ -38,6 +42,16 @@ def tracked_dirs(files: set[str]) -> set[str]:
 
 def index_path(directory: str) -> str:
     return "index.md" if directory == "." else f"{directory}/index.md"
+
+
+def requires_index(directory: str) -> bool:
+    """Keep indexes at navigation roots, not beside every implementation leaf."""
+    if directory == ".":
+        return True
+    parts = PurePosixPath(directory).parts
+    if len(parts) <= 2:
+        return True
+    return len(parts) == 3 and parts[:2] == ("rust-tui", "src")
 
 
 def line_count(path: str) -> int:
@@ -90,7 +104,7 @@ def main() -> int:
     dirs = tracked_dirs(files)
     errors: list[str] = []
 
-    for directory in sorted(dirs):
+    for directory in sorted(directory for directory in dirs if requires_index(directory)):
         expected = index_path(directory)
         if expected not in files:
             errors.append(f"missing index: {expected}")

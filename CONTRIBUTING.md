@@ -8,7 +8,7 @@ Security problems go to `SECURITY.md`, not to the issue tracker.
 
 ## Repository layout
 
-- `rust-tui/` — the crate. `pad` and the `pad-sider` panel live here.
+- `rust-tui/` — the crate containing the `pad` TUI and native terminal runtime.
 - `install/` — installer modules; `install.sh` at the root is generated from them.
 - `scripts/` — build helpers, hook bridge, CI checks.
 - `docs/` — platform support, agent compatibility, release checklist.
@@ -17,14 +17,20 @@ Security problems go to `SECURITY.md`, not to the issue tracker.
 
 ## Hard rules enforced by CI
 
-**1. Rust source files are capped at 200 lines.**
-Every tracked `rust-tui/src/**/*.rs` file must be at most 200 lines. Only `rust-tui/src/i18n/` is
-exempt (dense static translation tables). If a file grows past the cap, split it into a module
-directory instead of trimming blank lines.
+**1. Rust source files have role-based size limits.**
+Tracked production files under `rust-tui/src/**/*.rs` may contain up to 500 lines, while external
+test files (`*_tests.rs`, `tests.rs`, or files below `tests/` and `*_tests/` directories) may
+contain up to 800.
+No Rust file may exceed the absolute 1000-line limit. Only `rust-tui/src/i18n/` is exempt from the
+role-based limit because translation tables are intentionally dense; the absolute limit still
+applies. Prefer one cohesive module over several tiny forwarding files, then split by responsibility
+when a file approaches its limit.
 
 **2. Unit tests live in external files.**
-Ordinary source files must not contain the literal `mod tests {`. Put the tests in a sibling file
-whose name ends in `_tests.rs` (or under a `tests/` directory) and attach it from the source file:
+Ordinary source files must not contain the literal `mod tests {`. Put tests in a sibling file whose
+name ends in `_tests.rs` (or below a `tests/` / `*_tests/` directory) and attach it from the source
+file. Prefer one cohesive feature-level test file over several one- or two-test files when the tests
+can share the same parent module without broadening public API visibility:
 
 ```rust
 #[cfg(test)]
@@ -85,17 +91,18 @@ Use [Conventional Commits](https://www.conventionalcommits.org/), matching the e
 
 ```
 feat(relay): add real chat provider probes
-fix(tmux): target writable client on handoff
+fix(terminal): preserve pane focus on handoff
 perf(sidebar): reduce search allocations
 ```
 
 Common types here: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `ci`, `chore`. The scope is the
-subsystem (`relay`, `tmux`, `pad-sider`, `session-cache`, ...). Keep the subject in the imperative
+subsystem (`relay`, `terminal`, `sidebar`, `session-cache`, ...). Keep the subject in the imperative
 and lowercase.
 
 ## Pull requests
 
-- One logical change per PR. The 200-line file cap already pushes toward small, focused diffs.
+- One logical change per PR. File limits are guardrails for cohesive modules, not a target size or a
+  reason to split a focused change across many tiny files.
 - Add or update tests for behavior changes, in an external `*_tests.rs` file.
 - Update the affected `index.md` files and, for user-visible changes, add an entry under
   `[Unreleased]` in `CHANGELOG.md`.

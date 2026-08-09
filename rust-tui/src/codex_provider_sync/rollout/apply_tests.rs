@@ -1,8 +1,7 @@
 use super::write_file_atomically;
 use std::fs;
 
-#[test]
-fn atomic_write_removes_temp_after_rename_failure() {
+pub(crate) fn atomic_write_removes_temp_after_rename_failure() {
     let root = crate::test_support::temp_path("pad-rollout-apply", "rename-failure");
     let target = root.join("rollout.jsonl");
     fs::create_dir_all(target.join("child")).expect("create non-file target");

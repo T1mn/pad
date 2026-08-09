@@ -14,17 +14,9 @@ pub(super) fn apply_root_fields(table: &HashMap<String, toml::Value>, config: &m
     if let Some(toml::Value::String(lang)) = table.get("language") {
         config.language = lang.clone();
     }
-    if let Some(toml::Value::String(sb)) = table.get("status_bar") {
-        config.desired_agent_style.status = match sb.as_str() {
-            "hidden" => "hide".to_string(),
-            "show" => "show".to_string(),
-            other => other.to_string(),
-        };
-    }
 }
 
 pub(super) fn apply_section_fields(table: &HashMap<String, toml::Value>, config: &mut Config) {
-    apply_desired_style(table.get("desired_agent_style"), config);
     apply_preview(table.get("preview"), config);
     apply_display(table.get("display"), config);
     apply_sound(table.get("sound"), config);
@@ -33,28 +25,12 @@ pub(super) fn apply_section_fields(table: &HashMap<String, toml::Value>, config:
     apply_permissions(table.get("agent_permissions"), config);
 }
 
-fn apply_desired_style(value: Option<&toml::Value>, config: &mut Config) {
-    let Some(toml::Value::Table(das)) = value else {
-        return;
-    };
-    if let Some(toml::Value::String(z)) = das.get("zoom") {
-        config.desired_agent_style.zoom = z.clone();
-    }
-    if let Some(toml::Value::String(s)) = das.get("status") {
-        config.desired_agent_style.status = s.clone();
-    }
-}
-
 fn apply_preview(value: Option<&toml::Value>, config: &mut Config) {
     let Some(toml::Value::Table(preview)) = value else {
         return;
     };
-    if let Some(toml::Value::String(mode)) = preview.get("mode") {
-        config.preview.mode = match mode.as_str() {
-            "tmux" => "tmux".to_string(),
-            "session" => "session".to_string(),
-            _ => "auto".to_string(),
-        };
+    if preview.get("mode").is_some() {
+        config.preview.mode = "session".to_string();
     }
 }
 

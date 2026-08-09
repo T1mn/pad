@@ -47,7 +47,6 @@ pub(super) fn handle_key_event(
         Mode::FuzzyPicker => super::mode_dispatch::handle_fuzzy_picker_mode(app, key),
         Mode::RelaySettings => super::mode_dispatch::handle_relay_settings_mode(app, key.code),
         Mode::FilePreview => super::mode_dispatch::handle_file_preview_mode(app, key.code),
-        Mode::AgentStyleSettings => super::mode_dispatch::handle_agent_style_mode(app, key.code),
         Mode::TelegramSettings => {
             super::mode_dispatch::handle_telegram_settings_mode(app, key.code)
         }
@@ -83,7 +82,21 @@ pub(super) fn handle_key_event(
 }
 
 pub(super) fn handle_paste(app: &mut App, text: &str) {
-    if app.relay_popup_editing {
+    if app.terminal_is_focused() {
+        match app.terminal_interaction() {
+            crate::app::TerminalInteractionState::Rename { .. } => {
+                app.append_terminal_rename_text(text);
+            }
+            crate::app::TerminalInteractionState::Command => {}
+            crate::app::TerminalInteractionState::Direct => {
+                let bytes = crate::terminal_runtime::encode_paste(
+                    text,
+                    app.terminal_mode().bracketed_paste,
+                );
+                let _ = app.send_terminal_input(bytes);
+            }
+        }
+    } else if app.relay_popup_editing {
         app.relay_popup_buffer.push_str(text);
         app.dirty = true;
     } else if app.relay_editing {

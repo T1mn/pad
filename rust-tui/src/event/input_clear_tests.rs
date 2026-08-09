@@ -20,8 +20,7 @@ fn temp_tree_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-#[test]
-fn plain_delete_does_not_clear_search() {
+pub(crate) fn plain_delete_does_not_clear_search() {
     let mut app = App::new();
     app.mode = Mode::Search;
     app.search_query = "keep".into();
@@ -33,8 +32,7 @@ fn plain_delete_does_not_clear_search() {
     assert_eq!(app.search_query, "keep");
 }
 
-#[test]
-fn shift_delete_clears_panel_search() {
+pub(crate) fn shift_delete_clears_panel_search() {
     let mut app = App::new();
     app.mode = Mode::Search;
     app.search_query = "abc".into();
@@ -44,8 +42,7 @@ fn shift_delete_clears_panel_search() {
     assert!(app.dirty);
 }
 
-#[test]
-fn shift_delete_clears_settings_search_and_resets_selection() {
+pub(crate) fn shift_delete_clears_settings_search_and_resets_selection() {
     let mut app = App::new();
     app.mode = Mode::Settings;
     app.settings_searching = true;
@@ -57,8 +54,7 @@ fn shift_delete_clears_settings_search_and_resets_selection() {
     assert_eq!(app.settings_selected, 0);
 }
 
-#[test]
-fn shift_delete_clears_tree_search_without_leaving_search_mode() {
+pub(crate) fn shift_delete_clears_tree_search_without_leaving_search_mode() {
     let dir = temp_tree_dir("tree");
     let mut tree = FileTree::new(dir.clone());
     tree.start_search();
@@ -76,8 +72,7 @@ fn shift_delete_clears_tree_search_without_leaving_search_mode() {
     fs::remove_dir_all(dir).unwrap();
 }
 
-#[test]
-fn shift_delete_clears_edit_buffers() {
+pub(crate) fn shift_delete_clears_edit_buffers() {
     type EditCase = (fn(&mut App), fn(&App) -> &str);
     let cases: &[EditCase] = &[
         (

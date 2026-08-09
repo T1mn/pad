@@ -101,4 +101,4 @@ exec "$CODEX_BIN" --profile pad "$@"
 
 #[cfg(test)]
 #[path = "codex_wrapper_tests.rs"]
-mod tests;
+pub(crate) mod tests;

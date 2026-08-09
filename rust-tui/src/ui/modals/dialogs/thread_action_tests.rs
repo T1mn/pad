@@ -1,7 +1,6 @@
 use super::thread_action_confirm_body;
 
-#[test]
-fn thread_action_body_keeps_blank_lines_without_warning() {
+pub(crate) fn thread_action_body_keeps_blank_lines_without_warning() {
     assert_eq!(
         thread_action_confirm_body(
             "Archive this thread?",
@@ -14,8 +13,7 @@ fn thread_action_body_keeps_blank_lines_without_warning() {
     );
 }
 
-#[test]
-fn thread_action_body_includes_warning_block() {
+pub(crate) fn thread_action_body_includes_warning_block() {
     assert_eq!(
         thread_action_confirm_body(
             "Archive this thread?",

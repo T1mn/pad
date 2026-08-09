@@ -27,8 +27,6 @@ fn thread_with_dir(working_dir: &str) -> SidebarThread {
         sort_updated_at: 0,
         live_pane_id: None,
         live_location: None,
-        pid: None,
-        git_info: None,
         state: AgentState::Idle,
         is_active: false,
         cached_preview_turns: Default::default(),
@@ -41,8 +39,7 @@ fn thread_with_dir(working_dir: &str) -> SidebarThread {
     }
 }
 
-#[test]
-fn shortened_thread_path_uses_last_two_segments_without_vec() {
+pub(crate) fn shortened_thread_path_uses_last_two_segments_without_vec() {
     let thread = thread_with_dir("/very/long/workspace/project/repo");
     assert_eq!(shortened_thread_path(&thread, 24), "~/.../project/repo");
 

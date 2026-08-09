@@ -1,9 +1,7 @@
-use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
-pub(super) fn export_opencode_stats(project: &str, command: &OsString) -> io::Result<PathBuf> {
+pub(super) fn export_opencode_stats(project: &str, command: &str) -> io::Result<PathBuf> {
     let body = collect_stats_output(project, command)?;
     let path = super::path::opencode_stats_path(
         project,
@@ -17,11 +15,12 @@ pub(super) fn export_opencode_stats(project: &str, command: &OsString) -> io::Re
     Ok(path)
 }
 
-fn collect_stats_output(project: &str, command: &OsString) -> io::Result<String> {
-    let output = Command::new(command)
-        .current_dir(project)
-        .args(["stats", "--project", "", "--models", "10", "--tools", "10"])
-        .output()?;
+fn collect_stats_output(project: &str, command: &str) -> io::Result<String> {
+    let output = super::super::opencode_cli::run_with_args(
+        command,
+        &["stats", "--project", "", "--models", "10", "--tools", "10"],
+        Some(std::path::Path::new(project)),
+    )?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(io::Error::other(if stderr.is_empty() {
@@ -41,4 +40,4 @@ fn collect_stats_output(project: &str, command: &OsString) -> io::Result<String>
 
 #[cfg(test)]
 #[path = "export_tests.rs"]
-mod tests;
+pub(crate) mod tests;

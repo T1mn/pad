@@ -4,8 +4,7 @@ use crate::app::App;
 use crate::notification_inbox::NotificationEntry;
 use crossterm::event::KeyCode;
 
-#[test]
-fn escape_closes_inbox() {
+pub(crate) fn escape_closes_inbox() {
     let mut app = App::new();
     app.mode = Mode::NotificationInbox;
     app.notification_inbox

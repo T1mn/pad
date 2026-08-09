@@ -1,7 +1,10 @@
-use crate::app::App;
+use std::path::{Path, PathBuf};
+
+use crate::app::{state::Mode, App};
 use crate::log_debug;
+use crate::model::AgentType;
 use crate::relay;
-use crate::session;
+use crate::terminal_runtime::TerminalSize;
 use crossterm::event::KeyCode;
 
 pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
@@ -32,96 +35,94 @@ pub(crate) fn handle_agent_launcher_mode(app: &mut App, key: KeyCode) {
                     let target_dir = launcher.target_dir.clone();
                     let agent_name = agent.0.to_string();
                     let raw_agent_cmd = agent.1.to_string();
-
-                    // Only apply the selected agent's config
-                    if let Some(selected_agent) =
-                        app.config.agents.iter().find(|a| a.name == agent_name)
-                    {
-                        relay::apply_relay_configs(std::slice::from_ref(selected_agent));
-                    }
-
-                    let agent_cmd = match crate::codex_runtime::prepare_agent_command(
-                        &agent_name,
-                        &raw_agent_cmd,
-                    ) {
-                        Ok(command) => command,
-                        Err(err) => {
-                            log_debug!(
-                                "agent_launcher: prepare command failed name={} cmd={} err={}",
-                                agent_name,
-                                raw_agent_cmd,
-                                err
-                            );
-                            return;
-                        }
-                    };
-                    log_debug!(
-                        "agent_launcher: launching cmd={} dir={}",
-                        agent_cmd,
-                        target_dir.display()
-                    );
-
-                    app.close_agent_launcher();
-                    app.dirty = true;
-
-                    if from_fuzzy {
-                        let dir_str = target_dir.to_string_lossy().to_string();
-                        let cmd = agent_cmd.clone();
-                        if !app.saved_tmux_bindings.is_empty() || app.same_session_attached {
-                            crate::event::restore_tmux_bindings(app);
-                            app.same_session_attached = false;
-                        }
-                        log_debug!(
-                            "agent_launcher: from_fuzzy=true, create_session_with_agent dir={} cmd={}",
-                            dir_str,
-                            cmd
-                        );
-                        match session::create_session_with_agent(app, &dir_str, &cmd) {
-                            Ok(()) => log_debug!("agent_launcher: create_session_with_agent 成功"),
-                            Err(e) => {
-                                log_debug!("agent_launcher: create_session_with_agent 失败: {}", e)
-                            }
-                        }
-                    } else {
-                        std::thread::spawn(move || {
-                            if matches!(agent_cmd.trim(), "gemini" | "gemini-cli") {
-                                let target_dir = target_dir.to_string_lossy().to_string();
-                                if let Ok(out) = std::process::Command::new("tmux")
-                                    .args([
-                                        "new-window",
-                                        "-P",
-                                        "-F",
-                                        "#{pane_id}",
-                                        "-c",
-                                        &target_dir,
-                                    ])
-                                    .output()
-                                {
-                                    if out.status.success() {
-                                        let pane_id =
-                                            String::from_utf8_lossy(&out.stdout).trim().to_string();
-                                        let script = format!(
-                                            "sleep 0.2; tmux send-keys -t '{}' C-c; tmux send-keys -t '{}' 'clear' Enter; tmux send-keys -t '{}' '{}' Enter",
-                                            pane_id, pane_id, pane_id, agent_cmd
-                                        );
-                                        let _ = std::process::Command::new("tmux")
-                                            .args(["run-shell", "-b", &script])
-                                            .output();
-                                    }
-                                }
-                            } else {
-                                let _ = std::process::Command::new("tmux")
-                                    .args(["new-window", "-c", &target_dir.to_string_lossy()])
-                                    .arg(&agent_cmd)
-                                    .spawn();
-                            }
-                        });
-                    }
-
-                    app.schedule_delayed_scan(800);
+                    launch_selected_agent(app, from_fuzzy, target_dir, agent_name, raw_agent_cmd);
                 }
             }
             _ => {}
         }
     }
 }
+
+fn launch_selected_agent(
+    app: &mut App,
+    from_fuzzy: bool,
+    target_dir: PathBuf,
+    agent_name: String,
+    raw_agent_cmd: String,
+) {
+    // Only apply the selected agent's config.
+    if let Some(selected_agent) = app
+        .config
+        .agents
+        .iter()
+        .find(|agent| agent.name == agent_name)
+    {
+        relay::apply_relay_configs(std::slice::from_ref(selected_agent));
+    }
+
+    let agent_cmd = match crate::codex_runtime::prepare_agent_command(&agent_name, &raw_agent_cmd) {
+        Ok(command) => command,
+        Err(error) => {
+            log_debug!(
+                "agent_launcher: prepare command failed name={} cmd={} err={}",
+                agent_name,
+                raw_agent_cmd,
+                error
+            );
+            app.show_action_toast("Agent launch failed", &error.to_string());
+            return;
+        }
+    };
+    log_debug!(
+        "agent_launcher: launching runtime=native name={} cmd={} dir={}",
+        agent_name,
+        agent_cmd,
+        target_dir.display()
+    );
+
+    app.close_agent_launcher();
+    app.dirty = true;
+
+    let _ = from_fuzzy;
+    launch_native_agent(app, &agent_name, &agent_cmd, target_dir);
+}
+
+fn launch_native_agent(app: &mut App, agent_name: &str, agent_cmd: &str, target_dir: PathBuf) {
+    app.sidebar.show_tree = false;
+    app.mode = Mode::Normal;
+    let size = app
+        .focused_terminal_pane()
+        .and_then(|pane| pane.size())
+        .unwrap_or_else(|| TerminalSize::new(80, 24));
+    let label = native_agent_label(agent_name, &target_dir);
+    let agent_type = AgentType::from_processes(agent_name);
+    match app.launch_native_agent_terminal_at(&label, agent_cmd, agent_type, target_dir, size) {
+        Ok(_) => {
+            app.focus_terminal();
+            log_debug!("agent_launcher: native agent terminal opened");
+        }
+        Err(error) => {
+            log_debug!("agent_launcher: native launch failed: {}", error);
+            app.show_action_toast("Agent launch failed", &error.to_string());
+        }
+    }
+}
+
+fn native_agent_label(agent_name: &str, target_dir: &Path) -> String {
+    let display_name = match agent_name.trim().to_ascii_lowercase().as_str() {
+        "claude" | "claude-code" => "Claude",
+        "codex" => "Codex",
+        "opencode" => "OpenCode",
+        "gemini" | "gemini-cli" => "Gemini",
+        "grok" | "grok-build" => "Grok",
+        _ => agent_name.trim(),
+    };
+    match target_dir.file_name().and_then(|name| name.to_str()) {
+        Some(directory) if !directory.is_empty() => format!("{display_name} · {directory}"),
+        _ => display_name.to_string(),
+    }
+}
+
+#[cfg(test)]
+#[path = "agent_launcher_tests.rs"]
+pub(crate) mod tests;

@@ -1,4 +1,4 @@
-# tmux_kanban
+# PAD
 
 - `README.md` / `README_ZH.md`：项目说明与安装使用文档。
 - `AGENTS.md`：给代码助手的项目规则，包含版本与 hotfix 原则。

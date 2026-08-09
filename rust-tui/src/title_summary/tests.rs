@@ -1,8 +1,7 @@
 use super::{normalize_generated_title, select_turn_window, should_refresh_title, SummaryWireApi};
 use crate::model::PreviewTurn;
 
-#[test]
-fn responses_is_default_wire_api() {
+pub(crate) fn responses_is_default_wire_api() {
     assert_eq!(SummaryWireApi::from_config(""), SummaryWireApi::Responses);
     assert_eq!(
         SummaryWireApi::from_config("responses"),
@@ -11,8 +10,7 @@ fn responses_is_default_wire_api() {
     assert_eq!(SummaryWireApi::from_config("chat"), SummaryWireApi::Chat);
 }
 
-#[test]
-fn title_refresh_triggers_after_initial_threshold() {
+pub(crate) fn title_refresh_triggers_after_initial_threshold() {
     assert!(!should_refresh_title(2, None));
     assert!(should_refresh_title(3, None));
     assert!(should_refresh_title(11, None));
@@ -20,8 +18,7 @@ fn title_refresh_triggers_after_initial_threshold() {
     assert!(should_refresh_title(9, Some(3)));
 }
 
-#[test]
-fn initial_window_uses_three_turns_in_chronological_order() {
+pub(crate) fn initial_window_uses_three_turns_in_chronological_order() {
     let turns = vec![
         PreviewTurn {
             question: "third".into(),
@@ -43,8 +40,7 @@ fn initial_window_uses_three_turns_in_chronological_order() {
     assert_eq!(selected[2].question, "third");
 }
 
-#[test]
-fn refresh_window_keeps_six_newest_turns() {
+pub(crate) fn refresh_window_keeps_six_newest_turns() {
     let turns = (1..=8)
         .rev()
         .map(|idx| PreviewTurn {
@@ -59,11 +55,10 @@ fn refresh_window_keeps_six_newest_turns() {
     assert_eq!(selected[5].question, "q8");
 }
 
-#[test]
-fn title_normalization_trims_wrappers_and_prefixes() {
+pub(crate) fn title_normalization_trims_wrappers_and_prefixes() {
     assert_eq!(
-        normalize_generated_title("Title: \"Refactor tmux popup flow\"").as_deref(),
-        Some("Refactor tmux popup flow")
+        normalize_generated_title("Title: \"Refactor terminal popup flow\"").as_deref(),
+        Some("Refactor terminal popup flow")
     );
     assert_eq!(
         normalize_generated_title("《修复会话标题自动摘要》").as_deref(),
@@ -71,16 +66,14 @@ fn title_normalization_trims_wrappers_and_prefixes() {
     );
 }
 
-#[test]
-fn title_normalization_collapses_internal_whitespace() {
+pub(crate) fn title_normalization_collapses_internal_whitespace() {
     assert_eq!(
         normalize_generated_title("Title:   Fix\tpreview\nignored").as_deref(),
         Some("Fix preview")
     );
 }
 
-#[test]
-fn title_response_text_joins_response_output_blocks() {
+pub(crate) fn title_response_text_joins_response_output_blocks() {
     let payload = serde_json::json!({
         "output": [
             {"content": [{"text": " first "}, {"text": "second"}]}
@@ -93,8 +86,7 @@ fn title_response_text_joins_response_output_blocks() {
     );
 }
 
-#[test]
-fn title_response_text_joins_chat_content_array_blocks() {
+pub(crate) fn title_response_text_joins_chat_content_array_blocks() {
     let payload = serde_json::json!({
         "choices": [{
             "message": {
@@ -109,8 +101,7 @@ fn title_response_text_joins_chat_content_array_blocks() {
     );
 }
 
-#[test]
-fn title_response_text_preserves_empty_text_block_semantics() {
+pub(crate) fn title_response_text_preserves_empty_text_block_semantics() {
     let payload = serde_json::json!({
         "output": [{"content": [{"text": "   "}]}]
     });

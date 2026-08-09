@@ -4,8 +4,7 @@ use super::helpers::{
 use super::{sync_to_provider, sync_to_provider_at};
 use rusqlite::Connection;
 
-#[test]
-fn sync_updates_rollout_files_and_sqlite_provider() {
+pub(crate) fn sync_updates_rollout_files_and_sqlite_provider() {
     let codex_home = temp_codex_home("success");
     write_rollout(
         &codex_home.join("sessions/2026/04/10/rollout-a.jsonl"),
@@ -50,8 +49,7 @@ fn sync_updates_rollout_files_and_sqlite_provider() {
     let _ = std::fs::remove_dir_all(&codex_home);
 }
 
-#[test]
-fn sync_skips_when_state_db_is_missing() {
+pub(crate) fn sync_skips_when_state_db_is_missing() {
     let codex_home = temp_codex_home("no-db");
     write_rollout(
         &codex_home.join("sessions/2026/04/10/rollout-a.jsonl"),
@@ -71,8 +69,7 @@ fn sync_skips_when_state_db_is_missing() {
 }
 
 #[cfg(unix)]
-#[test]
-fn sync_preserves_rollout_file_permissions() {
+pub(crate) fn sync_preserves_rollout_file_permissions() {
     use std::os::unix::fs::PermissionsExt;
 
     let codex_home = temp_codex_home("rollout-permissions");
@@ -105,8 +102,7 @@ fn sync_preserves_rollout_file_permissions() {
     let _ = std::fs::remove_dir_all(&codex_home);
 }
 
-#[test]
-fn sync_to_provider_uses_pad_private_codex_home() {
+pub(crate) fn sync_to_provider_uses_pad_private_codex_home() {
     with_temp_home("private-home", |_home| {
         let canonical_home = crate::paths::canonical_codex_home_dir();
         let pad_home = crate::paths::pad_codex_home_dir();

@@ -59,6 +59,9 @@ jobs:
       - name: Check Rust file size
         run: python3 ./scripts/ci/check_rust_file_size.py
 
+      - name: Check consolidated test suites
+        run: python3 ./scripts/ci/check_test_suites.py
+
   installer-sync:
     name: Installer sync
     runs-on: ubuntu-24.04
@@ -192,7 +195,6 @@ jobs:
           bash ./install.sh
           "${INSTALL_DIR}/pad" --help
           "${INSTALL_DIR}/pad" --version
-          "${INSTALL_DIR}/pad" --tmux-doctor
 
   linux-prebuilt-glibc-fixture:
     name: Linux prebuilt fixture (glibc)

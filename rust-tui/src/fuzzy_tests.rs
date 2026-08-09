@@ -2,8 +2,7 @@ use super::{scan_directories, FuzzyPicker};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
 
-#[test]
-fn shift_delete_clears_query() {
+pub(crate) fn shift_delete_clears_query() {
     let mut picker = FuzzyPicker::new(vec!["alpha".into(), "beta".into()]);
 
     picker.handle_input(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
@@ -15,8 +14,7 @@ fn shift_delete_clears_query() {
     assert_eq!(picker.filtered.len(), 2);
 }
 
-#[test]
-fn scan_directories_skips_hidden_dirs_and_sorts() {
+pub(crate) fn scan_directories_skips_hidden_dirs_and_sorts() {
     let root = crate::test_support::temp_path("pad-fuzzy", "scan");
     fs::create_dir_all(root.join("zeta")).unwrap();
     fs::create_dir_all(root.join("alpha/nested")).unwrap();

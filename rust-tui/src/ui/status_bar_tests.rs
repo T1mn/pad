@@ -1,12 +1,11 @@
 use super::{display_width, format_status_remainder};
 use crate::app::App;
 use crate::i18n::Locale;
-use crate::model::{AgentPanel, AgentState, AgentStateSource, AgentType};
+use crate::model::{AgentPanel, AgentState, AgentType};
 use crate::ui::status_bar::body::compose_status_body;
 use crate::ui::status_bar::text::mode_badge;
 
-#[test]
-fn normal_status_hides_selected_panel_identity_details() {
+pub(crate) fn normal_status_hides_selected_panel_identity_details() {
     let mut app = App::new();
     app.panels.push(AgentPanel {
         session: "0".into(),
@@ -18,13 +17,9 @@ fn normal_status_hides_selected_panel_identity_details() {
         working_dir: "/tmp/rust-tui".into(),
         is_active: true,
         state: AgentState::Busy,
-        state_source: AgentStateSource::Scanner,
         transcript_path: None,
         cached_preview_turns: Default::default(),
         session_cache_state: None,
-        git_info: None,
-        pid: None,
-        start_time: None,
         agent_session_id: None,
         last_user_prompt: None,
         last_assistant_message: None,
@@ -37,8 +32,7 @@ fn normal_status_hides_selected_panel_identity_details() {
     assert!(!body.to_lowercase().contains("codex"));
 }
 
-#[test]
-fn status_remainder_preserves_right_hint_with_mode_badge_width() {
+pub(crate) fn status_remainder_preserves_right_hint_with_mode_badge_width() {
     let mut app = App::new();
     app.locale = Locale::En;
     let badge = mode_badge("NORMAL", app.theme.mode_normal_bg);

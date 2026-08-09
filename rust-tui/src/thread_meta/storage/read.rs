@@ -1,6 +1,119 @@
-mod normalize;
-mod row;
-mod tags;
+mod normalize {
+    use super::super::super::ThreadMeta;
+    use std::collections::HashSet;
+
+    pub(super) fn normalize_meta(meta: &mut ThreadMeta) {
+        dedup_tags(&mut meta.tags);
+        meta.title_override = meta.title_override.as_ref().and_then(|s| clean_text(s));
+        meta.generated_title = meta.generated_title.as_ref().and_then(|s| clean_text(s));
+        meta.note = meta.note.as_ref().and_then(|s| clean_text(s));
+    }
+
+    fn clean_text(value: &str) -> Option<String> {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    }
+
+    fn dedup_tags(tags: &mut Vec<String>) {
+        let mut seen = HashSet::new();
+        tags.retain(|tag| seen.insert(tag.to_lowercase()));
+    }
+}
+mod row {
+    use super::super::super::{ThreadMeta, ThreadMetaKey};
+
+    pub(super) const THREAD_META_COLUMNS: &str = concat!(
+        "agent_type, thread_id, title_override, generated_title, ",
+        "generated_turn_count, generated_updated_at, deleted, deleted_at, ",
+        "note, pinned, updated_at"
+    );
+
+    pub(super) fn thread_meta_from_row(
+        row: &rusqlite::Row<'_>,
+    ) -> rusqlite::Result<(ThreadMetaKey, ThreadMeta)> {
+        Ok((
+            ThreadMetaKey::new(row.get::<_, String>(0)?, row.get::<_, String>(1)?),
+            ThreadMeta {
+                title_override: row.get::<_, Option<String>>(2)?,
+                generated_title: row.get::<_, Option<String>>(3)?,
+                generated_turn_count: row
+                    .get::<_, Option<i64>>(4)?
+                    .filter(|count| *count > 0)
+                    .map(|count| count as usize),
+                generated_updated_at: row.get::<_, Option<i64>>(5)?,
+                deleted: row.get::<_, i64>(6)? != 0,
+                deleted_at: row.get::<_, Option<i64>>(7)?,
+                note: row.get::<_, Option<String>>(8)?,
+                pinned: row.get::<_, i64>(9)? != 0,
+                tags: Vec::new(),
+                updated_at: row.get::<_, i64>(10)?,
+            },
+        ))
+    }
+}
+mod tags {
+    use super::super::super::db::to_io_error;
+    use super::super::super::{ThreadMeta, ThreadMetaKey};
+    use std::collections::{HashMap, HashSet};
+    use std::io;
+
+    pub(super) fn load_tags_into_records(
+        connection: &rusqlite::Connection,
+        wanted: &HashSet<(&str, &str)>,
+        records: &mut HashMap<ThreadMetaKey, ThreadMeta>,
+    ) -> io::Result<()> {
+        let mut statement = connection
+            .prepare(
+                "SELECT agent_type, thread_id, tag, created_at
+                 FROM thread_tags
+                 ORDER BY created_at ASC",
+            )
+            .map_err(to_io_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(to_io_error)?;
+
+        for row in rows {
+            let (agent_type, thread_id, tag) = row.map_err(to_io_error)?;
+            if wanted.contains(&(agent_type.as_str(), thread_id.as_str())) {
+                records
+                    .entry(ThreadMetaKey::new(agent_type, thread_id))
+                    .or_default()
+                    .tags
+                    .push(tag);
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn hydrate_deleted_tags(
+        connection: &rusqlite::Connection,
+        deleted: &mut [(ThreadMetaKey, ThreadMeta)],
+    ) -> io::Result<()> {
+        let wanted = deleted
+            .iter()
+            .map(|(key, _)| (key.agent_type.as_str(), key.thread_id.as_str()))
+            .collect::<HashSet<_>>();
+        let mut records = HashMap::new();
+        load_tags_into_records(connection, &wanted, &mut records)?;
+        for (key, meta) in deleted {
+            if let Some(tag_meta) = records.get(key) {
+                meta.tags.clone_from(&tag_meta.tags);
+            }
+        }
+        Ok(())
+    }
+}
 
 use super::super::db::{ensure_schema_at, open_db, to_io_error};
 use super::super::{ThreadMeta, ThreadMetaKey};

@@ -4,6 +4,7 @@ use crossterm::{
         EnableFocusChange, EnableMouseCapture,
     },
     execute,
+    style::Print,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
@@ -12,23 +13,45 @@ use std::io;
 
 pub type TerminalHandle = Terminal<CrosstermBackend<io::Stdout>>;
 
+const KITTY_PAD_ACTIVE: &str = "\x1b]1337;SetUserVar=pad=MQ==\x07";
+const KITTY_PAD_INACTIVE: &str = "\x1b]1337;SetUserVar=pad\x07";
+
+fn kitty_pad_marker(active: bool) -> Option<&'static str> {
+    std::env::var_os("KITTY_WINDOW_ID").map(|_| {
+        if active {
+            KITTY_PAD_ACTIVE
+        } else {
+            KITTY_PAD_INACTIVE
+        }
+    })
+}
+
 pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(|info| {
-        let _ = disable_raw_mode();
-        let _ = execute!(
-            io::stdout(),
-            LeaveAlternateScreen,
-            DisableMouseCapture,
-            DisableFocusChange,
-            DisableBracketedPaste
-        );
         let msg = format!("PANIC: {}", info);
-        eprintln!("{}", msg);
         crate::logger::log(&msg);
+        if panic_requires_terminal_restore() {
+            let _ = disable_raw_mode();
+            if let Some(marker) = kitty_pad_marker(false) {
+                let _ = execute!(io::stdout(), Print(marker));
+            }
+            let _ = execute!(
+                io::stdout(),
+                LeaveAlternateScreen,
+                DisableMouseCapture,
+                DisableFocusChange,
+                DisableBracketedPaste
+            );
+            eprintln!("{}", msg);
+        }
     }));
 }
 
-pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Error>> {
+fn panic_requires_terminal_restore() -> bool {
+    !crate::panic_boundary::is_isolated()
+}
+
+pub fn enter() -> Result<TerminalHandle, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(
@@ -38,13 +61,8 @@ pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Err
         EnableFocusChange,
         EnableBracketedPaste
     )?;
-
-    if focus_events_supported {
-        let _ = std::process::Command::new("tmux")
-            .args(["set", "-g", "focus-events", "on"])
-            .output();
-    } else {
-        log_debug!("tmux_probe: skip focus-events enable because capability is unavailable");
+    if let Some(marker) = kitty_pad_marker(true) {
+        execute!(stdout, Print(marker))?;
     }
 
     let backend = CrosstermBackend::new(stdout);
@@ -53,6 +71,9 @@ pub fn enter(focus_events_supported: bool) -> Result<TerminalHandle, Box<dyn Err
 
 pub fn restore(terminal: &mut TerminalHandle) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
+    if let Some(marker) = kitty_pad_marker(false) {
+        execute!(terminal.backend_mut(), Print(marker))?;
+    }
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
@@ -63,3 +84,7 @@ pub fn restore(terminal: &mut TerminalHandle) -> Result<(), Box<dyn Error>> {
     terminal.show_cursor()?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "terminal_tests.rs"]
+pub(crate) mod tests;

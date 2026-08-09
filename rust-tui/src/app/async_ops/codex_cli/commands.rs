@@ -84,4 +84,4 @@ fn parse_json_string(raw: &str) -> Option<String> {
 
 #[cfg(test)]
 #[path = "commands_tests.rs"]
-mod tests;
+pub(crate) mod tests;
