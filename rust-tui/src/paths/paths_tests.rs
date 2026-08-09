@@ -1,10 +1,43 @@
 use super::*;
 
 pub(crate) mod bridge_hooks {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
     use super::*;
+
+    fn assert_valid_python(script: &str, label: &str) {
+        let mut child = Command::new("python3")
+            .args([
+                "-c",
+                "import sys; compile(sys.stdin.read(), sys.argv[1], 'exec')",
+                label,
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn python3 syntax check");
+        child
+            .stdin
+            .take()
+            .expect("python stdin")
+            .write_all(script.as_bytes())
+            .expect("write bridge template to python");
+        let output = child
+            .wait_with_output()
+            .expect("wait for python syntax check");
+
+        assert!(
+            output.status.success(),
+            "{label} is not valid Python: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 
     pub(crate) fn claude_bridge_template_stays_minimal_and_forwards_turn_id() {
         let template = claude_hook_bridge_template();
+        assert_valid_python(&template, "claude_hook_bridge.py");
         assert!(template.contains(&format!("# pad-bridge-version: {}", CLAUDE_BRIDGE_VERSION)));
         assert!(template.contains("\"turn_id\": payload.get(\"turn_id\")"));
         assert!(!template.contains("def silence_stdio():"));
@@ -14,6 +47,7 @@ pub(crate) mod bridge_hooks {
 
     pub(crate) fn codex_bridge_template_keeps_required_stdin_and_turn_id_handling() {
         let template = codex_hook_bridge_template();
+        assert_valid_python(&template, "codex_hook_bridge.py");
         assert!(template.contains(&format!("# pad-bridge-version: {}", CODEX_BRIDGE_VERSION)));
         assert!(template.contains("\"turn_id\": payload.get(\"turn_id\")"));
         assert!(template.contains("def silence_stdio():"));
