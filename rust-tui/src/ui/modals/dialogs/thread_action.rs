@@ -107,4 +107,4 @@ fn push_body_line(body: &mut String, line: &str) {
 
 #[cfg(test)]
 #[path = "thread_action_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -1,4 +1,4 @@
-mod codex_cli;
+pub(crate) mod codex_cli;
 mod preview_detail {
     use super::super::App;
     use crate::log_debug;
@@ -112,7 +112,7 @@ mod preview_detail {
     }
 }
 mod preview_update;
-mod provider_test;
+pub(crate) mod provider_test;
 mod title_summary;
 
 pub use codex_cli::CodexCliVersionInfo;

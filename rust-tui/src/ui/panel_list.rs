@@ -775,7 +775,7 @@ mod width {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use draw::draw_panel_list;
 pub use file_tree::draw_file_tree;

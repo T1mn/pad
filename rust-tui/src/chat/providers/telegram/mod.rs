@@ -1,9 +1,10 @@
 mod api;
-mod callbacks;
-mod commands;
-mod daemon;
+pub(crate) mod callbacks;
+#[allow(private_interfaces)]
+pub(crate) mod commands;
+pub(crate) mod daemon;
 mod help;
-mod hooks;
+pub(crate) mod hooks;
 mod locale;
 mod native_terminal {
     use crate::socket_api::model::ApiRequest;
@@ -69,8 +70,9 @@ mod native_terminal {
         }
     }
 }
-mod pending;
-mod render;
+#[allow(private_interfaces)]
+pub(crate) mod pending;
+pub(crate) mod render;
 mod state {
     mod ids {
         use std::sync::atomic::{AtomicU64, Ordering};
@@ -404,4 +406,4 @@ static DRAFT_FEEDBACK_GATES: LazyLock<Mutex<HashMap<i64, Arc<DraftFeedbackGate>>
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

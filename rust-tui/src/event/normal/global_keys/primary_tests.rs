@@ -2,8 +2,7 @@ use crossterm::event::KeyModifiers;
 
 use super::*;
 
-#[test]
-fn c_keeps_opening_the_global_index_in_native_mode() {
+pub(crate) fn c_keeps_opening_the_global_index_in_native_mode() {
     crate::test_support::with_temp_home("pad-global-index", "native-c", |_home| {
         let mut app = App::new();
 

@@ -7,8 +7,7 @@ use crate::terminal_runtime::EngineFactory;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
-#[test]
-fn feed_resize_and_scroll_propagate_engine_and_missing_pane_errors() {
+pub(crate) fn feed_resize_and_scroll_propagate_engine_and_missing_pane_errors() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let drops = Arc::new(AtomicUsize::new(0));
     let mut registry = EngineRegistry::default();
@@ -80,8 +79,7 @@ fn feed_resize_and_scroll_propagate_engine_and_missing_pane_errors() {
     );
 }
 
-#[test]
-fn bounded_queue_preserves_order_and_close_waits_for_destruction() {
+pub(crate) fn bounded_queue_preserves_order_and_close_waits_for_destruction() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let drops = Arc::new(AtomicUsize::new(0));
     let (factory, entered, release) = BlockingFactory::new(events.clone(), drops.clone());
@@ -151,8 +149,7 @@ fn bounded_queue_preserves_order_and_close_waits_for_destruction() {
     );
 }
 
-#[test]
-fn separate_shards_make_progress_independently() {
+pub(crate) fn separate_shards_make_progress_independently() {
     let blocked_events = Arc::new(Mutex::new(Vec::new()));
     let blocked_drops = Arc::new(AtomicUsize::new(0));
     let (blocking_factory, entered, release) = BlockingFactory::new(blocked_events, blocked_drops);
@@ -208,8 +205,7 @@ fn separate_shards_make_progress_independently() {
     assert_eq!(fast_events.lock().unwrap().as_slice(), ["feed:fast"]);
 }
 
-#[test]
-fn shutdown_drains_commands_already_accepted_by_a_full_queue() {
+pub(crate) fn shutdown_drains_commands_already_accepted_by_a_full_queue() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let drops = Arc::new(AtomicUsize::new(0));
     let (factory, entered, release) = BlockingFactory::new(events.clone(), drops.clone());
@@ -267,8 +263,7 @@ fn shutdown_drains_commands_already_accepted_by_a_full_queue() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
-#[test]
-fn engine_panics_remove_only_the_faulting_pane_and_keep_the_shard_alive() {
+pub(crate) fn engine_panics_remove_only_the_faulting_pane_and_keep_the_shard_alive() {
     let healthy_feeds = Arc::new(AtomicUsize::new(0));
     let drops = Arc::new(AtomicUsize::new(0));
     let mut registry = EngineRegistry::default();

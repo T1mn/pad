@@ -157,4 +157,4 @@ mod selection {
 
 #[cfg(test)]
 #[path = "notification_inbox_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -64,4 +64,4 @@ pub fn restore(terminal: &mut TerminalHandle) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 #[path = "terminal_tests.rs"]
-mod tests;
+pub(crate) mod tests;

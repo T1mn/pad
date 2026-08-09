@@ -1,4 +1,4 @@
-mod files;
+pub(crate) mod files;
 mod formats;
 mod paths {
     use std::path::{Path, PathBuf};

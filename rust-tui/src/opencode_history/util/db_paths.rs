@@ -108,4 +108,4 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 
 #[cfg(test)]
 #[path = "db_paths_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -79,7 +79,7 @@ mod row {
         ])
     }
 }
-mod values;
+pub(crate) mod values;
 
 use super::common::render_modal_surface;
 use crate::app::App;

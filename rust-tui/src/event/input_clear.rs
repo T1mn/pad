@@ -74,4 +74,4 @@ fn clear_active_text_input(app: &mut App) -> bool {
 
 #[cfg(test)]
 #[path = "input_clear_tests.rs"]
-mod input_clear_tests;
+pub(crate) mod input_clear_tests;

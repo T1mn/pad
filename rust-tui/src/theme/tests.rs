@@ -1,9 +1,8 @@
-mod config {
+pub(crate) mod config {
     use super::super::*;
     use super::support::with_temp_home;
 
-    #[test]
-    fn config_round_trips_opencode_provider_models() {
+    pub(crate) fn config_round_trips_opencode_provider_models() {
         with_temp_home("opencode-roundtrip", || {
             let mut config = Config::default();
             config.agent_permissions.codex_auto_full_access = false;
@@ -87,8 +86,7 @@ mod config {
         });
     }
 
-    #[test]
-    fn config_save_omits_wire_api_entries() {
+    pub(crate) fn config_save_omits_wire_api_entries() {
         with_temp_home("save-omits-wire-api", || {
             let mut config = Config::default();
             let codex = config
@@ -119,8 +117,7 @@ mod config {
         });
     }
 
-    #[test]
-    fn config_loads_legacy_codex_prompt_file_as_jailbreak_prompt_file() {
+    pub(crate) fn config_loads_legacy_codex_prompt_file_as_jailbreak_prompt_file() {
         with_temp_home("legacy-codex-prompt-file", || {
             let config_path = crate::paths::config_path();
             std::fs::create_dir_all(config_path.parent().expect("config parent"))
@@ -134,8 +131,7 @@ mod config {
         });
     }
 
-    #[test]
-    fn config_defaults_agent_permissions_to_enabled() {
+    pub(crate) fn config_defaults_agent_permissions_to_enabled() {
         with_temp_home("permissions-default", || {
             let config = Config::default();
             config.save().expect("save config");
@@ -151,8 +147,7 @@ mod config {
         });
     }
 
-    #[test]
-    fn resolved_config_path_prefers_pad_home_over_legacy_path() {
+    pub(crate) fn resolved_config_path_prefers_pad_home_over_legacy_path() {
         with_temp_home("resolved-config-path", || {
             let pad_path = Config::config_path();
             let legacy_path = crate::paths::legacy_config_path();
@@ -170,8 +165,7 @@ mod config {
         });
     }
 
-    #[test]
-    fn load_from_path_reports_invalid_toml() {
+    pub(crate) fn load_from_path_reports_invalid_toml() {
         with_temp_home("invalid-load-path", || {
             let path = Config::config_path();
             if let Some(parent) = path.parent() {
@@ -184,23 +178,21 @@ mod config {
         });
     }
 }
-mod palette {
+pub(crate) mod palette {
     use super::super::*;
     use ratatui::style::Color;
 
-    #[test]
-    fn readability_boost_keeps_status_text_close_to_primary_fg() {
+    pub(crate) fn readability_boost_keeps_status_text_close_to_primary_fg() {
         let theme = Theme::by_name("catppuccin");
         assert_eq!(theme.status_fg, theme.fg);
     }
 
-    #[test]
-    fn readability_boost_lifts_comment_contrast() {
+    pub(crate) fn readability_boost_lifts_comment_contrast() {
         let boosted = Theme::by_name("one-dark");
         assert_ne!(boosted.comment, Color::Rgb(92, 99, 112));
     }
 }
-mod persist {
+pub(crate) mod persist {
     use super::super::*;
     use super::support::with_temp_home;
 
@@ -242,8 +234,7 @@ mod persist {
             .expect("claude provider survived the round trip")
     }
 
-    #[test]
-    fn api_key_with_backslashes_survives_round_trip() {
+    pub(crate) fn api_key_with_backslashes_survives_round_trip() {
         with_temp_home("backslash-api-key", || {
             let loaded = save_and_reload(r"C:\path\to\key", r"123:AA\bb");
             assert_eq!(loaded_api_key(&loaded), r"C:\path\to\key");
@@ -251,8 +242,7 @@ mod persist {
         });
     }
 
-    #[test]
-    fn value_ending_with_backslash_does_not_break_the_file() {
+    pub(crate) fn value_ending_with_backslash_does_not_break_the_file() {
         with_temp_home("trailing-backslash", || {
             let loaded = save_and_reload(r"secret\", "plain");
             assert_eq!(loaded_api_key(&loaded), r"secret\");
@@ -261,8 +251,7 @@ mod persist {
         });
     }
 
-    #[test]
-    fn multiline_and_control_character_values_survive_round_trip() {
+    pub(crate) fn multiline_and_control_character_values_survive_round_trip() {
         with_temp_home("multiline-value", || {
             let loaded = save_and_reload("line1\nline2\n", "tab\tand\r\ncrlf");
             assert_eq!(loaded_api_key(&loaded), "line1\nline2\n");
@@ -270,8 +259,7 @@ mod persist {
         });
     }
 
-    #[test]
-    fn broken_config_is_backed_up_before_falling_back_to_defaults() {
+    pub(crate) fn broken_config_is_backed_up_before_falling_back_to_defaults() {
         with_temp_home("broken-config-backup", || {
             let path = Config::config_path();
             std::fs::create_dir_all(path.parent().expect("config parent"))
@@ -301,8 +289,7 @@ mod persist {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn saved_config_is_owner_only_readable() {
+    pub(crate) fn saved_config_is_owner_only_readable() {
         use std::os::unix::fs::PermissionsExt;
 
         with_temp_home("config-permissions", || {
@@ -324,11 +311,10 @@ mod persist {
         });
     }
 }
-mod provider {
+pub(crate) mod provider {
     use super::super::*;
 
-    #[test]
-    fn codex_base_url_candidates_try_root_and_v1_variants() {
+    pub(crate) fn codex_base_url_candidates_try_root_and_v1_variants() {
         assert_eq!(
             codex_api_base_candidates("https://relay.example"),
             vec![
@@ -349,8 +335,7 @@ mod provider {
         );
     }
 
-    #[test]
-    fn codex_base_url_prefers_v1_for_root_inputs() {
+    pub(crate) fn codex_base_url_prefers_v1_for_root_inputs() {
         assert_eq!(
             provider::codex_preferred_api_base_url("https://relay.example"),
             "https://relay.example/v1"
@@ -369,12 +354,11 @@ mod provider {
         );
     }
 }
-mod sound {
+pub(crate) mod sound {
     use super::super::*;
     use super::support::with_temp_home;
 
-    #[test]
-    fn config_round_trips_sound_section() {
+    pub(crate) fn config_round_trips_sound_section() {
         with_temp_home("sound-roundtrip", || {
             let mut config = Config::default();
             config.sound.enabled = true;
@@ -401,8 +385,7 @@ mod sound {
         });
     }
 
-    #[test]
-    fn config_normalizes_invalid_sound_presets() {
+    pub(crate) fn config_normalizes_invalid_sound_presets() {
         with_temp_home("sound-preset-normalize", || {
             let path = Config::config_path();
             if let Some(parent) = path.parent() {

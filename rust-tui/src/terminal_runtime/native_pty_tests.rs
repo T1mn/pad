@@ -7,8 +7,7 @@ use crate::terminal_runtime::TransportRuntime;
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[cfg(unix)]
-#[test]
-fn native_pty_preserves_io_resize_env_and_exit() {
+pub(crate) fn native_pty_preserves_io_resize_env_and_exit() {
     assert!(Path::new("/bin/sh").is_file());
     let size = TerminalSize::new(31, 9);
     let command = NativePtyCommand::new("/bin/sh")
@@ -46,8 +45,7 @@ fn native_pty_preserves_io_resize_env_and_exit() {
 }
 
 #[cfg(unix)]
-#[test]
-fn native_pty_shutdown_terminates_the_owned_child() {
+pub(crate) fn native_pty_shutdown_terminates_the_owned_child() {
     let command = NativePtyCommand::new("/bin/sh")
         .args(["-c", "printf 'READY\\r\\n'; while :; do sleep 1; done"]);
     let runtime = TransportRuntime::new(8, 8).unwrap();
@@ -69,8 +67,7 @@ fn native_pty_shutdown_terminates_the_owned_child() {
 }
 
 #[cfg(unix)]
-#[test]
-fn shutdown_escalates_past_ignored_hup_and_term() {
+pub(crate) fn shutdown_escalates_past_ignored_hup_and_term() {
     let command = NativePtyCommand::new("/bin/sh").args([
         "-c",
         "trap '' HUP TERM; printf 'READY\\r\\n'; while :; do sleep 1; done",
@@ -96,8 +93,7 @@ fn shutdown_escalates_past_ignored_hup_and_term() {
 }
 
 #[cfg(unix)]
-#[test]
-fn full_single_slot_output_queue_does_not_starve_shutdown() {
+pub(crate) fn full_single_slot_output_queue_does_not_starve_shutdown() {
     let command = NativePtyCommand::new("/bin/sh").args([
         "-c",
         "trap '' HUP TERM; printf 'READY\\r\\n'; while :; do printf '0123456789abcdef'; done",
@@ -122,8 +118,7 @@ fn full_single_slot_output_queue_does_not_starve_shutdown() {
 }
 
 #[cfg(unix)]
-#[test]
-fn blocked_large_input_does_not_starve_shutdown() {
+pub(crate) fn blocked_large_input_does_not_starve_shutdown() {
     let command = NativePtyCommand::new("/bin/sh").args([
         "-c",
         "trap '' HUP TERM; stty -echo; printf 'READY\\r\\n'; while :; do sleep 1; done",
@@ -150,8 +145,7 @@ fn blocked_large_input_does_not_starve_shutdown() {
 }
 
 #[cfg(unix)]
-#[test]
-fn native_pty_preserves_binary_output_and_explicit_env_removal() {
+pub(crate) fn native_pty_preserves_binary_output_and_explicit_env_removal() {
     let command = NativePtyCommand::new("/bin/sh")
             .args([
                 "-c",
@@ -178,8 +172,7 @@ fn native_pty_preserves_binary_output_and_explicit_env_removal() {
     handle.recv_completion().unwrap();
 }
 
-#[test]
-fn spawn_failure_is_reported_through_completion() {
+pub(crate) fn spawn_failure_is_reported_through_completion() {
     let runtime = TransportRuntime::new(2, 2).unwrap();
     let mut handle = runtime
         .spawn(Box::new(NativePtyTransport::new(
@@ -198,8 +191,7 @@ fn spawn_failure_is_reported_through_completion() {
 }
 
 #[cfg(unix)]
-#[test]
-fn dropping_handle_reaps_the_owned_process() {
+pub(crate) fn dropping_handle_reaps_the_owned_process() {
     let command = NativePtyCommand::new("/bin/sh").args([
         "-c",
         "trap '' HUP TERM; printf 'PID=%s\\r\\n' $$; while :; do sleep 1; done",
@@ -228,8 +220,7 @@ fn dropping_handle_reaps_the_owned_process() {
     }
 }
 
-#[test]
-fn default_program_rejects_arguments_without_panicking() {
+pub(crate) fn default_program_rejects_arguments_without_panicking() {
     let error = NativePtyCommand::default_program()
         .arg("unsupported")
         .build()
@@ -241,8 +232,7 @@ fn default_program_rejects_arguments_without_panicking() {
 }
 
 #[cfg(unix)]
-#[test]
-fn unix_pty_eio_is_treated_as_end_of_stream() {
+pub(crate) fn unix_pty_eio_is_treated_as_end_of_stream() {
     assert!(pty_read_is_eof(&io::Error::from_raw_os_error(libc::EIO)));
     assert!(!pty_read_is_eof(&io::Error::from(
         io::ErrorKind::WouldBlock

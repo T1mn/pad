@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test_suites;
+
 use std::error::Error;
 use std::io;
 

@@ -70,4 +70,4 @@ fn push_unique(out: &mut Vec<String>, model: &str) {
 
 #[cfg(test)]
 #[path = "model_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -2,8 +2,7 @@ use crossterm::event::{KeyEventKind, KeyEventState};
 
 use super::*;
 
-#[test]
-fn command_layer_has_one_explicit_prefix() {
+pub(crate) fn command_layer_has_one_explicit_prefix() {
     assert!(is_command_chord(key(KeyCode::F(11), KeyModifiers::NONE)));
     assert!(is_command_chord(key(
         KeyCode::Char(' '),
@@ -20,8 +19,7 @@ fn command_layer_has_one_explicit_prefix() {
     assert!(!is_command_chord(key(KeyCode::Tab, KeyModifiers::NONE)));
 }
 
-#[test]
-fn command_actions_cover_layout_profiles_and_navigation() {
+pub(crate) fn command_actions_cover_layout_profiles_and_navigation() {
     assert_eq!(
         terminal_command_action(key(KeyCode::Char('v'), KeyModifiers::NONE)),
         Some(TerminalCommandAction::Split(
@@ -65,8 +63,7 @@ fn command_actions_cover_layout_profiles_and_navigation() {
     );
 }
 
-#[test]
-fn shift_navigation_keys_control_pad_scrollback() {
+pub(crate) fn shift_navigation_keys_control_pad_scrollback() {
     assert_eq!(
         terminal_scroll(key(KeyCode::PageUp, KeyModifiers::SHIFT)),
         Some(TerminalScroll::PageUp)

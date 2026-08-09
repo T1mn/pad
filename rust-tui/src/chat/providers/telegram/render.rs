@@ -102,4 +102,4 @@ fn truncated_prefix_byte_len(text: &str, max_chars: usize, keep_chars: usize) ->
 
 #[cfg(test)]
 #[path = "render_tests.rs"]
-mod tests;
+pub(crate) mod tests;

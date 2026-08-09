@@ -70,4 +70,4 @@ fn print_help() {
 
 #[cfg(test)]
 #[path = "cli_tests.rs"]
-mod tests;
+pub(crate) mod tests;

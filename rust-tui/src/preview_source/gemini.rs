@@ -99,7 +99,7 @@ mod text {
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::parse_transcript;
     use crate::preview_source::SessionReadMode;
     use std::fs;
@@ -108,8 +108,7 @@ mod tests {
         crate::test_support::temp_path("pad-preview-json", name)
     }
 
-    #[test]
-    fn parse_gemini_transcript_skips_info_and_keeps_pairs() {
+    pub(crate) fn parse_gemini_transcript_skips_info_and_keeps_pairs() {
         let path = temp_json_path("gemini");
         fs::write(
             &path,
@@ -138,8 +137,7 @@ mod tests {
         assert_eq!(turns[1].answer.as_deref(), Some("world"));
     }
 
-    #[test]
-    fn extract_session_id_from_transcript_reads_root_metadata() {
+    pub(crate) fn extract_session_id_from_transcript_reads_root_metadata() {
         let path = temp_json_path("gemini-meta");
         fs::write(
             &path,
@@ -159,8 +157,7 @@ mod tests {
         assert_eq!(session_id.as_deref(), Some("sess-meta-1"));
     }
 
-    #[test]
-    fn parse_gemini_transcript_joins_nested_non_empty_text_parts() {
+    pub(crate) fn parse_gemini_transcript_joins_nested_non_empty_text_parts() {
         let path = temp_json_path("gemini-nested-parts");
         fs::write(
             &path,

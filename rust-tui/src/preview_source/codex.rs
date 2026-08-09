@@ -155,4 +155,4 @@ pub(super) fn parse_transcript(
 
 #[cfg(test)]
 #[path = "codex/tests.rs"]
-mod tests;
+pub(crate) mod tests;

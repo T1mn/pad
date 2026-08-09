@@ -1,6 +1,6 @@
 pub mod model;
 pub mod render;
-pub(super) mod row;
+pub(crate) mod row;
 pub mod state {
     #[derive(Clone, Debug, Default)]
     pub struct SelectionState {

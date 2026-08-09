@@ -2,15 +2,14 @@ use super::*;
 use crate::app::state::RelayView;
 use crate::theme::{Config, ProviderConfig};
 
-mod deferred {
+pub(crate) mod deferred {
     use super::support::{
         current_codex_provider, poll_external_relay_config, seed_codex_provider,
         update_codex_provider, with_temp_home,
     };
     use super::*;
 
-    #[test]
-    fn external_relay_reload_is_deferred_while_editing() {
+    pub(crate) fn external_relay_reload_is_deferred_while_editing() {
         with_temp_home("deferred", || {
             seed_codex_provider("a", "https://a.example/v1", "sk-a");
 
@@ -48,14 +47,13 @@ mod deferred {
     }
 }
 
-mod invalid {
+pub(crate) mod invalid {
     use super::support::{
         current_codex_provider, poll_external_relay_config, seed_codex_provider, with_temp_home,
     };
     use super::*;
 
-    #[test]
-    fn invalid_external_relay_config_is_ignored() {
+    pub(crate) fn invalid_external_relay_config_is_ignored() {
         with_temp_home("invalid", || {
             seed_codex_provider("a", "https://a.example/v1", "sk-a");
 
@@ -71,15 +69,14 @@ mod invalid {
     }
 }
 
-mod immediate {
+pub(crate) mod immediate {
     use super::support::{
         current_codex_provider, poll_external_relay_config, seed_codex_provider,
         update_codex_provider, with_temp_home,
     };
     use super::*;
 
-    #[test]
-    fn external_relay_reload_applies_immediately_when_not_editing() {
+    pub(crate) fn external_relay_reload_applies_immediately_when_not_editing() {
         with_temp_home("immediate", || {
             seed_codex_provider("a", "https://a.example/v1", "sk-a");
 
@@ -105,12 +102,11 @@ mod immediate {
     }
 }
 
-mod selection {
+pub(crate) mod selection {
     use super::support::{poll_external_relay_config, sample_provider, with_temp_home};
     use super::*;
 
-    #[test]
-    fn external_relay_reload_clamps_provider_selection() {
+    pub(crate) fn external_relay_reload_clamps_provider_selection() {
         with_temp_home("clamp", || {
             let mut config = Config::default();
             let codex = config

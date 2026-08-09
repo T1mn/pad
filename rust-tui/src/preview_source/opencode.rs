@@ -99,7 +99,7 @@ pub(super) fn parse_transcript(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use rusqlite::{params, Connection};
 
@@ -107,8 +107,7 @@ mod tests {
         crate::test_support::temp_path("pad-opencode-preview", "db")
     }
 
-    #[test]
-    fn parses_opencode_sqlite_messages_into_turns() {
+    pub(crate) fn parses_opencode_sqlite_messages_into_turns() {
         let path = temp_db_path();
         let connection = Connection::open(&path).unwrap();
         connection

@@ -120,7 +120,7 @@ mod actions {
     }
 }
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use crate::app::state::CodexSettingsView;
 use crate::app::App;

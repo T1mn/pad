@@ -1,8 +1,8 @@
-mod build;
-mod display;
+pub(crate) mod build;
+pub(crate) mod display;
 mod model;
-mod provider;
-mod search;
+pub(crate) mod provider;
+pub(crate) mod search;
 mod sort {
     use super::model::{SidebarFolder, SidebarThread};
     use std::sync::Arc;

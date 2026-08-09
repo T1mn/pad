@@ -115,14 +115,13 @@ mod width {
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::render_selection_title_line;
     use crate::theme::Theme;
     use crate::ui::selection::SelectionItem;
     use ratatui::style::Style;
 
-    #[test]
-    fn title_line_marks_selection_and_right_aligns_value() {
+    pub(crate) fn title_line_marks_selection_and_right_aligns_value() {
         let theme = Theme::default();
         let item = SelectionItem {
             title: "Theme".into(),
@@ -138,8 +137,7 @@ mod tests {
         assert_eq!(line.spans[3].style.fg, Some(theme.highlight_fg));
     }
 
-    #[test]
-    fn unselected_value_uses_accent_color() {
+    pub(crate) fn unselected_value_uses_accent_color() {
         let theme = Theme::default();
         let item = SelectionItem {
             title: "Sound".into(),

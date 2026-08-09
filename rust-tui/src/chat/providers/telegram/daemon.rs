@@ -122,7 +122,7 @@ mod maintenance {
         let _ = save_state_if_changed(state, last_saved_state);
     }
 }
-mod process;
+pub(crate) mod process;
 mod run_loop {
     use super::super::*;
     use super::auth::{prepare_config_for_polling, TelegramAuthState, TelegramConfigReadiness};
@@ -173,7 +173,7 @@ mod run_loop {
         }
     }
 }
-mod state_io;
+pub(crate) mod state_io;
 mod updates {
     use super::super::*;
     use super::maintenance::save_state_quietly;

@@ -1,7 +1,7 @@
 pub mod actions;
 pub mod async_ops;
 pub mod clipboard;
-mod config_persist;
+pub(crate) mod config_persist;
 mod display_scope {
     use super::state::ThreadListView;
     use super::App;
@@ -167,9 +167,9 @@ mod lifecycle {
 }
 pub mod navigation;
 pub mod preview;
-mod socket_api;
+pub(crate) mod socket_api;
 pub mod state;
-mod terminal;
+pub(crate) mod terminal;
 mod time {
     pub(crate) use crate::time::unix_now_ts;
 }

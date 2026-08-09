@@ -391,4 +391,4 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
 
 #[cfg(test)]
 #[path = "worker_tests.rs"]
-mod tests;
+pub(crate) mod tests;

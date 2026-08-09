@@ -1,7 +1,6 @@
 use super::codex_final_answer_line;
 
-#[test]
-fn final_answer_joins_output_text_blocks() {
+pub(crate) fn final_answer_joins_output_text_blocks() {
     let payload = serde_json::json!({
         "type": "response_item",
         "payload": {
@@ -22,8 +21,7 @@ fn final_answer_joins_output_text_blocks() {
     );
 }
 
-#[test]
-fn final_answer_ignores_empty_output_text_blocks() {
+pub(crate) fn final_answer_ignores_empty_output_text_blocks() {
     let payload = serde_json::json!({
         "type": "response_item",
         "payload": {

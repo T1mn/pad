@@ -54,15 +54,14 @@ mod bench {
         }
     }
 }
-mod compressed {
+pub(crate) mod compressed {
     use super::super::parse_transcript;
     use super::support::temp_jsonl_path;
     use crate::preview_source::SessionReadMode;
     use std::fs;
     use std::io::Write;
 
-    #[test]
-    fn parse_codex_transcript_reads_compressed_sibling_with_future_fields() {
+    pub(crate) fn parse_codex_transcript_reads_compressed_sibling_with_future_fields() {
         let canonical_path = temp_jsonl_path("codex-compressed").with_extension("jsonl");
         let compressed_path = canonical_path.with_extension("jsonl.zst");
         let file = fs::File::create(&compressed_path).unwrap();
@@ -87,17 +86,15 @@ mod compressed {
         assert_eq!(turns[0].answer.as_deref(), Some("world compressed"));
     }
 }
-mod normalize {
+pub(crate) mod normalize {
     use super::super::normalize_codex_user_text;
 
-    #[test]
-    fn normalize_codex_user_text_handles_image_only_message() {
+    pub(crate) fn normalize_codex_user_text_handles_image_only_message() {
         let text = "<image name=[Image #1]>\n</image>\n[Image #1]";
         assert_eq!(normalize_codex_user_text(text, Some(1)), "[Image x1]");
     }
 
-    #[test]
-    fn normalize_codex_user_text_keeps_image_body_lines() {
+    pub(crate) fn normalize_codex_user_text_keeps_image_body_lines() {
         let text = "<image name=[Image #1]>\n</image>\n[Image #1]\n first line \n\nsecond line";
         assert_eq!(
             normalize_codex_user_text(text, Some(1)),
@@ -105,20 +102,17 @@ mod normalize {
         );
     }
 
-    #[test]
-    fn normalize_codex_user_text_does_not_touch_plain_text_without_images() {
+    pub(crate) fn normalize_codex_user_text_does_not_touch_plain_text_without_images() {
         let text = "literal [Image #1] text";
         assert_eq!(normalize_codex_user_text(text, None), text);
     }
 
-    #[test]
-    fn normalize_codex_user_text_filters_environment_context_block() {
+    pub(crate) fn normalize_codex_user_text_filters_environment_context_block() {
         let text = "<environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context>";
         assert_eq!(normalize_codex_user_text(text, None), "");
     }
 
-    #[test]
-    fn normalize_codex_user_text_strips_embedded_environment_context_block() {
+    pub(crate) fn normalize_codex_user_text_strips_embedded_environment_context_block() {
         let text = "请分析一下\n<environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context>\n这段结构";
         assert_eq!(
             normalize_codex_user_text(text, None),
@@ -126,14 +120,12 @@ mod normalize {
         );
     }
 
-    #[test]
-    fn normalize_codex_user_text_filters_turn_aborted_marker() {
+    pub(crate) fn normalize_codex_user_text_filters_turn_aborted_marker() {
         let text = "<turn_aborted>\ninterrupted\n</turn_aborted>";
         assert_eq!(normalize_codex_user_text(text, None), "");
     }
 
-    #[test]
-    fn normalize_codex_user_text_summarizes_user_shell_command() {
+    pub(crate) fn normalize_codex_user_text_summarizes_user_shell_command() {
         let text = "<user_shell_command>\n<command>\necho hi\n</command>\n<result>\nExit code: 0\n</result>\n</user_shell_command>";
         assert_eq!(normalize_codex_user_text(text, None), "[shell] echo hi");
     }
@@ -143,14 +135,13 @@ mod support {
         crate::test_support::temp_path("pad-preview-jsonl", name)
     }
 }
-mod transcript {
+pub(crate) mod transcript {
     use super::super::parse_transcript;
     use super::support::temp_jsonl_path;
     use crate::preview_source::SessionReadMode;
     use std::fs;
 
-    #[test]
-    fn parse_codex_transcript_extracts_recent_messages() {
+    pub(crate) fn parse_codex_transcript_extracts_recent_messages() {
         let path = temp_jsonl_path("codex");
         fs::write(
             &path,
@@ -170,8 +161,7 @@ mod transcript {
         assert_eq!(turns[0].answer.as_deref(), Some("world"));
     }
 
-    #[test]
-    fn parse_codex_transcript_backfills_beyond_six_turns() {
+    pub(crate) fn parse_codex_transcript_backfills_beyond_six_turns() {
         let path = temp_jsonl_path("codex-history");
         let mut content = String::new();
         for idx in 0..8 {
@@ -192,8 +182,7 @@ mod transcript {
         assert_eq!(turns[7].question, "q0");
     }
 
-    #[test]
-    fn parse_codex_transcript_keeps_latest_real_user_turns() {
+    pub(crate) fn parse_codex_transcript_keeps_latest_real_user_turns() {
         let path = temp_jsonl_path("codex-history-limit");
         let mut content = String::new();
         for idx in 0..60 {
@@ -222,8 +211,7 @@ mod transcript {
         assert_eq!(turns[49].question, "q10");
     }
 
-    #[test]
-    fn parse_codex_transcript_includes_subagent_events_in_main_turn() {
+    pub(crate) fn parse_codex_transcript_includes_subagent_events_in_main_turn() {
         let path = temp_jsonl_path("codex-subagent");
         fs::write(
             &path,
@@ -248,8 +236,7 @@ mod transcript {
         assert!(!answer.contains("<subagent_notification>"));
     }
 
-    #[test]
-    fn parse_codex_transcript_normalizes_single_image_user_message() {
+    pub(crate) fn parse_codex_transcript_normalizes_single_image_user_message() {
         let path = temp_jsonl_path("codex-image-single");
         fs::write(
             &path,
@@ -271,8 +258,7 @@ mod transcript {
         assert_eq!(turns[0].question, "[Image x1] 为什么 settings 底部有黑边？");
     }
 
-    #[test]
-    fn parse_codex_transcript_normalizes_multiple_image_user_message() {
+    pub(crate) fn parse_codex_transcript_normalizes_multiple_image_user_message() {
         let path = temp_jsonl_path("codex-image-multi");
         fs::write(
             &path,
@@ -296,8 +282,7 @@ mod transcript {
         assert_eq!(turns[0].question, "[Image x2] 左侧不对， 右侧也不对");
     }
 
-    #[test]
-    fn parse_codex_transcript_skips_context_only_user_messages() {
+    pub(crate) fn parse_codex_transcript_skips_context_only_user_messages() {
         let path = temp_jsonl_path("codex-context-filter");
         fs::write(
             &path,
@@ -319,11 +304,10 @@ mod transcript {
     }
 }
 
-mod subagent {
+pub(crate) mod subagent {
     use super::super::subagent::extract_subagent_notification_summary;
 
-    #[test]
-    fn subagent_summary_compacts_whitespace_without_losing_detail() {
+    pub(crate) fn subagent_summary_compacts_whitespace_without_losing_detail() {
         let text = concat!(
             "<subagent_notification>\n",
             r#"{"agent_path":"/tmp/audit","status":{"completed":"  first   line\nsecond line"}}"#,
@@ -335,7 +319,7 @@ mod subagent {
     }
 }
 
-mod tail {
+pub(crate) mod tail {
     use super::super::tail::{grow_tail_bytes, initial_tail_bytes, read_tail_lines};
     use std::fs;
 
@@ -343,16 +327,14 @@ mod tail {
         crate::test_support::temp_path("pad-codex-tail", name).with_extension("jsonl")
     }
 
-    #[test]
-    fn tail_window_helpers_clamp_and_grow() {
+    pub(crate) fn tail_window_helpers_clamp_and_grow() {
         assert_eq!(initial_tail_bytes(0), 1);
         assert_eq!(initial_tail_bytes(10), 10);
         assert_eq!(initial_tail_bytes(512), 256);
         assert_eq!(grow_tail_bytes(256, 400), 400);
     }
 
-    #[test]
-    fn tail_reader_keeps_whole_file_when_short() {
+    pub(crate) fn tail_reader_keeps_whole_file_when_short() {
         let path = temp_path("short");
         fs::write(&path, "one\ntwo\n").unwrap();
 
@@ -362,8 +344,7 @@ mod tail {
         assert_eq!(lines, vec!["one".to_string(), "two".to_string()]);
     }
 
-    #[test]
-    fn tail_reader_drops_partial_first_line() {
+    pub(crate) fn tail_reader_drops_partial_first_line() {
         let path = temp_path("partial");
         fs::write(&path, "first\nsecond\nthird\n").unwrap();
 

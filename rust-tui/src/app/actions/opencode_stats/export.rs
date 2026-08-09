@@ -40,4 +40,4 @@ fn collect_stats_output(project: &str, command: &str) -> io::Result<String> {
 
 #[cfg(test)]
 #[path = "export_tests.rs"]
-mod tests;
+pub(crate) mod tests;

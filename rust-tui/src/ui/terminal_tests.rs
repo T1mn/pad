@@ -2,8 +2,7 @@ use ratatui::style::Color;
 
 use super::*;
 
-#[test]
-fn single_pane_reserves_one_row_for_tabs() {
+pub(crate) fn single_pane_reserves_one_row_for_tabs() {
     let root = pane(1);
     let placement = place_tree(&root, Rect::new(3, 5, 11, 7));
 
@@ -19,8 +18,7 @@ fn single_pane_reserves_one_row_for_tabs() {
     );
 }
 
-#[test]
-fn recursive_splits_keep_depth_first_pane_order() {
+pub(crate) fn recursive_splits_keep_depth_first_pane_order() {
     let root = split(
         TerminalSplitAxis::Columns,
         pane(1),
@@ -35,8 +33,7 @@ fn recursive_splits_keep_depth_first_pane_order() {
     assert_eq!(placement.panes[2].outer, Rect::new(7, 5, 8, 5));
 }
 
-#[test]
-fn two_columns_give_the_odd_cell_to_the_second_pane() {
+pub(crate) fn two_columns_give_the_odd_cell_to_the_second_pane() {
     let root = split(TerminalSplitAxis::Columns, pane(1), pane(2));
 
     let placement = place_tree(&root, Rect::new(0, 0, 9, 6));
@@ -45,8 +42,7 @@ fn two_columns_give_the_odd_cell_to_the_second_pane() {
     assert_eq!(placement.panes[1].outer, Rect::new(4, 1, 5, 5));
 }
 
-#[test]
-fn four_panes_tile_odd_area_without_gaps_or_overlap() {
+pub(crate) fn four_panes_tile_odd_area_without_gaps_or_overlap() {
     let root = split(
         TerminalSplitAxis::Rows,
         split(TerminalSplitAxis::Columns, pane(1), pane(2)),
@@ -62,8 +58,7 @@ fn four_panes_tile_odd_area_without_gaps_or_overlap() {
     assert_eq!(placement.panes[3].outer, Rect::new(6, 8, 5, 4));
 }
 
-#[test]
-fn stored_split_ratio_is_applied_with_saturating_remainder() {
+pub(crate) fn stored_split_ratio_is_applied_with_saturating_remainder() {
     let root = TerminalLayoutNode::Split {
         axis: TerminalSplitAxis::Columns,
         ratio_per_mille: 250,
@@ -77,8 +72,7 @@ fn stored_split_ratio_is_applied_with_saturating_remainder() {
     assert_eq!(placement.panes[1].outer.width, 9);
 }
 
-#[test]
-fn tiny_rectangles_saturate_instead_of_underflowing() {
+pub(crate) fn tiny_rectangles_saturate_instead_of_underflowing() {
     let root = split(TerminalSplitAxis::Columns, pane(1), pane(2));
 
     let placement = place_tree(&root, Rect::new(u16::MAX - 1, u16::MAX - 1, 1, 1));
@@ -90,8 +84,7 @@ fn tiny_rectangles_saturate_instead_of_underflowing() {
     assert!(placement.panes.iter().all(|pane| pane.inner.is_empty()));
 }
 
-#[test]
-fn tab_bar_marks_only_the_active_tab() {
+pub(crate) fn tab_bar_marks_only_the_active_tab() {
     let theme = Theme::by_name("default");
     let tabs = [
         TabLabel {
@@ -118,8 +111,7 @@ fn tab_bar_marks_only_the_active_tab() {
     assert_ne!(codex_cell.bg, theme.highlight_bg);
 }
 
-#[test]
-fn tab_hit_rects_match_unicode_width_and_visible_clipping() {
+pub(crate) fn tab_hit_rects_match_unicode_width_and_visible_clipping() {
     let tabs = [
         TabLabel {
             label: "A".to_string(),
@@ -143,8 +135,7 @@ fn tab_hit_rects_match_unicode_width_and_visible_clipping() {
     assert_eq!(placements[2].rect, Rect::new(12, 7, 0, 1));
 }
 
-#[test]
-fn placeholder_uses_focus_border_and_warning_text() {
+pub(crate) fn placeholder_uses_focus_border_and_warning_text() {
     let theme = Theme::by_name("default");
     let area = Rect::new(0, 0, 28, 4);
     let mut buffer = Buffer::empty(area);

@@ -77,4 +77,4 @@ pub fn t(locale: Locale, key: &str) -> &str {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

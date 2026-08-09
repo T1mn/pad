@@ -1,5 +1,5 @@
 mod resolve;
-mod sources;
+pub(crate) mod sources;
 mod target {
     use std::path::PathBuf;
 
@@ -16,7 +16,7 @@ mod target {
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::target::SessionTarget;
     use super::{
         persistence_panel_from_request, resolve_session_target, resolved_session_id_for_request,
@@ -53,8 +53,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn gemini_session_id_can_be_read_from_transcript_path() {
+    pub(crate) fn gemini_session_id_can_be_read_from_transcript_path() {
         let path = temp_json_path("session-id");
         fs::write(
             &path,
@@ -77,8 +76,7 @@ mod tests {
         assert_eq!(session_id.as_deref(), Some("gemini-session-1"));
     }
 
-    #[test]
-    fn persistence_panel_uses_resolved_target_session_id() {
+    pub(crate) fn persistence_panel_uses_resolved_target_session_id() {
         let request = base_request();
         let target = SessionTarget {
             origin: PreviewSessionOrigin::Pane,
@@ -95,8 +93,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn claude_target_follows_claude_config_dir() {
+    pub(crate) fn claude_target_follows_claude_config_dir() {
         crate::test_support::with_temp_home("pad-preview-target", "claude-config-dir", |home| {
             let config_dir = home.join("custom-claude");
             let transcript = config_dir.join("projects/demo/claude-session.jsonl");

@@ -93,4 +93,4 @@ fn rollout_date_parts(file_name: &str) -> io::Result<(&str, &str, &str)> {
 
 #[cfg(test)]
 #[path = "path_tests.rs"]
-mod tests;
+pub(crate) mod tests;

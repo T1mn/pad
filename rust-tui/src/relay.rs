@@ -1,6 +1,6 @@
 mod claude;
 mod codex;
-mod common;
+pub(crate) mod common;
 mod deepseek;
 mod gemini {
     use super::common::{
@@ -164,4 +164,4 @@ pub fn read_codex_relay_import(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

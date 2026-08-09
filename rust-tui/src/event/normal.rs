@@ -1,4 +1,4 @@
-mod global_keys;
+pub(crate) mod global_keys;
 mod preview_keys {
     use crate::app::App;
     use crossterm::event::{KeyCode, KeyEvent};
@@ -194,7 +194,7 @@ mod tab {
         }
     }
 }
-mod terminal_keys;
+pub(crate) mod terminal_keys;
 
 use crate::app::App;
 use crate::log_debug;

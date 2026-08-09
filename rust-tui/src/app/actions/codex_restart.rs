@@ -81,7 +81,7 @@ mod preflight {
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::model::{AgentPanel, AgentState};
 
@@ -125,16 +125,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn restart_preflight_does_not_block_non_idle_codex() {
+    pub(crate) fn restart_preflight_does_not_block_non_idle_codex() {
         for state in [AgentState::Idle, AgentState::Busy, AgentState::Waiting] {
             let panel = test_panel(AgentType::Codex, state);
             assert!(codex_restart_preflight_message(&panel, Locale::ZhCN).is_none());
         }
     }
 
-    #[test]
-    fn restart_preflight_still_blocks_non_codex() {
+    pub(crate) fn restart_preflight_still_blocks_non_codex() {
         let panel = test_panel(AgentType::Claude, AgentState::Idle);
         assert_eq!(
             codex_restart_preflight_message(&panel, Locale::ZhCN),
@@ -142,24 +140,21 @@ mod tests {
         );
     }
 
-    #[test]
-    fn restart_command_resumes_specific_session() {
+    pub(crate) fn restart_command_resumes_specific_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", Some("sid-1")),
             "/.pad/scripts/pad-codex' -C '/tmp/project' resume 'sid-1'",
         );
     }
 
-    #[test]
-    fn restart_command_falls_back_to_last_session() {
+    pub(crate) fn restart_command_falls_back_to_last_session() {
         assert_command_parts(
             &build_codex_restart_command("codex", "/tmp/project", None),
             "/.pad/scripts/pad-codex' -C '/tmp/project' resume --last",
         );
     }
 
-    #[test]
-    fn restart_command_quotes_shell_values() {
+    pub(crate) fn restart_command_quotes_shell_values() {
         assert_command_parts(
             &build_codex_restart_command("codex --profile work", "/tmp/a'b", Some("s'id")),
             r"/.pad/scripts/pad-codex' -C '/tmp/a'\''b' resume 's'\''id'",

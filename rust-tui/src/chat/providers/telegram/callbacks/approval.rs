@@ -124,4 +124,4 @@ pub(in crate::chat::providers::telegram) fn approval_sent_text(
 
 #[cfg(test)]
 #[path = "approval_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -594,7 +594,7 @@ pub(super) use timeouts::process_pending_timeout;
 pub(super) use timing::{pending_accepted_ms, pending_sent_ms};
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::session_continuity::{
         ContinuityAttemptClassification, ContinuityHealth, ContinuitySnapshot,
@@ -634,8 +634,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rollout_failure_check_waits_30_seconds_and_then_5_second_backoff() {
+    pub(crate) fn rollout_failure_check_waits_30_seconds_and_then_5_second_backoff() {
         let pending = sample_pending();
         assert!(!super::failures::pending_rollout_failure_check_due(
             &pending, 134
@@ -654,8 +653,7 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn detect_pending_rollout_failure_removes_pending_and_updates_scan_offset() {
+    pub(crate) fn detect_pending_rollout_failure_removes_pending_and_updates_scan_offset() {
         let path = std::env::temp_dir().join(format!(
             "pad-telegram-rollout-failure-{}.jsonl",
             std::process::id()
@@ -689,8 +687,7 @@ mod tests {
         let _ = fs::remove_file(path);
     }
 
-    #[test]
-    fn detect_pending_rollout_failure_updates_last_check_when_no_error_is_found() {
+    pub(crate) fn detect_pending_rollout_failure_updates_last_check_when_no_error_is_found() {
         let path = std::env::temp_dir().join(format!(
             "pad-telegram-rollout-no-failure-{}.jsonl",
             std::process::id()
@@ -719,8 +716,7 @@ mod tests {
         let _ = fs::remove_file(path);
     }
 
-    #[test]
-    fn continuity_status_line_formats_health_and_lag() {
+    pub(crate) fn continuity_status_line_formats_health_and_lag() {
         let snapshot = ContinuitySnapshot {
             session_id: "session-1".into(),
             agent_type: Some("codex".into()),
@@ -751,8 +747,7 @@ mod tests {
         assert!(line.contains("41s"));
     }
 
-    #[test]
-    fn pending_failure_reply_includes_continuity_details() {
+    pub(crate) fn pending_failure_reply_includes_continuity_details() {
         let pending = sample_pending();
         let failure = crate::chat::approval::CodexFailureEvent {
             message: "unexpected status 502 Bad Gateway".into(),

@@ -1,8 +1,7 @@
-mod attach {
+pub(crate) mod attach {
     use super::super::opencode_attach::{attach_command, normalize_server_url};
 
-    #[test]
-    fn attach_url_accepts_single_http_url_and_strips_quotes() {
+    pub(crate) fn attach_url_accepts_single_http_url_and_strips_quotes() {
         assert_eq!(
             normalize_server_url("'http://localhost:4096/'").unwrap(),
             "http://localhost:4096"
@@ -13,16 +12,14 @@ mod attach {
         );
     }
 
-    #[test]
-    fn attach_url_rejects_multi_line_or_non_http_clipboard() {
+    pub(crate) fn attach_url_rejects_multi_line_or_non_http_clipboard() {
         assert!(normalize_server_url("http://a:1\nhttp://b:2").is_err());
         assert!(normalize_server_url("ftp://example.com:21").is_err());
         assert!(normalize_server_url("https://").is_err());
         assert!(normalize_server_url("https://example .com").is_err());
     }
 
-    #[test]
-    fn attach_command_preserves_configured_command_and_quotes_url() {
+    pub(crate) fn attach_command_preserves_configured_command_and_quotes_url() {
         assert_eq!(
             attach_command("http://localhost:4096/a'b", "/opt/opencode --pure"),
             "/opt/opencode --pure 'attach' 'http://localhost:4096/a'\\''b'"
@@ -30,30 +27,26 @@ mod attach {
     }
 }
 
-mod cli {
+pub(crate) mod cli {
     use super::super::opencode_cli::{command_with_args, safe_filename};
 
-    #[test]
-    fn configured_command_keeps_shell_expansion_and_flags() {
+    pub(crate) fn configured_command_keeps_shell_expansion_and_flags() {
         assert_eq!(
             command_with_args("~/.opencode/bin/opencode --pure", ["web"]),
             "~/.opencode/bin/opencode --pure 'web'"
         );
     }
 
-    #[test]
-    fn safe_filename_sanitizes_and_falls_back() {
+    pub(crate) fn safe_filename_sanitizes_and_falls_back() {
         assert_eq!(safe_filename("ses/../abc def"), "ses_abc_def");
         assert_eq!(safe_filename("***"), "session");
     }
 
-    #[test]
-    fn safe_filename_limits_output_length() {
+    pub(crate) fn safe_filename_limits_output_length() {
         assert_eq!(safe_filename(&"a".repeat(120)).len(), 96);
     }
 
-    #[test]
-    fn safe_filename_keeps_underscore_inside_truncated_output() {
+    pub(crate) fn safe_filename_keeps_underscore_inside_truncated_output() {
         let value = format!("{} {}", "a".repeat(95), "b");
         let filename = safe_filename(&value);
 
@@ -62,20 +55,18 @@ mod cli {
     }
 }
 
-mod export {
+pub(crate) mod export {
     use super::super::opencode_export::{opencode_export_path, ExportMode};
     use std::path::Path;
 
-    #[test]
-    fn opencode_export_path_sanitizes_session_id() {
+    pub(crate) fn opencode_export_path_sanitizes_session_id() {
         assert_eq!(
             opencode_export_path("ses/../abc def", Path::new("/tmp/out"), ExportMode::Raw),
             Path::new("/tmp/out/ses_abc_def.json")
         );
     }
 
-    #[test]
-    fn opencode_sanitized_export_path_uses_distinct_suffix() {
+    pub(crate) fn opencode_sanitized_export_path_uses_distinct_suffix() {
         assert_eq!(
             opencode_export_path("ses_123", Path::new("/tmp/out"), ExportMode::Sanitized),
             Path::new("/tmp/out/ses_123.sanitized.json")
@@ -83,11 +74,10 @@ mod export {
     }
 }
 
-mod github {
+pub(crate) mod github {
     use super::super::opencode_github::github_install_command;
 
-    #[test]
-    fn github_install_command_preserves_configured_command() {
+    pub(crate) fn github_install_command_preserves_configured_command() {
         assert_eq!(
             github_install_command("'/opt/open code/bin/opencode' --pure"),
             "'/opt/open code/bin/opencode' --pure 'github' 'install'"
@@ -95,19 +85,17 @@ mod github {
     }
 }
 
-mod import {
+pub(crate) mod import {
     use super::super::opencode_import::{normalize_import_source, trim_wrapping_quotes};
 
-    #[test]
-    fn import_source_accepts_opencode_share_url() {
+    pub(crate) fn import_source_accepts_opencode_share_url() {
         assert_eq!(
             normalize_import_source(" https://opencode.ai/s/abc123 \n").unwrap(),
             "https://opencode.ai/s/abc123"
         );
     }
 
-    #[test]
-    fn import_source_accepts_json_path_and_strips_quotes() {
+    pub(crate) fn import_source_accepts_json_path_and_strips_quotes() {
         assert_eq!(
             normalize_import_source("'/tmp/session.sanitized.json'").unwrap(),
             "/tmp/session.sanitized.json"
@@ -115,20 +103,18 @@ mod import {
         assert_eq!(trim_wrapping_quotes("\"/tmp/a.json\""), "/tmp/a.json");
     }
 
-    #[test]
-    fn import_source_rejects_multi_line_clipboard() {
+    pub(crate) fn import_source_rejects_multi_line_clipboard() {
         assert!(normalize_import_source("/tmp/a.json\n/tmp/b.json").is_err());
     }
 }
 
-mod native_launch {
+pub(crate) mod native_launch {
     use crate::app::{App, TerminalPaneId};
     use crate::model::AgentType;
     use crate::terminal_runtime::TerminalSize;
 
     #[cfg(unix)]
-    #[test]
-    fn action_launches_opencode_in_native_terminal_and_registry() {
+    pub(crate) fn action_launches_opencode_in_native_terminal_and_registry() {
         crate::test_support::with_temp_home("pad-opencode-action", "native-launch", |home| {
             let cwd = home.join("project");
             std::fs::create_dir_all(&cwd).unwrap();
@@ -195,11 +181,10 @@ mod native_launch {
     }
 }
 
-mod plugin {
+pub(crate) mod plugin {
     use super::super::opencode_plugin::{normalize_plugin_module, plugin_command};
 
-    #[test]
-    fn plugin_module_accepts_npm_names_scope_and_versions() {
+    pub(crate) fn plugin_module_accepts_npm_names_scope_and_versions() {
         assert_eq!(
             normalize_plugin_module("opencode-foo").unwrap(),
             "opencode-foo"
@@ -210,8 +195,7 @@ mod plugin {
         );
     }
 
-    #[test]
-    fn plugin_module_rejects_empty_multiline_flags_and_whitespace() {
+    pub(crate) fn plugin_module_rejects_empty_multiline_flags_and_whitespace() {
         assert!(normalize_plugin_module(" ").is_err());
         assert!(normalize_plugin_module("a\nb").is_err());
         assert!(normalize_plugin_module("--global").is_err());
@@ -219,8 +203,7 @@ mod plugin {
         assert!(normalize_plugin_module("pkg;rm").is_err());
     }
 
-    #[test]
-    fn plugin_command_preserves_configured_command_and_quotes_module() {
+    pub(crate) fn plugin_command_preserves_configured_command_and_quotes_module() {
         assert_eq!(
             plugin_command(
                 "@scope/opencode-plugin@1.2.3",
@@ -231,11 +214,10 @@ mod plugin {
     }
 }
 
-mod pr {
+pub(crate) mod pr {
     use super::super::opencode_pr::{normalize_pr_number, pr_command};
 
-    #[test]
-    fn pr_number_accepts_plain_hash_and_github_url() {
+    pub(crate) fn pr_number_accepts_plain_hash_and_github_url() {
         assert_eq!(normalize_pr_number("123").unwrap(), "123");
         assert_eq!(normalize_pr_number("#456").unwrap(), "456");
         assert_eq!(
@@ -244,8 +226,7 @@ mod pr {
         );
     }
 
-    #[test]
-    fn pr_number_rejects_empty_zero_multiline_and_non_pr_url() {
+    pub(crate) fn pr_number_rejects_empty_zero_multiline_and_non_pr_url() {
         assert!(normalize_pr_number(" ").is_err());
         assert!(normalize_pr_number("0").is_err());
         assert!(normalize_pr_number("1\n2").is_err());
@@ -253,8 +234,7 @@ mod pr {
         assert!(normalize_pr_number("abc123").is_err());
     }
 
-    #[test]
-    fn pr_command_preserves_configured_command() {
+    pub(crate) fn pr_command_preserves_configured_command() {
         assert_eq!(
             pr_command("123", "'/opt/open code/bin/opencode' --pure"),
             "'/opt/open code/bin/opencode' --pure 'pr' '123'"
@@ -262,11 +242,10 @@ mod pr {
     }
 }
 
-mod run {
+pub(crate) mod run {
     use super::super::opencode_run::{normalize_prompt, prompt_preview, run_command};
 
-    #[test]
-    fn run_prompt_trims_outer_blank_space_but_keeps_multiline_body() {
+    pub(crate) fn run_prompt_trims_outer_blank_space_but_keeps_multiline_body() {
         assert_eq!(
             normalize_prompt("\n  fix this\nkeep context  \n").unwrap(),
             "fix this\nkeep context"
@@ -274,8 +253,7 @@ mod run {
         assert!(normalize_prompt(" \n\t ").is_err());
     }
 
-    #[test]
-    fn run_command_quotes_prompt_and_resumes_opencode_session() {
+    pub(crate) fn run_command_quotes_prompt_and_resumes_opencode_session() {
         assert_eq!(
             run_command(
                 "fix Bob's bug\nnow",
@@ -286,16 +264,14 @@ mod run {
         );
     }
 
-    #[test]
-    fn run_command_can_start_new_session_without_selected_opencode_thread() {
+    pub(crate) fn run_command_can_start_new_session_without_selected_opencode_thread() {
         assert_eq!(
             run_command("hello", None, "opencode"),
             "opencode run -- \"$(printf '%b' 'hello')\""
         );
     }
 
-    #[test]
-    fn run_command_is_one_shell_line_and_preserves_backslashes() {
+    pub(crate) fn run_command_is_one_shell_line_and_preserves_backslashes() {
         let command = run_command("first\\path\t\r\nsecond", None, "opencode");
 
         assert!(!command.contains(['\r', '\n']));
@@ -305,17 +281,15 @@ mod run {
         );
     }
 
-    #[test]
-    fn run_prompt_preview_uses_first_non_empty_line() {
+    pub(crate) fn run_prompt_preview_uses_first_non_empty_line() {
         assert_eq!(prompt_preview("\nfirst\nsecond"), "first");
     }
 }
 
-mod serve {
+pub(crate) mod serve {
     use super::super::opencode_serve::serve_command;
 
-    #[test]
-    fn serve_command_stays_local_and_uses_random_port() {
+    pub(crate) fn serve_command_stays_local_and_uses_random_port() {
         assert_eq!(
             serve_command("'/opt/open code/bin/opencode' --pure"),
             "'/opt/open code/bin/opencode' --pure 'serve' '--hostname' '127.0.0.1' '--port' '0'"
@@ -323,12 +297,11 @@ mod serve {
     }
 }
 
-mod stats {
+pub(crate) mod stats {
     use super::super::opencode_stats::opencode_stats_path;
     use std::path::Path;
 
-    #[test]
-    fn opencode_stats_path_sanitizes_project() {
+    pub(crate) fn opencode_stats_path_sanitizes_project() {
         assert_eq!(
             opencode_stats_path("/Users/tim/my repo", Path::new("/tmp/stats"), 42),
             Path::new("/tmp/stats/Users_tim_my_repo-42.txt")
@@ -336,11 +309,10 @@ mod stats {
     }
 }
 
-mod web {
+pub(crate) mod web {
     use super::super::opencode_web::web_command;
 
-    #[test]
-    fn web_command_preserves_configured_opencode_command() {
+    pub(crate) fn web_command_preserves_configured_opencode_command() {
         assert_eq!(
             web_command("~/.opencode/bin/opencode --pure"),
             "~/.opencode/bin/opencode --pure 'web'"

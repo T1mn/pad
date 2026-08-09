@@ -187,7 +187,7 @@ pub(crate) use text::{
 use text::leaf_name;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{leaf_name, panel_display_title, summarize_pane_capture};
     use crate::model::{AgentPanel, AgentState, AgentType};
     use std::path::Path;
@@ -217,8 +217,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn panel_display_title_uses_thread_meta_title_override() {
+    pub(crate) fn panel_display_title_uses_thread_meta_title_override() {
         with_temp_home("title-override", |_| {
             crate::thread_meta::upsert_thread_meta(
                 "codex",
@@ -234,14 +233,12 @@ mod tests {
         });
     }
 
-    #[test]
-    fn panel_display_title_falls_back_to_working_dir_leaf() {
+    pub(crate) fn panel_display_title_falls_back_to_working_dir_leaf() {
         let panel = sample_panel(None);
         assert_eq!(panel_display_title(&panel), leaf_name(&panel.working_dir));
     }
 
-    #[test]
-    fn summarize_pane_capture_trims_outer_blank_lines_and_keeps_tail() {
+    pub(crate) fn summarize_pane_capture_trims_outer_blank_lines_and_keeps_tail() {
         let text = format!(
             "\n  \n{}\n\n",
             (1..=20)
@@ -259,8 +256,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn summarize_pane_capture_preserves_inner_blank_lines() {
+    pub(crate) fn summarize_pane_capture_preserves_inner_blank_lines() {
         assert_eq!(
             summarize_pane_capture("\nfirst  \n   \nsecond\n\n"),
             "first\n\nsecond"

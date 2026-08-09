@@ -133,4 +133,4 @@ fn toml_string_literal(value: &str) -> String {
 
 #[cfg(test)]
 #[path = "render_tests.rs"]
-mod tests;
+pub(crate) mod tests;

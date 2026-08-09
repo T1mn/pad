@@ -1,13 +1,12 @@
 #[cfg(test)]
-mod archive {
+pub(crate) mod archive {
     use super::super::{
         all_archived_threads_at, all_threads_at, archive_thread_at, sync_index_at, thread_for_id_at,
     };
     use super::support::{sample_session_json, temp_db, temp_root, write_project_session};
     use std::fs;
 
-    #[test]
-    fn main_snapshot_wins_over_subagent_and_archive_is_local() {
+    pub(crate) fn main_snapshot_wins_over_subagent_and_archive_is_local() {
         let root = temp_root("main-snapshot");
         let db = temp_db("main-snapshot");
         let session_main = sample_session_json(
@@ -56,8 +55,7 @@ mod archive {
         assert_eq!(all_threads_at(&root, &db).unwrap().len(), 1);
     }
 
-    #[test]
-    fn archive_by_session_id_updates_all_matching_rows() {
+    pub(crate) fn archive_by_session_id_updates_all_matching_rows() {
         let root = temp_root("archive-shared-session");
         let db = temp_db("archive-shared-session");
         let session_a = sample_session_json(
@@ -114,14 +112,13 @@ mod archive {
     }
 }
 #[cfg(test)]
-mod query {
+pub(crate) mod query {
     use super::super::{sync_index_at, threads_for_cwd_at};
     use super::support::{sample_session_json, temp_db, temp_root, write_project_session};
     use std::fs;
     use std::path::Path;
 
-    #[test]
-    fn threads_for_cwd_uses_project_root() {
+    pub(crate) fn threads_for_cwd_uses_project_root() {
         let root = temp_root("cwd-project-root");
         let db = temp_db("cwd-project-root");
         let json = sample_session_json(
@@ -141,8 +138,7 @@ mod query {
         assert_eq!(threads[0].session_id, "session-2");
     }
 
-    #[test]
-    fn normalized_project_root_matches_cwd_query() {
+    pub(crate) fn normalized_project_root_matches_cwd_query() {
         let root = temp_root("normalized-project-root");
         let db = temp_db("normalized-project-root");
         let project_dir = root.join("rust-tui");
@@ -183,13 +179,12 @@ mod query {
     }
 }
 #[cfg(test)]
-mod scan {
+pub(crate) mod scan {
     use super::super::{all_threads_at, sync_index_at};
     use super::support::{sample_session_json, temp_db, temp_root, write_project_session};
     use std::fs;
 
-    #[test]
-    fn invalid_snapshot_does_not_break_sync() {
+    pub(crate) fn invalid_snapshot_does_not_break_sync() {
         let root = temp_root("invalid-snapshot");
         let db = temp_db("invalid-snapshot");
         let valid = sample_session_json(
@@ -209,8 +204,7 @@ mod scan {
         assert_eq!(threads[0].session_id, "session-valid");
     }
 
-    #[test]
-    fn scan_joins_nested_message_parts_without_empty_entries() {
+    pub(crate) fn scan_joins_nested_message_parts_without_empty_entries() {
         let root = temp_root("joined-message-parts");
         let db = temp_db("joined-message-parts");
         write_project_session(
@@ -257,8 +251,7 @@ mod scan {
         );
     }
 
-    #[test]
-    fn indexed_rows_survive_when_source_snapshots_disappear() {
+    pub(crate) fn indexed_rows_survive_when_source_snapshots_disappear() {
         let root = temp_root("source-snapshots-disappear");
         let db = temp_db("source-snapshots-disappear");
         let json = sample_session_json(

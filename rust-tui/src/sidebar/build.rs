@@ -715,4 +715,4 @@ pub fn build_sidebar_folders(
 pub use live::thread_from_live_panel;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

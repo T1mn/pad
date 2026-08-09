@@ -60,7 +60,7 @@ mod db {
     }
 }
 mod mutate;
-mod path;
+pub(crate) mod path;
 
 #[cfg(test)]
 pub(crate) use mutate::mutate_thread_archive_state_at;

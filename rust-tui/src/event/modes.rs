@@ -1,4 +1,4 @@
-mod agent_launcher;
+pub(crate) mod agent_launcher;
 mod delete_confirm {
     use crate::app::state::Mode;
     use crate::app::App;
@@ -106,8 +106,8 @@ mod help {
         }
     }
 }
-mod notification_inbox;
-mod relay_settings;
+pub(crate) mod notification_inbox;
+pub(crate) mod relay_settings;
 mod search {
     use crate::app::App;
     use crossterm::event::KeyCode;
@@ -145,7 +145,7 @@ mod search {
         }
     }
 }
-mod settings;
+pub(crate) mod settings;
 mod telegram {
     use crate::app::App;
     use crate::log_debug;
@@ -252,7 +252,7 @@ mod telegram {
         app.dirty = true;
     }
 }
-mod thread_action_confirm;
+pub(crate) mod thread_action_confirm;
 mod tree {
     use crate::app::state::Mode;
     use crate::app::App;

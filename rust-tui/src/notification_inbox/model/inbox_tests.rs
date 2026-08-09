@@ -10,8 +10,7 @@ fn entry(id: &str, ts: i64, read: bool) -> NotificationEntry {
     }
 }
 
-#[test]
-fn inbox_keeps_newest_first_and_counts_unread() {
+pub(crate) fn inbox_keeps_newest_first_and_counts_unread() {
     let mut inbox = NotificationInbox::default();
     inbox.push(entry("old", 1, false));
     inbox.push(entry("new", 2, true));
@@ -20,8 +19,7 @@ fn inbox_keeps_newest_first_and_counts_unread() {
     assert_eq!(inbox.unread_count(), 1);
 }
 
-#[test]
-fn mark_read_and_delete_report_changes() {
+pub(crate) fn mark_read_and_delete_report_changes() {
     let mut inbox = NotificationInbox::default();
     inbox.push(entry("a", 1, false));
 

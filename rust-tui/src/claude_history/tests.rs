@@ -1,4 +1,4 @@
-mod archive {
+pub(crate) mod archive {
     use super::super::api::thread_for_id_at;
     use super::super::db::{
         mutate_thread_archive_state_at, query_threads_at, upsert_hook_session_at,
@@ -9,8 +9,7 @@ mod archive {
     use super::support::{temp_db, temp_dir, write_thread};
     use std::fs;
 
-    #[test]
-    fn hook_upsert_inserts_session_when_index_is_empty() {
+    pub(crate) fn hook_upsert_inserts_session_when_index_is_empty() {
         let root = temp_dir("hook-upsert");
         let db = temp_db("hook-upsert");
         let transcript = root.join("hook.jsonl");
@@ -41,8 +40,7 @@ mod archive {
         fs::remove_file(&db).ok();
     }
 
-    #[test]
-    fn archived_threads_are_excluded_from_active_list_and_visible_in_archived_list() {
+    pub(crate) fn archived_threads_are_excluded_from_active_list_and_visible_in_archived_list() {
         let root = temp_dir("archived-filter");
         let db = temp_db("archived-filter");
         let file = root.join("main.jsonl");
@@ -70,11 +68,10 @@ mod archive {
         fs::remove_file(&db).ok();
     }
 }
-mod config_dir {
+pub(crate) mod config_dir {
     use super::support::write_thread;
 
-    #[test]
-    fn default_history_scan_follows_claude_config_dir() {
+    pub(crate) fn default_history_scan_follows_claude_config_dir() {
         crate::test_support::with_temp_home("pad-claude-history", "config-dir", |home| {
             let config_dir = home.join("custom-claude");
             let transcript = config_dir.join("projects/demo/session-config.jsonl");
@@ -107,15 +104,14 @@ mod config_dir {
         }
     }
 }
-mod parse {
+pub(crate) mod parse {
     use super::super::parse::parse_claude_thread_file;
     use super::super::scan::discover_thread_files;
     use super::support::{temp_dir, write_thread};
     use std::fs;
     use std::path::Path;
 
-    #[test]
-    fn parse_claude_thread_file_extracts_session_cwd_and_title() {
+    pub(crate) fn parse_claude_thread_file_extracts_session_cwd_and_title() {
         let dir = temp_dir("single");
         let file = dir.join("sample.jsonl");
         write_thread(
@@ -134,8 +130,7 @@ mod parse {
         assert_eq!(parsed.title.as_deref(), Some("first prompt"));
     }
 
-    #[test]
-    fn progress_only_stub_file_is_filtered_out() {
+    pub(crate) fn progress_only_stub_file_is_filtered_out() {
         let dir = temp_dir("progress-only");
         let file = dir.join("stub.jsonl");
         fs::write(
@@ -150,8 +145,7 @@ mod parse {
         assert!(parsed.is_none());
     }
 
-    #[test]
-    fn sidechain_file_is_filtered_out() {
+    pub(crate) fn sidechain_file_is_filtered_out() {
         let dir = temp_dir("sidechain");
         let file = dir.join("agent-sidechain.jsonl");
         fs::write(
@@ -169,8 +163,7 @@ mod parse {
         assert!(parsed.is_none());
     }
 
-    #[test]
-    fn local_command_scaffold_is_not_used_as_title() {
+    pub(crate) fn local_command_scaffold_is_not_used_as_title() {
         let dir = temp_dir("local-command");
         let file = dir.join("main.jsonl");
         fs::write(
@@ -190,8 +183,7 @@ mod parse {
         assert_eq!(parsed.title.as_deref(), Some("真实用户问题"));
     }
 
-    #[test]
-    fn local_command_scaffold_filter_is_case_insensitive() {
+    pub(crate) fn local_command_scaffold_filter_is_case_insensitive() {
         let dir = temp_dir("local-command-case");
         let file = dir.join("main.jsonl");
         fs::write(
@@ -209,8 +201,7 @@ mod parse {
         assert_eq!(parsed.title.as_deref(), Some("real prompt"));
     }
 
-    #[test]
-    fn read_threads_ignores_subagents_directory() {
+    pub(crate) fn read_threads_ignores_subagents_directory() {
         let root = temp_dir("subagents-dir");
         let main_file = root.join("main.jsonl");
         write_thread(
@@ -276,7 +267,7 @@ mod support {
         .unwrap();
     }
 }
-mod sync {
+pub(crate) mod sync {
     use super::super::api::{load_threads_at, thread_for_id_at};
     use super::super::db::query_threads_at;
     use super::super::model::ThreadArchiveFilter;
@@ -285,8 +276,7 @@ mod sync {
     use std::fs::{self, FileTimes, OpenOptions};
     use std::time::{Duration, UNIX_EPOCH};
 
-    #[test]
-    fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
+    pub(crate) fn incremental_sync_skips_unchanged_files_and_removes_deleted_ones() {
         let root = temp_dir("incremental");
         let db = temp_db("incremental");
         let file_a = root.join("a.jsonl");
@@ -338,8 +328,7 @@ mod sync {
             .unwrap();
     }
 
-    #[test]
-    fn thread_lookup_works_without_active_filtering() {
+    pub(crate) fn thread_lookup_works_without_active_filtering() {
         let root = temp_dir("lookup");
         let db = temp_db("lookup");
         let file = root.join("stale.jsonl");
@@ -362,8 +351,7 @@ mod sync {
         fs::remove_file(&db).ok();
     }
 
-    #[test]
-    fn stale_threads_without_recent_assistant_are_filtered_out() {
+    pub(crate) fn stale_threads_without_recent_assistant_are_filtered_out() {
         let root = temp_dir("stale-filter");
         let db = temp_db("stale-filter-db");
         let file = root.join("stale.jsonl");

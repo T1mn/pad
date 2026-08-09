@@ -1,7 +1,7 @@
 use super::*;
 
 mod command;
-mod diag;
+pub(crate) mod diag;
 mod help_actions {
     use super::*;
 

@@ -1,8 +1,7 @@
 use super::super::App;
 use crate::notification_inbox::NotificationEntry;
 
-#[test]
-fn notification_selection_clamps_to_available_entries() {
+pub(crate) fn notification_selection_clamps_to_available_entries() {
     let mut app = App::new();
     app.notification_inbox.entries = vec![
         NotificationEntry {

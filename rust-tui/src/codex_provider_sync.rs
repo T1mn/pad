@@ -122,7 +122,7 @@ mod model {
         pub updated_sqlite_rows: usize,
     }
 }
-mod rollout;
+pub(crate) mod rollout;
 mod state_db {
     use rusqlite::{Connection, OpenFlags};
     use std::io;
@@ -234,7 +234,7 @@ mod sync {
     }
 }
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 mod worker {
     use crate::log_debug;
     use std::sync::{mpsc, OnceLock};

@@ -73,4 +73,4 @@ pub fn popup_area(content_w: u16, content_h: u16, terminal: Rect) -> Rect {
 
 #[cfg(test)]
 #[path = "layout_tests.rs"]
-mod tests;
+pub(crate) mod tests;

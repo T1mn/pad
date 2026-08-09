@@ -1,11 +1,10 @@
-mod navigation {
+pub(crate) mod navigation {
     use super::super::{handle_relay_key, RelayHost};
     use crate::app::state::{Mode, RelayView, SettingsDetailKind, SettingsFocus};
     use crate::app::App;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn relay_escape_from_settings_host_steps_back_by_level() {
+    pub(crate) fn relay_escape_from_settings_host_steps_back_by_level() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -27,8 +26,7 @@ mod navigation {
         assert!(app.active_settings_detail.is_none());
     }
 
-    #[test]
-    fn relay_escape_from_standalone_provider_list_returns_to_agent_list() {
+    pub(crate) fn relay_escape_from_standalone_provider_list_returns_to_agent_list() {
         let mut app = App::new();
         app.mode = Mode::RelaySettings;
         app.relay_view = RelayView::ProviderList;
@@ -39,7 +37,7 @@ mod navigation {
         assert!(matches!(app.relay_view, RelayView::AgentList));
     }
 }
-mod opencode {
+pub(crate) mod opencode {
     use super::super::{handle_relay_key, RelayHost};
     use super::support::{agent_index, sample_provider, with_temp_home};
     use crate::app::state::{RelayPopupMode, RelayView};
@@ -47,8 +45,7 @@ mod opencode {
     use crate::theme::{OpenCodeModelConfig, ProviderConfig};
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn opencode_small_model_picker_can_clear_selection() {
+    pub(crate) fn opencode_small_model_picker_can_clear_selection() {
         with_temp_home("opencode-small-model", || {
             let mut app = App::new();
             let opencode_idx = agent_index(&app, "opencode");
@@ -81,8 +78,7 @@ mod opencode {
         });
     }
 
-    #[test]
-    fn opencode_model_popup_supports_add_edit_and_delete_flow() {
+    pub(crate) fn opencode_model_popup_supports_add_edit_and_delete_flow() {
         with_temp_home("opencode-model-popup", || {
             let mut app = App::new();
             let opencode_idx = agent_index(&app, "opencode");
@@ -136,8 +132,7 @@ mod opencode {
         });
     }
 
-    #[test]
-    fn opencode_model_id_edit_is_uniquified_and_updates_model_refs() {
+    pub(crate) fn opencode_model_id_edit_is_uniquified_and_updates_model_refs() {
         with_temp_home("opencode-model-id-edit", || {
             let mut app = App::new();
             let opencode_idx = agent_index(&app, "opencode");
@@ -180,8 +175,7 @@ mod opencode {
         });
     }
 
-    #[test]
-    fn opencode_provider_key_edit_is_uniquified_and_updates_model_refs() {
+    pub(crate) fn opencode_provider_key_edit_is_uniquified_and_updates_model_refs() {
         with_temp_home("opencode-provider-key-edit", || {
             let mut app = App::new();
             let opencode_idx = agent_index(&app, "opencode");
@@ -224,7 +218,7 @@ mod opencode {
         });
     }
 }
-mod provider {
+pub(crate) mod provider {
     use super::super::{handle_relay_key, RelayHost};
     use super::support::{agent_index, sample_provider, with_temp_home};
     use crate::app::state::RelayView;
@@ -232,8 +226,7 @@ mod provider {
     use crate::theme::Config;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn provider_toggle_updates_active_provider_and_persists_overlay() {
+    pub(crate) fn provider_toggle_updates_active_provider_and_persists_overlay() {
         with_temp_home("relay-active-provider", || {
             let mut app = App::new();
             let codex_idx = agent_index(&app, "codex");

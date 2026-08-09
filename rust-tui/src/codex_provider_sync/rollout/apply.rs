@@ -103,4 +103,4 @@ fn write_content(file: &mut File, content: &[u8], permissions: &fs::Permissions)
 
 #[cfg(test)]
 #[path = "apply_tests.rs"]
-mod tests;
+pub(crate) mod tests;

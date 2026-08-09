@@ -36,7 +36,7 @@ mod error {
         out
     }
 }
-mod model;
+pub(crate) mod model;
 mod response_text {
     pub(super) fn extract_response_text(payload: &serde_json::Value) -> Option<String> {
         let mut out = String::new();

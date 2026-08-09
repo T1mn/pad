@@ -464,4 +464,4 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
 
 #[cfg(test)]
 #[path = "controller_tests.rs"]
-mod tests;
+pub(crate) mod tests;

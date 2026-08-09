@@ -90,7 +90,7 @@ mod appearance {
         true
     }
 }
-mod codex;
+pub(crate) mod codex;
 mod general;
 mod list {
     use crate::app::state::SettingsFocus;
@@ -350,4 +350,4 @@ fn handle_relay_detail_mode(app: &mut App, key: KeyCode) -> bool {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

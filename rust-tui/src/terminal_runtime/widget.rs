@@ -174,4 +174,4 @@ fn attribute_modifiers(attributes: TextAttributes) -> Modifier {
 
 #[cfg(test)]
 #[path = "widget_tests.rs"]
-mod tests;
+pub(crate) mod tests;

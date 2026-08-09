@@ -119,4 +119,4 @@ fn mask_secret(secret: &str) -> String {
 
 #[cfg(test)]
 #[path = "values_tests.rs"]
-mod tests;
+pub(crate) mod tests;

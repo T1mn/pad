@@ -64,11 +64,10 @@ pub(super) fn key(code: KeyCode) -> KeyEvent {
     }
 }
 
-mod mouse_tests {
+pub(crate) mod mouse_tests {
     use super::*;
 
-    #[test]
-    fn mouse_click_on_panel_row_selects_it_and_focuses_panel() {
+    pub(crate) fn mouse_click_on_panel_row_selects_it_and_focuses_panel() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -83,8 +82,7 @@ mod mouse_tests {
         assert_eq!(app.table_state.selected(), Some(1));
         assert!(app.preview.focus == FocusTarget::Panel);
     }
-    #[test]
-    fn mouse_click_on_panel_row_accounts_for_scroll_offset() {
+    pub(crate) fn mouse_click_on_panel_row_accounts_for_scroll_offset() {
         let mut app = App::new();
         for idx in 0..6 {
             app.panels.push(sample_panel(
@@ -102,8 +100,7 @@ mod mouse_tests {
 
         assert_eq!(app.table_state.selected(), Some(3));
     }
-    #[test]
-    fn mouse_click_on_second_thread_row_selects_the_second_thread() {
+    pub(crate) fn mouse_click_on_second_thread_row_selects_the_second_thread() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/alpha"));
@@ -118,8 +115,7 @@ mod mouse_tests {
 
         assert_eq!(app.table_state.selected(), Some(2));
     }
-    #[test]
-    fn mouse_click_on_session_turn_selects_then_expands_on_repeat() {
+    pub(crate) fn mouse_click_on_session_turn_selects_then_expands_on_repeat() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.preview.source = PreviewSource::Session;
@@ -151,8 +147,7 @@ mod mouse_tests {
         mouse::handle_normal_mouse(&mut app, area, click);
         assert_eq!(app.preview.expanded_turn, Some(1));
     }
-    #[test]
-    fn mouse_click_on_session_gap_does_not_change_selection() {
+    pub(crate) fn mouse_click_on_session_gap_does_not_change_selection() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.preview.source = PreviewSource::Session;
@@ -183,8 +178,7 @@ mod mouse_tests {
         assert_eq!(app.preview.selected_turn, Some(0));
         assert_eq!(app.preview.expanded_turn, None);
     }
-    #[test]
-    fn mouse_wheel_over_preview_scrolls_and_focuses_preview() {
+    pub(crate) fn mouse_wheel_over_preview_scrolls_and_focuses_preview() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.preview.content = (0..20)
@@ -205,11 +199,10 @@ mod mouse_tests {
         assert_eq!(app.preview.scroll, MOUSE_PREVIEW_SCROLL_DELTA as u16);
     }
 }
-mod preview_tab {
+pub(crate) mod preview_tab {
     use super::*;
 
-    #[test]
-    fn single_tab_from_detail_keeps_current_behavior_and_focuses_panel() {
+    pub(crate) fn single_tab_from_detail_keeps_current_behavior_and_focuses_panel() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.preview.source = PreviewSource::Session;
@@ -231,8 +224,7 @@ mod preview_tab {
         assert!(app.preview.focus == FocusTarget::Panel);
         assert_eq!(app.preview.view, PreviewView::SessionDetail);
     }
-    #[test]
-    fn double_tab_from_detail_restores_session_list_and_keeps_panel_focus() {
+    pub(crate) fn double_tab_from_detail_restores_session_list_and_keeps_panel_focus() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.preview.source = PreviewSource::Session;
@@ -268,11 +260,10 @@ mod preview_tab {
         );
     }
 }
-mod sidebar_keys {
+pub(crate) mod sidebar_keys {
     use super::*;
 
-    #[test]
-    fn space_on_selected_thread_collapses_parent_folder() {
+    pub(crate) fn space_on_selected_thread_collapses_parent_folder() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -293,8 +284,7 @@ mod sidebar_keys {
         assert_eq!(app.table_state.selected(), Some(0));
         assert!(app.preview.focus == FocusTarget::Panel);
     }
-    #[test]
-    fn double_space_expands_all_folders_when_none_are_expanded() {
+    pub(crate) fn double_space_expands_all_folders_when_none_are_expanded() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -307,8 +297,7 @@ mod sidebar_keys {
         assert!(app.sidebar.expanded_folders.contains("/tmp/alpha"));
         assert!(app.sidebar.expanded_folders.contains("/tmp/beta"));
     }
-    #[test]
-    fn double_space_collapses_all_folders_when_any_are_expanded() {
+    pub(crate) fn double_space_collapses_all_folders_when_any_are_expanded() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -329,8 +318,7 @@ mod sidebar_keys {
         );
         assert_eq!(app.table_state.selected(), Some(0));
     }
-    #[test]
-    fn j_k_skip_expanded_folder_rows() {
+    pub(crate) fn j_k_skip_expanded_folder_rows() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -348,8 +336,7 @@ mod sidebar_keys {
             Some("/tmp/beta")
         );
     }
-    #[test]
-    fn numeric_jump_targets_visible_threads_only() {
+    pub(crate) fn numeric_jump_targets_visible_threads_only() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -366,8 +353,7 @@ mod sidebar_keys {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn enter_on_native_agent_thread_focuses_its_terminal_tab() {
+    pub(crate) fn enter_on_native_agent_thread_focuses_its_terminal_tab() {
         crate::test_support::with_temp_home("pad-sidebar", "native-agent-enter", |home| {
             let target = home.join("project");
             std::fs::create_dir_all(&target).unwrap();
@@ -395,8 +381,7 @@ mod sidebar_keys {
         });
     }
 
-    #[test]
-    fn enter_on_stale_external_live_entry_shows_native_mode_notice() {
+    pub(crate) fn enter_on_stale_external_live_entry_shows_native_mode_notice() {
         let mut app = App::new();
         app.panels.push(sample_panel("%legacy", "/tmp/legacy"));
         app.sidebar.expanded_folders.insert("/tmp/legacy".into());

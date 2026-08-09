@@ -1,4 +1,4 @@
-mod codex_restart;
+pub(crate) mod codex_restart;
 mod helpers;
 mod native_launch {
     use std::path::PathBuf;
@@ -34,7 +34,7 @@ mod native_launch {
         }
     }
 }
-mod notification_inbox;
+pub(crate) mod notification_inbox;
 mod opencode_attach {
     mod command {
         pub(in crate::app::actions) fn attach_command(url: &str, command: &str) -> String {
@@ -220,7 +220,7 @@ mod opencode_cli {
         }
     }
 }
-mod opencode_diagnostics;
+pub(crate) mod opencode_diagnostics;
 mod opencode_export;
 mod opencode_github {
     mod command {
@@ -555,7 +555,7 @@ mod opencode_serve {
     #[cfg(test)]
     pub(in crate::app::actions) use command::serve_command;
 }
-mod opencode_stats;
+pub(crate) mod opencode_stats;
 mod opencode_web {
     mod command {
         pub(in crate::app::actions) fn web_command(command: &str) -> String {
@@ -649,9 +649,9 @@ mod panel_width {
         }
     }
 }
-mod relay_reload;
+pub(crate) mod relay_reload;
 mod settings;
-mod thread_actions;
+pub(crate) mod thread_actions;
 mod thread_meta_edit;
 mod thread_panel_delete {
     use super::helpers::delete_failed_title;
@@ -727,7 +727,7 @@ pub(crate) use helpers::settings_item_search_blob;
 
 #[cfg(test)]
 #[path = "actions/opencode_tests.rs"]
-mod opencode_tests;
+pub(crate) mod opencode_tests;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

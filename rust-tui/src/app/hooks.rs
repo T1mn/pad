@@ -411,4 +411,4 @@ impl App {
 }
 
 #[cfg(test)]
-mod hooks_tests;
+pub(crate) mod hooks_tests;

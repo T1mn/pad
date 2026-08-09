@@ -1,10 +1,10 @@
 mod common;
 mod file_preview;
-mod layout;
-mod markdown;
-mod plain;
-mod session;
-mod session_list_cache;
+pub(crate) mod layout;
+pub(crate) mod markdown;
+pub(crate) mod plain;
+pub(crate) mod session;
+pub(crate) mod session_list_cache;
 mod welcome {
     use crate::i18n::{self, Locale};
     use crate::theme::Theme;

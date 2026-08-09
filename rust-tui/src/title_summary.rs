@@ -380,4 +380,4 @@ pub use types::{SummaryWireApi, TitleSummaryResult};
 pub use window::{is_enabled, select_turn_window, should_refresh_title};
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

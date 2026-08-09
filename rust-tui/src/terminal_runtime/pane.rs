@@ -133,4 +133,4 @@ impl PaneRuntime {
 
 #[cfg(test)]
 #[path = "pane_tests.rs"]
-mod tests;
+pub(crate) mod tests;

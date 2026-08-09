@@ -59,4 +59,4 @@ pub(super) fn selected_agent_name(app: &App) -> Option<&str> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

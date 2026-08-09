@@ -1,8 +1,7 @@
 use super::*;
 
 #[cfg(unix)]
-#[test]
-fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
+pub(crate) fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
     crate::test_support::with_temp_home("pad-agent-launcher", "native-opencode", |home| {
         let target = home.join("project");
         std::fs::create_dir_all(&target).unwrap();
@@ -65,8 +64,7 @@ fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
     });
 }
 
-#[test]
-fn native_agent_labels_are_human_readable() {
+pub(crate) fn native_agent_labels_are_human_readable() {
     assert_eq!(
         native_agent_label("opencode", Path::new("/tmp/repo")),
         "OpenCode · repo"

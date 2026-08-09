@@ -431,4 +431,4 @@ fn ratio_size(total: u16, ratio_per_mille: u16) -> u16 {
 
 #[cfg(test)]
 #[path = "terminal_tests.rs"]
-mod tests;
+pub(crate) mod tests;

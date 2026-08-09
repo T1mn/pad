@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 
-mod base;
+pub(crate) mod base;
 mod claude {
     use std::path::PathBuf;
 
@@ -123,7 +123,7 @@ mod codex_home {
     }
 }
 mod codex_hooks;
-mod codex_wrapper;
+pub(crate) mod codex_wrapper;
 mod hook_bridge;
 mod prompts;
 mod runtime_files {
@@ -250,4 +250,4 @@ use hook_bridge::{
 };
 
 #[cfg(test)]
-mod paths_tests;
+pub(crate) mod paths_tests;

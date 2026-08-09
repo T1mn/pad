@@ -1,12 +1,11 @@
-mod appearance {
+pub(crate) mod appearance {
     use super::super::handle_settings_mode;
     use super::support::with_temp_home;
     use crate::app::state::{Mode, SettingsFocus};
     use crate::app::App;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn theme_detail_escape_restores_preview_and_enter_applies_selection() {
+    pub(crate) fn theme_detail_escape_restores_preview_and_enter_applies_selection() {
         with_temp_home("theme-detail", || {
             let mut app = App::new();
             app.mode = Mode::Settings;
@@ -40,8 +39,7 @@ mod appearance {
         });
     }
 
-    #[test]
-    fn language_detail_escape_restores_locale_and_enter_persists_selection() {
+    pub(crate) fn language_detail_escape_restores_locale_and_enter_persists_selection() {
         with_temp_home("language-detail", || {
             let mut app = App::new();
             app.mode = Mode::Settings;
@@ -74,7 +72,7 @@ mod appearance {
         });
     }
 }
-mod search {
+pub(crate) mod search {
     use super::super::handle_settings_mode;
     use crate::app::state::{
         CodexSettingsView, Mode, RelayView, SettingsDetailKind, SettingsFocus,
@@ -82,8 +80,7 @@ mod search {
     use crate::app::App;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn settings_search_enter_opens_first_match_directly() {
+    pub(crate) fn settings_search_enter_opens_first_match_directly() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -102,8 +99,7 @@ mod search {
         ));
     }
 
-    #[test]
-    fn settings_search_enter_with_no_match_stays_in_list() {
+    pub(crate) fn settings_search_enter_with_no_match_stays_in_list() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -119,8 +115,7 @@ mod search {
         assert!(app.current_settings_detail_kind().is_none());
     }
 
-    #[test]
-    fn settings_search_allows_arrow_navigation_without_query() {
+    pub(crate) fn settings_search_allows_arrow_navigation_without_query() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -136,8 +131,7 @@ mod search {
         assert_eq!(app.settings_selected, 0);
     }
 
-    #[test]
-    fn settings_search_allows_arrow_navigation_with_filtered_results() {
+    pub(crate) fn settings_search_allows_arrow_navigation_with_filtered_results() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -155,8 +149,7 @@ mod search {
         assert_eq!(app.settings_selected, 0);
     }
 
-    #[test]
-    fn settings_numeric_shortcuts_and_detail_search_shortcut_keep_current_behavior() {
+    pub(crate) fn settings_numeric_shortcuts_and_detail_search_shortcut_keep_current_behavior() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -176,8 +169,7 @@ mod search {
         assert!(app.settings_search.is_empty());
     }
 
-    #[test]
-    fn settings_f1_closes_modal_from_detail_view() {
+    pub(crate) fn settings_f1_closes_modal_from_detail_view() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -195,8 +187,7 @@ mod search {
         assert!(app.settings_search.is_empty());
     }
 
-    #[test]
-    fn settings_search_can_route_to_codex_relay_agent() {
+    pub(crate) fn settings_search_can_route_to_codex_relay_agent() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -218,8 +209,7 @@ mod search {
         assert_eq!(app.config.agents[app.relay_selected_agent].name, "codex");
     }
 
-    #[test]
-    fn settings_search_can_route_to_codex_settings_subpage() {
+    pub(crate) fn settings_search_can_route_to_codex_settings_subpage() {
         let mut app = App::new();
         app.mode = Mode::Settings;
         app.settings_open = true;
@@ -240,15 +230,14 @@ mod search {
         assert_eq!(app.codex_settings_view, CodexSettingsView::Cli);
     }
 }
-mod sound {
+pub(crate) mod sound {
     use super::super::handle_settings_mode;
     use super::support::with_temp_home;
     use crate::app::state::{Mode, SettingsDetailKind, SettingsFocus};
     use crate::app::App;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn sound_settings_toggle_cycle_and_preview_work() {
+    pub(crate) fn sound_settings_toggle_cycle_and_preview_work() {
         with_temp_home("sound-settings", || {
             let mut app = App::new();
             app.mode = Mode::Settings;
@@ -290,15 +279,14 @@ mod support {
         crate::test_support::with_temp_home("pad-settings", name, |_| f())
     }
 }
-mod telegram {
+pub(crate) mod telegram {
     use super::super::handle_settings_mode;
     use super::support::with_temp_home;
     use crate::app::state::{Mode, SettingsDetailKind, SettingsFocus};
     use crate::app::App;
     use crossterm::event::KeyCode;
 
-    #[test]
-    fn telegram_settings_toggle_and_edit_fields_persist_without_leaving_detail() {
+    pub(crate) fn telegram_settings_toggle_and_edit_fields_persist_without_leaving_detail() {
         with_temp_home("telegram-settings", || {
             let mut app = App::new();
             app.mode = Mode::Settings;
@@ -339,8 +327,7 @@ mod telegram {
         });
     }
 
-    #[test]
-    fn telegram_settings_edit_escape_discards_buffer_and_r_keeps_detail_open() {
+    pub(crate) fn telegram_settings_edit_escape_discards_buffer_and_r_keeps_detail_open() {
         with_temp_home("telegram-settings-escape", || {
             let mut app = App::new();
             app.mode = Mode::Settings;

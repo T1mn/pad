@@ -1,4 +1,4 @@
-mod claude;
+pub(crate) mod claude;
 mod client {
     pub(super) fn provider_test_client() -> Result<reqwest::Client, reqwest::Error> {
         reqwest::Client::builder()

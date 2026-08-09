@@ -1,8 +1,7 @@
 use super::{FileTree, PreviewType};
 use std::fs;
 
-#[test]
-fn search_filters_entries_case_insensitively() {
+pub(crate) fn search_filters_entries_case_insensitively() {
     let root = crate::test_support::temp_path("pad-tree", "search-case");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
@@ -25,8 +24,7 @@ fn search_filters_entries_case_insensitively() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn preview_type_detects_known_suffixes_case_insensitively() {
+pub(crate) fn preview_type_detects_known_suffixes_case_insensitively() {
     assert_eq!(
         PreviewType::from_path(std::path::Path::new("README.MD")),
         PreviewType::Markdown

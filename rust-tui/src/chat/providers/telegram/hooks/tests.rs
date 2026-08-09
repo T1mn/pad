@@ -1,13 +1,12 @@
 use super::*;
 use crate::hook::HookTerminalInfo;
 
-mod completion {
+pub(crate) mod completion {
     use super::support::{pending_request, stop_event};
     use super::*;
     use std::fs;
 
-    #[test]
-    fn codex_stop_prefers_transcript_completion_over_stale_hook_payload() {
+    pub(crate) fn codex_stop_prefers_transcript_completion_over_stale_hook_payload() {
         let path = crate::test_support::temp_path("pad-codex-stop", "prefer-transcript")
             .with_extension("jsonl");
         let old = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"old answer\"}]}}\n";
@@ -35,12 +34,11 @@ mod completion {
     }
 }
 
-mod phase_gate {
+pub(crate) mod phase_gate {
     use super::support::{pending_request, stop_event};
     use super::*;
 
-    #[test]
-    fn stop_is_ignored_while_pending_still_awaits_submit() {
+    pub(crate) fn stop_is_ignored_while_pending_still_awaits_submit() {
         let pending = pending_request(None, "awaiting_submit", None, 0);
         let event = stop_event(Some("turn-old"), "old answer");
 
@@ -110,12 +108,11 @@ mod support {
     }
 }
 
-mod turn_match {
+pub(crate) mod turn_match {
     use super::support::{pending_request, stop_event};
     use super::*;
 
-    #[test]
-    fn pending_turn_must_match_stop_turn_when_both_exist() {
+    pub(crate) fn pending_turn_must_match_stop_turn_when_both_exist() {
         let pending = pending_request(Some("turn-a"), "awaiting_stop", None, 0);
         let mut event = stop_event(Some("turn-b"), "wrong turn");
         event.timestamp = Some("2026-04-07T00:00:00Z".into());
@@ -123,8 +120,7 @@ mod turn_match {
         assert!(!hook_event_matches_pending_turn(&pending, &event));
     }
 
-    #[test]
-    fn codex_stop_without_turn_id_is_ignored_when_pending_turn_exists() {
+    pub(crate) fn codex_stop_without_turn_id_is_ignored_when_pending_turn_exists() {
         let pending = pending_request(Some("turn-a"), "awaiting_stop", None, 0);
         let event = stop_event(None, "missing turn");
 

@@ -1,8 +1,7 @@
 use super::{parse_etime_seconds, started_at_matches, status_process_alive};
 use crate::runtime_status::ProcessStatus;
 
-#[test]
-fn etime_parser_reads_every_ps_shape() {
+pub(crate) fn etime_parser_reads_every_ps_shape() {
     assert_eq!(parse_etime_seconds("00:00"), Some(0));
     assert_eq!(parse_etime_seconds("01:23"), Some(83));
     assert_eq!(parse_etime_seconds("   02:03:04"), Some(7384));
@@ -10,8 +9,7 @@ fn etime_parser_reads_every_ps_shape() {
     assert_eq!(parse_etime_seconds(" 12-00:00:00 "), Some(1036800));
 }
 
-#[test]
-fn etime_parser_rejects_garbage() {
+pub(crate) fn etime_parser_rejects_garbage() {
     assert_eq!(parse_etime_seconds(""), None);
     assert_eq!(parse_etime_seconds("   "), None);
     assert_eq!(parse_etime_seconds("42"), None);
@@ -21,8 +19,7 @@ fn etime_parser_rejects_garbage() {
     assert_eq!(parse_etime_seconds("-01:02"), None);
 }
 
-#[test]
-fn started_at_matches_tolerates_early_start_only() {
+pub(crate) fn started_at_matches_tolerates_early_start_only() {
     // 状态文件总是在进程起来之后才写的,早于 started_at 都算同一个进程。
     assert!(started_at_matches(1_000, 1_000));
     assert!(started_at_matches(1_000, 9_000));
@@ -32,8 +29,7 @@ fn started_at_matches_tolerates_early_start_only() {
     assert!(!started_at_matches(90_000, 1_000));
 }
 
-#[test]
-fn status_process_alive_rejects_recycled_pid() {
+pub(crate) fn status_process_alive_rejects_recycled_pid() {
     let now = crate::time::unix_now_ts();
     let running = ProcessStatus {
         pid: std::process::id(),

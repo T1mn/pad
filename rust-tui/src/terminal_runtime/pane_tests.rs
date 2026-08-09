@@ -1,8 +1,7 @@
 use super::*;
 use crate::terminal_runtime::{AlacrittyEngineFactory, EngineRegistry, ALACRITTY_ENGINE_ID};
 
-#[test]
-fn pane_metadata_can_change_without_recreating_engine() {
+pub(crate) fn pane_metadata_can_change_without_recreating_engine() {
     let (mut runtime, pane_id) = runtime_with_pane();
     runtime.feed_output(&pane_id, b"ready".to_vec()).unwrap();
 
@@ -14,8 +13,7 @@ fn pane_metadata_can_change_without_recreating_engine() {
     assert_eq!(runtime.len(), 1);
 }
 
-#[test]
-fn pane_scroll_updates_only_its_immutable_frame_viewport() {
+pub(crate) fn pane_scroll_updates_only_its_immutable_frame_viewport() {
     let (runtime, pane_id) = runtime_with_pane();
     runtime
         .feed_output(&pane_id, b"0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n6".to_vec())
@@ -29,8 +27,7 @@ fn pane_scroll_updates_only_its_immutable_frame_viewport() {
     assert_eq!(scrolled.terminal.cursor, None);
 }
 
-#[test]
-fn close_removes_metadata_and_terminal_engine_together() {
+pub(crate) fn close_removes_metadata_and_terminal_engine_together() {
     let (mut runtime, pane_id) = runtime_with_pane();
 
     runtime.close(&pane_id).unwrap();
@@ -40,8 +37,7 @@ fn close_removes_metadata_and_terminal_engine_together() {
     assert!(runtime.frame(&pane_id).is_err());
 }
 
-#[test]
-fn duplicate_pane_keeps_original_metadata() {
+pub(crate) fn duplicate_pane_keeps_original_metadata() {
     let (mut runtime, pane_id) = runtime_with_pane();
     let duplicate = PaneSpec {
         id: pane_id.clone(),
@@ -56,8 +52,7 @@ fn duplicate_pane_keeps_original_metadata() {
     assert_eq!(metadata.transport_id.as_str(), "replay");
 }
 
-#[test]
-fn close_panic_removes_metadata_and_allows_reopen() {
+pub(crate) fn close_panic_removes_metadata_and_allows_reopen() {
     let mut registry = EngineRegistry::default();
     registry.register(EngineId::new("drop-panic"), DropPanicFactory);
     registry.register(EngineId::new(ALACRITTY_ENGINE_ID), AlacrittyEngineFactory);

@@ -1,4 +1,4 @@
-mod collect;
+pub(crate) mod collect;
 mod report {
     use super::collect::DiagnosticsSection;
     use std::io;
@@ -161,4 +161,4 @@ pub(in crate::app::actions) use report::{diagnostics_path, format_report};
 
 #[cfg(test)]
 #[path = "opencode_diagnostics_tests.rs"]
-mod opencode_diagnostics_tests;
+pub(crate) mod opencode_diagnostics_tests;

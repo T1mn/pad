@@ -6,8 +6,7 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-#[test]
-fn preserve_backup_creates_a_private_file() {
+pub(crate) fn preserve_backup_creates_a_private_file() {
     let dir = temp_dir("create");
     let path = dir.join("provider-auth.json");
 
@@ -21,8 +20,7 @@ fn preserve_backup_creates_a_private_file() {
 }
 
 #[cfg(unix)]
-#[test]
-fn preserve_backup_tightens_existing_file_without_overwriting_it() {
+pub(crate) fn preserve_backup_tightens_existing_file_without_overwriting_it() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = temp_dir("existing");
@@ -49,8 +47,7 @@ fn preserve_backup_tightens_existing_file_without_overwriting_it() {
 }
 
 #[cfg(unix)]
-#[test]
-fn preserve_backup_rejects_symlink_path() {
+pub(crate) fn preserve_backup_rejects_symlink_path() {
     use std::os::unix::fs::symlink;
 
     let dir = temp_dir("symlink");

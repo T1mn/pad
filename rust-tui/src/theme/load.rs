@@ -1,5 +1,5 @@
 mod agents;
-mod backup;
+pub(crate) mod backup;
 mod codex {
     use crate::theme::{CodexConfig, Config};
 

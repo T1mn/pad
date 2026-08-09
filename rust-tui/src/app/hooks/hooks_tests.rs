@@ -1,11 +1,10 @@
-mod activity {
+pub(crate) mod activity {
     use super::support::{stop_event, submit_event};
     use crate::app::{App, APP_THREAD_ACTIVITY_MAX_ENTRIES, APP_THREAD_ACTIVITY_TTL_SECS};
     use crate::model::{AgentPanel, AgentState, AgentType};
     use crate::sidebar::ThreadActivityOverride;
 
-    #[test]
-    fn app_thread_activity_prunes_by_ttl_and_cap() {
+    pub(crate) fn app_thread_activity_prunes_by_ttl_and_cap() {
         let mut app = App::new();
         let now = 2_000_000i64;
         app.sidebar.app_thread_activity.insert(
@@ -52,8 +51,7 @@ mod activity {
         assert!(!app.sidebar.app_thread_activity.contains_key("recent:0"));
     }
 
-    #[test]
-    fn pane_stop_hook_does_not_auto_reorder_sidebar() {
+    pub(crate) fn pane_stop_hook_does_not_auto_reorder_sidebar() {
         let mut app = App::new();
         app.panels.push(AgentPanel {
             session: "0".into(),
@@ -81,8 +79,7 @@ mod activity {
         assert!(app.sidebar.thread_sort_activity.is_empty());
     }
 
-    #[test]
-    fn app_stop_hook_does_not_auto_reorder_sidebar() {
+    pub(crate) fn app_stop_hook_does_not_auto_reorder_sidebar() {
         let mut app = App::new();
 
         app.apply_hook_event(submit_event(None));
@@ -95,7 +92,7 @@ mod activity {
         assert!(app.sidebar.thread_sort_activity.is_empty());
     }
 }
-mod notification {
+pub(crate) mod notification {
     use super::support::{
         create_codex_threads_db, insert_codex_thread, stop_event, with_temp_home,
     };
@@ -103,8 +100,7 @@ mod notification {
     use crate::model::{AgentPanel, AgentState, AgentType};
     use crate::notify::NotificationRequest;
 
-    #[test]
-    fn completion_notification_uses_prompt_when_lookup_is_unavailable() {
+    pub(crate) fn completion_notification_uses_prompt_when_lookup_is_unavailable() {
         let request = super::super::notification::build_completion_notification(
             &AgentType::Codex,
             Some("missing-session"),
@@ -119,8 +115,7 @@ mod notification {
         );
     }
 
-    #[test]
-    fn completion_notification_falls_back_to_workdir_name() {
+    pub(crate) fn completion_notification_falls_back_to_workdir_name() {
         let request = super::super::notification::build_completion_notification(
             &AgentType::OpenCode,
             None,
@@ -137,8 +132,7 @@ mod notification {
         );
     }
 
-    #[test]
-    fn completion_notification_truncates_long_text() {
+    pub(crate) fn completion_notification_truncates_long_text() {
         let body = super::super::notification_text::completion_notification_body(
             &AgentType::Unknown,
             None,
@@ -152,8 +146,7 @@ mod notification {
         assert!(body.chars().count() <= 75);
     }
 
-    #[test]
-    fn completion_notification_collapses_prompt_whitespace() {
+    pub(crate) fn completion_notification_collapses_prompt_whitespace() {
         let body = super::super::notification_text::completion_notification_body(
             &AgentType::Unknown,
             None,
@@ -164,8 +157,7 @@ mod notification {
         assert_eq!(body, "ship this prompt now");
     }
 
-    #[test]
-    fn completion_notification_prefers_latest_prompt_over_persisted_codex_title() {
+    pub(crate) fn completion_notification_prefers_latest_prompt_over_persisted_codex_title() {
         with_temp_home("notify-latest-prompt", |home| {
             let codex_dir = home.join(".codex");
             std::fs::create_dir_all(&codex_dir).expect("create codex dir");
@@ -184,8 +176,7 @@ mod notification {
         });
     }
 
-    #[test]
-    fn stop_hook_emits_completion_sound_event() {
+    pub(crate) fn stop_hook_emits_completion_sound_event() {
         with_temp_home("completion-sound", |_home| {
             crate::sound::with_test_sound_capture(|| {
                 let _ = crate::sound::take_test_playbacks();
@@ -222,8 +213,7 @@ mod notification {
         });
     }
 
-    #[test]
-    fn stop_hook_adds_completion_to_notification_inbox() {
+    pub(crate) fn stop_hook_adds_completion_to_notification_inbox() {
         let mut app = App::new();
         app.notification_inbox.entries.clear();
         app.panels.push(AgentPanel {
@@ -256,7 +246,7 @@ mod notification {
         assert!(!entry.read);
     }
 }
-mod session_cache {
+pub(crate) mod session_cache {
     use super::support::with_temp_home;
     use crate::app::App;
     use crate::hook::{HookEvent, HookTerminalInfo};
@@ -303,8 +293,7 @@ mod session_cache {
         }
     }
 
-    #[test]
-    fn new_session_start_does_not_inherit_prior_panel_snapshot() {
+    pub(crate) fn new_session_start_does_not_inherit_prior_panel_snapshot() {
         with_temp_home("new-session-isolation", |_| {
             let mut app = App::new();
             app.panels.push(panel_with_old_session());
@@ -414,7 +403,7 @@ mod support {
         }
     }
 }
-mod unread {
+pub(crate) mod unread {
     use super::support::stop_event;
     use crate::app::state::FocusTarget;
     use crate::app::App;
@@ -441,8 +430,7 @@ mod unread {
         }
     }
 
-    #[test]
-    fn stop_hook_marks_panel_unread_when_panel_item_is_not_focused() {
+    pub(crate) fn stop_hook_marks_panel_unread_when_panel_item_is_not_focused() {
         let mut app = App::new();
         app.panels.push(panel_for_unread_test(AgentState::Busy));
         app.table_state.select(Some(0));
@@ -453,8 +441,7 @@ mod unread {
         assert!(app.panels[0].has_unread_stop);
     }
 
-    #[test]
-    fn focusing_panel_clears_unread_stop_marker() {
+    pub(crate) fn focusing_panel_clears_unread_stop_marker() {
         let mut app = App::new();
         let mut panel = panel_for_unread_test(AgentState::Waiting);
         panel.last_assistant_message = Some("done".into());

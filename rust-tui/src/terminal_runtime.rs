@@ -4,8 +4,8 @@
 //! kept for the planned multi-pane and compatibility backends.
 #![allow(dead_code)]
 
-mod alacritty;
-mod controller;
+pub(crate) mod alacritty;
+pub(crate) mod controller;
 mod engine {
     use std::collections::HashMap;
     use std::error::Error;
@@ -104,15 +104,15 @@ mod engine {
         }
     }
 }
-mod input;
-mod live_pane;
+pub(crate) mod input;
+pub(crate) mod live_pane;
 mod model;
-mod native_pty;
-mod pane;
-mod transport;
-mod transport_runtime;
-mod widget;
-mod worker;
+pub(crate) mod native_pty;
+pub(crate) mod pane;
+pub(crate) mod transport;
+pub(crate) mod transport_runtime;
+pub(crate) mod widget;
+pub(crate) mod worker;
 
 #[allow(unused_imports)]
 pub use alacritty::{AlacrittyEngine, AlacrittyEngineFactory, ALACRITTY_ENGINE_ID};
@@ -144,7 +144,7 @@ pub use widget::TerminalPaneWidget;
 pub use worker::EngineRuntime;
 
 #[cfg(test)]
-mod stress_tests {
+pub(crate) mod stress_tests {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
@@ -156,8 +156,7 @@ mod stress_tests {
     const PANE_COUNT: usize = 8;
     const WRITES_PER_PANE: usize = 250;
 
-    #[test]
-    fn eight_panes_process_output_resize_snapshot_and_close_concurrently() {
+    pub(crate) fn eight_panes_process_output_resize_snapshot_and_close_concurrently() {
         let mut registry = EngineRegistry::default();
         registry.register(EngineId::new(ALACRITTY_ENGINE_ID), AlacrittyEngineFactory);
         let runtime = Arc::new(EngineRuntime::start(4, registry).unwrap());
@@ -229,4 +228,4 @@ mod stress_tests {
     }
 }
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

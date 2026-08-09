@@ -3,8 +3,7 @@ use crate::app::App;
 use crate::model::{PreviewSource, PreviewView};
 use ratatui::layout::Rect;
 
-#[test]
-fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
+pub(crate) fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
     let mut app = App::new();
     app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;
@@ -19,8 +18,7 @@ fn preview_plain_visible_rows_respects_scroll_window_after_wrapping() {
     assert!(app.preview.plain_cache.is_some());
 }
 
-#[test]
-fn preview_selection_text_preserves_multiline_range() {
+pub(crate) fn preview_selection_text_preserves_multiline_range() {
     let mut app = App::new();
     app.preview.source = PreviewSource::Plain;
     app.preview.view = PreviewView::Plain;

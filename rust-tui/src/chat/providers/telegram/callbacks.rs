@@ -1,4 +1,4 @@
-mod approval;
+pub(crate) mod approval;
 mod dispatch {
     mod approval_handler {
         use super::super::super::*;

@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-mod identity;
+pub(crate) mod identity;
 mod lock {
     use std::fs::{self, File, OpenOptions};
     use std::io;
@@ -267,4 +267,4 @@ fn write_status_body(path: &Path, status: &ProcessStatus) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

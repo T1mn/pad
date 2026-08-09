@@ -57,4 +57,4 @@ pub(in crate::relay) fn log_file_error(operation: &str, path: &Path, error: &std
 
 #[cfg(test)]
 #[path = "files_tests.rs"]
-mod tests;
+pub(crate) mod tests;

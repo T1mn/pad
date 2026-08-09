@@ -2,8 +2,7 @@ use crossterm::event::MouseEventKind;
 
 use super::*;
 
-#[test]
-fn wheel_routes_to_child_only_while_mouse_reporting_is_active() {
+pub(crate) fn wheel_routes_to_child_only_while_mouse_reporting_is_active() {
     let wheel = mouse(MouseEventKind::ScrollUp, KeyModifiers::NONE);
     assert_eq!(
         terminal_wheel_route(
@@ -22,8 +21,7 @@ fn wheel_routes_to_child_only_while_mouse_reporting_is_active() {
     );
 }
 
-#[test]
-fn shift_wheel_forces_pad_scrollback() {
+pub(crate) fn shift_wheel_forces_pad_scrollback() {
     let wheel = mouse(MouseEventKind::ScrollDown, KeyModifiers::SHIFT);
     assert_eq!(
         terminal_wheel_route(
@@ -38,8 +36,7 @@ fn shift_wheel_forces_pad_scrollback() {
     );
 }
 
-#[test]
-fn non_wheel_events_do_not_enter_scroll_routing() {
+pub(crate) fn non_wheel_events_do_not_enter_scroll_routing() {
     let moved = mouse(MouseEventKind::Moved, KeyModifiers::NONE);
     assert_eq!(terminal_wheel_route(&moved, TerminalMode::default()), None);
 }

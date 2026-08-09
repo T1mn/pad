@@ -1,7 +1,6 @@
 use super::approval_prompt_text;
 
-#[test]
-fn approval_prompt_text_includes_metadata_and_justification() {
+pub(crate) fn approval_prompt_text_includes_metadata_and_justification() {
     let mut pending =
         crate::chat::providers::telegram::tests::sample_pending("tg-1", "%7", "awaiting_confirm");
     pending.session_id = Some("session-7".into());

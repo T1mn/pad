@@ -177,4 +177,4 @@ pub use api::{
 pub use model::ClaudeThreadRef;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

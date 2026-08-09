@@ -5,8 +5,7 @@ use crate::sidebar::SidebarThread;
 use crate::theme::ProviderConfig;
 use ratatui::layout::Rect;
 
-#[test]
-fn preview_info_value_hit_test_returns_full_truncated_value() {
+pub(crate) fn preview_info_value_hit_test_returns_full_truncated_value() {
     let area = Rect::new(0, 0, 24, 11);
     let value = "https://opencode.ai/s/very-long-share-id";
 
@@ -17,8 +16,7 @@ fn preview_info_value_hit_test_returns_full_truncated_value() {
     assert_eq!(preview_info_value_text_at(area, 10, 5, 7, value), None);
 }
 
-#[test]
-fn preview_provider_value_prefers_session_bound_provider() {
+pub(crate) fn preview_provider_value_prefers_session_bound_provider() {
     let mut app = App::new();
     if let Some(agent) = app
         .config
@@ -102,8 +100,7 @@ fn preview_provider_value_prefers_session_bound_provider() {
     );
 }
 
-#[test]
-fn preview_provider_value_falls_back_to_active_provider_without_session_binding() {
+pub(crate) fn preview_provider_value_falls_back_to_active_provider_without_session_binding() {
     let mut app = App::new();
     if let Some(agent) = app
         .config

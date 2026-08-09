@@ -1,7 +1,6 @@
-mod busy_tick {
+pub(crate) mod busy_tick {
     use super::*;
-    #[test]
-    fn slow_frame_only_slows_busy_animation_instead_of_stopping_it() {
+    pub(crate) fn slow_frame_only_slows_busy_animation_instead_of_stopping_it() {
         let mut app = App::new();
         app.preview.view = PreviewView::SessionList;
         app.frame_budget_exceeded = true;
@@ -32,8 +31,7 @@ mod busy_tick {
         assert!(app.should_tick_busy_animation());
     }
 
-    #[test]
-    fn app_only_busy_thread_keeps_busy_animation_ticking() {
+    pub(crate) fn app_only_busy_thread_keeps_busy_animation_ticking() {
         let mut app = App::new();
         app.preview.view = PreviewView::SessionList;
         app.last_busy_animation_tick = Instant::now() - Duration::from_secs(1);
@@ -55,8 +53,7 @@ mod busy_tick {
         assert!(app.should_tick_busy_animation());
     }
 
-    #[test]
-    fn hidden_busy_threads_do_not_force_animation_redraws() {
+    pub(crate) fn hidden_busy_threads_do_not_force_animation_redraws() {
         let mut app = App::new();
         app.preview.view = PreviewView::SessionList;
         app.last_busy_animation_tick = Instant::now() - Duration::from_secs(1);
@@ -85,8 +82,7 @@ mod busy_tick {
         assert_eq!(app.desired_tick_rate(), Duration::from_millis(120));
     }
 
-    #[test]
-    fn busy_threads_use_moderate_tick_rate() {
+    pub(crate) fn busy_threads_use_moderate_tick_rate() {
         let mut app = App::new();
         app.preview.view = PreviewView::SessionDetail;
         app.panels.push(AgentPanel {
@@ -112,10 +108,9 @@ mod busy_tick {
     }
 }
 
-mod debounce_detail {
+pub(crate) mod debounce_detail {
     use super::*;
-    #[test]
-    fn preview_update_during_navigation_debounce_is_deferred_until_idle() {
+    pub(crate) fn preview_update_during_navigation_debounce_is_deferred_until_idle() {
         let mut app = App::new();
         app.panels.push(AgentPanel {
             session: "0".into(),
@@ -169,8 +164,7 @@ mod debounce_detail {
         assert!(app.dirty);
     }
 
-    #[test]
-    fn detail_view_does_not_pause_busy_animations() {
+    pub(crate) fn detail_view_does_not_pause_busy_animations() {
         let mut app = App::new();
         app.preview.focus = FocusTarget::Preview;
         app.preview.expanded_turn = Some(0);
@@ -187,8 +181,7 @@ mod debounce_detail {
         assert!(!app.should_pause_busy_animations());
     }
 
-    #[test]
-    fn detail_view_applies_preview_updates_immediately() {
+    pub(crate) fn detail_view_applies_preview_updates_immediately() {
         let mut app = App::new();
         app.preview.source = PreviewSource::Session;
         app.preview.pane_id = Some("live:%1".into());
@@ -236,10 +229,9 @@ mod debounce_detail {
     }
 }
 
-mod plain_cache {
+pub(crate) mod plain_cache {
     use super::*;
-    #[test]
-    fn preview_update_identical_plain_view_preserves_plain_cache() {
+    pub(crate) fn preview_update_identical_plain_view_preserves_plain_cache() {
         let mut app = App::new();
         app.preview.source = PreviewSource::Plain;
         app.preview.view = PreviewView::Plain;
@@ -273,8 +265,7 @@ mod plain_cache {
         assert!(app.preview.plain_cache.is_some());
     }
 
-    #[test]
-    fn preview_update_changed_plain_content_bumps_revision_and_drops_cache() {
+    pub(crate) fn preview_update_changed_plain_content_bumps_revision_and_drops_cache() {
         let mut app = App::new();
         app.preview.source = PreviewSource::Plain;
         app.preview.view = PreviewView::Plain;
@@ -311,10 +302,9 @@ mod plain_cache {
     }
 }
 
-mod thread_cache {
+pub(crate) mod thread_cache {
     use super::*;
-    #[test]
-    fn thread_preview_cache_prunes_to_max_entries() {
+    pub(crate) fn thread_preview_cache_prunes_to_max_entries() {
         let mut app = App::new();
         let base_ts = 1_000_000i64;
         let total = THREAD_PREVIEW_CACHE_MAX_ENTRIES + 8;

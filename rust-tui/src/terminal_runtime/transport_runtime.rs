@@ -305,4 +305,4 @@ fn panic_message(payload: Box<dyn Any + Send>) -> String {
 
 #[cfg(test)]
 #[path = "transport_runtime_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -519,4 +519,4 @@ pub(super) use pending_match::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

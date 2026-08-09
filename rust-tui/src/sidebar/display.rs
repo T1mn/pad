@@ -49,4 +49,4 @@ pub fn folder_display_label(path: &str) -> String {
 
 #[cfg(test)]
 #[path = "display_tests.rs"]
-mod tests;
+pub(crate) mod tests;

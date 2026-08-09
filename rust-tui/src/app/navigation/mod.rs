@@ -220,7 +220,7 @@ mod space_action {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 impl App {
     pub(super) fn nth_visible_thread_sidebar_index(

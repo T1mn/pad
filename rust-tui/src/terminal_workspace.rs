@@ -141,4 +141,4 @@ fn invalid_workspace(error: serde_json::Error) -> io::Error {
 
 #[cfg(test)]
 #[path = "terminal_workspace_tests.rs"]
-mod tests;
+pub(crate) mod tests;

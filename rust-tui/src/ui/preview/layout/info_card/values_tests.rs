@@ -39,8 +39,7 @@ fn thread_with_dir(working_dir: &str) -> SidebarThread {
     }
 }
 
-#[test]
-fn shortened_thread_path_uses_last_two_segments_without_vec() {
+pub(crate) fn shortened_thread_path_uses_last_two_segments_without_vec() {
     let thread = thread_with_dir("/very/long/workspace/project/repo");
     assert_eq!(shortened_thread_path(&thread, 24), "~/.../project/repo");
 

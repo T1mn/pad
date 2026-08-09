@@ -380,4 +380,4 @@ impl FileTree {
 
 #[cfg(test)]
 #[path = "tree_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -11,8 +11,7 @@ fn temp_db_path(name: &str) -> std::path::PathBuf {
     crate::test_support::temp_path("pad-thread-meta", name)
 }
 
-#[test]
-fn ensure_schema_adds_generated_title_columns_to_existing_db() {
+pub(crate) fn ensure_schema_adds_generated_title_columns_to_existing_db() {
     let db_path = temp_db_path("migration");
     let _ = std::fs::remove_file(&db_path);
     let connection = open_db(&db_path).expect("open temp db");
@@ -48,8 +47,7 @@ fn ensure_schema_adds_generated_title_columns_to_existing_db() {
     let _ = std::fs::remove_file(&db_path);
 }
 
-#[test]
-fn generated_title_updates_do_not_clobber_manual_override() {
+pub(crate) fn generated_title_updates_do_not_clobber_manual_override() {
     let db_path = temp_db_path("generated-title");
     let _ = std::fs::remove_file(&db_path);
 
@@ -80,8 +78,7 @@ fn generated_title_updates_do_not_clobber_manual_override() {
     let _ = std::fs::remove_file(&db_path);
 }
 
-#[test]
-fn load_thread_meta_reads_generated_fields() {
+pub(crate) fn load_thread_meta_reads_generated_fields() {
     let db_path = temp_db_path("load-generated");
     let _ = std::fs::remove_file(&db_path);
     ensure_schema_at(&db_path).expect("ensure schema");
@@ -119,8 +116,7 @@ fn load_thread_meta_reads_generated_fields() {
     let _ = std::fs::remove_file(&db_path);
 }
 
-#[test]
-fn set_thread_deleted_marks_and_clears_deleted_state() {
+pub(crate) fn set_thread_deleted_marks_and_clears_deleted_state() {
     let db_path = temp_db_path("deleted-toggle");
     let _ = std::fs::remove_file(&db_path);
 
@@ -149,8 +145,7 @@ fn set_thread_deleted_marks_and_clears_deleted_state() {
     let _ = std::fs::remove_file(&db_path);
 }
 
-#[test]
-fn load_deleted_thread_meta_returns_only_deleted_rows() {
+pub(crate) fn load_deleted_thread_meta_returns_only_deleted_rows() {
     let db_path = temp_db_path("deleted-list");
     let _ = std::fs::remove_file(&db_path);
 
@@ -168,8 +163,7 @@ fn load_deleted_thread_meta_returns_only_deleted_rows() {
     let _ = std::fs::remove_file(&db_path);
 }
 
-#[test]
-fn load_deleted_thread_meta_hydrates_tags_once() {
+pub(crate) fn load_deleted_thread_meta_hydrates_tags_once() {
     let db_path = temp_db_path("deleted-tags");
     let _ = std::fs::remove_file(&db_path);
 

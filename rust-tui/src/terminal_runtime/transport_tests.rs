@@ -5,8 +5,7 @@ use super::*;
 
 const QUEUE_CAPACITY: usize = 1;
 
-#[test]
-fn output_recording_preserves_chunks_and_exit() {
+pub(crate) fn output_recording_preserves_chunks_and_exit() {
     let exit = TransportExit {
         code: Some(7),
         signaled: false,
@@ -34,8 +33,7 @@ fn output_recording_preserves_chunks_and_exit() {
     assert_eq!(worker.join().unwrap(), Ok(()));
 }
 
-#[test]
-fn commands_gate_later_events_in_recorded_order() {
+pub(crate) fn commands_gate_later_events_in_recorded_order() {
     let size = TerminalSize::new(132, 43);
     let exit = TransportExit {
         code: Some(0),
@@ -84,8 +82,7 @@ fn commands_gate_later_events_in_recorded_order() {
     assert_eq!(worker.join().unwrap(), Ok(()));
 }
 
-#[test]
-fn mismatched_command_fails_at_the_exact_step() {
+pub(crate) fn mismatched_command_fails_at_the_exact_step() {
     let replay = ReplayTransport::new(
         TransportId::new("mismatch"),
         [
@@ -109,8 +106,7 @@ fn mismatched_command_fails_at_the_exact_step() {
     assert!(error.contains("received Input"));
 }
 
-#[test]
-fn disconnected_command_sender_is_reported() {
+pub(crate) fn disconnected_command_sender_is_reported() {
     let replay = ReplayTransport::new(
         TransportId::new("commands-closed"),
         [ReplayStep::expect_shutdown()],
@@ -125,8 +121,7 @@ fn disconnected_command_sender_is_reported() {
     );
 }
 
-#[test]
-fn disconnected_event_receiver_is_reported() {
+pub(crate) fn disconnected_event_receiver_is_reported() {
     let replay = ReplayTransport::new(
         TransportId::new("events-closed"),
         [ReplayStep::output(b"orphaned")],
@@ -144,8 +139,7 @@ fn disconnected_event_receiver_is_reported() {
     drop(commands);
 }
 
-#[test]
-fn bounded_queues_apply_backpressure_without_reordering() {
+pub(crate) fn bounded_queues_apply_backpressure_without_reordering() {
     let exit = TransportExit {
         code: Some(0),
         signaled: false,
@@ -182,8 +176,7 @@ fn bounded_queues_apply_backpressure_without_reordering() {
     assert_eq!(worker.join().unwrap(), Ok(()));
 }
 
-#[test]
-fn exit_must_be_the_final_step_and_is_not_partially_replayed() {
+pub(crate) fn exit_must_be_the_final_step_and_is_not_partially_replayed() {
     let replay = ReplayTransport::new(
         TransportId::new("invalid-exit"),
         [
@@ -205,8 +198,7 @@ fn exit_must_be_the_final_step_and_is_not_partially_replayed() {
     drop(commands);
 }
 
-#[test]
-fn cloned_recording_replays_identically() {
+pub(crate) fn cloned_recording_replays_identically() {
     let replay = ReplayTransport::from_output_chunks(
         TransportId::new("repeatable"),
         [b"a".to_vec(), b"b".to_vec()],

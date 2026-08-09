@@ -1,4 +1,4 @@
-mod detail;
+pub(crate) mod detail;
 mod layout {
     use crate::app::App;
     use crate::i18n::Locale;
@@ -109,7 +109,7 @@ mod layout {
         }
     }
 }
-mod list;
+pub(crate) mod list;
 mod popup;
 
 use super::common::render_modal_surface;

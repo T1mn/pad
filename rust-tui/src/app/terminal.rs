@@ -121,7 +121,7 @@ mod model;
 mod runtime_io;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

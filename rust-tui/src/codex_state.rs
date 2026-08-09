@@ -1,4 +1,4 @@
-mod archive;
+pub(crate) mod archive;
 mod cache {
     use super::model::{
         CacheKey, CachedThreads, ThreadArchiveFilter, THREAD_CACHE, THREAD_CACHE_TTL,
@@ -178,4 +178,4 @@ pub use query::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

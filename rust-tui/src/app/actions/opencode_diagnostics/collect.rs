@@ -67,4 +67,4 @@ fn format_opencode_args(args: &[&str]) -> String {
 
 #[cfg(test)]
 #[path = "collect_tests.rs"]
-mod tests;
+pub(crate) mod tests;

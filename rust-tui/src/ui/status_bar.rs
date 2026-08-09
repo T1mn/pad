@@ -35,4 +35,4 @@ pub fn draw_status_bar(f: &mut Frame, app: &App, area: Rect) {
 
 #[cfg(test)]
 #[path = "status_bar_tests.rs"]
-mod tests;
+pub(crate) mod tests;

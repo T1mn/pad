@@ -1,4 +1,4 @@
-mod answers;
+pub(crate) mod answers;
 mod failures {
     use super::{CodexFailureEvent, CodexFailureScanResult};
     use serde_json::Value;

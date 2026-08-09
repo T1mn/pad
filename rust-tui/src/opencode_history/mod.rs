@@ -63,7 +63,7 @@ mod model {
 }
 mod query;
 mod stats;
-mod util;
+pub(crate) mod util;
 
 use std::io;
 use std::path::Path;
@@ -96,4 +96,4 @@ pub fn unarchive_thread(session_id: &str) -> io::Result<()> {
 
 #[cfg(test)]
 #[path = "mod_tests.rs"]
-mod tests;
+pub(crate) mod tests;

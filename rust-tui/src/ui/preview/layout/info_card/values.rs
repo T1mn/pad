@@ -100,4 +100,4 @@ fn trailing_path_segments(path: &str) -> Option<(&str, &str)> {
 
 #[cfg(test)]
 #[path = "values_tests.rs"]
-mod tests;
+pub(crate) mod tests;

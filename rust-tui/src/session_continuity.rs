@@ -292,7 +292,7 @@ pub fn load_snapshot_for(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{
         classify_health, test_classify_preview_health as classify_preview_health,
         test_recompute_record_health as recompute_record_health, ContinuityAttemptClassification,
@@ -303,8 +303,7 @@ mod tests {
         SessionContinuityRecord::new(session_id, 100)
     }
 
-    #[test]
-    fn record_becomes_frozen_after_repeated_stale_runtime_activity() {
+    pub(crate) fn record_becomes_frozen_after_repeated_stale_runtime_activity() {
         let mut record = record("session-1");
         record.last_rollout_mtime = Some(100);
         record.last_hook_event_at = Some(131);
@@ -319,8 +318,7 @@ mod tests {
         assert!(record.stale_event_count >= 2);
     }
 
-    #[test]
-    fn preview_health_promotes_to_frozen_with_strong_runtime_signal() {
+    pub(crate) fn preview_health_promotes_to_frozen_with_strong_runtime_signal() {
         assert_eq!(
             classify_preview_health(Some(35), 1, Some(140), None),
             ContinuityHealth::Frozen
@@ -332,8 +330,7 @@ mod tests {
         assert_eq!(classify_health(Some(5), 0), ContinuityHealth::Healthy);
     }
 
-    #[test]
-    fn bootstrap_classification_clears_once_transcript_is_known() {
+    pub(crate) fn bootstrap_classification_clears_once_transcript_is_known() {
         let mut record = record("session-2");
         record.attempt_classification = ContinuityAttemptClassification::TransientResumeBootstrap;
         record.transcript_path = Some("/tmp/demo.jsonl".into());
@@ -344,8 +341,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn frozen_decision_marks_cache_fallback() {
+    pub(crate) fn frozen_decision_marks_cache_fallback() {
         let decision = PreviewFallbackDecision {
             prefer_cache: true,
             health: ContinuityHealth::Frozen,

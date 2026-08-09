@@ -8,12 +8,11 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::parse_reader;
     use std::io::Cursor;
 
-    #[test]
-    fn parses_official_0_2_102_envelopes_and_skips_unknown_lines() {
+    pub(crate) fn parses_official_0_2_102_envelopes_and_skips_unknown_lines() {
         let input = concat!(
             "{not-json\n",
             r#"{"timestamp":1,"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"hello"}}}}"#,
@@ -32,8 +31,7 @@ mod tests {
         assert_eq!(turns[0].answer.as_deref(), Some("hi there"));
     }
 
-    #[test]
-    fn accepts_direct_update_shape_for_older_logs() {
+    pub(crate) fn accepts_direct_update_shape_for_older_logs() {
         let input = concat!(
             r#"{"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"q"}}}"#,
             "\n",

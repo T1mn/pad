@@ -182,4 +182,4 @@ impl SessionTransport for ReplayTransport {
 
 #[cfg(test)]
 #[path = "transport_tests.rs"]
-mod tests;
+pub(crate) mod tests;

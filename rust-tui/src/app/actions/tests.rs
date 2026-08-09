@@ -1,7 +1,6 @@
 use super::*;
 
-#[test]
-fn settings_search_matches_english_terms_under_chinese_locale() {
+pub(crate) fn settings_search_matches_english_terms_under_chinese_locale() {
     let mut app = App::new();
     app.locale = Locale::ZhCN;
 
@@ -24,8 +23,7 @@ fn settings_search_matches_english_terms_under_chinese_locale() {
     assert!(sound_matches.iter().any(|(id, _, _, _, _)| *id == "sound"));
 }
 
-#[test]
-fn settings_list_hides_refresh_interval_item() {
+pub(crate) fn settings_list_hides_refresh_interval_item() {
     let app = App::new();
 
     assert!(!app
@@ -34,8 +32,7 @@ fn settings_list_hides_refresh_interval_item() {
         .any(|(id, _, _, _, _)| *id == "refresh_interval"));
 }
 
-#[test]
-fn settings_search_no_longer_matches_refresh_interval_aliases() {
+pub(crate) fn settings_search_no_longer_matches_refresh_interval_aliases() {
     let mut app = App::new();
     app.settings_search = "refresh interval".into();
     assert!(!app
@@ -50,8 +47,7 @@ fn settings_search_no_longer_matches_refresh_interval_aliases() {
         .any(|(id, _, _, _, _)| *id == "refresh_interval"));
 }
 
-#[test]
-fn settings_detail_persists_when_filtered_value_changes() {
+pub(crate) fn settings_detail_persists_when_filtered_value_changes() {
     let mut app = App::new();
     app.settings_open = true;
     app.mode = Mode::Settings;
@@ -80,8 +76,7 @@ fn settings_detail_persists_when_filtered_value_changes() {
     );
 }
 
-#[test]
-fn settings_search_matches_trash_aliases() {
+pub(crate) fn settings_search_matches_trash_aliases() {
     let mut app = App::new();
     app.settings_search = "recycle bin".into();
     assert!(app
@@ -90,8 +85,7 @@ fn settings_search_matches_trash_aliases() {
         .any(|(id, _, _, _, _)| *id == "trash"));
 }
 
-#[test]
-fn apply_deleted_panel_locally_removes_panel_immediately() {
+pub(crate) fn apply_deleted_panel_locally_removes_panel_immediately() {
     let mut app = App::new();
     app.panels = vec![
         crate::model::AgentPanel {

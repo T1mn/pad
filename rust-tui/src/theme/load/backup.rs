@@ -43,4 +43,4 @@ fn backup_candidates(path: &Path) -> Vec<PathBuf> {
 
 #[cfg(test)]
 #[path = "backup_tests.rs"]
-mod tests;
+pub(crate) mod tests;

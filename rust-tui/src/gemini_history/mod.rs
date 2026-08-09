@@ -68,7 +68,7 @@ mod model {
 }
 mod scan;
 mod storage;
-mod tests;
+pub(crate) mod tests;
 mod util;
 
 use std::io;

@@ -1,8 +1,7 @@
-mod actions {
+pub(crate) mod actions {
     use super::*;
 
-    #[test]
-    fn runtime_category_preserves_original_switches_and_web_search_cycle() {
+    pub(crate) fn runtime_category_preserves_original_switches_and_web_search_cycle() {
         with_temp_home("runtime", || {
             let mut app = codex_settings_app();
             app.config.agent_permissions.codex_auto_full_access = false;
@@ -44,8 +43,7 @@ mod actions {
         });
     }
 
-    #[test]
-    fn status_prompt_and_preview_categories_preserve_original_toggles() {
+    pub(crate) fn status_prompt_and_preview_categories_preserve_original_toggles() {
         with_temp_home("subcategories", || {
             let mut app = codex_settings_app();
             app.config.codex.status_line_model_with_reasoning = false;
@@ -107,11 +105,10 @@ mod actions {
         });
     }
 }
-mod navigation {
+pub(crate) mod navigation {
     use super::*;
 
-    #[test]
-    fn root_groups_options_and_back_navigation() {
+    pub(crate) fn root_groups_options_and_back_navigation() {
         with_temp_home("root", || {
             let mut app = codex_settings_app();
             app.codex_settings_view = CodexSettingsView::Categories;
@@ -151,8 +148,7 @@ mod navigation {
         });
     }
 
-    #[test]
-    fn cli_category_keeps_check_update_actions_separate_from_config_toggles() {
+    pub(crate) fn cli_category_keeps_check_update_actions_separate_from_config_toggles() {
         with_temp_home("cli", || {
             let mut app = codex_settings_app();
             open_codex_category(&mut app, 4);

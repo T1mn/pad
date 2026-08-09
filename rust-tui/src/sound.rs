@@ -155,7 +155,7 @@ mod test_capture {
     }
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::theme::SoundConfig;
     use std::path::{Path, PathBuf};
@@ -164,8 +164,7 @@ mod tests {
         crate::test_support::with_temp_home("pad-sound", name, f)
     }
 
-    #[test]
-    fn ensure_runtime_assets_writes_all_presets() {
+    pub(crate) fn ensure_runtime_assets_writes_all_presets() {
         with_temp_home("runtime-assets", |_home| {
             ensure_runtime_assets().expect("write sound assets");
 
@@ -178,8 +177,7 @@ mod tests {
         });
     }
 
-    #[test]
-    fn normalize_preset_id_falls_back_to_default() {
+    pub(crate) fn normalize_preset_id_falls_back_to_default() {
         assert_eq!(
             normalize_preset_id_or_default("no-such-preset", "glass"),
             "glass"
@@ -187,8 +185,7 @@ mod tests {
         assert_eq!(normalize_preset_id("ping"), Some("ping"));
     }
 
-    #[test]
-    fn play_event_records_test_playback_when_enabled() {
+    pub(crate) fn play_event_records_test_playback_when_enabled() {
         let _guard = crate::test_support::home_env_lock()
             .lock()
             .expect("lock sound test playback");
@@ -208,8 +205,7 @@ mod tests {
         });
     }
 
-    #[test]
-    fn play_event_respects_global_and_event_switches() {
+    pub(crate) fn play_event_respects_global_and_event_switches() {
         let _guard = crate::test_support::home_env_lock()
             .lock()
             .expect("lock sound toggle tests");
@@ -229,8 +225,7 @@ mod tests {
         });
     }
 
-    #[test]
-    fn linux_command_spec_uses_expected_priority() {
+    pub(crate) fn linux_command_spec_uses_expected_priority() {
         let path = PathBuf::from("/tmp/glass.wav");
         let spec = playback::linux_command_spec(&path, |cmd| matches!(cmd, "aplay" | "play"))
             .expect("linux spec");
@@ -242,8 +237,7 @@ mod tests {
         assert_eq!(spec.args, vec!["/tmp/glass.wav"]);
     }
 
-    #[test]
-    fn macos_command_spec_uses_local_wav_path() {
+    pub(crate) fn macos_command_spec_uses_local_wav_path() {
         let spec = playback::macos_command_spec(Path::new("/tmp/ping.wav"), |cmd| cmd == "afplay")
             .expect("macos spec");
         assert_eq!(spec.program, "afplay");

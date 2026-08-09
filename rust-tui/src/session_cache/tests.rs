@@ -1,11 +1,10 @@
 #[cfg(test)]
-mod lookup {
+pub(crate) mod lookup {
     use super::super::bindings::load_snapshots_for_agent_type;
     use super::super::model::{CachedSessionRecord, SessionCacheIndex};
     use crate::model::{PreviewTurn, SessionCacheState};
 
-    #[test]
-    fn loads_only_requested_agent_snapshots_with_source_state() {
+    pub(crate) fn loads_only_requested_agent_snapshots_with_source_state() {
         let index = SessionCacheIndex {
             version: 1,
             sessions: vec![
@@ -40,7 +39,7 @@ mod lookup {
 }
 
 #[cfg(test)]
-mod persist {
+pub(crate) mod persist {
     use super::support::panel;
     use crate::hook::{HookEvent, HookTerminalInfo};
 
@@ -73,8 +72,7 @@ mod persist {
         panel
     }
 
-    #[test]
-    fn session_start_for_new_id_does_not_inherit_panel_session_state() {
+    pub(crate) fn session_start_for_new_id_does_not_inherit_panel_session_state() {
         crate::test_support::with_temp_home("pad-session-cache-persist", "new-session", |_| {
             let panel = panel_with_session("old");
 
@@ -90,8 +88,7 @@ mod persist {
         });
     }
 
-    #[test]
-    fn session_start_for_same_id_keeps_panel_fallbacks() {
+    pub(crate) fn session_start_for_same_id_keeps_panel_fallbacks() {
         crate::test_support::with_temp_home("pad-session-cache-persist", "same-session", |_| {
             let panel = panel_with_session("same");
 
@@ -146,12 +143,11 @@ mod support {
     }
 }
 #[cfg(test)]
-mod turns {
+pub(crate) mod turns {
     use super::super::turns::merge_recent_turns;
     use crate::model::PreviewTurn;
 
-    #[test]
-    fn merge_recent_turns_prefers_latest_prompt_and_answer() {
+    pub(crate) fn merge_recent_turns_prefers_latest_prompt_and_answer() {
         let mut turns = Vec::new();
         merge_recent_turns(&mut turns, Some("hello"), None, None);
         merge_recent_turns(&mut turns, None, Some("world"), Some("hello"));
@@ -164,8 +160,7 @@ mod turns {
         );
     }
 
-    #[test]
-    fn merge_recent_turns_does_not_reuse_previous_answer_for_new_prompt() {
+    pub(crate) fn merge_recent_turns_does_not_reuse_previous_answer_for_new_prompt() {
         let mut turns = vec![PreviewTurn {
             question: "old prompt".to_string(),
             answer: Some("old answer".to_string()),

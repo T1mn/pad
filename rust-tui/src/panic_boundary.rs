@@ -46,4 +46,4 @@ impl Drop for IsolatedGuard {
 
 #[cfg(test)]
 #[path = "panic_boundary_tests.rs"]
-mod tests;
+pub(crate) mod tests;

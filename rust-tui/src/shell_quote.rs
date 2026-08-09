@@ -19,4 +19,4 @@ pub(crate) fn single_quote(value: &str) -> String {
 
 #[cfg(test)]
 #[path = "shell_quote_tests.rs"]
-mod tests;
+pub(crate) mod tests;

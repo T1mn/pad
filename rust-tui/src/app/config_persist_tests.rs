@@ -5,8 +5,7 @@ fn with_temp_home<T>(name: &str, f: impl FnOnce() -> T) -> T {
     crate::test_support::with_temp_home("pad-config-persist", name, |_| f())
 }
 
-#[test]
-fn save_config_succeeds_without_warning_toast() {
+pub(crate) fn save_config_succeeds_without_warning_toast() {
     with_temp_home("save-ok", || {
         let mut app = App::new();
         app.config.theme = "gruvbox".to_string();
@@ -17,8 +16,7 @@ fn save_config_succeeds_without_warning_toast() {
     });
 }
 
-#[test]
-fn save_config_surfaces_failure_instead_of_swallowing_it() {
+pub(crate) fn save_config_surfaces_failure_instead_of_swallowing_it() {
     with_temp_home("save-fail", || {
         let mut app = App::new();
         // 目标路径被目录占住，rename 必然失败：以前的 `let _ = fs::write(..)` 会静默丢改动。
@@ -34,8 +32,7 @@ fn save_config_surfaces_failure_instead_of_swallowing_it() {
     });
 }
 
-#[test]
-fn panel_width_save_failure_is_not_overwritten_by_success_toast() {
+pub(crate) fn panel_width_save_failure_is_not_overwritten_by_success_toast() {
     with_temp_home("panel-width-save-fail", || {
         let mut app = App::new();
         std::fs::create_dir_all(Config::config_path()).expect("occupy config path");
@@ -51,8 +48,7 @@ fn panel_width_save_failure_is_not_overwritten_by_success_toast() {
     });
 }
 
-#[test]
-fn broken_config_reports_recovery_to_the_caller() {
+pub(crate) fn broken_config_reports_recovery_to_the_caller() {
     with_temp_home("recovery-notice", || {
         let path = Config::config_path();
         std::fs::create_dir_all(path.parent().expect("config parent")).expect("create config dir");

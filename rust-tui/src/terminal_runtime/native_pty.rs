@@ -406,4 +406,4 @@ fn transport_exit(status: &ExitStatus) -> TransportExit {
 
 #[cfg(test)]
 #[path = "native_pty_tests.rs"]
-mod tests;
+pub(crate) mod tests;

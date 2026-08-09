@@ -10,12 +10,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-mod activity {
+pub(crate) mod activity {
     use super::support::{cached_snapshot, codex_thread, folder, live_codex_thread_without_prompt};
     use super::*;
 
-    #[test]
-    fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
+    pub(crate) fn merge_or_insert_preserves_history_prompt_when_live_thread_lacks_one() {
         let mut threads = vec![live_codex_thread_without_prompt()];
         let snapshot = cached_snapshot("newest prompt", None);
         let history = build_codex_history_entry(&folder(), &codex_thread(), Some(&snapshot), false);
@@ -35,8 +34,7 @@ mod activity {
         );
     }
 
-    #[test]
-    fn runtime_sort_activity_updates_history_order() {
+    pub(crate) fn runtime_sort_activity_updates_history_order() {
         let mut threads = Vec::new();
         let history = build_codex_history_entry(&folder(), &codex_thread(), None, false);
         let runtime = HashMap::from([(String::from("codex:path:/repo/.codex/sid-1.jsonl"), 120)]);
@@ -48,12 +46,11 @@ mod activity {
     }
 }
 
-mod history {
+pub(crate) mod history {
     use super::support::{cached_snapshot, codex_thread, folder};
     use super::*;
 
-    #[test]
-    fn codex_history_prefers_session_cache_prompt_for_subtitle() {
+    pub(crate) fn codex_history_prefers_session_cache_prompt_for_subtitle() {
         let snapshot = cached_snapshot("newest prompt", Some("answer"));
         let thread = build_codex_history_entry(&folder(), &codex_thread(), Some(&snapshot), false);
 
@@ -62,27 +59,25 @@ mod history {
         assert_eq!(thread.cached_preview_turns.len(), 1);
     }
 
-    #[test]
-    fn active_view_history_entries_do_not_sort_by_updated_at_without_explicit_activity() {
+    pub(crate) fn active_view_history_entries_do_not_sort_by_updated_at_without_explicit_activity()
+    {
         let thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
         assert_eq!(thread.updated_at, 42);
         assert_eq!(thread.sort_updated_at, 0);
     }
 
-    #[test]
-    fn archived_view_history_entries_keep_updated_at_sorting() {
+    pub(crate) fn archived_view_history_entries_keep_updated_at_sorting() {
         let thread = build_codex_history_entry(&folder(), &codex_thread(), None, true);
         assert_eq!(thread.updated_at, 42);
         assert_eq!(thread.sort_updated_at, 42);
     }
 }
 
-mod meta {
+pub(crate) mod meta {
     use super::support::{codex_thread, folder, generated_title_meta};
     use super::*;
 
-    #[test]
-    fn manual_title_override_wins_over_generated_summary_for_title() {
+    pub(crate) fn manual_title_override_wins_over_generated_summary_for_title() {
         let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
         apply_thread_meta(&mut thread, &generated_title_meta(Some("Manual title")));
 
@@ -90,8 +85,7 @@ mod meta {
         assert_eq!(thread.generated_title.as_deref(), Some("Generated title"));
     }
 
-    #[test]
-    fn generated_summary_does_not_replace_session_title() {
+    pub(crate) fn generated_summary_does_not_replace_session_title() {
         let mut thread = build_codex_history_entry(&folder(), &codex_thread(), None, false);
         apply_thread_meta(&mut thread, &generated_title_meta(None));
 

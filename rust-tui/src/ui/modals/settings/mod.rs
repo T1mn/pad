@@ -216,4 +216,4 @@ pub fn draw_agent_launcher(
 
 #[cfg(test)]
 #[path = "mod_tests.rs"]
-mod tests;
+pub(crate) mod tests;

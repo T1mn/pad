@@ -1,4 +1,4 @@
-mod db_paths;
+pub(crate) mod db_paths;
 mod sqlite {
     use rusqlite::OpenFlags;
     use std::io;

@@ -166,7 +166,7 @@ mod render {
         ])
     }
 }
-mod values;
+pub(crate) mod values;
 
 use crate::app::App;
 use crate::sidebar::SidebarThread;

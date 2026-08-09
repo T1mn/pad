@@ -170,14 +170,13 @@ pub(crate) use visible::visible_session_list_lines;
 
 #[cfg(test)]
 #[path = "session_list_cache/tests.rs"]
-mod tests {
+pub(crate) mod tests {
     use super::ensure_session_list_cache;
     use crate::app::App;
     use crate::model::{PreviewTurn, SharedPreviewTurns};
     use crate::theme::Theme;
 
-    #[test]
-    fn cache_keeps_turn_allocation_for_fast_hits() {
+    pub(crate) fn cache_keeps_turn_allocation_for_fast_hits() {
         let turns = SharedPreviewTurns::from(vec![PreviewTurn {
             question: "question".into(),
             answer: Some("answer".into()),

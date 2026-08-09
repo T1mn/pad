@@ -1,5 +1,5 @@
-mod bench;
-mod cases {
+pub(crate) mod bench;
+pub(crate) mod cases {
     use super::super::{
         load_preview, preview_refresh_interval_ms_for_request,
         session_loader::load_session_preview, PreviewRequest,
@@ -9,8 +9,7 @@ mod cases {
         AgentState, AgentType, PreviewSessionOrigin, PreviewSource, PreviewTurn, SessionCacheState,
     };
 
-    #[test]
-    fn request_refresh_interval_is_adaptive_to_state_and_origin() {
+    pub(crate) fn request_refresh_interval_is_adaptive_to_state_and_origin() {
         let base = PreviewRequest {
             target_key: "demo".into(),
             live_pane_id: Some("%1".into()),
@@ -47,8 +46,7 @@ mod cases {
         assert_eq!(preview_refresh_interval_ms_for_request(&history_idle), 4000);
     }
 
-    #[test]
-    fn confirmed_cached_preview_returns_without_resolving_target() {
+    pub(crate) fn confirmed_cached_preview_returns_without_resolving_target() {
         let request = PreviewRequest {
             target_key: "codex:test".into(),
             live_pane_id: None,
@@ -75,8 +73,7 @@ mod cases {
         assert_eq!(preview.updated_at, Some(42));
     }
 
-    #[test]
-    fn session_preview_update_keeps_content_empty_for_memory() {
+    pub(crate) fn session_preview_update_keeps_content_empty_for_memory() {
         let request = PreviewRequest {
             target_key: "codex:test".into(),
             live_pane_id: None,

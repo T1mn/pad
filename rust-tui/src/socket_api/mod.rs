@@ -419,4 +419,4 @@ pub use cli::run_args;
 pub use server::{start_api_listener, ApiReceiver};
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -265,12 +265,11 @@ pub(crate) use resolved::resolved_session_id_for_request;
 pub(super) use resolved::resolved_session_id_for_request;
 
 #[cfg(test)]
-mod tests {
-    mod codex {
+pub(crate) mod tests {
+    pub(crate) mod codex {
         use super::super::codex::codex_transcript_path_for_session_id;
 
-        #[test]
-        fn codex_db_canonical_path_resolves_compressed_sibling() {
+        pub(crate) fn codex_db_canonical_path_resolves_compressed_sibling() {
             crate::test_support::with_temp_home("pad-codex-target", "compressed", |home| {
                 let codex_home = home.join(".codex");
                 std::fs::create_dir_all(&codex_home).unwrap();
@@ -311,11 +310,10 @@ mod tests {
         }
     }
 
-    mod path {
+    pub(crate) mod path {
         use super::super::path::select_cwd_candidate;
 
-        #[test]
-        fn live_cwd_candidate_requires_one_unambiguous_session() {
+        pub(crate) fn live_cwd_candidate_requires_one_unambiguous_session() {
             assert_eq!(select_cwd_candidate(vec![1], true), Some(1));
             assert_eq!(select_cwd_candidate(vec![1, 2], true), None);
             assert_eq!(select_cwd_candidate(vec![1, 2], false), Some(1));

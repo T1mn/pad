@@ -54,7 +54,7 @@ mod event_pipeline {
         Ok(EventOutcome::Processed)
     }
 }
-mod input_clear;
+pub(crate) mod input_clear;
 mod key_pipeline;
 mod loop_core {
     use crate::app::App;
@@ -168,14 +168,14 @@ mod mode_dispatch {
         modes::handle_notification_inbox_mode(app, key);
     }
 }
-mod modes;
+pub(crate) mod modes;
 mod mouse;
-mod mouse_pipeline;
-mod normal;
+pub(crate) mod mouse_pipeline;
+pub(crate) mod normal;
 mod refresh_pipeline;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,

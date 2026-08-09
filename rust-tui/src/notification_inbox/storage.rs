@@ -70,4 +70,4 @@ pub(crate) fn save_to_path(path: &Path, inbox: &NotificationInbox) -> io::Result
 
 #[cfg(test)]
 #[path = "storage_tests.rs"]
-mod tests;
+pub(crate) mod tests;

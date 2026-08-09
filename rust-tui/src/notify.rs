@@ -130,7 +130,7 @@ mod macos {
     }
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn request() -> NotificationRequest {
@@ -140,8 +140,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn linux_uses_notify_send_on_x11() {
+    pub(crate) fn linux_uses_notify_send_on_x11() {
         let env = linux::NotificationEnv {
             has_display: true,
             has_wayland: false,
@@ -155,8 +154,7 @@ mod tests {
         assert_eq!(spec.args[1], "PAD");
     }
 
-    #[test]
-    fn linux_uses_notify_send_on_wayland() {
+    pub(crate) fn linux_uses_notify_send_on_wayland() {
         let env = linux::NotificationEnv {
             has_display: false,
             has_wayland: true,
@@ -166,8 +164,7 @@ mod tests {
         assert!(linux::command_spec(&env, &request(), |cmd| cmd == "notify-send").is_some());
     }
 
-    #[test]
-    fn linux_uses_notify_send_with_dbus_session_only() {
+    pub(crate) fn linux_uses_notify_send_with_dbus_session_only() {
         let env = linux::NotificationEnv {
             has_display: false,
             has_wayland: false,
@@ -177,8 +174,7 @@ mod tests {
         assert!(linux::command_spec(&env, &request(), |cmd| cmd == "notify-send").is_some());
     }
 
-    #[test]
-    fn linux_skips_without_desktop_session() {
+    pub(crate) fn linux_skips_without_desktop_session() {
         let env = linux::NotificationEnv {
             has_display: false,
             has_wayland: false,
@@ -188,8 +184,7 @@ mod tests {
         assert!(linux::command_spec(&env, &request(), |cmd| cmd == "notify-send").is_none());
     }
 
-    #[test]
-    fn linux_skips_when_notify_send_missing() {
+    pub(crate) fn linux_skips_when_notify_send_missing() {
         let env = linux::NotificationEnv {
             has_display: true,
             has_wayland: false,
@@ -199,8 +194,7 @@ mod tests {
         assert!(linux::command_spec(&env, &request(), |_| false).is_none());
     }
 
-    #[test]
-    fn command_exists_detects_program_in_path() {
+    pub(crate) fn command_exists_detects_program_in_path() {
         let temp = std::env::temp_dir().join(format!("pad-notify-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp);
         std::fs::create_dir_all(&temp).unwrap();
@@ -229,8 +223,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp);
     }
 
-    #[test]
-    fn macos_uses_osascript_with_argument_passing() {
+    pub(crate) fn macos_uses_osascript_with_argument_passing() {
         let spec = macos::command_spec(&request());
 
         assert_eq!(spec.program, "osascript");

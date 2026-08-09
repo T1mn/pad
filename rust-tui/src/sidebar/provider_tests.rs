@@ -6,8 +6,7 @@ fn temp_rollout_path(name: &str) -> std::path::PathBuf {
     crate::test_support::temp_path("pad-sidebar-provider", name).with_extension("jsonl")
 }
 
-#[test]
-fn resolve_session_provider_name_reads_codex_session_meta() {
+pub(crate) fn resolve_session_provider_name_reads_codex_session_meta() {
     let path = temp_rollout_path("codex");
     fs::write(
         &path,

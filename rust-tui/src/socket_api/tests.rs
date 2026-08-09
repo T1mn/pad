@@ -1,9 +1,8 @@
-mod handler {
+pub(crate) mod handler {
     use super::super::handler::handle_request;
     use super::super::model::ApiRequest;
 
-    #[test]
-    fn rejects_unknown_action() {
+    pub(crate) fn rejects_unknown_action() {
         let response = handle_request(ApiRequest {
             action: "missing".into(),
             ..ApiRequest::default()
@@ -11,8 +10,7 @@ mod handler {
         assert!(!response.ok);
     }
 
-    #[test]
-    fn browser_open_dry_run_returns_command() {
+    pub(crate) fn browser_open_dry_run_returns_command() {
         let response = handle_request(ApiRequest {
             action: "browser_open".into(),
             url: Some("http://localhost:3000".into()),
@@ -22,8 +20,7 @@ mod handler {
         assert!(response.ok);
     }
 
-    #[test]
-    fn prompt_dry_run_does_not_touch_native_pane() {
+    pub(crate) fn prompt_dry_run_does_not_touch_native_pane() {
         let response = handle_request(ApiRequest {
             action: "prompt".into(),
             pane_id: Some("%1".into()),
@@ -35,26 +32,23 @@ mod handler {
     }
 }
 
-mod peer {
+pub(crate) mod peer {
     use super::super::peer::{authorize_peer, current_uid, peer_uid_is_allowed};
     use std::os::unix::net::{UnixListener, UnixStream};
 
-    #[test]
-    fn same_uid_peer_is_allowed() {
+    pub(crate) fn same_uid_peer_is_allowed() {
         assert!(peer_uid_is_allowed(501, 501));
         assert!(peer_uid_is_allowed(0, 0));
     }
 
-    #[test]
-    fn foreign_uid_peer_is_rejected() {
+    pub(crate) fn foreign_uid_peer_is_rejected() {
         assert!(!peer_uid_is_allowed(1000, 501));
         // root 也不特殊放行。
         assert!(!peer_uid_is_allowed(0, 501));
         assert!(!peer_uid_is_allowed(501, 0));
     }
 
-    #[test]
-    fn authorize_peer_accepts_same_uid_connection() {
+    pub(crate) fn authorize_peer_accepts_same_uid_connection() {
         let path = crate::test_support::temp_path("pad", "peer");
         let listener = UnixListener::bind(&path).expect("bind peer socket");
         let _client = UnixStream::connect(&path).expect("connect peer socket");
@@ -69,7 +63,7 @@ mod peer {
     }
 }
 
-mod server {
+pub(crate) mod server {
     use super::super::model::ApiResponse;
     use super::super::server::{
         command_output_bounded, requires_ui_state, start_api_listener, ApiCall,
@@ -82,8 +76,7 @@ mod server {
     use std::time::{Duration, Instant};
     use tokio::sync::oneshot;
 
-    #[test]
-    fn only_native_pane_actions_are_routed_through_the_ui() {
+    pub(crate) fn only_native_pane_actions_are_routed_through_the_ui() {
         for action in ["status", "prompt", "capture", "escape", "approval"] {
             assert!(requires_ui_state(action));
         }
@@ -98,8 +91,7 @@ mod server {
         }
     }
 
-    #[test]
-    fn ui_call_execution_is_claimed_once_and_cancelled_at_the_boundary() {
+    pub(crate) fn ui_call_execution_is_claimed_once_and_cancelled_at_the_boundary() {
         let (response, _receiver) = oneshot::channel::<ApiResponse>();
         let pending = ApiCall {
             request: Default::default(),
@@ -157,8 +149,7 @@ mod server {
         dir
     }
 
-    #[test]
-    fn bind_private_listener_creates_owner_only_socket() {
+    pub(crate) fn bind_private_listener_creates_owner_only_socket() {
         let dir = scratch_dir("b1");
         let socket = dir.join("s.sock");
 
@@ -170,8 +161,7 @@ mod server {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn bind_private_listener_reclaims_dead_socket() {
+    pub(crate) fn bind_private_listener_reclaims_dead_socket() {
         let dir = scratch_dir("b2");
         let socket = dir.join("s.sock");
         drop(StdUnixListener::bind(&socket).expect("seed stale socket"));
@@ -183,8 +173,7 @@ mod server {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn bind_private_listener_refuses_live_socket() {
+    pub(crate) fn bind_private_listener_refuses_live_socket() {
         let dir = scratch_dir("b3");
         let socket = dir.join("s.sock");
         let live = bind_private_listener(&socket).expect("first bind");
@@ -221,7 +210,7 @@ mod server {
     }
 }
 
-mod socket_file {
+pub(crate) mod socket_file {
     use super::super::socket_file::bind_private_listener;
     use std::io::ErrorKind;
     use std::os::unix::fs::PermissionsExt;
@@ -242,8 +231,7 @@ mod socket_file {
             & 0o777
     }
 
-    #[test]
-    fn bind_private_listener_sets_private_socket_and_directory_modes() {
+    pub(crate) fn bind_private_listener_sets_private_socket_and_directory_modes() {
         let dir = scratch_dir("b4");
         let socket = dir.join("pad.sock");
 
@@ -255,8 +243,7 @@ mod socket_file {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn bind_private_listener_reclaims_stale_socket() {
+    pub(crate) fn bind_private_listener_reclaims_stale_socket() {
         let dir = scratch_dir("b5");
         let socket = dir.join("pad.sock");
         drop(StdUnixListener::bind(&socket).expect("seed stale socket"));
@@ -268,8 +255,7 @@ mod socket_file {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn bind_private_listener_rejects_active_socket() {
+    pub(crate) fn bind_private_listener_rejects_active_socket() {
         let dir = scratch_dir("b6");
         let socket = dir.join("pad.sock");
         let listener = bind_private_listener(&socket).expect("first bind");

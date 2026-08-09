@@ -20,4 +20,4 @@ pub(super) fn save_state_if_changed(
 
 #[cfg(test)]
 #[path = "state_io_tests.rs"]
-mod tests;
+pub(crate) mod tests;

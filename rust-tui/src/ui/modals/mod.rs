@@ -1,5 +1,5 @@
-mod common;
-mod dialogs;
+pub(crate) mod common;
+pub(crate) mod dialogs;
 mod notification_inbox {
     use super::common::render_modal_surface;
     use crate::app::App;
@@ -73,9 +73,9 @@ mod notification_inbox {
         }
     }
 }
-mod relay;
-mod settings;
-mod telegram;
+pub(crate) mod relay;
+pub(crate) mod settings;
+pub(crate) mod telegram;
 
 pub use dialogs::{draw_delete_confirm, draw_help, draw_thread_action_confirm};
 pub use notification_inbox::draw_notification_inbox;

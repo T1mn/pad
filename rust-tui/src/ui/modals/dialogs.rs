@@ -144,7 +144,7 @@ mod help {
         ))
     }
 }
-mod thread_action;
+pub(crate) mod thread_action;
 mod thread_meta {
     use super::super::common::{render_modal_surface, truncate_modal_line_middle};
     use super::thread_text::{

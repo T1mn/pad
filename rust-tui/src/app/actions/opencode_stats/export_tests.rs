@@ -1,8 +1,7 @@
 use super::collect_stats_output;
 
 #[cfg(unix)]
-#[test]
-fn stats_uses_selected_project_as_cwd_and_empty_current_project_filter() {
+pub(crate) fn stats_uses_selected_project_as_cwd_and_empty_current_project_filter() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = crate::test_support::temp_path("pad-opencode-stats", "mock");

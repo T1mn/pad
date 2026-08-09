@@ -146,12 +146,11 @@ fn sessions_root() -> io::Result<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::scan::all_threads_at;
     use std::fs;
 
-    #[test]
-    fn scans_official_summary_and_skips_corrupt_sessions() {
+    pub(crate) fn scans_official_summary_and_skips_corrupt_sessions() {
         let root = crate::test_support::temp_path("pad", "grok-history");
         let valid = root.join("encoded-cwd").join("session-1");
         fs::create_dir_all(&valid).unwrap();

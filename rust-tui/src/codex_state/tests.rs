@@ -1,4 +1,4 @@
-mod archive {
+pub(crate) mod archive {
     use super::super::archive::mutate_thread_archive_state_at;
     use super::support::{
         cleanup_dir, cleanup_file, create_threads_db, insert_thread, sample_rollout_name,
@@ -6,8 +6,7 @@ mod archive {
     };
     use rusqlite::Connection;
 
-    #[test]
-    fn archive_thread_moves_rollout_and_updates_db() {
+    pub(crate) fn archive_thread_moves_rollout_and_updates_db() {
         let db_path = temp_db_path();
         let codex_home = temp_codex_home();
         create_threads_db(&db_path);
@@ -51,8 +50,7 @@ mod archive {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn archive_thread_accepts_rollout_through_symlinked_sessions_dir() {
+    pub(crate) fn archive_thread_accepts_rollout_through_symlinked_sessions_dir() {
         let db_path = temp_db_path();
         let codex_home = temp_codex_home();
         let pad_home = temp_codex_home();
@@ -102,8 +100,7 @@ mod archive {
         cleanup_dir(&pad_home);
     }
 
-    #[test]
-    fn unarchive_thread_moves_rollout_back_and_updates_db() {
+    pub(crate) fn unarchive_thread_moves_rollout_back_and_updates_db() {
         let db_path = temp_db_path();
         let codex_home = temp_codex_home();
         create_threads_db(&db_path);
@@ -152,7 +149,7 @@ mod archive {
         cleanup_dir(&codex_home);
     }
 }
-mod archive_compressed {
+pub(crate) mod archive_compressed {
     use super::super::archive::mutate_thread_archive_state_at;
     use super::support::{
         cleanup_dir, cleanup_file, create_threads_db, insert_thread, sample_rollout_name,
@@ -167,8 +164,7 @@ mod archive_compressed {
         compressed.into()
     }
 
-    #[test]
-    fn archive_thread_resolves_compressed_rollout_sibling() {
+    pub(crate) fn archive_thread_resolves_compressed_rollout_sibling() {
         let db_path = temp_db_path();
         let codex_home = temp_codex_home();
         create_threads_db(&db_path);
@@ -199,8 +195,7 @@ mod archive_compressed {
         cleanup_dir(&codex_home);
     }
 
-    #[test]
-    fn unarchive_thread_resolves_compressed_rollout_sibling() {
+    pub(crate) fn unarchive_thread_resolves_compressed_rollout_sibling() {
         let db_path = temp_db_path();
         let codex_home = temp_codex_home();
         create_threads_db(&db_path);
@@ -230,7 +225,7 @@ mod archive_compressed {
         cleanup_dir(&codex_home);
     }
 }
-mod migration {
+pub(crate) mod migration {
     use super::super::migration::normalize_pad_codex_home_rollout_paths_at;
     use super::support::{
         cleanup_dir, cleanup_file, create_threads_db, insert_thread, sample_rollout_name,
@@ -238,8 +233,7 @@ mod migration {
     };
     use rusqlite::Connection;
 
-    #[test]
-    fn normalize_pad_codex_home_rollout_paths_rewrites_shared_prefixes() {
+    pub(crate) fn normalize_pad_codex_home_rollout_paths_rewrites_shared_prefixes() {
         let db_path = temp_db_path();
         let canonical_home = temp_codex_home();
         let pad_home = temp_codex_home();
@@ -324,8 +318,7 @@ mod migration {
         cleanup_dir(&pad_home);
     }
 
-    #[test]
-    fn normalize_pad_codex_home_rollout_paths_handles_non_ascii_home() {
+    pub(crate) fn normalize_pad_codex_home_rollout_paths_handles_non_ascii_home() {
         let db_path = temp_db_path();
         let unicode_root = temp_codex_home().join("用户");
         let pad_home = unicode_root.join("pad-codex-home");
@@ -369,7 +362,7 @@ mod migration {
         cleanup_file(&db_path);
     }
 }
-mod query {
+pub(crate) mod query {
     use super::super::query::{read_thread_for_id, read_threads_from_db};
     use super::super::ThreadArchiveFilter;
     use super::support::{
@@ -378,8 +371,7 @@ mod query {
     };
     use rusqlite::Connection;
 
-    #[test]
-    fn loads_threads_from_state_db() {
+    pub(crate) fn loads_threads_from_state_db() {
         let path = temp_db_path();
         create_threads_db(&path);
         let rollout_path = temp_rollout_path("new");
@@ -404,8 +396,7 @@ mod query {
         assert!(!threads[0].archived);
     }
 
-    #[test]
-    fn old_threads_without_recent_updated_at_are_filtered_out() {
+    pub(crate) fn old_threads_without_recent_updated_at_are_filtered_out() {
         let path = temp_db_path();
         create_threads_db(&path);
         let rollout_path = temp_rollout_path("old");
@@ -437,8 +428,7 @@ mod query {
         assert!(threads.is_empty());
     }
 
-    #[test]
-    fn archived_threads_are_loaded_without_recent_filter() {
+    pub(crate) fn archived_threads_are_loaded_without_recent_filter() {
         let path = temp_db_path();
         create_threads_db(&path);
         let rollout_path = temp_rollout_path("archived");
@@ -461,8 +451,7 @@ mod query {
         assert!(threads[0].archived);
     }
 
-    #[test]
-    fn thread_for_id_reads_single_row_without_recent_filter() {
+    pub(crate) fn thread_for_id_reads_single_row_without_recent_filter() {
         let path = temp_db_path();
         create_threads_db(&path);
         let rollout_path = temp_rollout_path("thread-id");
@@ -494,12 +483,11 @@ mod query {
         assert_eq!(thread.unwrap().thread_id, "thread-direct");
     }
 }
-mod selection {
+pub(crate) mod selection {
     use super::super::pathing::{is_component_prefix, select_latest_thread_for_cwd};
     use std::path::Path;
 
-    #[test]
-    fn component_prefix_does_not_match_sibling_paths() {
+    pub(crate) fn component_prefix_does_not_match_sibling_paths() {
         assert!(is_component_prefix(
             Path::new("/tmp/project"),
             Path::new("/tmp/project/subdir")
@@ -510,8 +498,7 @@ mod selection {
         ));
     }
 
-    #[test]
-    fn prefers_exact_cwd_match_before_related_threads() {
+    pub(crate) fn prefers_exact_cwd_match_before_related_threads() {
         let threads = vec![
             super::super::CodexThreadRef {
                 thread_id: "older-exact".into(),
@@ -539,8 +526,7 @@ mod selection {
         assert_eq!(selected.thread_id, "older-exact");
     }
 
-    #[test]
-    fn falls_back_to_closest_related_thread_when_exact_match_missing() {
+    pub(crate) fn falls_back_to_closest_related_thread_when_exact_match_missing() {
         let threads = vec![
             super::super::CodexThreadRef {
                 thread_id: "generic-parent".into(),

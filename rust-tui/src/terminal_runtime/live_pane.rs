@@ -334,4 +334,4 @@ fn pane_not_registered(pane_id: &PaneId) -> TerminalError {
 
 #[cfg(test)]
 #[path = "live_pane_tests.rs"]
-mod tests;
+pub(crate) mod tests;

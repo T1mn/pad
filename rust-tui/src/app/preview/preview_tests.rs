@@ -18,10 +18,9 @@ fn send_preview_update(app: &mut App, update: PreviewUpdate) {
     app.check_preview_result();
 }
 
-mod latest {
+pub(crate) mod latest {
     use super::*;
-    #[test]
-    fn open_latest_preview_turn_uses_selected_panel_cached_turns() {
+    pub(crate) fn open_latest_preview_turn_uses_selected_panel_cached_turns() {
         let mut app = App::new();
         app.panels.push(AgentPanel {
             session: "0".into(),
@@ -61,8 +60,7 @@ mod latest {
         assert_eq!(app.preview.turns[0].question, "latest");
     }
 
-    #[test]
-    fn open_latest_preview_turn_prefers_newer_panel_cached_turns_over_current_preview() {
+    pub(crate) fn open_latest_preview_turn_prefers_newer_panel_cached_turns_over_current_preview() {
         let mut app = App::new();
         app.panels.push(AgentPanel {
             session: "0".into(),
@@ -112,12 +110,11 @@ mod latest {
     }
 }
 
-mod cache_dirty {
+pub(crate) mod cache_dirty {
     use super::*;
-    mod detail_cache {
+    pub(crate) mod detail_cache {
         use super::*;
-        #[test]
-        fn detail_view_keeps_background_preview_refresh_alive() {
+        pub(crate) fn detail_view_keeps_background_preview_refresh_alive() {
             let mut app = App::new();
             app.preview.source = PreviewSource::Session;
             app.preview.turns = vec![
@@ -142,8 +139,7 @@ mod cache_dirty {
             assert!(!app.should_pause_preview_refresh());
         }
 
-        #[test]
-        fn identical_preview_update_preserves_detail_cache() {
+        pub(crate) fn identical_preview_update_preserves_detail_cache() {
             let mut app = App::new();
             let turns = vec![PreviewTurn {
                 question: "latest".into(),
@@ -194,8 +190,7 @@ mod cache_dirty {
             );
         }
 
-        #[test]
-        fn matching_detail_cache_rebases_to_current_turn_allocation() {
+        pub(crate) fn matching_detail_cache_rebases_to_current_turn_allocation() {
             let mut app = App::new();
             let old_turns: crate::model::SharedPreviewTurns = vec![PreviewTurn {
                 question: "latest".into(),
@@ -237,10 +232,9 @@ mod cache_dirty {
         }
     }
 
-    mod dirty_update {
+    pub(crate) mod dirty_update {
         use super::*;
-        #[test]
-        fn identical_preview_update_keeps_dirty_cleared() {
+        pub(crate) fn identical_preview_update_keeps_dirty_cleared() {
             let mut app = App::new();
             let turns = vec![PreviewTurn {
                 question: "latest".into(),
@@ -278,8 +272,7 @@ mod cache_dirty {
             assert!(!app.dirty);
         }
 
-        #[test]
-        fn preview_update_marks_dirty_when_content_changes_but_turns_do_not() {
+        pub(crate) fn preview_update_marks_dirty_when_content_changes_but_turns_do_not() {
             let mut app = App::new();
             let turns = vec![PreviewTurn {
                 question: "latest".into(),
@@ -317,8 +310,7 @@ mod cache_dirty {
             assert!(app.dirty);
         }
 
-        #[test]
-        fn preview_update_marks_dirty_when_turns_change_but_content_does_not() {
+        pub(crate) fn preview_update_marks_dirty_when_turns_change_but_content_does_not() {
             let mut app = App::new();
             app.preview.content = "shared-content".into();
             app.preview.source = PreviewSource::Session;
@@ -365,12 +357,11 @@ mod cache_dirty {
     }
 }
 
-mod selection_scroll {
+pub(crate) mod selection_scroll {
     use super::*;
-    mod context {
+    pub(crate) mod context {
         use super::*;
-        #[test]
-        fn preview_update_context_change_resets_selection_and_scroll() {
+        pub(crate) fn preview_update_context_change_resets_selection_and_scroll() {
             let mut app = App::new();
             app.preview.source = PreviewSource::Session;
             app.preview.pane_id = Some("live:%1".into());
@@ -418,10 +409,9 @@ mod selection_scroll {
         }
     }
 
-    mod detail {
+    pub(crate) mod detail {
         use super::*;
-        #[test]
-        fn preview_update_same_context_preserves_detail_selection_and_scroll() {
+        pub(crate) fn preview_update_same_context_preserves_detail_selection_and_scroll() {
             let mut app = App::new();
             app.preview.content = "before".into();
             app.preview.source = PreviewSource::Session;
@@ -482,8 +472,7 @@ mod selection_scroll {
             assert_eq!(app.preview.detail_scroll, 9);
             assert!(!app.preview.follow_selection);
         }
-        #[test]
-        fn preview_update_same_context_clamps_selection_when_turns_shrink() {
+        pub(crate) fn preview_update_same_context_clamps_selection_when_turns_shrink() {
             let mut app = App::new();
             app.preview.source = PreviewSource::Session;
             app.preview.pane_id = Some("live:%1".into());
@@ -532,10 +521,9 @@ mod selection_scroll {
         }
     }
 
-    mod panel_cache {
+    pub(crate) mod panel_cache {
         use super::*;
-        #[test]
-        fn preview_update_marks_dirty_when_only_panel_cache_state_changes() {
+        pub(crate) fn preview_update_marks_dirty_when_only_panel_cache_state_changes() {
             let mut app = App::new();
             app.panels.push(AgentPanel {
                 session: "0".into(),
@@ -598,10 +586,9 @@ mod selection_scroll {
         }
     }
 
-    mod plain {
+    pub(crate) mod plain {
         use super::*;
-        #[test]
-        fn preview_update_plain_view_follow_bottom_depends_on_target_change() {
+        pub(crate) fn preview_update_plain_view_follow_bottom_depends_on_target_change() {
             struct Case {
                 name: &'static str,
                 previous_pane: Option<&'static str>,
@@ -680,7 +667,7 @@ mod selection_scroll {
     }
 }
 
-mod tick_cache {
+pub(crate) mod tick_cache {
     use super::*;
     include!("preview_tests/tick_cache.rs");
 }

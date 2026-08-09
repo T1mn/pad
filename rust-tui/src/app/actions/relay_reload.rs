@@ -212,4 +212,4 @@ impl App {
 
 #[cfg(test)]
 #[path = "relay_reload_tests.rs"]
-mod relay_reload_tests;
+pub(crate) mod relay_reload_tests;

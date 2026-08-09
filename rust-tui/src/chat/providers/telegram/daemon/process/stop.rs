@@ -176,4 +176,4 @@ fn remove_inactive_socket_file(socket_path: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 #[path = "stop_tests.rs"]
-mod tests;
+pub(crate) mod tests;

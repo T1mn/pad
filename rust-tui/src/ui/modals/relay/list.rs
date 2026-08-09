@@ -56,7 +56,7 @@ mod agent {
         }
     }
 }
-mod provider;
+pub(crate) mod provider;
 
 use super::layout::relay_provider_footer_text;
 use crate::app::App;

@@ -1,12 +1,12 @@
-mod claude;
+pub(crate) mod claude;
 pub(crate) mod codex;
 mod core;
-mod gemini;
-mod grok;
-mod opencode;
+pub(crate) mod gemini;
+pub(crate) mod grok;
+pub(crate) mod opencode;
 mod session_loader;
-mod session_target;
-mod turns;
+pub(crate) mod session_target;
+pub(crate) mod turns;
 
 pub use core::{
     load_preview, preview_refresh_interval_ms_for_request, PreviewRequest, PreviewUpdate,
@@ -18,4 +18,4 @@ pub(super) enum SessionReadMode {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

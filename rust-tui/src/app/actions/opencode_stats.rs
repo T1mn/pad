@@ -1,4 +1,4 @@
-mod export;
+pub(crate) mod export;
 mod path {
     use std::path::{Path, PathBuf};
 

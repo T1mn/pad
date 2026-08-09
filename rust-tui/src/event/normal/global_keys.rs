@@ -86,7 +86,7 @@ mod opencode {
         }
     }
 }
-mod primary;
+pub(crate) mod primary;
 mod special {
     use crate::app::state::Mode;
     use crate::app::App;

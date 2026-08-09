@@ -62,4 +62,4 @@ fn non_empty(text: &str) -> Option<String> {
 
 #[cfg(test)]
 #[path = "opencode_text_tests.rs"]
-mod tests;
+pub(crate) mod tests;

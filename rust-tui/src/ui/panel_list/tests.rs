@@ -2,8 +2,7 @@ use super::*;
 use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread};
 use std::sync::Arc;
 
-#[test]
-fn shimmer_preserves_text_content() {
+pub(crate) fn shimmer_preserves_text_content() {
     let text = "rust-tui";
     let rendered: String = animation::shimmer_spans(
         text,
@@ -17,8 +16,7 @@ fn shimmer_preserves_text_content() {
     assert_eq!(rendered, text);
 }
 
-#[test]
-fn waiting_threads_do_not_breathe() {
+pub(crate) fn waiting_threads_do_not_breathe() {
     assert!(animation::thread_badge_breathes(
         &crate::model::AgentState::Busy
     ));
@@ -30,8 +28,7 @@ fn waiting_threads_do_not_breathe() {
     ));
 }
 
-#[test]
-fn visible_thread_count_ignores_folder_rows() {
+pub(crate) fn visible_thread_count_ignores_folder_rows() {
     let folder = SidebarFolder {
         key: "folder:/tmp".into(),
         path: "/tmp".into(),
@@ -84,8 +81,7 @@ fn visible_thread_count_ignores_folder_rows() {
     );
 }
 
-#[test]
-fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
+pub(crate) fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
     let folder = SidebarFolder {
         key: "folder:/tmp".into(),
         path: "/tmp".into(),
@@ -139,13 +135,12 @@ fn visible_thread_jump_badges_ignore_folders_and_cap_at_nine() {
     assert_eq!(badges[10], None);
 }
 
-mod folder_row {
+pub(crate) mod folder_row {
     use super::super::folder_row::{count_style, folder_label_style};
     use crate::theme::Theme;
     use ratatui::style::Modifier;
 
-    #[test]
-    fn folder_label_uses_readable_text_without_dim() {
+    pub(crate) fn folder_label_uses_readable_text_without_dim() {
         let theme = Theme::default();
         let style = folder_label_style(false, false, &theme, theme.bg);
 
@@ -154,8 +149,7 @@ mod folder_row {
         assert!(style.add_modifier.contains(Modifier::BOLD));
     }
 
-    #[test]
-    fn folder_count_uses_accent_without_dim() {
+    pub(crate) fn folder_count_uses_accent_without_dim() {
         let theme = Theme::default();
         let style = count_style(false, false, &theme, theme.bg);
 
@@ -164,11 +158,10 @@ mod folder_row {
     }
 }
 
-mod thread_row {
+pub(crate) mod thread_row {
     use super::super::thread_row::format_jump_badge;
 
-    #[test]
-    fn jump_badge_is_fixed_width_and_limited_to_nine() {
+    pub(crate) fn jump_badge_is_fixed_width_and_limited_to_nine() {
         assert_eq!(format_jump_badge(Some(1), 4), "#1  ");
         assert_eq!(format_jump_badge(Some(9), 4), "#9  ");
         assert_eq!(format_jump_badge(Some(10), 4), "    ");
@@ -176,25 +169,22 @@ mod thread_row {
     }
 }
 
-mod viewport_tests {
+pub(crate) mod viewport_tests {
     use super::super::viewport::render_window;
 
-    #[test]
-    fn keeps_selected_near_middle_when_possible() {
+    pub(crate) fn keeps_selected_near_middle_when_possible() {
         let range = render_window(20, Some(10), 5, |_| 1);
 
         assert_eq!(range, 8..13);
     }
 
-    #[test]
-    fn fills_from_top_when_selection_is_near_start() {
+    pub(crate) fn fills_from_top_when_selection_is_near_start() {
         let range = render_window(20, Some(1), 5, |_| 1);
 
         assert_eq!(range, 0..5);
     }
 
-    #[test]
-    fn respects_tall_thread_rows() {
+    pub(crate) fn respects_tall_thread_rows() {
         let range = render_window(20, Some(5), 6, |idx| if idx % 2 == 0 { 1 } else { 2 });
 
         assert!(range.contains(&5));
@@ -206,14 +196,13 @@ mod viewport_tests {
     }
 }
 
-mod width {
+pub(crate) mod width {
     use super::super::width::preferred_panel_width;
     use crate::app::state::PreferredPanelWidthCache;
     use crate::app::App;
     use crate::model::{AgentPanel, AgentState, AgentType};
 
-    #[test]
-    fn preferred_panel_width_keeps_short_name_visible() {
+    pub(crate) fn preferred_panel_width_keeps_short_name_visible() {
         let mut app = App::new();
         app.panels.push(AgentPanel {
             session: "0".into(),
@@ -237,8 +226,7 @@ mod width {
         assert!(preferred_panel_width(&mut app) >= 13);
     }
 
-    #[test]
-    fn preferred_panel_width_cache_clears_on_sidebar_invalidation() {
+    pub(crate) fn preferred_panel_width_cache_clears_on_sidebar_invalidation() {
         let mut app = App::new();
         app.sidebar.visible_sidebar_items_dirty = false;
         app.sidebar.preferred_panel_width_cache = Some(PreferredPanelWidthCache {
@@ -256,8 +244,7 @@ mod width {
         assert!(app.sidebar.preferred_panel_width_cache.is_none());
     }
 
-    #[test]
-    fn thread_width_grows_with_long_titles() {
+    pub(crate) fn thread_width_grows_with_long_titles() {
         let short = super::super::width::thread_item_width("短标题");
         let long = super::super::width::thread_item_width(
             "这是一个比较长的会话标题，用来确认左侧 pane 会根据标题长度自动变宽",
@@ -267,8 +254,7 @@ mod width {
         assert!(long > 46);
     }
 
-    #[test]
-    fn manual_width_is_used_as_minimum() {
+    pub(crate) fn manual_width_is_used_as_minimum() {
         let mut app = App::new();
         app.config.display.agent_panel_width = Some(70);
 

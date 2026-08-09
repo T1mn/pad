@@ -1,4 +1,4 @@
-mod apply;
+pub(crate) mod apply;
 mod collect {
     use super::line::split_first_line;
     use super::rewrite::rewrite_rollout_first_line;

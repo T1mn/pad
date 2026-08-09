@@ -51,8 +51,7 @@ fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
     crate::test_support::with_temp_home("pad-relay", name, f)
 }
 
-#[test]
-fn serialize_env_file_keeps_sorted_lines_and_trailing_newline() {
+pub(crate) fn serialize_env_file_keeps_sorted_lines_and_trailing_newline() {
     let mut env = std::collections::BTreeMap::new();
     env.insert("ZED".to_string(), "last".to_string());
     env.insert("ALPHA".to_string(), "first".to_string());
@@ -60,12 +59,12 @@ fn serialize_env_file_keeps_sorted_lines_and_trailing_newline() {
     assert_eq!(serialize_env_file(&env), "ALPHA=first\nZED=last\n");
 }
 
-mod provider_configs {
+pub(crate) mod provider_configs {
     use super::*;
     include!("tests/provider_configs.rs");
 }
 
-mod runtime_overlays {
+pub(crate) mod runtime_overlays {
     use super::*;
     include!("tests/runtime_overlays.rs");
 }

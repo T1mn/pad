@@ -121,4 +121,4 @@ fn push_model_summary(preview: &mut String, model: &crate::theme::OpenCodeModelC
 
 #[cfg(test)]
 #[path = "opencode_tests.rs"]
-mod tests;
+pub(crate) mod tests;

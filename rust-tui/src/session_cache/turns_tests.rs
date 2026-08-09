@@ -1,8 +1,7 @@
 use super::{normalize_cached_codex_prompt, normalize_turns};
 use crate::model::PreviewTurn;
 
-#[test]
-fn normalize_turns_matches_for_owned_and_borrowed_inputs() {
+pub(crate) fn normalize_turns_matches_for_owned_and_borrowed_inputs() {
     let turns = vec![
         PreviewTurn {
             question: "  hello  ".to_string(),
@@ -27,8 +26,7 @@ fn normalize_turns_matches_for_owned_and_borrowed_inputs() {
     );
 }
 
-#[test]
-fn normalize_turns_stops_after_history_limit_valid_turns() {
+pub(crate) fn normalize_turns_stops_after_history_limit_valid_turns() {
     let mut turns = vec![PreviewTurn {
         question: "   ".to_string(),
         answer: Some("drop".to_string()),
@@ -53,8 +51,7 @@ fn normalize_turns_stops_after_history_limit_valid_turns() {
     );
 }
 
-#[test]
-fn normalize_cached_codex_prompt_trims_without_precopy() {
+pub(crate) fn normalize_cached_codex_prompt_trims_without_precopy() {
     assert_eq!(
         normalize_cached_codex_prompt(Some("  hello  "), false).as_deref(),
         Some("hello")
@@ -62,8 +59,7 @@ fn normalize_cached_codex_prompt_trims_without_precopy() {
     assert_eq!(normalize_cached_codex_prompt(Some("   "), false), None);
 }
 
-#[test]
-fn normalize_cached_codex_prompt_filters_codex_context() {
+pub(crate) fn normalize_cached_codex_prompt_filters_codex_context() {
     let text = " <environment_context>\n  <cwd>/tmp/demo</cwd>\n</environment_context> ";
 
     assert_eq!(normalize_cached_codex_prompt(Some(text), true), None);

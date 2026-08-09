@@ -14,8 +14,7 @@ fn cwd() -> PathBuf {
     PathBuf::from("/tmp/pad-terminal-tests")
 }
 
-#[test]
-fn nested_splits_close_and_collapse_without_orphans() {
+pub(crate) fn nested_splits_close_and_collapse_without_orphans() {
     let mut workspace = TerminalWorkspace::default();
     let shell = workspace.add_tab(TerminalProfile::Shell, cwd()).unwrap();
     let codex = workspace
@@ -45,8 +44,7 @@ fn nested_splits_close_and_collapse_without_orphans() {
     workspace.validate().unwrap();
 }
 
-#[test]
-fn tabs_remember_focus_and_clamp_after_close() {
+pub(crate) fn tabs_remember_focus_and_clamp_after_close() {
     let mut workspace = TerminalWorkspace::default();
     let first = workspace.add_tab(TerminalProfile::Shell, cwd()).unwrap();
     let second = workspace
@@ -74,8 +72,7 @@ fn tabs_remember_focus_and_clamp_after_close() {
     workspace.validate().unwrap();
 }
 
-#[test]
-fn pane_ids_are_monotonic_across_close_and_restore() {
+pub(crate) fn pane_ids_are_monotonic_across_close_and_restore() {
     let mut workspace = TerminalWorkspace::default();
     let first = workspace.add_tab(TerminalProfile::Shell, cwd()).unwrap();
     let second = workspace.add_tab(TerminalProfile::Codex, cwd()).unwrap();
@@ -92,8 +89,7 @@ fn pane_ids_are_monotonic_across_close_and_restore() {
     assert!(first.serial() < fourth.serial());
 }
 
-#[test]
-fn workspace_json_contains_only_stable_layout_and_launch_data() {
+pub(crate) fn workspace_json_contains_only_stable_layout_and_launch_data() {
     let mut workspace = TerminalWorkspace::default();
     let shell = workspace.add_tab(TerminalProfile::Shell, cwd()).unwrap();
     let codex = workspace
@@ -117,8 +113,7 @@ fn workspace_json_contains_only_stable_layout_and_launch_data() {
     );
 }
 
-#[test]
-fn all_builtin_profiles_have_deterministic_commands() {
+pub(crate) fn all_builtin_profiles_have_deterministic_commands() {
     let cases = [
         (TerminalProfile::Shell, None),
         (TerminalProfile::Codex, Some("codex")),
@@ -139,8 +134,7 @@ fn all_builtin_profiles_have_deterministic_commands() {
     );
 }
 
-#[test]
-fn labels_are_trimmed_and_control_characters_are_rejected() {
+pub(crate) fn labels_are_trimmed_and_control_characters_are_rejected() {
     assert_eq!(
         model::normalize_label("  Agent review  ").unwrap(),
         "Agent review"
@@ -150,8 +144,7 @@ fn labels_are_trimmed_and_control_characters_are_rejected() {
     assert!(model::normalize_label(&"x".repeat(121)).is_err());
 }
 
-#[test]
-fn configured_agent_is_the_direct_pty_child_of_a_known_shell() {
+pub(crate) fn configured_agent_is_the_direct_pty_child_of_a_known_shell() {
     assert_eq!(
         native_agent_command("opencode --model 'fast'"),
         TerminalCommandDefinition {
@@ -161,8 +154,7 @@ fn configured_agent_is_the_direct_pty_child_of_a_known_shell() {
     );
 }
 
-#[test]
-fn exited_native_agent_rejects_later_prompt_input() {
+pub(crate) fn exited_native_agent_rejects_later_prompt_input() {
     let mut app = App::new();
     let pane_id = app
         .terminal
@@ -191,8 +183,7 @@ fn exited_native_agent_rejects_later_prompt_input() {
         .is_empty());
 }
 
-#[test]
-fn closing_an_earlier_tab_reindexes_native_sidebar_entries() {
+pub(crate) fn closing_an_earlier_tab_reindexes_native_sidebar_entries() {
     let mut app = App::new();
     let first = app
         .terminal
@@ -215,8 +206,7 @@ fn closing_an_earlier_tab_reindexes_native_sidebar_entries() {
     assert_eq!(app.panels[0].window_index, "1");
 }
 
-#[test]
-fn native_pane_focus_keeps_sidebar_selection_on_the_same_agent() {
+pub(crate) fn native_pane_focus_keeps_sidebar_selection_on_the_same_agent() {
     let mut app = App::new();
     let first = app
         .terminal
@@ -240,8 +230,7 @@ fn native_pane_focus_keeps_sidebar_selection_on_the_same_agent() {
     );
 }
 
-#[test]
-fn app_refuses_to_close_the_last_terminal_pane() {
+pub(crate) fn app_refuses_to_close_the_last_terminal_pane() {
     let mut app = App::new();
     let only = app
         .terminal
@@ -257,8 +246,7 @@ fn app_refuses_to_close_the_last_terminal_pane() {
     assert_eq!(app.panels.len(), 1);
 }
 
-#[test]
-fn failed_workspace_save_rolls_back_a_close_before_runtime_mutation() {
+pub(crate) fn failed_workspace_save_rolls_back_a_close_before_runtime_mutation() {
     let mut app = App::new();
     let first = app
         .terminal
@@ -282,8 +270,7 @@ fn failed_workspace_save_rolls_back_a_close_before_runtime_mutation() {
     assert_eq!(app.panels.len(), 2);
 }
 
-#[test]
-fn keyboard_input_queues_bottom_before_bytes_but_mouse_does_not() {
+pub(crate) fn keyboard_input_queues_bottom_before_bytes_but_mouse_does_not() {
     let mut state = TerminalUiState::default();
     let pane_id = state
         .workspace
@@ -346,8 +333,7 @@ fn keyboard_input_queues_bottom_before_bytes_but_mouse_does_not() {
     ));
 }
 
-#[test]
-fn resize_and_scroll_state_are_independent_per_pane() {
+pub(crate) fn resize_and_scroll_state_are_independent_per_pane() {
     let mut state = TerminalUiState::default();
     let first = state
         .workspace
@@ -377,8 +363,7 @@ fn resize_and_scroll_state_are_independent_per_pane() {
     assert_eq!(state.panes.get(&second).unwrap().pending_resize, None);
 }
 
-#[test]
-fn pending_scroll_is_reset_before_immediate_keyboard_input() {
+pub(crate) fn pending_scroll_is_reset_before_immediate_keyboard_input() {
     let mut state = TerminalUiState::default();
     let pane_id = state
         .workspace
@@ -403,8 +388,7 @@ fn pending_scroll_is_reset_before_immediate_keyboard_input() {
     ));
 }
 
-#[test]
-fn scroll_queue_coalesces_lines_and_has_a_hard_limit() {
+pub(crate) fn scroll_queue_coalesces_lines_and_has_a_hard_limit() {
     let mut state = TerminalUiState::default();
     let pane_id = state
         .workspace
@@ -444,8 +428,7 @@ fn scroll_queue_coalesces_lines_and_has_a_hard_limit() {
     );
 }
 
-#[test]
-fn scroll_reset_keeps_barriers_for_already_queued_input() {
+pub(crate) fn scroll_reset_keeps_barriers_for_already_queued_input() {
     let mut state = TerminalUiState::default();
     let pane_id = state
         .workspace
@@ -479,8 +462,7 @@ fn scroll_reset_keeps_barriers_for_already_queued_input() {
     ));
 }
 
-#[test]
-fn restored_serial_exhaustion_is_rejected_without_panicking() {
+pub(crate) fn restored_serial_exhaustion_is_rejected_without_panicking() {
     let mut workspace = TerminalWorkspace::default();
     workspace.add_tab(TerminalProfile::Shell, cwd()).unwrap();
     workspace.next_pane_serial = u64::MAX;
@@ -494,8 +476,7 @@ fn restored_serial_exhaustion_is_rejected_without_panicking() {
     assert!(workspace.normalize_after_restore().is_err());
 }
 
-#[test]
-fn restored_commands_are_derived_from_profiles() {
+pub(crate) fn restored_commands_are_derived_from_profiles() {
     let mut workspace = TerminalWorkspace::default();
     let pane_id = workspace.add_tab(TerminalProfile::Codex, cwd()).unwrap();
     workspace.panes[0].command = TerminalCommandDefinition::program("malicious-helper");
@@ -507,8 +488,7 @@ fn restored_commands_are_derived_from_profiles() {
     );
 }
 
-#[test]
-fn rename_stays_bound_to_the_pane_that_started_it() {
+pub(crate) fn rename_stays_bound_to_the_pane_that_started_it() {
     let mut app = App::new();
     let first = app
         .terminal
@@ -537,8 +517,7 @@ fn rename_stays_bound_to_the_pane_that_started_it() {
     );
 }
 
-#[test]
-fn split_rejects_geometry_that_cannot_render_both_children() {
+pub(crate) fn split_rejects_geometry_that_cannot_render_both_children() {
     assert!(validate_split_size(TerminalSplitAxis::Columns, TerminalSize::new(9, 24)).is_err());
     assert!(validate_split_size(TerminalSplitAxis::Rows, TerminalSize::new(80, 5)).is_err());
     validate_split_size(TerminalSplitAxis::Columns, TerminalSize::new(10, 6)).unwrap();
@@ -546,8 +525,7 @@ fn split_rejects_geometry_that_cannot_render_both_children() {
 }
 
 #[cfg(unix)]
-#[test]
-fn restarting_the_same_app_relaunches_the_retained_workspace() {
+pub(crate) fn restarting_the_same_app_relaunches_the_retained_workspace() {
     let mut app = App::new();
     app.start_native_terminal(TerminalSize::new(40, 10))
         .unwrap();
@@ -565,8 +543,7 @@ fn restarting_the_same_app_relaunches_the_retained_workspace() {
 }
 
 #[cfg(unix)]
-#[test]
-fn builtin_opencode_profile_registers_and_restores_its_live_sidebar_entry() {
+pub(crate) fn builtin_opencode_profile_registers_and_restores_its_live_sidebar_entry() {
     crate::test_support::with_temp_home("pad-terminal-profile", "opencode-registry", |home| {
         let cwd = home.join("project");
         std::fs::create_dir_all(&cwd).unwrap();
@@ -604,8 +581,7 @@ fn builtin_opencode_profile_registers_and_restores_its_live_sidebar_entry() {
 }
 
 #[cfg(unix)]
-#[test]
-fn builtin_opencode_profile_uses_the_full_configured_shell_command() {
+pub(crate) fn builtin_opencode_profile_uses_the_full_configured_shell_command() {
     use std::os::unix::fs::PermissionsExt;
 
     crate::test_support::with_temp_home("pad-terminal-profile", "opencode-command", |home| {

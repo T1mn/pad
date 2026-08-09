@@ -92,4 +92,4 @@ fn sync_dir(dir: &Path) {
 
 #[cfg(test)]
 #[path = "atomic_file_tests.rs"]
-mod tests;
+pub(crate) mod tests;

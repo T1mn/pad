@@ -199,4 +199,4 @@ fn xterm_modifier(modifiers: KeyModifiers) -> u8 {
 
 #[cfg(test)]
 #[path = "input_tests.rs"]
-mod tests;
+pub(crate) mod tests;

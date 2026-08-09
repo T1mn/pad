@@ -122,7 +122,7 @@ mod model {
 }
 mod storage;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use model::{ThreadMeta, ThreadMetaKey};
 

@@ -1,7 +1,6 @@
-mod codex_permissions {
+pub(crate) mod codex_permissions {
     use super::*;
-    #[test]
-    fn runtime_configs_apply_codex_full_access_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_codex_full_access_without_relay_provider() {
         with_temp_home("codex-permissions", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -30,8 +29,7 @@ mod codex_permissions {
         });
     }
 
-    #[test]
-    fn runtime_configs_restore_previous_codex_permission_fields_when_disabled() {
+    pub(crate) fn runtime_configs_restore_previous_codex_permission_fields_when_disabled() {
         with_temp_home("codex-permissions-restore", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -71,14 +69,13 @@ mod codex_permissions {
     }
 }
 
-mod codex_features {
+pub(crate) mod codex_features {
     use super::*;
-    mod fast_mode {
+    pub(crate) mod fast_mode {
         use super::*;
         use super::support::{codex_agent_without_relay_provider, seed_pad_codex_config};
 
-        #[test]
-        fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
+        pub(crate) fn runtime_configs_apply_codex_fast_mode_without_relay_provider() {
             with_temp_home("codex-fast-mode", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\n");
                 let agent = codex_agent_without_relay_provider();
@@ -94,8 +91,7 @@ mod codex_features {
             });
         }
 
-        #[test]
-        fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
+        pub(crate) fn runtime_configs_restore_previous_codex_fast_fields_when_disabled() {
             with_temp_home("codex-fast-mode-restore", |_home| {
                 let config_path = seed_pad_codex_config(
                     "model = \"gpt-5\"\nservice_tier = \"default\"\n[features]\nfast_mode = false\n",
@@ -116,12 +112,11 @@ mod codex_features {
         }
     }
 
-    mod goals {
+    pub(crate) mod goals {
         use super::*;
         use super::support::{codex_agent_without_relay_provider, seed_pad_codex_config};
 
-        #[test]
-        fn runtime_configs_apply_codex_goals_without_relay_provider() {
+        pub(crate) fn runtime_configs_apply_codex_goals_without_relay_provider() {
             with_temp_home("codex-goals", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\n");
                 let agent = codex_agent_without_relay_provider();
@@ -136,8 +131,7 @@ mod codex_features {
             });
         }
 
-        #[test]
-        fn runtime_configs_restore_previous_codex_goals_when_disabled() {
+        pub(crate) fn runtime_configs_restore_previous_codex_goals_when_disabled() {
             with_temp_home("codex-goals-restore", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\n[features]\ngoals = false\n");
                 let agent = codex_agent_without_relay_provider();
@@ -155,12 +149,11 @@ mod codex_features {
         }
     }
 
-    mod multi_agent {
+    pub(crate) mod multi_agent {
         use super::*;
         use super::support::{codex_agent_without_relay_provider, seed_pad_codex_config};
 
-        #[test]
-        fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
+        pub(crate) fn runtime_configs_apply_codex_multi_agent_without_relay_provider() {
             with_temp_home("codex-multi-agent", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\n");
                 let agent = codex_agent_without_relay_provider();
@@ -175,8 +168,7 @@ mod codex_features {
             });
         }
 
-        #[test]
-        fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
+        pub(crate) fn runtime_configs_restore_previous_codex_multi_agent_when_disabled() {
             with_temp_home("codex-multi-agent-restore", |_home| {
                 let config_path = seed_pad_codex_config(
                     "model = \"gpt-5\"\n[features]\nmulti_agent = false\n",
@@ -218,12 +210,11 @@ mod codex_features {
         }
     }
 
-    mod web_search {
+    pub(crate) mod web_search {
         use super::*;
         use super::support::{codex_agent_without_relay_provider, seed_pad_codex_config};
 
-        #[test]
-        fn runtime_configs_apply_codex_web_search_without_relay_provider() {
+        pub(crate) fn runtime_configs_apply_codex_web_search_without_relay_provider() {
             with_temp_home("codex-web-search", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\n");
                 let agent = codex_agent_without_relay_provider();
@@ -238,8 +229,7 @@ mod codex_features {
             });
         }
 
-        #[test]
-        fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
+        pub(crate) fn runtime_configs_restore_previous_codex_web_search_when_defaulted() {
             with_temp_home("codex-web-search-restore", |_home| {
                 let config_path = seed_pad_codex_config("model = \"gpt-5\"\nweb_search = \"cached\"\n");
                 let agent = codex_agent_without_relay_provider();
@@ -258,10 +248,9 @@ mod codex_features {
     }
 }
 
-mod codex_status_line {
+pub(crate) mod codex_status_line {
     use super::*;
-    #[test]
-    fn runtime_configs_apply_codex_status_line_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_codex_status_line_without_relay_provider() {
         with_temp_home("codex-status-line", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -295,8 +284,7 @@ mod codex_status_line {
         });
     }
 
-    #[test]
-    fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_partial_codex_status_line_without_relay_provider() {
         with_temp_home("codex-status-line-partial", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -322,8 +310,7 @@ mod codex_status_line {
         });
     }
 
-    #[test]
-    fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
+    pub(crate) fn runtime_configs_restore_previous_codex_status_line_when_disabled() {
         with_temp_home("codex-status-line-restore", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -366,10 +353,9 @@ mod codex_status_line {
     }
 }
 
-mod codex_prompts {
+pub(crate) mod codex_prompts {
     use super::*;
-    #[test]
-    fn runtime_configs_apply_codex_jailbreak_prompt_file_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_codex_jailbreak_prompt_file_without_relay_provider() {
         with_temp_home("codex-prompt-file", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -403,8 +389,7 @@ mod codex_prompts {
         });
     }
 
-    #[test]
-    fn runtime_configs_apply_codex_index_prompt_file_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_codex_index_prompt_file_without_relay_provider() {
         with_temp_home("codex-index-prompt-file", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -435,8 +420,7 @@ mod codex_prompts {
         });
     }
 
-    #[test]
-    fn runtime_configs_apply_combined_codex_prompt_candidates_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_combined_codex_prompt_candidates_without_relay_provider() {
         with_temp_home("codex-combined-prompt-file", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -469,8 +453,7 @@ mod codex_prompts {
         });
     }
 
-    #[test]
-    fn runtime_configs_restore_previous_codex_jailbreak_prompt_file_when_disabled() {
+    pub(crate) fn runtime_configs_restore_previous_codex_jailbreak_prompt_file_when_disabled() {
         with_temp_home("codex-prompt-file-restore", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -503,10 +486,9 @@ mod codex_prompts {
     }
 }
 
-mod combined_overlays {
+pub(crate) mod combined_overlays {
     use super::*;
-    #[test]
-    fn runtime_configs_apply_combined_codex_overlays_together() {
+    pub(crate) fn runtime_configs_apply_combined_codex_overlays_together() {
         with_temp_home("codex-combined-overlays", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -552,8 +534,7 @@ mod combined_overlays {
         });
     }
 
-    #[test]
-    fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
+    pub(crate) fn runtime_configs_restore_combined_codex_overlays_to_original_values() {
         with_temp_home("codex-combined-restore", |_home| {
             let config_path = crate::paths::pad_codex_config_path();
             std::fs::create_dir_all(config_path.parent().expect("codex config parent"))
@@ -615,10 +596,9 @@ mod combined_overlays {
     }
 }
 
-mod claude_permissions {
+pub(crate) mod claude_permissions {
     use super::*;
-    #[test]
-    fn runtime_configs_apply_claude_full_access_without_relay_provider() {
+    pub(crate) fn runtime_configs_apply_claude_full_access_without_relay_provider() {
         with_temp_home("claude-permissions", |home| {
             let claude_dir = home.join(".claude");
             std::fs::create_dir_all(&claude_dir).expect("create claude dir");
@@ -658,8 +638,7 @@ mod claude_permissions {
         });
     }
 
-    #[test]
-    fn runtime_configs_restore_previous_claude_permission_fields_when_disabled() {
+    pub(crate) fn runtime_configs_restore_previous_claude_permission_fields_when_disabled() {
         with_temp_home("claude-permissions-restore", |home| {
             let claude_dir = home.join(".claude");
             std::fs::create_dir_all(&claude_dir).expect("create claude dir");

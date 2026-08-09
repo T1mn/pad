@@ -1,16 +1,14 @@
 use super::archive_thread;
 
-#[test]
-fn missing_thread_archive_returns_not_found() {
+pub(crate) fn missing_thread_archive_returns_not_found() {
     let err = archive_thread("missing-session").unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
 }
 
-mod archive {
+pub(crate) mod archive {
     use super::super::archive::set_archived_at;
 
-    #[test]
-    fn archive_matches_upstream_semantics_without_reordering_session() {
+    pub(crate) fn archive_matches_upstream_semantics_without_reordering_session() {
         let path = crate::test_support::temp_path("pad-opencode", "archive.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
         connection
@@ -46,7 +44,7 @@ mod archive {
     }
 }
 
-mod query {
+pub(crate) mod query {
     use super::super::query::query_threads_at;
     use rusqlite::{params, Connection};
     use std::path::Path;
@@ -137,8 +135,7 @@ mod query {
                 .unwrap();
     }
 
-    #[test]
-    fn query_threads_supports_older_opencode_schema_without_stats() {
+    pub(crate) fn query_threads_supports_older_opencode_schema_without_stats() {
         let path = temp_db_path("query-old");
         let connection = Connection::open(&path).unwrap();
         connection
@@ -192,8 +189,7 @@ mod query {
         assert_eq!(threads[0].token_summary, None);
     }
 
-    #[test]
-    fn query_threads_reads_opencode_sqlite() {
+    pub(crate) fn query_threads_reads_opencode_sqlite() {
         let path = temp_db_path("query");
         seed_db(&path);
 
@@ -217,12 +213,11 @@ mod query {
     }
 }
 
-mod stats {
+pub(crate) mod stats {
     use super::super::stats::{format_token_summary, session_stats_select, SessionStats};
     use rusqlite::Connection;
 
-    #[test]
-    fn token_summary_formats_total_breakdown_and_cache() {
+    pub(crate) fn token_summary_formats_total_breakdown_and_cache() {
         let stats = SessionStats {
             tokens_input: 1200,
             tokens_output: 340,
@@ -238,13 +233,11 @@ mod stats {
         );
     }
 
-    #[test]
-    fn token_summary_omits_empty_stats() {
+    pub(crate) fn token_summary_omits_empty_stats() {
         assert_eq!(format_token_summary(&SessionStats::default()), None);
     }
 
-    #[test]
-    fn session_stats_select_uses_fallbacks_for_old_schema() {
+    pub(crate) fn session_stats_select_uses_fallbacks_for_old_schema() {
         let connection = Connection::open_in_memory().expect("open db");
         connection
             .execute_batch(

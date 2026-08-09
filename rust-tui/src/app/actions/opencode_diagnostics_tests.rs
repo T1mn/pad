@@ -1,16 +1,14 @@
 use super::{diagnostics_path, format_report, DiagnosticsSection};
 use std::path::Path;
 
-#[test]
-fn diagnostics_path_uses_timestamped_txt() {
+pub(crate) fn diagnostics_path_uses_timestamped_txt() {
     assert_eq!(
         diagnostics_path(Path::new("/tmp/diag"), 42),
         Path::new("/tmp/diag/opencode-diagnostics-42.txt")
     );
 }
 
-#[test]
-fn diagnostics_report_has_expected_sections() {
+pub(crate) fn diagnostics_report_has_expected_sections() {
     let sections = [
         DiagnosticsSection {
             title: "version",
@@ -53,8 +51,7 @@ fn diagnostics_report_has_expected_sections() {
     assert!(body.contains("ERROR: no mcp"));
 }
 
-#[test]
-fn diagnostics_report_redacts_sensitive_keys_and_token_prefixes() {
+pub(crate) fn diagnostics_report_redacts_sensitive_keys_and_token_prefixes() {
     let sections = [DiagnosticsSection {
         title: "debug config",
         body: concat!(
@@ -74,8 +71,7 @@ fn diagnostics_report_redacts_sensitive_keys_and_token_prefixes() {
 }
 
 #[cfg(unix)]
-#[test]
-fn diagnostics_report_file_is_owner_only() {
+pub(crate) fn diagnostics_report_file_is_owner_only() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = crate::test_support::temp_path("pad", "diagnostics-mode");

@@ -110,4 +110,4 @@ pub fn extract_preview_selection_text(
 
 #[cfg(test)]
 #[path = "selection_tests.rs"]
-mod tests;
+pub(crate) mod tests;

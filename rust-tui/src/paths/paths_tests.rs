@@ -1,10 +1,9 @@
 use super::*;
 
-mod bridge_hooks {
+pub(crate) mod bridge_hooks {
     use super::*;
 
-    #[test]
-    fn claude_bridge_template_stays_minimal_and_forwards_turn_id() {
+    pub(crate) fn claude_bridge_template_stays_minimal_and_forwards_turn_id() {
         let template = claude_hook_bridge_template();
         assert!(template.contains(&format!("# pad-bridge-version: {}", CLAUDE_BRIDGE_VERSION)));
         assert!(template.contains("\"turn_id\": payload.get(\"turn_id\")"));
@@ -13,8 +12,7 @@ mod bridge_hooks {
         assert!(!template.contains("stderr=subprocess.DEVNULL"));
     }
 
-    #[test]
-    fn codex_bridge_template_keeps_required_stdin_and_turn_id_handling() {
+    pub(crate) fn codex_bridge_template_keeps_required_stdin_and_turn_id_handling() {
         let template = codex_hook_bridge_template();
         assert!(template.contains(&format!("# pad-bridge-version: {}", CODEX_BRIDGE_VERSION)));
         assert!(template.contains("\"turn_id\": payload.get(\"turn_id\")"));
@@ -28,8 +26,7 @@ mod bridge_hooks {
         assert!(template.contains("record_codex_turn_diff(message)"));
     }
 
-    #[test]
-    fn codex_hooks_feature_key_switches_at_0130() {
+    pub(crate) fn codex_hooks_feature_key_switches_at_0130() {
         assert_eq!(
             codex_hooks_feature_key_for_version(Some("0.129.9")),
             "codex_hooks"
@@ -45,16 +42,14 @@ mod bridge_hooks {
         assert_eq!(codex_hooks_feature_key_for_version(None), "codex_hooks");
     }
 
-    #[test]
-    fn parse_codex_cli_version_accepts_plain_and_prefixed_versions() {
+    pub(crate) fn parse_codex_cli_version_accepts_plain_and_prefixed_versions() {
         assert_eq!(parse_codex_cli_version("0.130.0"), Some((0, 130, 0)));
         assert_eq!(parse_codex_cli_version("v0.130.1"), Some((0, 130, 1)));
         assert_eq!(parse_codex_cli_version("0.130.0-beta"), Some((0, 130, 0)));
         assert_eq!(parse_codex_cli_version("codex 0.130.0"), None);
     }
 
-    #[test]
-    fn set_toml_bool_in_section_writes_new_hooks_key() {
+    pub(crate) fn set_toml_bool_in_section_writes_new_hooks_key() {
         let updated = set_toml_bool_in_section(
             "[features]\ncodex_hooks = true\n",
             "features",
@@ -65,16 +60,14 @@ mod bridge_hooks {
         assert_eq!(updated, "[features]\ncodex_hooks = true\n\nhooks = true\n");
     }
 
-    #[test]
-    fn set_toml_bool_in_section_preserves_leading_blank_line() {
+    pub(crate) fn set_toml_bool_in_section_preserves_leading_blank_line() {
         let updated =
             set_toml_bool_in_section("\n[features]\nhooks = false\n", "features", "hooks", true);
 
         assert_eq!(updated, "\n[features]\nhooks = true\n");
     }
 
-    #[test]
-    fn set_toml_bool_in_section_updates_compact_assignment_only() {
+    pub(crate) fn set_toml_bool_in_section_updates_compact_assignment_only() {
         let updated = set_toml_bool_in_section(
             "[features]\nhooks=false\nhooks_extra=false\n",
             "features",
@@ -99,8 +92,7 @@ mod bridge_hooks {
         );
     }
 
-    #[test]
-    fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
+    pub(crate) fn remove_toml_key_in_section_removes_legacy_codex_hooks_key() {
         let updated = remove_toml_key_in_section(
             "[features]\ncodex_hooks = true\nhooks = true\n",
             "features",
@@ -110,8 +102,7 @@ mod bridge_hooks {
         assert_eq!(updated, "[features]\nhooks = true\n");
     }
 
-    #[test]
-    fn remove_toml_key_in_section_removes_compact_assignment_only() {
+    pub(crate) fn remove_toml_key_in_section_removes_compact_assignment_only() {
         let updated = remove_toml_key_in_section(
             "[features]\ncodex_hooks=false\ncodex_hooks_extra=false\nhooks=true\n",
             "features",
@@ -136,11 +127,10 @@ mod bridge_hooks {
         );
     }
 }
-mod claude_paths {
+pub(crate) mod claude_paths {
     use super::support::with_temp_home;
 
-    #[test]
-    fn claude_paths_follow_config_dir_override() {
+    pub(crate) fn claude_paths_follow_config_dir_override() {
         with_temp_home("claude-config-dir", |home| {
             let config_dir = home.join("custom-claude");
             let previous = std::env::var_os("CLAUDE_CONFIG_DIR");
@@ -160,8 +150,7 @@ mod claude_paths {
         });
     }
 
-    #[test]
-    fn claude_paths_fall_back_for_missing_or_empty_override() {
+    pub(crate) fn claude_paths_fall_back_for_missing_or_empty_override() {
         with_temp_home("claude-config-fallback", |home| {
             let previous = std::env::var_os("CLAUDE_CONFIG_DIR");
             std::env::remove_var("CLAUDE_CONFIG_DIR");
@@ -182,12 +171,11 @@ mod claude_paths {
         }
     }
 }
-mod codex_home {
+pub(crate) mod codex_home {
     use super::support::with_temp_home;
     use super::*;
 
-    #[test]
-    fn ensure_pad_codex_home_layout_copies_config_to_profile_but_not_auth() {
+    pub(crate) fn ensure_pad_codex_home_layout_copies_config_to_profile_but_not_auth() {
         with_temp_home("pad-codex-profile-config", |home| {
             let canonical = home.join(".codex");
             fs::create_dir_all(&canonical).expect("create canonical codex home");
@@ -213,8 +201,7 @@ mod codex_home {
         });
     }
 
-    #[test]
-    fn ensure_pad_codex_home_layout_does_not_create_session_or_db_links() {
+    pub(crate) fn ensure_pad_codex_home_layout_does_not_create_session_or_db_links() {
         with_temp_home("pad-codex-profile-no-links", |_home| {
             ensure_pad_codex_home_layout().expect("ensure pad codex home");
 
@@ -229,8 +216,7 @@ mod codex_home {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn ensure_pad_codex_home_layout_unlinks_legacy_shared_state_symlinks() {
+    pub(crate) fn ensure_pad_codex_home_layout_unlinks_legacy_shared_state_symlinks() {
         with_temp_home("pad-codex-profile-unlink-legacy", |home| {
             use std::os::unix::fs::symlink;
 
@@ -264,12 +250,11 @@ mod codex_home {
         });
     }
 }
-mod prompts {
+pub(crate) mod prompts {
     use super::support::with_temp_home;
     use super::*;
 
-    #[test]
-    fn write_codex_selected_prompt_file_combines_selected_candidates() {
+    pub(crate) fn write_codex_selected_prompt_file_combines_selected_candidates() {
         with_temp_home("selected-prompt-combine", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
 
@@ -285,8 +270,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn write_codex_selected_prompt_file_returns_single_candidate_directly() {
+    pub(crate) fn write_codex_selected_prompt_file_returns_single_candidate_directly() {
         with_temp_home("selected-prompt-single", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
 
@@ -299,8 +283,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_reseeds_empty_codex_jailbreak_prompt_file() {
+    pub(crate) fn ensure_runtime_layout_reseeds_empty_codex_jailbreak_prompt_file() {
         with_temp_home("runtime-layout-empty-prompt", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
             fs::write(codex_jailbreak_prompt_file_path(), "\n\n").expect("seed empty prompt file");
@@ -315,8 +298,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_tracks_current_codex_jailbreak_prompt_version() {
+    pub(crate) fn ensure_runtime_layout_tracks_current_codex_jailbreak_prompt_version() {
         with_temp_home("runtime-layout-codex-prompt-version", |_home| {
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
             fs::write(
@@ -338,8 +320,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_refreshes_outdated_managed_codex_jailbreak_prompt() {
+    pub(crate) fn ensure_runtime_layout_refreshes_outdated_managed_codex_jailbreak_prompt() {
         with_temp_home("runtime-layout-refresh-managed-prompt", |_home| {
             let old_prompt = "legacy managed prompt";
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
@@ -370,8 +351,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_preserves_custom_codex_jailbreak_prompt_edits() {
+    pub(crate) fn ensure_runtime_layout_preserves_custom_codex_jailbreak_prompt_edits() {
         with_temp_home("runtime-layout-preserve-custom-prompt", |_home| {
             let custom_prompt = "custom operator prompt";
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
@@ -395,8 +375,7 @@ mod prompts {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_migrates_custom_legacy_codex_prompt_to_jailbreak_name() {
+    pub(crate) fn ensure_runtime_layout_migrates_custom_legacy_codex_prompt_to_jailbreak_name() {
         with_temp_home("runtime-layout-migrate-legacy-prompt", |_home| {
             let custom_prompt = "legacy custom jailbreak prompt";
             fs::create_dir_all(prompts_dir()).expect("create prompt dir");
@@ -411,12 +390,11 @@ mod prompts {
         });
     }
 }
-mod runtime_layout {
+pub(crate) mod runtime_layout {
     use super::support::with_temp_home;
     use super::*;
 
-    #[test]
-    fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
+    pub(crate) fn ensure_runtime_layout_creates_codex_jailbreak_prompt_file() {
         with_temp_home("runtime-layout", |_home| {
             ensure_runtime_layout().expect("ensure runtime layout");
             assert!(prompts_dir().is_dir());
@@ -445,8 +423,7 @@ mod runtime_layout {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_installs_executable_pad_codex_wrapper() {
+    pub(crate) fn ensure_runtime_layout_installs_executable_pad_codex_wrapper() {
         with_temp_home("runtime-layout-wrapper", |_home| {
             ensure_runtime_layout().expect("ensure runtime layout");
 
@@ -467,8 +444,7 @@ mod runtime_layout {
         });
     }
 
-    #[test]
-    fn ensure_runtime_layout_enables_codex_hooks_in_pad_profile_only() {
+    pub(crate) fn ensure_runtime_layout_enables_codex_hooks_in_pad_profile_only() {
         with_temp_home("runtime-layout-codex-profile-hooks", |home| {
             let canonical_config = home.join(".codex").join("config.toml");
             fs::create_dir_all(canonical_config.parent().expect("canonical config parent"))

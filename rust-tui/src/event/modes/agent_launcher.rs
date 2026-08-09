@@ -125,4 +125,4 @@ fn native_agent_label(agent_name: &str, target_dir: &Path) -> String {
 
 #[cfg(test)]
 #[path = "agent_launcher_tests.rs"]
-mod tests;
+pub(crate) mod tests;

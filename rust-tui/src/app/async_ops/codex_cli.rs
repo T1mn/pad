@@ -1,5 +1,5 @@
 #[path = "codex_cli/commands.rs"]
-mod commands;
+pub(crate) mod commands;
 #[path = "codex_cli/toast.rs"]
 mod toast {
     use super::types::CodexCliVersionInfo;

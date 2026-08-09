@@ -115,11 +115,10 @@ impl App {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    #[test]
-    fn status_is_served_from_the_native_ui_state() {
+    pub(crate) fn status_is_served_from_the_native_ui_state() {
         let mut app = App::new();
         let response = app.handle_socket_api_request(ApiRequest {
             action: "status".to_string(),
@@ -132,8 +131,7 @@ mod tests {
         assert_eq!(data["panels"], serde_json::json!([]));
     }
 
-    #[test]
-    fn prompt_dry_run_does_not_require_a_live_pane() {
+    pub(crate) fn prompt_dry_run_does_not_require_a_live_pane() {
         let mut app = App::new();
         let response = app.handle_socket_api_request(ApiRequest {
             action: "prompt".to_string(),
@@ -147,8 +145,7 @@ mod tests {
         assert_eq!(response.data.unwrap()["prompt_len"], 5);
     }
 
-    #[test]
-    fn approval_rejects_keys_outside_the_explicit_allowlist() {
+    pub(crate) fn approval_rejects_keys_outside_the_explicit_allowlist() {
         let mut app = App::new();
         let response = app.handle_socket_api_request(ApiRequest {
             action: "approval".to_string(),

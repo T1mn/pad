@@ -1,5 +1,4 @@
-#[test]
-fn incomplete_codex_provider_restores_native_config() {
+pub(crate) fn incomplete_codex_provider_restores_native_config() {
     let agent = AgentConfig {
         name: "codex".into(),
         cmd: "codex".into(),
@@ -12,8 +11,7 @@ fn incomplete_codex_provider_restores_native_config() {
     assert!(should_restore_native_codex_config(&agent));
 }
 
-#[test]
-fn complete_codex_provider_keeps_relay_config() {
+pub(crate) fn complete_codex_provider_keeps_relay_config() {
     let agent = AgentConfig {
         name: "codex".into(),
         cmd: "codex".into(),
@@ -26,8 +24,7 @@ fn complete_codex_provider_keeps_relay_config() {
     assert!(!should_restore_native_codex_config(&agent));
 }
 
-#[test]
-fn codex_relay_normalizes_root_base_url_to_v1() {
+pub(crate) fn codex_relay_normalizes_root_base_url_to_v1() {
     with_temp_home("codex-root-base-url", |_home| {
         let agent = AgentConfig {
             name: "codex".into(),
@@ -89,8 +86,7 @@ fn codex_relay_normalizes_root_base_url_to_v1() {
     });
 }
 
-#[test]
-fn codex_export_writes_pad_yaml_without_wire_api() {
+pub(crate) fn codex_export_writes_pad_yaml_without_wire_api() {
     with_temp_home("codex-export", |home| {
         let agent = AgentConfig {
             name: "codex".into(),
@@ -115,8 +111,7 @@ fn codex_export_writes_pad_yaml_without_wire_api() {
     });
 }
 
-#[test]
-fn codex_import_restores_exported_pad_yaml() {
+pub(crate) fn codex_import_restores_exported_pad_yaml() {
     with_temp_home("codex-import", |_home| {
         let agent = AgentConfig {
             name: "codex".into(),
@@ -146,8 +141,7 @@ fn codex_import_restores_exported_pad_yaml() {
     });
 }
 
-#[test]
-fn codex_relay_preserves_explicit_v1_base_url() {
+pub(crate) fn codex_relay_preserves_explicit_v1_base_url() {
     with_temp_home("codex-v1-base-url", |_home| {
         let agent = AgentConfig {
             name: "codex".into(),

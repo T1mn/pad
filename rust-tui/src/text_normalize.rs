@@ -11,4 +11,4 @@ pub(crate) fn collapse_whitespace(text: &str) -> String {
 
 #[cfg(test)]
 #[path = "text_normalize_tests.rs"]
-mod tests;
+pub(crate) mod tests;

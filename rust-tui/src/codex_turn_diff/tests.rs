@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[test]
-fn records_only_changes_between_submit_and_stop() {
+pub(crate) fn records_only_changes_between_submit_and_stop() {
     with_isolated_store("single-turn", |repo| {
         git(repo, &["init"]);
         git(repo, &["config", "user.email", "tim@example.com"]);
@@ -36,8 +35,7 @@ fn records_only_changes_between_submit_and_stop() {
     });
 }
 
-#[test]
-fn records_untracked_files_created_by_turn() {
+pub(crate) fn records_untracked_files_created_by_turn() {
     with_isolated_store("untracked", |repo| {
         git(repo, &["init"]);
         record_codex_hook_event(&event(
@@ -60,8 +58,7 @@ fn records_untracked_files_created_by_turn() {
     });
 }
 
-#[test]
-fn cli_hook_records_from_normalized_hook_json() {
+pub(crate) fn cli_hook_records_from_normalized_hook_json() {
     with_isolated_store("cli", |repo| {
         git(repo, &["init"]);
         let submit =
@@ -151,11 +148,10 @@ fn temp_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("pad-codex-turn-diff-{name}-{stamp}"))
 }
 
-mod git {
+pub(crate) mod git {
     use super::super::git::format_git_args;
 
-    #[test]
-    fn git_args_format_keeps_error_message_shape() {
+    pub(crate) fn git_args_format_keeps_error_message_shape() {
         assert_eq!(
             format_git_args(&["diff", "--no-ext-diff", "base", "end"]),
             "diff --no-ext-diff base end"
@@ -163,11 +159,10 @@ mod git {
     }
 }
 
-mod storage_paths {
+pub(crate) mod storage_paths {
     use super::super::storage_paths::safe_name;
 
-    #[test]
-    fn safe_name_collapses_trims_and_limits() {
+    pub(crate) fn safe_name_collapses_trims_and_limits() {
         assert_eq!(safe_name("  turn:/abc  "), "turn_abc");
         assert_eq!(safe_name("a///b"), "a_b");
         assert_eq!(safe_name("!@#"), "");

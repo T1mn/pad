@@ -6,8 +6,7 @@ use crate::terminal_runtime::{ReplayStep, ReplayTransport, TerminalSize, Transpo
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
-#[test]
-fn runtime_rejects_unbounded_configuration() {
+pub(crate) fn runtime_rejects_unbounded_configuration() {
     assert!(TransportRuntime::new(0, 1).is_err());
     assert!(TransportRuntime::new(1, 0).is_err());
 
@@ -16,8 +15,7 @@ fn runtime_rejects_unbounded_configuration() {
     assert_eq!(runtime.event_capacity(), 5);
 }
 
-#[test]
-fn replay_preserves_bidirectional_order_and_graceful_shutdown() {
+pub(crate) fn replay_preserves_bidirectional_order_and_graceful_shutdown() {
     let size = TerminalSize::new(100, 30);
     let exit = TransportExit {
         code: Some(0),
@@ -70,8 +68,7 @@ fn replay_preserves_bidirectional_order_and_graceful_shutdown() {
     ));
 }
 
-#[test]
-fn bounded_event_queue_applies_backpressure_and_keeps_order() {
+pub(crate) fn bounded_event_queue_applies_backpressure_and_keeps_order() {
     let (first_sent, first_observed) = mpsc::sync_channel(1);
     let (second_sent, second_observed) = mpsc::sync_channel(1);
     let transport = BackpressureTransport {
@@ -100,8 +97,7 @@ fn bounded_event_queue_applies_backpressure_and_keeps_order() {
     assert_eq!(handle.recv_completion(), Ok(()));
 }
 
-#[test]
-fn drain_events_returns_all_buffered_events_in_order() {
+pub(crate) fn drain_events_returns_all_buffered_events_in_order() {
     let exit = TransportExit {
         code: None,
         signaled: true,
@@ -128,8 +124,7 @@ fn drain_events_returns_all_buffered_events_in_order() {
     assert_eq!(handle.try_recv(), Err(TryRecvError::Disconnected));
 }
 
-#[test]
-fn worker_name_is_safe_and_visible_inside_transport() {
+pub(crate) fn worker_name_is_safe_and_visible_inside_transport() {
     let transport = ThreadNameTransport {
         id: TransportId::new("native pane/\0unicode-界"),
     };
@@ -145,8 +140,7 @@ fn worker_name_is_safe_and_visible_inside_transport() {
     assert!(!handle.thread_name().contains('界'));
 }
 
-#[test]
-fn worker_error_and_completion_observation_are_repeatable() {
+pub(crate) fn worker_error_and_completion_observation_are_repeatable() {
     let mut handle = TransportRuntime::new(1, 1)
         .unwrap()
         .spawn(Box::new(ErrorTransport {
@@ -163,8 +157,7 @@ fn worker_error_and_completion_observation_are_repeatable() {
     assert_eq!(handle.try_completion(), Some(Err(error)));
 }
 
-#[test]
-fn panic_is_converted_to_a_worker_error() {
+pub(crate) fn panic_is_converted_to_a_worker_error() {
     let mut handle = TransportRuntime::new(1, 1)
         .unwrap()
         .spawn(Box::new(PanicTransport {
@@ -177,8 +170,7 @@ fn panic_is_converted_to_a_worker_error() {
     assert!(error.contains("injected panic"));
 }
 
-#[test]
-fn disconnecting_event_receiver_releases_replay_sender() {
+pub(crate) fn disconnecting_event_receiver_releases_replay_sender() {
     let replay = ReplayTransport::new(
         TransportId::new("event-disconnect"),
         [
@@ -206,8 +198,7 @@ fn disconnecting_event_receiver_releases_replay_sender() {
     assert_eq!(handle.try_recv(), Err(TryRecvError::Disconnected));
 }
 
-#[test]
-fn drop_disconnects_a_full_event_queue_without_waiting() {
+pub(crate) fn drop_disconnects_a_full_event_queue_without_waiting() {
     let (first_sent, first_observed) = mpsc::sync_channel(1);
     let (disconnected, disconnect_observed) = mpsc::sync_channel(1);
     let handle = TransportRuntime::new(1, 1)
@@ -226,8 +217,7 @@ fn drop_disconnects_a_full_event_queue_without_waiting() {
         .expect("drop should disconnect a blocked event sender");
 }
 
-#[test]
-fn drop_disconnects_a_worker_waiting_for_more_commands() {
+pub(crate) fn drop_disconnects_a_worker_waiting_for_more_commands() {
     let (waiting, waiting_observed) = mpsc::sync_channel(1);
     let (disconnected, disconnect_observed) = mpsc::sync_channel(1);
     let handle = TransportRuntime::new(1, 1)
@@ -246,8 +236,7 @@ fn drop_disconnects_a_worker_waiting_for_more_commands() {
         .expect("drop should disconnect a waiting command receiver");
 }
 
-#[test]
-fn shutdown_does_not_block_when_command_and_event_queues_are_full() {
+pub(crate) fn shutdown_does_not_block_when_command_and_event_queues_are_full() {
     let (first_sent, first_observed) = mpsc::sync_channel(1);
     let (disconnected, disconnect_observed) = mpsc::sync_channel(1);
     let mut handle = TransportRuntime::new(1, 1)

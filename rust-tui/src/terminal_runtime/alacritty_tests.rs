@@ -1,7 +1,6 @@
 use super::*;
 
-#[test]
-fn snapshot_indexes_a_scrollback_viewport_from_zero() {
+pub(crate) fn snapshot_indexes_a_scrollback_viewport_from_zero() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
     engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
     engine.scroll(TerminalScroll::Lines(2)).unwrap();
@@ -17,8 +16,7 @@ fn snapshot_indexes_a_scrollback_viewport_from_zero() {
     assert_eq!(snapshot.viewport.history_size, 3);
 }
 
-#[test]
-fn scrollback_clamps_and_stays_anchored_during_output() {
+pub(crate) fn scrollback_clamps_and_stays_anchored_during_output() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
     engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
 
@@ -44,8 +42,7 @@ fn scrollback_clamps_and_stays_anchored_during_output() {
     assert_eq!(bottom.row_text(2).as_deref(), Some("6"));
 }
 
-#[test]
-fn alternate_screen_has_no_scrollback_and_restores_primary_viewport() {
+pub(crate) fn alternate_screen_has_no_scrollback_and_restores_primary_viewport() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 3));
     engine.feed(b"0\r\n1\r\n2\r\n3\r\n4\r\n5").unwrap();
     engine.scroll(TerminalScroll::Lines(2)).unwrap();
@@ -63,8 +60,7 @@ fn alternate_screen_has_no_scrollback_and_restores_primary_viewport() {
     assert_eq!(primary.row_text(0).as_deref(), Some("1"));
 }
 
-#[test]
-fn listener_maps_exit_without_a_terminal_event_loop() {
+pub(crate) fn listener_maps_exit_without_a_terminal_event_loop() {
     let listener = AlacrittyEventListener::new(TerminalSize::new(4, 3));
     listener.send_event(AlacrittyEvent::Exit);
 

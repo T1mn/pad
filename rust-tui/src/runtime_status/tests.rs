@@ -1,4 +1,4 @@
-mod guard {
+pub(crate) mod guard {
     use super::super::{read_status, write_status_body, ProcessStatus, StatusGuard};
     use super::support::{remove_status_artifacts, temp_status_path};
     #[cfg(any(unix, windows))]
@@ -6,8 +6,7 @@ mod guard {
     #[cfg(any(unix, windows))]
     use std::thread;
 
-    #[test]
-    fn status_guard_drop_preserves_newer_status_file() {
+    pub(crate) fn status_guard_drop_preserves_newer_status_file() {
         let path = temp_status_path();
         let guard = StatusGuard::new(path.clone(), "telegram-bot").unwrap();
         write_status_body(
@@ -27,8 +26,7 @@ mod guard {
     }
 
     #[cfg(any(unix, windows))]
-    #[test]
-    fn concurrent_status_guards_have_one_owner() {
+    pub(crate) fn concurrent_status_guards_have_one_owner() {
         let path = temp_status_path();
         let start = Arc::new(Barrier::new(3));
         let finish = Arc::new(Barrier::new(3));
@@ -78,8 +76,7 @@ mod guard {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn status_guard_starts_when_pid_was_recycled() {
+    pub(crate) fn status_guard_starts_when_pid_was_recycled() {
         let path = temp_status_path();
         let mut child = spawn_live_child();
         write_status_body(
@@ -102,8 +99,7 @@ mod guard {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn status_guard_refuses_when_owner_still_runs() {
+    pub(crate) fn status_guard_refuses_when_owner_still_runs() {
         let path = temp_status_path();
         let mut child = spawn_live_child();
         write_status_body(
@@ -127,15 +123,14 @@ mod guard {
         remove_status_artifacts(&path);
     }
 
-    #[test]
-    fn stat_parser_treats_zombies_as_not_alive() {
+    pub(crate) fn stat_parser_treats_zombies_as_not_alive() {
         assert!(super::super::process::stat_indicates_zombie("Z+"));
         assert!(super::super::process::stat_indicates_zombie("SZ"));
         assert!(!super::super::process::stat_indicates_zombie("S+"));
         assert!(!super::super::process::stat_indicates_zombie("R"));
     }
 }
-mod lock {
+pub(crate) mod lock {
     use super::support::{remove_status_artifacts, temp_status_path};
     use std::fs;
     use std::path::Path;
@@ -145,8 +140,7 @@ mod lock {
     use std::time::Duration;
 
     #[cfg(any(unix, windows))]
-    #[test]
-    fn status_lock_is_exclusive_and_released_on_drop() {
+    pub(crate) fn status_lock_is_exclusive_and_released_on_drop() {
         let path = temp_status_path();
         let first = super::super::StatusLock::acquire(&path).unwrap();
         let contender_path = path.clone();
@@ -169,14 +163,13 @@ mod lock {
     }
 
     #[cfg(any(unix, windows))]
-    #[test]
-    fn status_lock_is_exclusive_across_processes_and_released_on_crash() {
+    pub(crate) fn status_lock_is_exclusive_across_processes_and_released_on_crash() {
         let path = temp_status_path();
         let ready_path = temp_status_path();
         let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "runtime_status::tests::lock::hold_status_lock_for_test",
+                "test_suites::integrations::runtime_status_tests_suite",
                 "--nocapture",
             ])
             .env("PAD_STATUS_LOCK_TEST_PATH", &path)
@@ -219,8 +212,7 @@ mod lock {
     }
 
     #[cfg(any(unix, windows))]
-    #[test]
-    fn hold_status_lock_for_test() {
+    pub(crate) fn hold_status_lock_for_test() {
         let (Ok(path), Ok(ready_path)) = (
             std::env::var("PAD_STATUS_LOCK_TEST_PATH"),
             std::env::var("PAD_STATUS_LOCK_TEST_READY"),

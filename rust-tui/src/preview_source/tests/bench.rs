@@ -57,7 +57,7 @@ mod report {
     }
 }
 
-mod rollout {
+pub(crate) mod rollout {
     use super::*;
     pub(super) fn rollout_session_id(path: &Path) -> Option<String> {
         let file_name = path.file_name()?.to_string_lossy();
@@ -79,8 +79,7 @@ mod rollout {
         Some(candidate.to_string())
     }
 
-    #[test]
-    fn rollout_session_id_extracts_uuid_suffix() {
+    pub(crate) fn rollout_session_id_extracts_uuid_suffix() {
         let path = Path::new("/tmp/rollout-extra-123e4567-e89b-12d3-a456-426614174000.jsonl");
         assert_eq!(
             rollout_session_id(path).as_deref(),
@@ -88,8 +87,7 @@ mod rollout {
         );
     }
 
-    #[test]
-    fn rollout_session_id_rejects_non_rollout_or_invalid_uuid() {
+    pub(crate) fn rollout_session_id_rejects_non_rollout_or_invalid_uuid() {
         assert!(rollout_session_id(Path::new("/tmp/session.jsonl")).is_none());
         assert!(rollout_session_id(Path::new("/tmp/rollout-not-a-uuid.jsonl")).is_none());
     }

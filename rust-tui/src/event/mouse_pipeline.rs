@@ -158,4 +158,4 @@ pub(super) fn handle_mouse_event(
 
 #[cfg(test)]
 #[path = "mouse_pipeline_tests.rs"]
-mod tests;
+pub(crate) mod tests;

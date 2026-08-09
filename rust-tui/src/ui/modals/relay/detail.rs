@@ -1,5 +1,5 @@
 mod lines;
-mod opencode;
+pub(crate) mod opencode;
 mod test_status {
     use super::super::layout::{http_status_color, latency_color};
     use crate::i18n::Locale;

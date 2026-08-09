@@ -15,8 +15,7 @@ use crate::terminal_runtime::{
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(2);
 
-#[test]
-fn replay_output_is_pumped_into_the_terminal_snapshot_in_order() {
+pub(crate) fn replay_output_is_pumped_into_the_terminal_snapshot_in_order() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("output");
     let exit = successful_exit();
@@ -39,8 +38,7 @@ fn replay_output_is_pumped_into_the_terminal_snapshot_in_order() {
     assert_eq!(runtime.exit(&pane_id), Some(exit));
 }
 
-#[test]
-fn parser_replies_are_routed_back_to_transport_in_order() {
+pub(crate) fn parser_replies_are_routed_back_to_transport_in_order() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("query-reply");
     open_replay(
@@ -60,8 +58,7 @@ fn parser_replies_are_routed_back_to_transport_in_order() {
     assert!(runtime.drain_host_events(&pane_id).unwrap().is_empty());
 }
 
-#[test]
-fn parser_reply_survives_a_full_command_queue() {
+pub(crate) fn parser_reply_survives_a_full_command_queue() {
     let (release, release_rx) = mpsc::sync_channel(1);
     let (observed_tx, observed) = mpsc::sync_channel(1);
     let transport_id = TransportId::new("reply-backpressure");
@@ -112,8 +109,7 @@ fn parser_reply_survives_a_full_command_queue() {
     pump_until_exit(&mut runtime, &pane_id);
 }
 
-#[test]
-fn host_title_and_bell_events_are_observable() {
+pub(crate) fn host_title_and_bell_events_are_observable() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("host-events");
     open_replay(
@@ -138,8 +134,7 @@ fn host_title_and_bell_events_are_observable() {
     );
 }
 
-#[test]
-fn repeated_title_and_bell_events_are_coalesced() {
+pub(crate) fn repeated_title_and_bell_events_are_coalesced() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("coalesced-host-events");
     let mut output = Vec::new();
@@ -168,8 +163,7 @@ fn repeated_title_and_bell_events_are_coalesced() {
     );
 }
 
-#[test]
-fn final_output_is_applied_before_transport_failure_surfaces() {
+pub(crate) fn final_output_is_applied_before_transport_failure_surfaces() {
     let (release, release_rx) = mpsc::sync_channel(1);
     let mut runtime = runtime();
     let pane_id = PaneId::new("final-output-error");
@@ -200,8 +194,7 @@ fn final_output_is_applied_before_transport_failure_surfaces() {
     assert!(error.to_string().contains("injected transport failure"));
 }
 
-#[test]
-fn drain_panic_becomes_a_stable_failure_and_rejects_new_commands() {
+pub(crate) fn drain_panic_becomes_a_stable_failure_and_rejects_new_commands() {
     let mut registry = EngineRegistry::default();
     registry.register(EngineId::new("drain-panic"), DrainPanicFactory);
     let engines = EngineRuntime::start(1, registry).unwrap();
@@ -246,8 +239,7 @@ fn drain_panic_becomes_a_stable_failure_and_rejects_new_commands() {
     assert!(runtime.pump(&pane_id).is_err());
 }
 
-#[test]
-fn input_and_resize_are_forwarded_while_the_engine_is_resized() {
+pub(crate) fn input_and_resize_are_forwarded_while_the_engine_is_resized() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("interactive");
     let resized = TerminalSize::new(31, 7);
@@ -274,8 +266,7 @@ fn input_and_resize_are_forwarded_while_the_engine_is_resized() {
     assert_eq!(snapshot.row_text(0).as_deref(), Some("resized"));
 }
 
-#[test]
-fn pump_has_a_fixed_event_budget_and_coalesces_output() {
+pub(crate) fn pump_has_a_fixed_event_budget_and_coalesces_output() {
     let event_count = LivePaneRuntime::PUMP_EVENT_BUDGET + 3;
     let (mut runtime, operations) = recording_runtime(1, event_count + 1);
     let pane_id = PaneId::new("budget");
@@ -308,8 +299,7 @@ fn pump_has_a_fixed_event_budget_and_coalesces_output() {
     assert_eq!(runtime.exit(&pane_id), Some(successful_exit()));
 }
 
-#[test]
-fn resize_ack_orders_old_and_new_output_around_engine_resize() {
+pub(crate) fn resize_ack_orders_old_and_new_output_around_engine_resize() {
     let (mut runtime, operations) = recording_runtime(8, 8);
     let pane_id = PaneId::new("resize-order");
     let initial = TerminalSize::new(20, 4);
@@ -341,8 +331,7 @@ fn resize_ack_orders_old_and_new_output_around_engine_resize() {
     assert_eq!(runtime.frame(&pane_id).unwrap().terminal.size, resized);
 }
 
-#[test]
-fn duplicate_and_out_of_order_resize_acks_fail_deterministically() {
+pub(crate) fn duplicate_and_out_of_order_resize_acks_fail_deterministically() {
     let first = TerminalSize::new(30, 6);
     let second = TerminalSize::new(40, 8);
     let (mut runtime, _) = recording_runtime(8, 8);
@@ -388,8 +377,7 @@ fn duplicate_and_out_of_order_resize_acks_fail_deterministically() {
     assert_eq!(runtime.frame(&pane_id).unwrap().terminal.size, first);
 }
 
-#[test]
-fn saturated_and_disconnected_command_queues_return_without_blocking() {
+pub(crate) fn saturated_and_disconnected_command_queues_return_without_blocking() {
     let mut runtime = runtime_with_capacities(1, 1);
     let pane_id = PaneId::new("saturated");
     open_replay(
@@ -432,8 +420,7 @@ fn saturated_and_disconnected_command_queues_return_without_blocking() {
     );
 }
 
-#[test]
-fn exit_is_stored_without_removing_the_pane() {
+pub(crate) fn exit_is_stored_without_removing_the_pane() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("exit");
     let exit = TransportExit {
@@ -454,8 +441,7 @@ fn exit_is_stored_without_removing_the_pane() {
     assert!(runtime.frame(&pane_id).is_ok());
 }
 
-#[test]
-fn successful_completion_without_exit_event_is_still_observable() {
+pub(crate) fn successful_completion_without_exit_event_is_still_observable() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("implicit-exit");
     open_replay(&mut runtime, &pane_id, "replay-implicit-exit", []).unwrap();
@@ -471,8 +457,7 @@ fn successful_completion_without_exit_event_is_still_observable() {
     );
 }
 
-#[test]
-fn replay_mismatch_surfaces_worker_error_and_keeps_pane_accessible() {
+pub(crate) fn replay_mismatch_surfaces_worker_error_and_keeps_pane_accessible() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("mismatch");
     open_replay(
@@ -491,8 +476,7 @@ fn replay_mismatch_surfaces_worker_error_and_keeps_pane_accessible() {
     runtime.close(&pane_id).unwrap();
 }
 
-#[test]
-fn mismatch_duplicate_and_missing_pane_errors_do_not_change_state() {
+pub(crate) fn mismatch_duplicate_and_missing_pane_errors_do_not_change_state() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("validation");
     let mismatch = runtime.open(
@@ -539,8 +523,7 @@ fn mismatch_duplicate_and_missing_pane_errors_do_not_change_state() {
     assert!(runtime.close(&missing).is_err());
 }
 
-#[test]
-fn close_removes_engine_metadata_and_transport_together() {
+pub(crate) fn close_removes_engine_metadata_and_transport_together() {
     let mut runtime = runtime();
     let pane_id = PaneId::new("close");
     open_replay(

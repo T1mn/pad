@@ -6,8 +6,7 @@ use crate::terminal_runtime::{
     TransportId,
 };
 
-#[test]
-fn widget_renders_label_terminal_cells_and_cursor() {
+pub(crate) fn widget_renders_label_terminal_cells_and_cursor() {
     let mut terminal = TerminalSnapshot::blank(TerminalSize::new(4, 2));
     terminal.cells[0].symbol = "O".to_string();
     terminal.cells[0].foreground = TerminalColor::Rgb(12, 34, 56);
@@ -43,8 +42,7 @@ fn widget_renders_label_terminal_cells_and_cursor() {
     assert!(border.contains("Codex"));
 }
 
-#[test]
-fn widget_clips_snapshot_to_inner_area() {
+pub(crate) fn widget_clips_snapshot_to_inner_area() {
     let terminal = TerminalSnapshot::blank(TerminalSize::new(80, 24));
     let frame = PaneFrame {
         metadata: PaneMetadata {
@@ -63,8 +61,7 @@ fn widget_clips_snapshot_to_inner_area() {
     assert_eq!(buffer.area, area);
 }
 
-#[test]
-fn widget_does_not_render_wide_grapheme_across_right_border() {
+pub(crate) fn widget_does_not_render_wide_grapheme_across_right_border() {
     let mut terminal = TerminalSnapshot::blank(TerminalSize::new(2, 1));
     terminal.cells[1].symbol = "界".to_string();
     let frame = PaneFrame {
@@ -85,8 +82,7 @@ fn widget_does_not_render_wide_grapheme_across_right_border() {
     assert_eq!(buffer[(3, 1)].symbol(), "│");
 }
 
-#[test]
-fn underline_cursor_uses_underline_fallback() {
+pub(crate) fn underline_cursor_uses_underline_fallback() {
     assert_eq!(
         cursor_modifier(CursorShape::Underline),
         Modifier::UNDERLINED
@@ -94,8 +90,7 @@ fn underline_cursor_uses_underline_fallback() {
     assert_eq!(cursor_modifier(CursorShape::Beam), Modifier::REVERSED);
 }
 
-#[test]
-fn cursor_modifier_preserves_the_cells_existing_style() {
+pub(crate) fn cursor_modifier_preserves_the_cells_existing_style() {
     let mut terminal = TerminalSnapshot::blank(TerminalSize::new(1, 1));
     terminal.cells[0].foreground = TerminalColor::Rgb(10, 20, 30);
     terminal.cells[0].background = TerminalColor::Rgb(40, 50, 60);
@@ -128,8 +123,7 @@ fn cursor_modifier_preserves_the_cells_existing_style() {
     assert!(cursor.modifier.contains(Modifier::REVERSED));
 }
 
-#[test]
-fn terminal_attributes_map_to_ratatui_modifiers() {
+pub(crate) fn terminal_attributes_map_to_ratatui_modifiers() {
     let modifiers = attribute_modifiers(TextAttributes {
         bold: true,
         dim: true,

@@ -227,7 +227,7 @@ mod config {
         }
     }
 }
-mod load;
+pub(crate) mod load;
 mod palette_core {
     use super::*;
 
@@ -297,11 +297,11 @@ mod palette_core {
 mod palette_dark;
 mod palette_light;
 mod provider;
-mod save;
+pub(crate) mod save;
 mod settings;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use agent::{AgentConfig, OpenCodeModelConfig};
 pub use config::Config;

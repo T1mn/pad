@@ -151,7 +151,7 @@ pane 通过稳定 hash 固定到一个 engine shard。同一 pane 的 output/res
 
 M4/M5 的产品链路也已落地：一个共享 controller 承载多 tab/嵌套 split，每 pane 独立管理 epoch、frame、有界输入/scroll、resize、label、错误与退出；提供 Shell、Codex、Claude、OpenCode 和常驻 Shell 形式的 GitHub CLI profile、PAD-owned tab bar、点击/键盘焦点、label 编辑、版本化 JSON 原子持久化，以及 Alacritty 10,000 行 history 上的 line/page/top/bottom scrollback。持久化只信任 profile 并重新派生启动命令；损坏或未来 schema 会先隔离保留。F11 是所有终端都能可靠编码的命令入口；增强键盘协议下同时接受 `Ctrl+Shift+Space`。
 
-当前验收：精简冗余测试后，PAD 全量 770 项中 768 项通过、2 项既有 ignored；严格 Clippy、dist 构建与真实 PTY smoke 通过。Smoke 已验证真实 PTY 输入、退出与工作区恢复；Agent Launcher 集成测试验证了 OpenCode 配置命令会在所选目录的真实 native PTY 中执行、登记左侧 live entry，并能从左侧跨 tab 跳回对应 pane。内置 OpenCode profile 同样支持 tab、split、label、完整配置命令、持久化恢复和左侧 live registry。动态 Agent 命令通过明确的 `/bin/sh -lc` argv 直接成为 PTY 子进程，Agent 退出后 pane 不再接受外部 prompt；Socket API 以原子状态取消尚未执行的超时 UI 请求，并在后台异步执行带输出硬上限的 browser/SSH 子进程，不阻塞 UI。
+当前验收：PAD test harness 已收敛为 100 个功能域入口，其中 98 项通过、2 项既有 ignored；93 个同步套件仍调用原来的 763 个同步 case，另保留 5 个异步测试和 2 个 ignored 基准，因此原 770 个验证场景没有删除。严格 Clippy、dist 构建与真实 PTY smoke 通过。Smoke 已验证真实 PTY 输入、退出与工作区恢复；Agent Launcher 集成测试验证了 OpenCode 配置命令会在所选目录的真实 native PTY 中执行、登记左侧 live entry，并能从左侧跨 tab 跳回对应 pane。内置 OpenCode profile 同样支持 tab、split、label、完整配置命令、持久化恢复和左侧 live registry。动态 Agent 命令通过明确的 `/bin/sh -lc` argv 直接成为 PTY 子进程，Agent 退出后 pane 不再接受外部 prompt；Socket API 以原子状态取消尚未执行的超时 UI 请求，并在后台异步执行带输出硬上限的 browser/SSH 子进程，不阻塞 UI。
 
 旧的外部复用器启动、attach、扫描、dispatch、pipe、session helper 及安装/CI 兼容层已删除。运行时只有 NativePty transport；子进程启动时会主动清除继承的外部复用器环境标记，避免嵌套启动改变 Agent 行为。
 

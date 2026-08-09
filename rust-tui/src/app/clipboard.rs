@@ -81,4 +81,4 @@ impl App {
 
 #[cfg(test)]
 #[path = "clipboard_tests.rs"]
-mod tests;
+pub(crate) mod tests;

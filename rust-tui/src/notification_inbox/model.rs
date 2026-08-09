@@ -51,7 +51,7 @@ mod entry {
         format!("n-{ts}-{nanos}-{}", std::process::id())
     }
 }
-mod inbox;
+pub(crate) mod inbox;
 mod time {
     pub fn short_time(ts: i64) -> String {
         if ts <= 0 {

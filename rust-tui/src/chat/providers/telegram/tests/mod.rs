@@ -109,11 +109,10 @@ pub(super) fn with_temp_home<T>(name: &str, f: impl FnOnce(&Path) -> T) -> T {
 
     result
 }
-mod approval {
+pub(crate) mod approval {
     use super::*;
 
-    #[test]
-    fn codex_approval_scan_tracks_open_and_resolved_requests() {
+    pub(crate) fn codex_approval_scan_tracks_open_and_resolved_requests() {
         let path =
             std::env::temp_dir().join(format!("pad-codex-approval-{}.jsonl", std::process::id()));
         let body = concat!(
@@ -147,15 +146,13 @@ mod approval {
 
         let _ = fs::remove_file(path);
     }
-    #[test]
-    fn approval_callback_data_round_trips_request_id_and_choice() {
+    pub(crate) fn approval_callback_data_round_trips_request_id_and_choice() {
         let data = approval_callback_data("tg-123", "a");
         assert_eq!(data, "approval:tg-123:a");
         assert_eq!(parse_approval_callback_data(&data), Some(("tg-123", "a")));
         assert_eq!(parse_approval_callback_data("approval:y"), None);
     }
-    #[test]
-    fn scan_codex_answer_updates_ignores_old_messages_before_offset() {
+    pub(crate) fn scan_codex_answer_updates_ignores_old_messages_before_offset() {
         let path =
             std::env::temp_dir().join(format!("pad-codex-answer-{}.jsonl", std::process::id()));
         let first = "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"old\"}]}}\n";
@@ -169,8 +166,7 @@ mod approval {
 
         let _ = fs::remove_file(path);
     }
-    #[test]
-    fn scan_codex_answer_updates_ignores_commentary_until_task_complete() {
+    pub(crate) fn scan_codex_answer_updates_ignores_commentary_until_task_complete() {
         let path = std::env::temp_dir().join(format!(
             "pad-codex-answer-task-complete-{}.jsonl",
             std::process::id()
@@ -194,8 +190,7 @@ mod approval {
 
         let _ = fs::remove_file(path);
     }
-    #[test]
-    fn scan_codex_failure_updates_detects_error_after_offset() {
+    pub(crate) fn scan_codex_failure_updates_detects_error_after_offset() {
         let path =
             std::env::temp_dir().join(format!("pad-codex-failure-{}.jsonl", std::process::id()));
         let old = "{\"type\":\"event_msg\",\"payload\":{\"type\":\"error\",\"message\":\"old failure\",\"codex_error_info\":\"other\"}}\n";
@@ -219,8 +214,7 @@ mod approval {
 
         let _ = fs::remove_file(path);
     }
-    #[test]
-    fn scan_codex_failure_updates_ignores_mismatched_turn_id() {
+    pub(crate) fn scan_codex_failure_updates_ignores_mismatched_turn_id() {
         let path = std::env::temp_dir().join(format!(
             "pad-codex-failure-turn-{}.jsonl",
             std::process::id()
@@ -235,27 +229,23 @@ mod approval {
         let _ = fs::remove_file(path);
     }
 }
-mod core {
+pub(crate) mod core {
     use super::*;
 
-    #[test]
-    fn chunk_text_splits_long_messages() {
+    pub(crate) fn chunk_text_splits_long_messages() {
         let chunks = chunk_text("abcdef", 3);
         assert_eq!(chunks, vec!["abc", "def"]);
     }
-    #[test]
-    fn slash_command_builder_preserves_optional_args() {
+    pub(crate) fn slash_command_builder_preserves_optional_args() {
         assert_eq!(build_slash_command_text("/status", ""), "/status");
         assert_eq!(build_slash_command_text("/fast", "status"), "/fast status");
     }
-    #[test]
-    fn summarize_pane_capture_trims_blank_edges_and_keeps_tail() {
+    pub(crate) fn summarize_pane_capture_trims_blank_edges_and_keeps_tail() {
         let capture = "\n\none\n\ntwo\nthree\n\n";
         assert_eq!(summarize_pane_capture(capture), "one\n\ntwo\nthree");
     }
 
-    #[test]
-    fn summarize_pane_capture_keeps_last_eighteen_non_edge_lines() {
+    pub(crate) fn summarize_pane_capture_keeps_last_eighteen_non_edge_lines() {
         let capture = format!(
             "\n{}\n\n",
             (1..=20)
@@ -271,15 +261,13 @@ mod core {
         assert_eq!(summarize_pane_capture(&capture), expected);
     }
 
-    #[test]
-    fn agent_keyboard_uses_clickable_use_callbacks() {
+    pub(crate) fn agent_keyboard_uses_clickable_use_callbacks() {
         let panel = sample_panel_with_turns(Vec::new());
         let keyboard = build_agent_keyboard(&[panel], crate::i18n::Locale::En);
         assert_eq!(keyboard.len(), 1);
         assert_eq!(keyboard[0][0]["callback_data"], "use-pane:%42");
     }
-    #[test]
-    fn telegram_sound_helper_records_enabled_event() {
+    pub(crate) fn telegram_sound_helper_records_enabled_event() {
         with_temp_home("telegram-sound", |_home| {
             crate::sound::with_test_sound_capture(|| {
                 let _ = crate::sound::take_test_playbacks();
@@ -299,11 +287,10 @@ mod core {
         });
     }
 }
-mod help {
+pub(crate) mod help {
     use super::*;
 
-    #[test]
-    fn help_page_callbacks_parse() {
+    pub(crate) fn help_page_callbacks_parse() {
         assert_eq!(
             HelpPage::from_callback("help:overview"),
             Some(HelpPage::Overview)
@@ -315,8 +302,7 @@ mod help {
         );
         assert_eq!(HelpPage::from_callback("help:list"), None);
     }
-    #[test]
-    fn help_page_html_includes_target_and_commands() {
+    pub(crate) fn help_page_html_includes_target_and_commands() {
         let state = TelegramState {
             selected_target: Some(SelectedTarget {
                 pane_id: "%7".into(),
@@ -337,8 +323,7 @@ mod help {
         assert!(overview_html.contains("/reset"));
     }
 
-    #[test]
-    fn help_page_html_escapes_target_label() {
+    pub(crate) fn help_page_html_escapes_target_label() {
         let state = TelegramState {
             selected_target: Some(SelectedTarget {
                 pane_id: "%7".into(),
@@ -352,20 +337,18 @@ mod help {
         assert!(!html.contains("A&B <codex> 東"));
     }
 
-    #[test]
-    fn help_keyboard_marks_active_page() {
+    pub(crate) fn help_keyboard_marks_active_page() {
         let keyboard = build_help_keyboard(crate::i18n::Locale::En, HelpPage::Workflow);
         assert_eq!(keyboard.len(), 2);
         assert_eq!(keyboard[0][2]["callback_data"], "help:workflow");
         assert_eq!(keyboard[1][0]["callback_data"], "help:list");
     }
 }
-mod history_restart;
-mod journal {
+pub(crate) mod history_restart;
+pub(crate) mod journal {
     use super::*;
 
-    #[test]
-    fn journal_recovery_runs_immediately_for_pending_on_startup() {
+    pub(crate) fn journal_recovery_runs_immediately_for_pending_on_startup() {
         let state = TelegramState {
             pending_requests: vec![sample_pending("tg-1", "%1", "awaiting_submit")],
             ..TelegramState::default()
@@ -373,8 +356,7 @@ mod journal {
 
         assert!(should_probe_hook_journal_inner(&state, true, 100));
     }
-    #[test]
-    fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
+    pub(crate) fn journal_recovery_waits_for_stall_when_direct_hook_is_alive() {
         let state = TelegramState {
             last_journal_recovery_at: 100,
             pending_requests: vec![PendingRequest {
@@ -388,8 +370,7 @@ mod journal {
         assert!(!should_probe_hook_journal_inner(&state, true, 103));
         assert!(should_probe_hook_journal_inner(&state, true, 106));
     }
-    #[test]
-    fn journal_recovery_probes_if_any_pending_request_is_stalled() {
+    pub(crate) fn journal_recovery_probes_if_any_pending_request_is_stalled() {
         let state = TelegramState {
             last_journal_recovery_at: 100,
             pending_requests: vec![
@@ -411,11 +392,10 @@ mod journal {
         assert!(should_probe_hook_journal_inner(&state, true, 106));
     }
 }
-mod pending {
+pub(crate) mod pending {
     use super::*;
 
-    #[test]
-    fn pending_status_moves_from_accepted_to_working() {
+    pub(crate) fn pending_status_moves_from_accepted_to_working() {
         let mut pending = sample_pending("tg-1", "%1", "awaiting_stop");
         pending.accepted_at = Some(100);
         pending.accepted_at_ms = Some(100_000);
@@ -427,8 +407,7 @@ mod pending {
         assert!(working.contains("Working"));
         assert!(working.contains("6s"));
     }
-    #[test]
-    fn pending_status_reports_approval_needed() {
+    pub(crate) fn pending_status_reports_approval_needed() {
         let mut pending = sample_pending("tg-1", "%1", "awaiting_confirm");
         pending.accepted_at = Some(100);
         pending.accepted_at_ms = Some(100_000);
@@ -439,8 +418,7 @@ mod pending {
         assert!(text.contains("Needs approval"));
         assert!(text.contains("cargo check"));
     }
-    #[test]
-    fn matching_pending_request_index_targets_correct_submit_event() {
+    pub(crate) fn matching_pending_request_index_targets_correct_submit_event() {
         let mut first = sample_pending("tg-1", "%1", "awaiting_submit");
         first.prompt_hash = format!("{:x}", md5::compute("first".as_bytes()));
         let mut second = sample_pending("tg-2", "%2", "awaiting_submit");
@@ -469,8 +447,7 @@ mod pending {
 
         assert_eq!(matching_pending_request_index(&state, &event), Some(1));
     }
-    #[test]
-    fn matching_pending_request_index_ignores_stale_stop_in_awaiting_submit() {
+    pub(crate) fn matching_pending_request_index_ignores_stale_stop_in_awaiting_submit() {
         let mut first = sample_pending("tg-1", "%1", "awaiting_submit");
         first.turn_id = Some("turn-1".into());
         let mut second = sample_pending("tg-2", "%2", "awaiting_stop");
@@ -516,8 +493,7 @@ mod pending {
             Some(1)
         );
     }
-    #[test]
-    fn approval_lookup_selects_request_by_request_id() {
+    pub(crate) fn approval_lookup_selects_request_by_request_id() {
         let mut first = sample_pending("tg-1", "%1", "awaiting_confirm");
         first.approval_call_id = Some("call-1".into());
         let mut second = sample_pending("tg-2", "%2", "awaiting_confirm");
@@ -529,8 +505,7 @@ mod pending {
 
         assert_eq!(approval_pending_index(&state, "tg-2"), Some(1));
     }
-    #[test]
-    fn completed_reply_includes_request_attribution() {
+    pub(crate) fn completed_reply_includes_request_attribution() {
         let mut pending = sample_pending("tg-1", "%9", "delivering_result");
         pending.turn_id = Some("turn-9".into());
         let reply = completed_reply_text(crate::i18n::Locale::En, &pending, "done");
@@ -544,8 +519,7 @@ mod pending {
         assert!(reply.contains("Dir: /tmp/9"));
         assert!(reply.ends_with("done"));
     }
-    #[test]
-    fn pad_status_lists_all_pending_requests() {
+    pub(crate) fn pad_status_lists_all_pending_requests() {
         let state = TelegramState {
             selected_target: Some(SelectedTarget {
                 pane_id: "%2".into(),
@@ -566,8 +540,7 @@ mod pending {
         assert!(body.contains("%1"));
         assert!(body.contains("%2"));
     }
-    #[test]
-    fn pending_status_summary_line_is_compact_but_identifiable() {
+    pub(crate) fn pending_status_summary_line_is_compact_but_identifiable() {
         let pending = sample_pending("tg-1", "%1", "awaiting_submit");
         let summary = pending_status_summary_line(crate::i18n::Locale::En, &pending);
         assert!(summary.contains("tg-1"));
@@ -576,11 +549,10 @@ mod pending {
         assert!(summary.contains("Waiting for submit"));
     }
 }
-mod state {
+pub(crate) mod state {
     use super::*;
 
-    #[test]
-    fn processed_updates_are_deduplicated() {
+    pub(crate) fn processed_updates_are_deduplicated() {
         let mut state = TelegramState::default();
         assert!(mark_update_processed(&mut state, 10));
         assert_eq!(state.last_processed_update_id, 10);
@@ -598,8 +570,7 @@ mod state {
         assert_eq!(state.last_processed_update_id, 12);
         assert_eq!(state.update_offset, 13);
     }
-    #[test]
-    fn telegram_state_backfills_missing_last_processed_update_id() {
+    pub(crate) fn telegram_state_backfills_missing_last_processed_update_id() {
         let state: TelegramState = serde_json::from_str(
             r#"{
                 "update_offset": 42,
@@ -615,8 +586,7 @@ mod state {
         assert_eq!(state.journal_position, 7);
         assert!(state.pending_requests.is_empty());
     }
-    #[test]
-    fn telegram_state_loads_legacy_pending_field_into_pending_requests() {
+    pub(crate) fn telegram_state_loads_legacy_pending_field_into_pending_requests() {
         with_temp_home("legacy-pending", |_home| {
             let state_path = crate::paths::telegram_state_path();
             std::fs::create_dir_all(state_path.parent().unwrap()).unwrap();
@@ -659,8 +629,7 @@ mod state {
             assert_eq!(state.pending_requests[0].pane_id, "%7");
         });
     }
-    #[test]
-    fn processed_hook_events_are_deduplicated_across_channels() {
+    pub(crate) fn processed_hook_events_are_deduplicated_across_channels() {
         let event = HookEvent {
             event: "stop".into(),
             turn_id: Some("turn-1".into()),
@@ -684,13 +653,11 @@ mod state {
         assert!(!remember_processed_hook_event(&mut state, &event));
         assert_eq!(state.processed_hook_signatures.len(), 1);
     }
-    #[test]
-    fn next_request_and_draft_ids_are_unique() {
+    pub(crate) fn next_request_and_draft_ids_are_unique() {
         assert_ne!(next_request_id(), next_request_id());
         assert_ne!(next_draft_id(), next_draft_id());
     }
-    #[test]
-    fn pending_lookup_is_per_pane_not_global() {
+    pub(crate) fn pending_lookup_is_per_pane_not_global() {
         let state = TelegramState {
             pending_requests: vec![sample_pending("tg-1", "%1", "awaiting_submit")],
             ..TelegramState::default()
@@ -699,8 +666,7 @@ mod state {
         assert_eq!(pending_request_index_by_pane(&state, "%1"), Some(0));
         assert_eq!(pending_request_index_by_pane(&state, "%2"), None);
     }
-    #[test]
-    fn selected_target_reset_removes_only_matching_pending() {
+    pub(crate) fn selected_target_reset_removes_only_matching_pending() {
         let mut state = TelegramState {
             selected_target: Some(SelectedTarget {
                 pane_id: "%2".into(),

@@ -115,7 +115,7 @@ mod context {
         }))
     }
 }
-mod format;
+pub(crate) mod format;
 mod status {
     use super::super::*;
 

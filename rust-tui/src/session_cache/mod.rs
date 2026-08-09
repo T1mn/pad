@@ -129,8 +129,8 @@ mod storage {
         path.with_extension(format!("tmp.{}.{}", pid, stamp))
     }
 }
-mod tests;
-mod turns;
+pub(crate) mod tests;
+pub(crate) mod turns;
 mod util {
     pub(super) fn first_non_empty_str<'a>(
         values: impl IntoIterator<Item = Option<&'a str>>,

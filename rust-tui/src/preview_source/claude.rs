@@ -114,7 +114,7 @@ mod text {
 
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
-mod tests {
+pub(crate) mod tests {
     use super::parse_transcript;
     use crate::preview_source::SessionReadMode;
     use std::fs;
@@ -123,8 +123,7 @@ mod tests {
         crate::test_support::temp_path("pad-preview-jsonl", name)
     }
 
-    #[test]
-    fn parse_claude_transcript_skips_meta_thinking_and_tools() {
+    pub(crate) fn parse_claude_transcript_skips_meta_thinking_and_tools() {
         let path = temp_jsonl_path("claude");
         fs::write(
             &path,
@@ -146,8 +145,7 @@ mod tests {
         assert_eq!(turns[0].answer.as_deref(), Some("real assistant"));
     }
 
-    #[test]
-    fn parse_claude_transcript_joins_text_array_parts() {
+    pub(crate) fn parse_claude_transcript_joins_text_array_parts() {
         let path = temp_jsonl_path("claude-multipart");
         fs::write(
             &path,

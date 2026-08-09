@@ -4,16 +4,14 @@ use crate::app::TerminalProfile;
 
 use super::*;
 
-#[test]
-fn missing_workspace_is_not_an_error() {
+pub(crate) fn missing_workspace_is_not_an_error() {
     let directory = scratch_dir("missing");
     assert!(load_from_path(&directory.join("workspace.json"))
         .unwrap()
         .is_none());
 }
 
-#[test]
-fn workspace_round_trips_without_runtime_state() {
+pub(crate) fn workspace_round_trips_without_runtime_state() {
     let directory = scratch_dir("roundtrip");
     fs::create_dir_all(&directory).unwrap();
     let path = directory.join("workspace.json");
@@ -42,8 +40,7 @@ fn workspace_round_trips_without_runtime_state() {
     fs::remove_dir_all(directory).unwrap();
 }
 
-#[test]
-fn invalid_or_future_workspace_is_rejected() {
+pub(crate) fn invalid_or_future_workspace_is_rejected() {
     let directory = scratch_dir("invalid");
     fs::create_dir_all(&directory).unwrap();
     let path = directory.join("workspace.json");
@@ -60,8 +57,7 @@ fn invalid_or_future_workspace_is_rejected() {
     fs::remove_dir_all(directory).unwrap();
 }
 
-#[test]
-fn invalid_workspace_is_quarantined_without_overwriting_recovery_files() {
+pub(crate) fn invalid_workspace_is_quarantined_without_overwriting_recovery_files() {
     let directory = scratch_dir("quarantine");
     fs::create_dir_all(&directory).unwrap();
     let path = directory.join("terminal-workspace.json");

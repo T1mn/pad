@@ -267,4 +267,4 @@ fn convert_cursor(
 
 #[cfg(test)]
 #[path = "alacritty_tests.rs"]
-mod tests;
+pub(crate) mod tests;

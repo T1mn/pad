@@ -42,4 +42,4 @@ fn recovery_title(locale: Locale) -> &'static str {
 
 #[cfg(test)]
 #[path = "config_persist_tests.rs"]
-mod tests;
+pub(crate) mod tests;

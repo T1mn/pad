@@ -248,7 +248,7 @@ pub(crate) fn draw_session_preview(f: &mut Frame, app: &mut App, area: Rect, the
 
 #[cfg(test)]
 #[path = "session/tests.rs"]
-mod tests {
+pub(crate) mod tests {
     use super::{
         build_session_list_lines, render_session_card, render_session_detail_lines,
         session_list_total_lines, session_turn_index_at_line,
@@ -257,8 +257,7 @@ mod tests {
     use crate::theme::Theme;
     use ratatui::style::Modifier;
 
-    #[test]
-    fn selected_range_excludes_gap_line() {
+    pub(crate) fn selected_range_excludes_gap_line() {
         let turns = vec![
             PreviewTurn {
                 question: "first".into(),
@@ -276,8 +275,7 @@ mod tests {
         assert_eq!(selected_range, Some((0, 2)));
     }
 
-    #[test]
-    fn gap_line_has_no_turn_hit_target() {
+    pub(crate) fn gap_line_has_no_turn_hit_target() {
         assert_eq!(session_list_total_lines(2), 7);
         assert_eq!(session_turn_index_at_line(0, 2), Some(0));
         assert_eq!(session_turn_index_at_line(1, 2), Some(0));
@@ -289,8 +287,7 @@ mod tests {
         assert_eq!(session_turn_index_at_line(7, 2), None);
     }
 
-    #[test]
-    fn session_card_renders_two_answer_lines() {
+    pub(crate) fn session_card_renders_two_answer_lines() {
         let theme = Theme::default();
         let lines = render_session_card(
             &PreviewTurn {
@@ -322,8 +319,7 @@ mod tests {
         assert!(!body_span.style.add_modifier.contains(Modifier::DIM));
     }
 
-    #[test]
-    fn session_detail_prompt_uses_primary_text_color() {
+    pub(crate) fn session_detail_prompt_uses_primary_text_color() {
         let theme = Theme::default();
         let lines = render_session_detail_lines(
             &PreviewTurn {

@@ -3,8 +3,7 @@ use std::thread;
 
 use super::*;
 
-#[test]
-fn alacritty_engine_parses_ansi_and_resize() {
+pub(crate) fn alacritty_engine_parses_ansi_and_resize() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(12, 3));
     engine.feed(b"hello\r\n\x1b[31mred\x1b[0m").unwrap();
 
@@ -22,8 +21,7 @@ fn alacritty_engine_parses_ansi_and_resize() {
     assert_eq!(resized.cells.len(), 80);
 }
 
-#[test]
-fn alacritty_engine_tracks_tui_modes_and_unicode() {
+pub(crate) fn alacritty_engine_tracks_tui_modes_and_unicode() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(12, 3));
     engine.feed("界\x1b[?1049h\x1b[?2004h".as_bytes()).unwrap();
 
@@ -41,8 +39,7 @@ fn alacritty_engine_tracks_tui_modes_and_unicode() {
     );
 }
 
-#[test]
-fn alacritty_engine_emits_dsr_and_device_attribute_replies() {
+pub(crate) fn alacritty_engine_emits_dsr_and_device_attribute_replies() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(12, 4));
     engine.feed(b"\x1b[2;3H\x1b[5n\x1b[6n\x1b[c").unwrap();
 
@@ -66,8 +63,7 @@ fn alacritty_engine_emits_dsr_and_device_attribute_replies() {
     assert!(reply.ends_with(b";1c"), "reply={reply:?}");
 }
 
-#[test]
-fn alacritty_engine_reports_character_size_without_fabricating_pixel_size() {
+pub(crate) fn alacritty_engine_reports_character_size_without_fabricating_pixel_size() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(80, 24));
     engine.feed(b"\x1b[18t\x1b[14t").unwrap();
     assert_eq!(
@@ -93,8 +89,7 @@ fn alacritty_engine_reports_character_size_without_fabricating_pixel_size() {
     );
 }
 
-#[test]
-fn alacritty_engine_emits_title_reset_bell_and_explicit_unsupported_requests() {
+pub(crate) fn alacritty_engine_emits_title_reset_bell_and_explicit_unsupported_requests() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(12, 4));
     engine
         .feed(b"\x1b[22t\x1b]0;build log\x07\x07\x1b[23t\x1b]10;?\x1b\\")
@@ -115,8 +110,7 @@ fn alacritty_engine_emits_title_reset_bell_and_explicit_unsupported_requests() {
     assert_eq!(events.len(), 4);
 }
 
-#[test]
-fn alacritty_engine_preserves_wide_and_combining_cells() {
+pub(crate) fn alacritty_engine_preserves_wide_and_combining_cells() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(10, 2));
     let text = "界́x";
 
@@ -141,8 +135,7 @@ fn alacritty_engine_preserves_wide_and_combining_cells() {
     );
 }
 
-#[test]
-fn alacritty_engine_keeps_wide_wrap_placeholders_textless() {
+pub(crate) fn alacritty_engine_keeps_wide_wrap_placeholders_textless() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(4, 2));
     engine.feed("abc界".as_bytes()).unwrap();
 
@@ -157,8 +150,7 @@ fn alacritty_engine_keeps_wide_wrap_placeholders_textless() {
     assert_eq!(snapshot.cell(1, 1).unwrap().symbol, "");
 }
 
-#[test]
-fn terminal_snapshot_row_text_only_trims_empty_ascii_cells() {
+pub(crate) fn terminal_snapshot_row_text_only_trims_empty_ascii_cells() {
     let mut snapshot = TerminalSnapshot::blank(TerminalSize::new(4, 1));
     snapshot.cells[0].symbol = "a".to_string();
     snapshot.cells[1].symbol = "\u{a0}".to_string();
@@ -166,8 +158,7 @@ fn terminal_snapshot_row_text_only_trims_empty_ascii_cells() {
     assert_eq!(snapshot.row_text(0).as_deref(), Some("a\u{a0}"));
 }
 
-#[test]
-fn alacritty_engine_preserves_ansi_colors_and_attributes() {
+pub(crate) fn alacritty_engine_preserves_ansi_colors_and_attributes() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(8, 2));
     engine
         .feed(b"\x1b[1;2;3;4;7;8;9;38;5;202;48;2;1;2;3mX\x1b[0mY")
@@ -196,8 +187,7 @@ fn alacritty_engine_preserves_ansi_colors_and_attributes() {
     assert_eq!(reset.attributes, TextAttributes::default());
 }
 
-#[test]
-fn alacritty_engine_tracks_cursor_shape_visibility_position_and_modes() {
+pub(crate) fn alacritty_engine_tracks_cursor_shape_visibility_position_and_modes() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(8, 4));
     engine
         .feed(b"\x1b[3;5H\x1b[5 q\x1b[?1h\x1b[?1002h")
@@ -228,8 +218,7 @@ fn alacritty_engine_tracks_cursor_shape_visibility_position_and_modes() {
     );
 }
 
-#[test]
-fn alacritty_engine_restores_primary_screen_and_cursor_after_alt_screen() {
+pub(crate) fn alacritty_engine_restores_primary_screen_and_cursor_after_alt_screen() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(8, 3));
     engine.feed(b"main\x1b[2;3H\x1b[?1049halt").unwrap();
 
@@ -254,8 +243,7 @@ fn alacritty_engine_restores_primary_screen_and_cursor_after_alt_screen() {
     );
 }
 
-#[test]
-fn alacritty_engine_snapshots_scrolled_output_in_row_major_order() {
+pub(crate) fn alacritty_engine_snapshots_scrolled_output_in_row_major_order() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(5, 3));
     engine.feed(b"0\r\n1\r\n2\r\n3\r\n4").unwrap();
 
@@ -271,8 +259,7 @@ fn alacritty_engine_snapshots_scrolled_output_in_row_major_order() {
     assert!(snapshot.cell(0, 3).is_none());
 }
 
-#[test]
-fn alacritty_engine_reflows_content_across_resize() {
+pub(crate) fn alacritty_engine_reflows_content_across_resize() {
     let mut engine = AlacrittyEngine::new(TerminalSize::new(6, 3));
     engine.feed(b"abcdefghi").unwrap();
 
@@ -290,8 +277,7 @@ fn alacritty_engine_reflows_content_across_resize() {
     assert_eq!(widened.row_text(1).as_deref(), Some("i"));
 }
 
-#[test]
-fn alacritty_engine_normalizes_zero_dimensions_at_boundaries() {
+pub(crate) fn alacritty_engine_normalizes_zero_dimensions_at_boundaries() {
     let invalid = TerminalSize {
         columns: 0,
         rows: 0,
@@ -303,8 +289,7 @@ fn alacritty_engine_normalizes_zero_dimensions_at_boundaries() {
     assert_eq!(engine.snapshot().size, TerminalSize::new(1, 1));
 }
 
-#[test]
-fn worker_runtime_supports_multiple_registered_engines() {
+pub(crate) fn worker_runtime_supports_multiple_registered_engines() {
     let created_on = Arc::new(Mutex::new(Vec::new()));
     let mut registry = EngineRegistry::default();
     registry.register(
@@ -358,8 +343,7 @@ fn worker_runtime_supports_multiple_registered_engines() {
     assert_ne!(worker_threads[0], worker_threads[1]);
 }
 
-#[test]
-fn worker_runtime_drains_engine_events_in_parser_order() {
+pub(crate) fn worker_runtime_drains_engine_events_in_parser_order() {
     let mut registry = EngineRegistry::default();
     registry.register(EngineId::new(ALACRITTY_ENGINE_ID), AlacrittyEngineFactory);
     let runtime = EngineRuntime::start(1, registry).unwrap();
@@ -392,8 +376,7 @@ fn worker_runtime_drains_engine_events_in_parser_order() {
     );
 }
 
-#[test]
-fn pane_runtime_keeps_label_outside_terminal_engine() {
+pub(crate) fn pane_runtime_keeps_label_outside_terminal_engine() {
     let mut registry = EngineRegistry::default();
     registry.register(EngineId::new(ALACRITTY_ENGINE_ID), AlacrittyEngineFactory);
     let engines = EngineRuntime::start(1, registry).unwrap();

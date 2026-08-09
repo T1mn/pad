@@ -226,4 +226,4 @@ fn is_command_chord(key: KeyEvent) -> bool {
 
 #[cfg(test)]
 #[path = "terminal_keys_tests.rs"]
-mod tests;
+pub(crate) mod tests;

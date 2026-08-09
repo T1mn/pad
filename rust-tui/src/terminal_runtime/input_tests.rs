@@ -11,8 +11,7 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     }
 }
 
-#[test]
-fn characters_control_and_alt_are_encoded_without_shell_interpretation() {
+pub(crate) fn characters_control_and_alt_are_encoded_without_shell_interpretation() {
     assert_eq!(
         encode_key_event(key(KeyCode::Char('界'), KeyModifiers::NONE), mode()),
         Some("界".as_bytes().to_vec())
@@ -37,8 +36,7 @@ fn characters_control_and_alt_are_encoded_without_shell_interpretation() {
     );
 }
 
-#[test]
-fn cursor_and_function_keys_honor_modes_and_modifiers() {
+pub(crate) fn cursor_and_function_keys_honor_modes_and_modifiers() {
     assert_eq!(
         encode_key_event(key(KeyCode::Up, KeyModifiers::NONE), mode()),
         Some(b"\x1b[A".to_vec())
@@ -71,8 +69,7 @@ fn cursor_and_function_keys_honor_modes_and_modifiers() {
     );
 }
 
-#[test]
-fn editing_keys_and_bracketed_paste_match_xterm_sequences() {
+pub(crate) fn editing_keys_and_bracketed_paste_match_xterm_sequences() {
     assert_eq!(
         encode_key_event(key(KeyCode::Enter, KeyModifiers::NONE), mode()),
         Some(b"\r".to_vec())
@@ -92,8 +89,7 @@ fn editing_keys_and_bracketed_paste_match_xterm_sequences() {
     );
 }
 
-#[test]
-fn sgr_mouse_uses_inner_relative_coordinates_and_filters_borders() {
+pub(crate) fn sgr_mouse_uses_inner_relative_coordinates_and_filters_borders() {
     let inner = Rect::new(10, 5, 20, 8);
     let mouse_mode = TerminalMode {
         mouse_reporting: true,

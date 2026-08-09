@@ -29,11 +29,10 @@ pub(super) fn sample_panel(pane_id: &str, working_dir: &str) -> AgentPanel {
     }
 }
 
-mod movement {
+pub(crate) mod movement {
     use super::*;
 
-    #[test]
-    fn next_uses_folder_rows_when_not_expanded() {
+    pub(crate) fn next_uses_folder_rows_when_not_expanded() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -48,8 +47,7 @@ mod movement {
         );
     }
 
-    #[test]
-    fn next_skips_expanded_folder_row() {
+    pub(crate) fn next_skips_expanded_folder_row() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -63,8 +61,7 @@ mod movement {
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
     }
 
-    #[test]
-    fn next_skips_search_expanded_folder_row() {
+    pub(crate) fn next_skips_search_expanded_folder_row() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -78,8 +75,7 @@ mod movement {
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
     }
 
-    #[test]
-    fn numeric_jump_ignores_folder_rows_and_hidden_threads() {
+    pub(crate) fn numeric_jump_ignores_folder_rows_and_hidden_threads() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -94,8 +90,7 @@ mod movement {
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%1"));
     }
 
-    #[test]
-    fn numeric_jump_uses_visible_thread_order() {
+    pub(crate) fn numeric_jump_uses_visible_thread_order() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -110,8 +105,7 @@ mod movement {
         assert_eq!(app.table_state.selected(), Some(3));
     }
 
-    #[test]
-    fn numeric_jump_uses_filtered_visible_threads() {
+    pub(crate) fn numeric_jump_uses_filtered_visible_threads() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -124,8 +118,7 @@ mod movement {
         assert_eq!(app.sidebar.selected_sidebar_key.as_deref(), Some("live:%2"));
     }
 
-    #[test]
-    fn shift_j_k_moves_selected_thread_without_following_completion_sort() {
+    pub(crate) fn shift_j_k_moves_selected_thread_without_following_completion_sort() {
         let mut app = App::new();
         let mut first = sample_panel("%1", "/tmp/alpha");
         first.agent_session_id = Some("sid-1".into());
@@ -151,11 +144,10 @@ mod movement {
         );
     }
 }
-mod selection {
+pub(crate) mod selection {
     use super::*;
 
-    #[test]
-    fn selected_preview_thread_resolves_from_folder_summary_selection() {
+    pub(crate) fn selected_preview_thread_resolves_from_folder_summary_selection() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.sync_sidebar_selection();
@@ -168,8 +160,7 @@ mod selection {
         assert_eq!(thread.live_pane_id.as_deref(), Some("%1"));
     }
 
-    #[test]
-    fn sync_sidebar_selection_recovers_collapsed_thread_to_folder_key() {
+    pub(crate) fn sync_sidebar_selection_recovers_collapsed_thread_to_folder_key() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.sidebar.expanded_folders.insert("/tmp/alpha".into());
@@ -190,8 +181,8 @@ mod selection {
         assert_eq!(app.table_state.selected(), Some(0));
     }
 
-    #[test]
-    fn sync_sidebar_selection_falls_back_to_first_visible_item_when_selected_key_is_filtered_out() {
+    pub(crate) fn sync_sidebar_selection_falls_back_to_first_visible_item_when_selected_key_is_filtered_out(
+    ) {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));
@@ -213,8 +204,7 @@ mod selection {
         assert_eq!(app.table_state.selected(), Some(0));
     }
 
-    #[test]
-    fn visible_sidebar_items_sequence_stays_stable_across_expand_and_search() {
+    pub(crate) fn visible_sidebar_items_sequence_stays_stable_across_expand_and_search() {
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/alpha"));

@@ -8,6 +8,7 @@
 - `time.rs` / `logger.rs` / `shell_quote.rs` / `shell_quote_tests.rs` / `text_match.rs` / `text_match_tests.rs` / `text_normalize.rs` / `text_normalize_tests.rs`：crate 内共享时间戳、debug log、shell quoting、文本匹配与文本归一化 helper。
 - `panic_boundary.rs` / `panic_boundary_tests.rs`：标记并测试可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
+- `test_suites.rs` / `test_suites_*.rs`：100 项测试入口的功能域套件；同步套件继续调用与实现相邻的原 case，异步与 ignored 测试保持独立运行语义。定向执行时筛选 `test_suites::<bucket>::<domain>_suite`；失败汇总会列出具体原 case 路径。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
 - `theme.rs` / `theme/`：配置模型、加载保存、主题。

@@ -237,4 +237,4 @@ pub use cli::run_args;
 pub use remote::{remote_ssh_command, RemoteCommandRequest};
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -1,7 +1,6 @@
-mod claude {
+pub(crate) mod claude {
     use super::*;
-    #[test]
-    fn claude_provider_writes_cc_switch_style_env_settings() {
+    pub(crate) fn claude_provider_writes_cc_switch_style_env_settings() {
         with_temp_home("claude-write", |home| {
             let settings_path = home.join(".claude").join("settings.json");
             std::fs::create_dir_all(settings_path.parent().expect("claude dir"))
@@ -63,8 +62,7 @@ mod claude {
         });
     }
 
-    #[test]
-    fn claude_provider_strips_trailing_v1_from_base_url() {
+    pub(crate) fn claude_provider_strips_trailing_v1_from_base_url() {
         let updated = crate::relay::claude::update_claude_settings_config(
             "{}",
             "https://claude-relay.example/v1/",
@@ -82,8 +80,7 @@ mod claude {
         );
     }
 
-    #[test]
-    fn claude_provider_writes_default_model_env_when_configured() {
+    pub(crate) fn claude_provider_writes_default_model_env_when_configured() {
         let updated = crate::relay::claude::update_claude_settings_config(
             "{}",
             "https://claude-relay.example",
@@ -105,8 +102,7 @@ mod claude {
         );
     }
 
-    #[test]
-    fn claude_provider_clears_stale_default_model_env_when_unconfigured() {
+    pub(crate) fn claude_provider_clears_stale_default_model_env_when_unconfigured() {
         let updated = crate::relay::claude::update_claude_settings_config(
             r#"{"env":{"ANTHROPIC_API_KEY":"old","ANTHROPIC_MODEL":"old","ANTHROPIC_CUSTOM_MODEL_OPTION":"old","MAX_THINKING_TOKENS":"0"}}"#,
             "https://claude-relay.example",
@@ -124,8 +120,7 @@ mod claude {
         assert!(value.pointer("/env/MAX_THINKING_TOKENS").is_none());
     }
 
-    #[test]
-    fn claude_provider_writes_disable_thinking_env_only_when_enabled() {
+    pub(crate) fn claude_provider_writes_disable_thinking_env_only_when_enabled() {
         let updated = crate::relay::claude::update_claude_settings_config(
             "{}",
             "https://claude-relay.example",
@@ -148,10 +143,9 @@ mod claude {
     }
 }
 
-mod claude_safety {
+pub(crate) mod claude_safety {
     use super::*;
-    #[test]
-    fn claude_provider_follows_claude_config_dir() {
+    pub(crate) fn claude_provider_follows_claude_config_dir() {
         with_temp_home("claude-config-dir", |home| {
             let config_dir = home.join("custom-claude");
             let settings_path = config_dir.join("settings.json");
@@ -189,8 +183,7 @@ mod claude_safety {
         });
     }
 
-    #[test]
-    fn claude_provider_does_not_overwrite_malformed_settings() {
+    pub(crate) fn claude_provider_does_not_overwrite_malformed_settings() {
         with_temp_home("claude-malformed", |home| {
             let settings_path = home.join(".claude/settings.json");
             std::fs::create_dir_all(settings_path.parent().unwrap()).unwrap();
@@ -212,12 +205,12 @@ mod claude_safety {
     }
 }
 
-mod codex {
+pub(crate) mod codex {
     use super::*;
     include!("provider_configs/codex.rs");
 }
 
-mod deepseek {
+pub(crate) mod deepseek {
     use super::*;
     #[cfg(unix)]
     fn deepseek_agent(secret: &str) -> AgentConfig {
@@ -232,8 +225,7 @@ mod deepseek {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn deepseek_launcher_keeps_secret_owner_only() {
+    pub(crate) fn deepseek_launcher_keeps_secret_owner_only() {
         use std::os::unix::fs::PermissionsExt;
 
         with_temp_home("deepseek-launcher-permissions", |home| {
@@ -254,8 +246,7 @@ mod deepseek {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn deepseek_launcher_atomically_replaces_existing_broad_file() {
+    pub(crate) fn deepseek_launcher_atomically_replaces_existing_broad_file() {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
         with_temp_home("deepseek-launcher-replace", |home| {
@@ -279,8 +270,7 @@ mod deepseek {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn deepseek_launcher_failure_preserves_existing_file() {
+    pub(crate) fn deepseek_launcher_failure_preserves_existing_file() {
         use std::os::unix::fs::PermissionsExt;
 
         with_temp_home("deepseek-launcher-failure", |home| {
@@ -312,10 +302,9 @@ mod deepseek {
     }
 }
 
-mod gemini {
+pub(crate) mod gemini {
     use super::*;
-    #[test]
-    fn gemini_provider_writes_env_and_preserves_settings_json() {
+    pub(crate) fn gemini_provider_writes_env_and_preserves_settings_json() {
         with_temp_home("gemini-write", |home| {
             let gemini_dir = home.join(".gemini");
             std::fs::create_dir_all(&gemini_dir).expect("create gemini dir");
@@ -364,8 +353,7 @@ mod gemini {
         });
     }
 
-    #[test]
-    fn incomplete_gemini_provider_restores_original_files() {
+    pub(crate) fn incomplete_gemini_provider_restores_original_files() {
         with_temp_home("gemini-restore", |home| {
             let gemini_dir = home.join(".gemini");
             std::fs::create_dir_all(&gemini_dir).expect("create gemini dir");
@@ -411,10 +399,9 @@ mod gemini {
     }
 }
 
-mod opencode {
+pub(crate) mod opencode {
     use super::*;
-    #[test]
-    fn opencode_provider_prefers_existing_jsonc_and_preserves_urls_in_strings() {
+    pub(crate) fn opencode_provider_prefers_existing_jsonc_and_preserves_urls_in_strings() {
         with_temp_home("opencode-jsonc", |home| {
             let config_dir = home.join(".config").join("opencode");
             std::fs::create_dir_all(&config_dir).expect("create opencode dir");
@@ -476,8 +463,7 @@ mod opencode {
         });
     }
 
-    #[test]
-    fn opencode_provider_writes_additive_live_config_and_models() {
+    pub(crate) fn opencode_provider_writes_additive_live_config_and_models() {
         with_temp_home("opencode-write", |home| {
             let config_path = home.join(".config").join("opencode").join("opencode.json");
             std::fs::create_dir_all(config_path.parent().expect("opencode dir"))
@@ -549,8 +535,7 @@ mod opencode {
         });
     }
 
-    #[test]
-    fn opencode_sync_removes_previously_managed_provider_keys() {
+    pub(crate) fn opencode_sync_removes_previously_managed_provider_keys() {
         with_temp_home("opencode-remove", |home| {
             let config_path = home.join(".config").join("opencode").join("opencode.json");
             std::fs::create_dir_all(config_path.parent().expect("opencode dir"))
@@ -586,10 +571,9 @@ mod opencode {
     }
 }
 
-mod opencode_runtime {
+pub(crate) mod opencode_runtime {
     use super::*;
-    #[test]
-    fn runtime_overlays_do_not_rewrite_opencode_live_provider_config() {
+    pub(crate) fn runtime_overlays_do_not_rewrite_opencode_live_provider_config() {
         with_temp_home("opencode-overlay-only", |home| {
             let config_path = home.join(".config").join("opencode").join("opencode.json");
             std::fs::create_dir_all(config_path.parent().expect("opencode dir"))
@@ -635,7 +619,7 @@ mod opencode_runtime {
     }
 }
 
-mod opencode_safety {
+pub(crate) mod opencode_safety {
     use super::*;
     fn opencode_agent() -> AgentConfig {
         AgentConfig {
@@ -662,8 +646,7 @@ mod opencode_safety {
         }
     }
 
-    #[test]
-    fn opencode_provider_does_not_overwrite_malformed_config() {
+    pub(crate) fn opencode_provider_does_not_overwrite_malformed_config() {
         with_temp_home("opencode-malformed", |home| {
             let config_path = home.join(".config/opencode/opencode.json");
             std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
@@ -674,8 +657,7 @@ mod opencode_safety {
         });
     }
 
-    #[test]
-    fn opencode_provider_does_not_overwrite_unsupported_jsonc() {
+    pub(crate) fn opencode_provider_does_not_overwrite_unsupported_jsonc() {
         with_temp_home("opencode-unsupported-jsonc", |home| {
             let config_path = home.join(".config/opencode/opencode.jsonc");
             std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
@@ -687,7 +669,7 @@ mod opencode_safety {
     }
 }
 
-mod security {
+pub(crate) mod security {
     use super::*;
     #[cfg(unix)]
     fn assert_private(path: &Path) {
@@ -702,8 +684,7 @@ mod security {
     }
 
     #[cfg(unix)]
-    #[test]
-    fn relay_provider_files_are_private() {
+    pub(crate) fn relay_provider_files_are_private() {
         with_temp_home("private-provider-files", |home| {
             let agents = [
                 AgentConfig {

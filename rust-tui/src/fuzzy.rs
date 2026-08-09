@@ -181,4 +181,4 @@ impl FuzzyPicker {
 
 #[cfg(test)]
 #[path = "fuzzy_tests.rs"]
-mod tests;
+pub(crate) mod tests;

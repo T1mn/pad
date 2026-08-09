@@ -1,8 +1,7 @@
 use crate::app::{App, Mode, ThreadActionKind};
 use crate::model::AgentType;
 
-#[test]
-fn opencode_thread_can_open_archive_confirm() {
+pub(crate) fn opencode_thread_can_open_archive_confirm() {
     let mut app = App::new();
     let thread = crate::sidebar::SidebarThread {
         key: "opencode:ses_1".into(),

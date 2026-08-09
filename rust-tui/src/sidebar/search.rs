@@ -141,4 +141,4 @@ fn push_folder_items(items: &mut Vec<SidebarItem>, folder: &SidebarFolder, is_ex
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

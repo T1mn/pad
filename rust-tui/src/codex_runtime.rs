@@ -144,7 +144,7 @@ mod command {
     }
 }
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use auth::ensure_pad_codex_auth_ready;
 pub(crate) use command::shell_single_quote;

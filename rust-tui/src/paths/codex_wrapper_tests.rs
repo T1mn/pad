@@ -1,7 +1,6 @@
 use super::{pad_codex_wrapper_template, WRAPPER_VERSION};
 
-#[test]
-fn wrapper_template_reads_pad_auth_and_forces_pad_profile() {
+pub(crate) fn wrapper_template_reads_pad_auth_and_forces_pad_profile() {
     let template = pad_codex_wrapper_template();
 
     assert!(template.contains(&format!("# pad-wrapper-version: {WRAPPER_VERSION}")));

@@ -10,8 +10,7 @@ use crate::terminal_runtime::{
 
 const TIMEOUT: Duration = Duration::from_secs(2);
 
-#[test]
-fn replay_frames_and_exit_are_published_without_ui_runtime_calls() {
+pub(crate) fn replay_frames_and_exit_are_published_without_ui_runtime_calls() {
     let controller = controller(8, 8);
     assert_eq!(controller.host_thread_name(), "pad-terminal-controller");
     let reader = controller.frames();
@@ -40,8 +39,7 @@ fn replay_frames_and_exit_are_published_without_ui_runtime_calls() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn scroll_publishes_a_new_immutable_frame_without_transport_output() {
+pub(crate) fn scroll_publishes_a_new_immutable_frame_without_transport_output() {
     let controller = controller(8, 8);
     let reader = controller.frames();
     let pane_id = PaneId::new("scrollback");
@@ -95,8 +93,7 @@ fn scroll_publishes_a_new_immutable_frame_without_transport_output() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn transport_failure_is_published_with_the_last_frame() {
+pub(crate) fn transport_failure_is_published_with_the_last_frame() {
     let controller = controller(8, 8);
     let reader = controller.frames();
     let pane_id = PaneId::new("failure");
@@ -137,8 +134,7 @@ fn transport_failure_is_published_with_the_last_frame() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn downstream_input_and_resize_backpressure_is_retried_in_order() {
+pub(crate) fn downstream_input_and_resize_backpressure_is_retried_in_order() {
     let controller = controller(16, 1);
     let pane_id = PaneId::new("retry");
     let (release, release_rx) = mpsc::sync_channel(1);
@@ -180,8 +176,7 @@ fn downstream_input_and_resize_backpressure_is_retried_in_order() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn controller_queue_backpressure_returns_original_input() {
+pub(crate) fn controller_queue_backpressure_returns_original_input() {
     let (release, gate) = mpsc::sync_channel(1);
     let controller = TerminalController::start_inner(runtime(8), 1, Some(gate)).unwrap();
     let pane_id = PaneId::new("bounded");
@@ -199,8 +194,7 @@ fn controller_queue_backpressure_returns_original_input() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn controller_queue_backpressure_returns_original_scroll() {
+pub(crate) fn controller_queue_backpressure_returns_original_scroll() {
     let (release, gate) = mpsc::sync_channel(1);
     let controller = TerminalController::start_inner(runtime(8), 1, Some(gate)).unwrap();
     let pane_id = PaneId::new("bounded-scroll");
@@ -217,8 +211,7 @@ fn controller_queue_backpressure_returns_original_scroll() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn round_robin_keeps_a_quiet_pane_moving_during_noisy_output() {
+pub(crate) fn round_robin_keeps_a_quiet_pane_moving_during_noisy_output() {
     let controller = controller(32, 8);
     let reader = controller.frames();
     let noisy_id = PaneId::new("noisy");
@@ -252,8 +245,7 @@ fn round_robin_keeps_a_quiet_pane_moving_during_noisy_output() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn stale_epoch_commands_cannot_mutate_a_reopened_pane() {
+pub(crate) fn stale_epoch_commands_cannot_mutate_a_reopened_pane() {
     let controller = controller(16, 8);
     let reader = controller.frames();
     let pane_id = PaneId::new("reopen");
@@ -300,8 +292,7 @@ fn stale_epoch_commands_cannot_mutate_a_reopened_pane() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn delayed_older_open_cannot_replace_a_newer_epoch() {
+pub(crate) fn delayed_older_open_cannot_replace_a_newer_epoch() {
     let controller = controller(16, 8);
     let reader = controller.frames();
     let pane_id = PaneId::new("out-of-order-open");
@@ -362,8 +353,7 @@ fn delayed_older_open_cannot_replace_a_newer_epoch() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn label_and_close_publish_new_revisions() {
+pub(crate) fn label_and_close_publish_new_revisions() {
     let controller = controller(8, 8);
     let reader = controller.frames();
     let pane_id = PaneId::new("lifecycle");
@@ -392,8 +382,7 @@ fn label_and_close_publish_new_revisions() {
     controller.shutdown().unwrap();
 }
 
-#[test]
-fn drop_is_nonblocking_while_explicit_shutdown_joins() {
+pub(crate) fn drop_is_nonblocking_while_explicit_shutdown_joins() {
     let dropped_controller = controller(8, 8);
     let reader = dropped_controller.frames();
     let pane_id = PaneId::new("drop");

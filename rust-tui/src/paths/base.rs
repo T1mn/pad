@@ -124,4 +124,4 @@ pub fn pad_codex_wrapper_path() -> PathBuf {
 
 #[cfg(test)]
 #[path = "base_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -130,7 +130,7 @@ mod scroll {
         }
     }
 }
-mod window;
+pub(crate) mod window;
 
 use super::markdown::format_line;
 use crate::app::App;
@@ -190,4 +190,4 @@ fn visible_plain_lines(app: &App, viewport: Rect, scroll: u16) -> (Vec<Line<'sta
 
 #[cfg(test)]
 #[path = "plain_tests.rs"]
-mod tests;
+pub(crate) mod tests;
