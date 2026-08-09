@@ -87,6 +87,7 @@ pub(super) fn run_pre_event_cycle(
         let sizes = placement
             .panes
             .iter()
+            .filter(|pane| app.terminal_pane(pane.pane_id).is_some())
             .map(|pane| {
                 (
                     pane.pane_id,

@@ -492,11 +492,6 @@ impl App {
     }
 
     pub fn close_terminal_pane(&mut self, pane_id: TerminalPaneId) -> Result<bool, TerminalError> {
-        if self.terminal.workspace.panes.len() <= 1 {
-            return Err(TerminalError::new(
-                "terminal workspace must keep at least one pane",
-            ));
-        }
         let mut workspace = self.terminal.workspace.clone();
         if !workspace.close_pane(pane_id) {
             return Ok(false);
@@ -508,6 +503,9 @@ impl App {
         self.reindex_native_agent_panels();
         if let Some(focused) = self.focused_terminal_pane_id() {
             self.mark_native_agent_panel_active(focused);
+        } else {
+            self.cancel_terminal_command_layer();
+            self.focus_panel();
         }
         self.dirty = true;
         Ok(true)

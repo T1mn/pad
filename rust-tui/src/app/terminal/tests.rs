@@ -230,7 +230,7 @@ pub(crate) fn native_pane_focus_keeps_sidebar_selection_on_the_same_agent() {
     );
 }
 
-pub(crate) fn app_refuses_to_close_the_last_terminal_pane() {
+pub(crate) fn closing_the_last_terminal_pane_leaves_an_empty_workspace() {
     let mut app = App::new();
     let only = app
         .terminal
@@ -239,11 +239,12 @@ pub(crate) fn app_refuses_to_close_the_last_terminal_pane() {
         .unwrap();
     app.register_native_agent_panel(only, AgentType::OpenCode, "OpenCode".into(), cwd());
 
-    let error = app.close_terminal_pane(only).unwrap_err();
+    assert!(app.close_terminal_pane(only).unwrap());
 
-    assert!(error.to_string().contains("at least one pane"));
-    assert_eq!(app.terminal.workspace.panes.len(), 1);
-    assert_eq!(app.panels.len(), 1);
+    assert!(app.terminal.workspace.panes.is_empty());
+    assert!(app.terminal.workspace.tabs.is_empty());
+    assert!(app.panels.is_empty());
+    assert_eq!(app.focused_terminal_pane_id(), None);
 }
 
 pub(crate) fn failed_workspace_save_rolls_back_a_close_before_runtime_mutation() {

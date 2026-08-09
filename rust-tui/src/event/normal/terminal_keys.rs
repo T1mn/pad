@@ -3,6 +3,9 @@ use crate::terminal_runtime::{TerminalScroll, TerminalSize};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
+    if is_close_chord(key) {
+        return close_active_terminal(app);
+    }
     if is_command_chord(key) {
         // The command layer is a PAD-level terminal control, so it must also
         // work while focus is still on the sidebar. Otherwise F11 appears to
@@ -10,7 +13,10 @@ pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
         if !app.terminal_is_active() {
             return false;
         }
-        if !app.terminal_is_focused() && !app.focus_terminal() {
+        if !app.terminal_is_focused()
+            && !app.terminal_workspace().panes.is_empty()
+            && !app.focus_terminal()
+        {
             return false;
         }
         if matches!(app.terminal_interaction(), TerminalInteractionState::Direct) {
@@ -20,7 +26,12 @@ pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
         }
         return true;
     }
-    if !app.terminal_is_focused() {
+    if !app.terminal_is_focused()
+        && !matches!(
+            app.terminal_interaction(),
+            TerminalInteractionState::Command | TerminalInteractionState::Rename { .. }
+        )
+    {
         return false;
     }
     if key.code == KeyCode::F(12) {
@@ -78,6 +89,8 @@ fn handle_terminal_command_key(app: &mut App, key: KeyEvent) -> bool {
         TerminalCommandAction::NewTab(profile) => {
             if let Err(error) = app.create_terminal_tab(profile, size) {
                 app.show_action_toast("PAD Terminal", &error.to_string());
+            } else {
+                app.focus_terminal();
             }
         }
         TerminalCommandAction::Split(axis, profile) => {
@@ -102,12 +115,8 @@ fn handle_terminal_command_key(app: &mut App, key: KeyEvent) -> bool {
             show_terminal_result(app, result);
         }
         TerminalCommandAction::ClosePane => {
-            // Keep one live pane so the workspace always has a keyboard entry
-            // point for opening more tabs/splits.
-            if app.terminal_workspace().panes.len() > 1 {
-                let result = app.close_focused_terminal();
-                show_terminal_result(app, result);
-            }
+            let result = app.close_focused_terminal();
+            show_terminal_result(app, result);
         }
         TerminalCommandAction::RenamePane => unreachable!("rename handled above"),
     }
@@ -121,6 +130,16 @@ fn show_terminal_result(
     if let Err(error) = result {
         app.show_action_toast("PAD Terminal", &error.to_string());
     }
+}
+
+fn close_active_terminal(app: &mut App) -> bool {
+    if !app.terminal_is_active() {
+        return false;
+    }
+    app.cancel_terminal_command_layer();
+    let result = app.close_focused_terminal();
+    show_terminal_result(app, result);
+    true
 }
 
 fn handle_terminal_rename_key(app: &mut App, key: KeyEvent) -> bool {
@@ -228,6 +247,14 @@ fn is_command_chord(key: KeyEvent) -> bool {
         || (key.code == KeyCode::Char('g')
             && key.modifiers.contains(KeyModifiers::CONTROL)
             && !key.modifiers.contains(KeyModifiers::ALT))
+}
+
+fn is_close_chord(key: KeyEvent) -> bool {
+    key.code == KeyCode::Char('w')
+        && key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
+        && !key.modifiers.contains(KeyModifiers::ALT)
 }
 
 #[cfg(test)]

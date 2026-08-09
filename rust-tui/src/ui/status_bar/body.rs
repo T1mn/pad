@@ -19,7 +19,10 @@ mod normal {
 
         let right_hint = if app.sidebar.show_tree {
             t(l, "status.tree_nav")
-        } else if app.terminal_is_active() && app.preview_is_focused() {
+        } else if app.terminal_is_active()
+            && (app.preview_is_focused()
+                || !matches!(app.terminal_interaction(), TerminalInteractionState::Direct))
+        {
             match app.terminal_interaction() {
                 TerminalInteractionState::Direct => t(l, "status.terminal_nav"),
                 TerminalInteractionState::Command => t(l, "status.terminal_command"),

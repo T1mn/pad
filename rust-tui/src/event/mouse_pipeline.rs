@@ -29,6 +29,9 @@ pub(super) fn preprocess_scroll_burst(
             .preview_area
             .contains((mouse.column, mouse.row).into())
         {
+            if app.terminal_workspace().panes.is_empty() {
+                return Ok(true);
+            }
             let placement = crate::ui::terminal::placement(app, regions.preview_area);
             let pane = placement
                 .panes
@@ -103,6 +106,9 @@ pub(super) fn handle_mouse_event(
                 .preview_area
                 .contains((mouse.column, mouse.row).into())
             {
+                if app.terminal_workspace().panes.is_empty() {
+                    return Ok(());
+                }
                 let placement = crate::ui::terminal::placement(app, regions.preview_area);
                 if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
                     && placement.tab_bar.contains((mouse.column, mouse.row).into())

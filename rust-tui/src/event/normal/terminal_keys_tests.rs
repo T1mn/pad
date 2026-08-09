@@ -29,6 +29,12 @@ pub(crate) fn command_layer_accepts_explicit_prefixes() {
         KeyModifiers::CONTROL
     )));
     assert!(!is_command_chord(key(KeyCode::Tab, KeyModifiers::NONE)));
+    assert!(is_close_chord(key(
+        KeyCode::Char('w'),
+        KeyModifiers::CONTROL
+    )));
+    assert!(is_close_chord(key(KeyCode::Char('w'), KeyModifiers::SUPER)));
+    assert!(!is_close_chord(key(KeyCode::Char('w'), KeyModifiers::ALT)));
 
     #[cfg(unix)]
     crate::test_support::with_temp_home("pad-terminal-keys", "global-command", |_| {
@@ -47,6 +53,28 @@ pub(crate) fn command_layer_accepts_explicit_prefixes() {
             app.terminal_interaction(),
             &TerminalInteractionState::Command
         );
+
+        assert!(handle_terminal_key(
+            &mut app,
+            key(KeyCode::F(11), KeyModifiers::NONE)
+        ));
+        let second = app
+            .create_terminal_tab(TerminalProfile::Codex, TerminalSize::new(80, 24))
+            .unwrap();
+        app.focus_panel();
+        assert!(handle_terminal_key(
+            &mut app,
+            key(KeyCode::Char('w'), KeyModifiers::CONTROL)
+        ));
+        assert!(app.terminal_workspace().pane(second).is_none());
+        assert_eq!(app.terminal_workspace().panes.len(), 1);
+
+        assert!(handle_terminal_key(
+            &mut app,
+            key(KeyCode::Char('w'), KeyModifiers::CONTROL)
+        ));
+        assert!(app.terminal_workspace().panes.is_empty());
+        assert!(!app.terminal_is_focused());
 
         app.shutdown_native_terminal().unwrap();
     });

@@ -164,7 +164,7 @@ fn app_socket_api_suite() {
 fn app_terminal_suite() {
     run_cases!(
         crate::app::terminal::tests::all_builtin_profiles_have_deterministic_commands,
-        crate::app::terminal::tests::app_refuses_to_close_the_last_terminal_pane,
+        crate::app::terminal::tests::closing_the_last_terminal_pane_leaves_an_empty_workspace,
         crate::app::terminal::tests::builtin_opencode_profile_registers_and_restores_its_live_sidebar_entry,
         crate::app::terminal::tests::builtin_opencode_profile_uses_the_full_configured_shell_command,
         crate::app::terminal::tests::closing_an_earlier_tab_reindexes_native_sidebar_entries,

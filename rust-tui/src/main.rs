@@ -108,7 +108,7 @@ async fn async_main(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     startup::start_runtime_services(&mut app)?;
     let size = ui::terminal_viewport_size(&mut app, terminal.size()?.into());
     let workspace = match terminal_workspace::load() {
-        Ok(workspace) => workspace.filter(|workspace| !workspace.tabs.is_empty()),
+        Ok(workspace) => workspace,
         Err(error) => match terminal_workspace::quarantine_invalid() {
             Ok(Some(recovery_path)) => {
                 log_debug!(

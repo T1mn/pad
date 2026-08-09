@@ -2,10 +2,11 @@ use crate::app::{
     App, TerminalInteractionState, TerminalLayoutNode, TerminalPaneId, TerminalPaneLifecycle,
     TerminalPaneView, TerminalSplitAxis,
 };
+use crate::i18n::t;
 use crate::terminal_runtime::TerminalPaneWidget;
 use crate::theme::Theme;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Margin, Rect};
+use ratatui::layout::{Alignment, Margin, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Widget};
@@ -161,6 +162,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     );
     draw_command_layer(f, app, placement.tab_bar);
 
+    if app.terminal_workspace().tabs.is_empty() {
+        draw_empty_workspace(f, app, placement.content);
+        return;
+    }
+
     let focused_pane = app.focused_terminal_pane_id();
     for pane in &placement.panes {
         let focused = app.terminal_is_focused() && focused_pane == Some(pane.pane_id);
@@ -203,11 +209,24 @@ fn draw_command_layer(f: &mut Frame, app: &App, area: Rect) {
     );
 }
 
+fn draw_empty_workspace(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title(format!(" {} ", t(app.locale, "terminal.empty_title")))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(app.theme.border))
+        .style(Style::default().bg(app.theme.bg).fg(app.theme.comment));
+    let paragraph = Paragraph::new(format!("\n{}", t(app.locale, "terminal.empty_hint")))
+        .alignment(Alignment::Center)
+        .block(block);
+    f.render_widget(paragraph, area);
+}
+
 fn tab_labels(app: &App) -> Vec<TabLabel> {
     let workspace = app.terminal_workspace();
     if workspace.tabs.is_empty() {
         vec![TabLabel {
-            label: legacy_label(app).to_string(),
+            label: t(app.locale, "terminal.empty_title").to_string(),
             active: true,
         }]
     } else {

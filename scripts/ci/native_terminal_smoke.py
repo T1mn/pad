@@ -67,6 +67,7 @@ def main() -> int:
         env.update(
             {
                 "HOME": str(root / "home"),
+                "KITTY_WINDOW_ID": "pad-native-smoke",
                 "PAD_HOME": str(root / "pad-home"),
                 "TERM": "xterm-256color",
             }
@@ -94,6 +95,8 @@ def main() -> int:
             )
             if not ready:
                 raise RuntimeError("PAD did not render its initial frame")
+            if b"SetUserVar=pad=MQ==" not in output:
+                raise RuntimeError("PAD did not mark its Kitty window as active")
 
             command_layer_start = len(output)
             os.write(master, b"\x07")  # Ctrl+G: portable PAD Terminal prefix.
@@ -123,8 +126,16 @@ def main() -> int:
             ):
                 raise RuntimeError("input did not reach the PAD-owned shell PTY")
 
-            os.write(master, b"\x1b[24~")
-            time.sleep(0.3)
+            close_start = len(output)
+            os.write(master, b"\x17")  # Ctrl+W, also sent by Kitty's PAD-only Cmd+W map.
+            if not wait_until(
+                proc,
+                master,
+                output,
+                time.monotonic() + 3.0,
+                lambda: b"No open terminals" in output[close_start:],
+            ):
+                raise RuntimeError("Ctrl+W did not close the final PAD terminal pane")
             os.write(master, b"q")
             if not wait_until(
                 proc,
@@ -136,6 +147,8 @@ def main() -> int:
                 raise RuntimeError("PAD did not exit after returning from the terminal")
             if proc.returncode != 0:
                 raise RuntimeError(f"PAD exited with status {proc.returncode}")
+            if b"SetUserVar=pad\x07" not in output:
+                raise RuntimeError("PAD did not clear its Kitty window marker on exit")
         except Exception as error:
             if proc.poll() is None:
                 proc.terminate()
