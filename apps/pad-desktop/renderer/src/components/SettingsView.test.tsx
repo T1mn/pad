@@ -225,6 +225,31 @@ describe("SettingsView", () => {
     expect(onThemeChange).toHaveBeenCalledWith("dark");
   });
 
+  it("设置导航提供独立远程连接页并显示真实状态", async () => {
+    renderSettings({
+      backend: {
+        status: "ready",
+        capabilities: ["remote_gateway_v1", "remote_pairing", "remote_device_management"],
+        providerAuthentication: "authenticated",
+      },
+      remote: {
+        enabled: true,
+        state: "ready",
+        displayName: "Tim 的 Mac",
+        activeConnections: 1,
+        devices: [],
+        updatedAt: 1_800_000_000,
+      },
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "远程连接" }));
+
+    expect(screen.getByRole("heading", { name: "远程连接" })).toBeInTheDocument();
+    expect(screen.getByText("Tim 的 Mac")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "允许远程连接" })).toBeChecked();
+    expect(screen.getByText("1 台在线")).toBeInTheDocument();
+  });
+
   it("非当前账号先切换，不能直接跨账号登录或退出", async () => {
     const onSwitchAccount = vi.fn().mockResolvedValue(undefined);
     const onBeginLogin = vi.fn().mockResolvedValue(undefined);
@@ -266,6 +291,7 @@ function renderSettings(overrides: Partial<React.ComponentProps<typeof SettingsV
     fullAccess: false,
     initialSection: "general",
     authSession: null,
+    remote: null,
     onThemeChange: vi.fn(),
     onFullAccessChange: vi.fn(),
     onCreateAccount: vi.fn().mockResolvedValue(undefined),
@@ -276,6 +302,11 @@ function renderSettings(overrides: Partial<React.ComponentProps<typeof SettingsV
     onCancelLogin: vi.fn().mockResolvedValue(undefined),
     onDismissLogin: vi.fn(),
     onLogout: vi.fn().mockResolvedValue(undefined),
+    onRemoteRefresh: vi.fn().mockResolvedValue(undefined),
+    onRemoteEnabledChange: vi.fn().mockResolvedValue(undefined),
+    onBeginRemotePairing: vi.fn().mockRejectedValue(new Error("not configured")),
+    onCancelRemotePairing: vi.fn().mockResolvedValue(undefined),
+    onRevokeRemoteDevice: vi.fn().mockResolvedValue(undefined),
     onBack: vi.fn(),
     ...overrides,
   };

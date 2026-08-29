@@ -99,6 +99,9 @@ impl PiEvent {
     pub(crate) fn parse(value: Value) -> Option<Self> {
         let object = value.as_object()?;
         let event_type = object.get("type").and_then(Value::as_str)?;
+        if event_type == "response" {
+            return None;
+        }
         Some(Self {
             kind: PiEventKind::from_type(event_type),
             generation: object.get("generation").and_then(Value::as_u64),
@@ -236,12 +239,17 @@ impl PiEventReducer {
                 self.snapshot.status = match method {
                     Some("confirm" | "select") => PiRuntimeStatus::NeedsApproval,
                     Some("input" | "editor") => PiRuntimeStatus::NeedsInput,
-                    _ => PiRuntimeStatus::NeedsApproval,
+                    _ => self.snapshot.status,
                 };
             }
-            PiEventKind::ExtensionError | PiEventKind::Unknown => {
+            PiEventKind::ExtensionError => {
                 self.snapshot.status = PiRuntimeStatus::Failed;
             }
+            // Pi adds control and extension event types independently of PAD.
+            // Unknown events must stay observable without turning an otherwise
+            // healthy task into Failed. Explicit extension_error remains the
+            // fail-closed runtime error boundary above.
+            PiEventKind::Unknown => {}
         }
         true
     }
@@ -249,6 +257,15 @@ impl PiEventReducer {
     pub(crate) fn mark_disconnected(&mut self) {
         self.snapshot.status = PiRuntimeStatus::Disconnected;
         self.snapshot.active_tool_call_id = None;
+    }
+
+    pub(crate) fn mark_ui_responded(&mut self) {
+        if matches!(
+            self.snapshot.status,
+            PiRuntimeStatus::NeedsApproval | PiRuntimeStatus::NeedsInput
+        ) {
+            self.snapshot.status = PiRuntimeStatus::Running;
+        }
     }
 }
 
@@ -296,5 +313,18 @@ pub(crate) mod tests {
         );
         reducer.mark_disconnected();
         assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Disconnected);
+    }
+
+    pub(crate) fn rpc_responses_and_unknown_controls_do_not_fail_the_runtime() {
+        assert!(PiEvent::parse(json!({
+            "type":"response", "command":"get_messages", "success":true
+        }))
+        .is_none());
+        let mut reducer = PiEventReducer::new(1);
+        assert!(reducer.apply(PiEvent::parse(json!({"type":"agent_start"})).unwrap()));
+        assert!(reducer.apply(PiEvent::parse(json!({"type":"future_control"})).unwrap()));
+        assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Running);
+        assert!(reducer.apply(PiEvent::parse(json!({"type":"extension_error"})).unwrap()));
+        assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Failed);
     }
 }

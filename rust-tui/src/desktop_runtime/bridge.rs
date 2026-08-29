@@ -14,13 +14,14 @@ use serde_json::{json, Value};
 use std::error::Error;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::thread;
 use std::time::Duration;
 
 mod actions;
-mod format;
+pub(super) mod format;
 mod protocol;
+pub(crate) mod remote_events;
 use actions::auth_result;
 pub(crate) use actions::handle_request;
 
@@ -113,6 +114,12 @@ pub(crate) struct DesktopRequest {
     pub data: Option<String>,
     #[serde(default)]
     pub state: Option<DesktopUiState>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub pairing_id: Option<String>,
+    #[serde(default)]
+    pub device_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -138,7 +145,7 @@ pub(crate) struct BridgeError {
 }
 
 impl BridgeError {
-    fn new(code: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -176,13 +183,38 @@ impl From<DesktopRuntimeError> for BridgeError {
 pub(crate) fn run_server() -> Result<(), Box<dyn Error>> {
     let mut runtime =
         DesktopRuntime::open_default().map_err(|error| io::Error::other(error.to_string()))?;
-    let (input_tx, input_rx) = mpsc::channel();
-    thread::spawn(move || read_server_input(io::BufReader::new(io::stdin()), input_tx));
+    let (input_tx, input_rx) =
+        mpsc::sync_channel(crate::desktop_runtime::remote::OWNER_QUEUE_DEPTH);
+    let stdin_tx = input_tx.clone();
+    thread::spawn(move || read_server_input(io::BufReader::new(io::stdin()), stdin_tx));
+    runtime.attach_remote_gateway(input_tx);
     let mut stdout = io::BufWriter::new(io::stdout().lock());
     let mut negotiated_v2 = false;
     let mut sequence = 0_u64;
     loop {
         match input_rx.recv_timeout(Duration::from_millis(40)) {
+            Ok(ServerInput::Remote(request)) => {
+                runtime.handle_remote_owner_request(request);
+                remote_events::pump_runtime_tasks(
+                    &mut runtime,
+                    &mut stdout,
+                    negotiated_v2,
+                    &mut sequence,
+                )?;
+                stdout.flush()?;
+            }
+            Ok(ServerInput::RemoteStatusChanged) => {
+                if negotiated_v2 {
+                    if let Some(payload) = runtime.remote_changed_payload("connection_changed") {
+                        sequence = sequence.saturating_add(1);
+                        write_event_line(
+                            &mut stdout,
+                            &protocol::event_frame(sequence, "remote_changed", payload),
+                        )?;
+                        stdout.flush()?;
+                    }
+                }
+            }
             Ok(ServerInput::Line(line)) => {
                 if line.trim().is_empty() {
                     continue;
@@ -194,6 +226,9 @@ pub(crate) fn run_server() -> Result<(), Box<dyn Error>> {
                 });
                 let (response, should_stop) = handle_line(&mut runtime, &line);
                 write_response_line(&mut stdout, &response)?;
+                if let Some(request) = request.as_ref().filter(|_| response.ok) {
+                    remote_events::publish_local_result_to_remote(&runtime, request, &response);
+                }
                 if negotiated_v2 {
                     if let Some(request) = request.as_ref() {
                         if protocol::request_version(request) == protocol::CURRENT_PROTOCOL_VERSION
@@ -206,6 +241,13 @@ pub(crate) fn run_server() -> Result<(), Box<dyn Error>> {
                         }
                     }
                 }
+                stdout.flush()?;
+                remote_events::pump_runtime_tasks(
+                    &mut runtime,
+                    &mut stdout,
+                    negotiated_v2,
+                    &mut sequence,
+                )?;
                 stdout.flush()?;
                 if should_stop {
                     break;
@@ -230,54 +272,91 @@ pub(crate) fn run_server() -> Result<(), Box<dyn Error>> {
                 break;
             }
             Ok(ServerInput::Disconnected) => break,
-            Err(RecvTimeoutError::Timeout) if negotiated_v2 => {
-                let (snapshot, changed) = runtime.auth_status();
-                if changed {
-                    let mut payload = match auth_result(&runtime, snapshot) {
-                        Ok(payload) => payload,
-                        // An authentication helper may still be completing
-                        // after the user switched accounts. Keep it owned by
-                        // Rust, but never publish that account's state into
-                        // the newly active renderer.
-                        Err(error) if error.code == "profile_not_active" => continue,
-                        Err(error) => return Err(Box::new(error)),
-                    };
-                    protocol::sanitize_v2_result(&runtime, &mut payload)?;
-                    sequence = sequence.saturating_add(1);
-                    write_event_line(
-                        &mut stdout,
-                        &protocol::event_frame(sequence, "auth_changed", payload.clone()),
-                    )?;
-                    sequence = sequence.saturating_add(1);
-                    write_event_line(
-                        &mut stdout,
-                        &protocol::event_frame(sequence, "account_changed", payload),
-                    )?;
-                    stdout.flush()?;
+            Err(RecvTimeoutError::Timeout) => {
+                if negotiated_v2 {
+                    let (snapshot, changed) = runtime.auth_status();
+                    if changed {
+                        let mut payload = match auth_result(&runtime, snapshot) {
+                            Ok(payload) => payload,
+                            // An authentication helper may still be completing
+                            // after the user switched accounts. Keep it owned by
+                            // Rust, but never publish that account's state into
+                            // the newly active renderer.
+                            Err(error) if error.code == "profile_not_active" => Value::Null,
+                            Err(error) => return Err(Box::new(error)),
+                        };
+                        if !payload.is_null() {
+                            protocol::sanitize_v2_result(&runtime, &mut payload)?;
+                            sequence = sequence.saturating_add(1);
+                            write_event_line(
+                                &mut stdout,
+                                &protocol::event_frame(sequence, "auth_changed", payload.clone()),
+                            )?;
+                            sequence = sequence.saturating_add(1);
+                            write_event_line(
+                                &mut stdout,
+                                &protocol::event_frame(sequence, "account_changed", payload),
+                            )?;
+                        }
+                    }
                 }
+                remote_events::pump_runtime_tasks(
+                    &mut runtime,
+                    &mut stdout,
+                    negotiated_v2,
+                    &mut sequence,
+                )?;
+                stdout.flush()?;
             }
-            Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
     }
     Ok(())
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum ServerInput {
+#[derive(Debug)]
+pub(crate) struct RemoteOwnerRequest {
+    pub(crate) device_id: String,
+    pub(crate) action: String,
+    pub(crate) params: Value,
+    pub(crate) response:
+        std::sync::mpsc::Sender<crate::desktop_runtime::remote::RemoteCommandOutcome>,
+}
+
+#[derive(Debug)]
+pub(crate) enum ServerInput {
     Line(String),
     FrameTooLarge,
     InvalidUtf8,
     IoError(String),
     Disconnected,
+    Remote(RemoteOwnerRequest),
+    RemoteStatusChanged,
 }
 
-fn read_server_input(reader: impl BufRead, sender: Sender<ServerInput>) {
+impl PartialEq for ServerInput {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Line(left), Self::Line(right)) | (Self::IoError(left), Self::IoError(right)) => {
+                left == right
+            }
+            (Self::FrameTooLarge, Self::FrameTooLarge)
+            | (Self::InvalidUtf8, Self::InvalidUtf8)
+            | (Self::Disconnected, Self::Disconnected) => true,
+            (Self::RemoteStatusChanged, Self::RemoteStatusChanged) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ServerInput {}
+
+fn read_server_input(reader: impl BufRead, sender: SyncSender<ServerInput>) {
     let mut reader = reader;
     loop {
         match read_bounded_frame(&mut reader) {
             Ok(Some(input)) => {
-                let disconnected = input == ServerInput::Disconnected;
+                let disconnected = matches!(input, ServerInput::Disconnected);
                 if sender.send(input).is_err() || disconnected {
                     break;
                 }
@@ -478,6 +557,14 @@ fn events_after_request(
             response.result.clone().unwrap_or(Value::Null),
         );
     }
+    if matches!(
+        action,
+        "remote_set_enabled" | "remote_pair_begin" | "remote_pair_cancel" | "remote_device_revoke"
+    ) {
+        if let Some(payload) = runtime.remote_changed_payload(action) {
+            push("remote_changed", payload);
+        }
+    }
     events
 }
 
@@ -580,6 +667,11 @@ pub(crate) fn handle_line(runtime: &mut DesktopRuntime, line: &str) -> (DesktopR
                 | "terminal_close"
                 | "get_ui_state"
                 | "set_ui_state"
+                | "remote_status"
+                | "remote_set_enabled"
+                | "remote_pair_begin"
+                | "remote_pair_cancel"
+                | "remote_device_revoke"
         )
     ) && protocol::request_version(&request) != protocol::CURRENT_PROTOCOL_VERSION
     {

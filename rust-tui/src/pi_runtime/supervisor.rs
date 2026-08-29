@@ -108,6 +108,10 @@ pub(crate) struct PiPoll {
     pub(crate) dropped_stale: usize,
     /// Set once the child has exited and its exit status is known.
     pub(crate) exit_status: Option<PiExitStatus>,
+    /// Runtime state changed without a wire frame (for example, an expired
+    /// extension UI request).  The sole bridge pump must still fan out an
+    /// authoritative snapshot in this case.
+    pub(crate) state_changed: bool,
 }
 
 impl PiPoll {
@@ -121,6 +125,7 @@ impl PiPoll {
             && self.stderr.is_empty()
             && self.diagnostics.is_empty()
             && self.exit_status.is_none()
+            && !self.state_changed
     }
 }
 

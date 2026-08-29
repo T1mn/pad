@@ -51,6 +51,20 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
+### macOS Desktop and iPhone Remote
+
+The repository also contains [PAD Desktop](apps/pad-desktop/README.md) and the native
+[PAD Remote for iOS](apps/pad-ios/README.md). Desktop combines a tiled Codex-style sidebar with
+the Pi runtime. From **Settings → Remote**, enable the gateway and scan its 120-second one-time QR
+code on an iPhone to continue tasks, conversations, and controlled interactions over a direct WSS
+connection to the Mac.
+
+Remote v1 prioritizes low-latency same-LAN transport with leaf-certificate SHA-256 pinning,
+Keychain device tokens, UUID command receipts, revision/ACK replay, and fast foreground resume.
+iOS persists state and closes an ordinary WebSocket in the background instead of claiming fake
+permanent background execution. Account login, terminals, directory selection, Full Access, and
+PAD/Pi private data remain on the Mac.
+
 `pad` directly owns the shell PTY and terminal grid. On WSL2, run PAD and the agent CLIs inside the same WSL environment.
 
 ### Native Terminal Workspace

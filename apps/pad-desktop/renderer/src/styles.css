@@ -3489,6 +3489,179 @@ kbd {
   margin-top: 1px;
 }
 
+.remote-status-actions {
+  gap: 8px;
+}
+
+.remote-state-disabled,
+.remote-state-starting {
+  color: var(--text-secondary);
+}
+
+.remote-state-disabled > span,
+.remote-state-starting > span {
+  background: var(--text-tertiary);
+}
+
+.remote-state-degraded {
+  color: var(--warning);
+}
+
+.remote-state-degraded > span {
+  background: var(--warning);
+}
+
+.remote-state-failed {
+  color: var(--danger);
+}
+
+.remote-state-failed > span {
+  background: var(--danger);
+}
+
+.remote-error {
+  color: var(--danger);
+}
+
+.remote-section-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 26px 0 10px;
+  gap: 20px;
+}
+
+.remote-section-toolbar h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.remote-section-toolbar p,
+.remote-capability-note {
+  margin: 4px 0 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.remote-section-toolbar .settings-primary-button {
+  margin: 0;
+}
+
+.remote-device-list {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: .5px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  list-style: none;
+}
+
+.remote-device-list > li {
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+}
+
+.remote-device-list > li + li {
+  border-top: .5px solid var(--border);
+}
+
+.remote-device-list strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.remote-device-list p {
+  margin: 3px 0 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.remote-device-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.remote-device-dot.is-online {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 13%, transparent);
+}
+
+.remote-revoke-confirm {
+  display: flex;
+  gap: 6px;
+}
+
+.remote-revoke-confirm button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: .5px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+  font-size: 11px;
+}
+
+.remote-revoke-confirm button.is-danger {
+  color: white;
+  border-color: transparent;
+  background: var(--danger);
+}
+
+.remote-empty-device {
+  display: flex !important;
+  min-height: 92px !important;
+  align-items: center !important;
+  justify-content: center;
+  flex-direction: column;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.remote-empty-device p {
+  margin-top: 5px;
+}
+
+.remote-pairing-sheet {
+  width: min(430px, calc(100vw - 48px));
+}
+
+.remote-qr-frame {
+  display: grid;
+  width: 260px;
+  height: 260px;
+  margin-top: 18px;
+  padding: 10px;
+  place-items: center;
+  border: .5px solid var(--border-strong);
+  border-radius: 14px;
+  color: var(--text-secondary);
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.remote-qr-frame img {
+  display: block;
+  width: 240px;
+  height: 240px;
+}
+
+.remote-pairing-countdown {
+  margin-top: 10px !important;
+  color: var(--text-tertiary) !important;
+  font-size: 11px !important;
+}
+
 .overlay-root {
   position: fixed;
   z-index: 100;
@@ -3830,5 +4003,23 @@ kbd {
 
   .account-card-actions button {
     width: 100%;
+  }
+
+  .remote-section-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .remote-section-toolbar .settings-primary-button {
+    width: 100%;
+  }
+
+  .remote-device-list > li {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .remote-device-list > li > button,
+  .remote-revoke-confirm {
+    grid-column: 1 / -1;
   }
 }

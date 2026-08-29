@@ -77,6 +77,34 @@ export interface BackendSummary {
   providerAuthentication: string;
 }
 
+export type RemoteHostState = "disabled" | "starting" | "ready" | "degraded" | "failed";
+
+export interface RemoteDevice {
+  id: string;
+  displayName: string;
+  platform: string;
+  online: boolean;
+  pairedAt: number;
+  lastSeenAt?: number;
+}
+
+export interface RemoteHostStatus {
+  enabled: boolean;
+  state: RemoteHostState;
+  displayName: string;
+  activeConnections: number;
+  devices: RemoteDevice[];
+  updatedAt: number;
+  errorCode?: string;
+}
+
+/** The QR payload is intentionally returned only to the short-lived pairing sheet. */
+export interface RemotePairing {
+  pairingId: string;
+  qrPayload: string;
+  expiresAt: number;
+}
+
 export type TurnKind =
   | "user"
   | "assistant"
@@ -142,6 +170,7 @@ export interface DesktopSnapshot {
   turnsByTask: Record<string, TurnEntry[]>;
   interactionsByTask: Record<string, PendingInteraction[]>;
   uiState: DesktopUiState;
+  remote: RemoteHostStatus | null;
 }
 
 export interface DesktopUiState {
@@ -230,6 +259,7 @@ export type DesktopEvent =
   | { type: "task-updated"; task: TaskSummary }
   | { type: "turn-added"; taskId: string; turn: TurnEntry }
   | { type: "auth-updated"; session: AuthSession }
+  | { type: "remote-updated"; status: RemoteHostStatus | null }
   | { type: "menu-action"; action: "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" };
 
 export type ThinkingLevel = "default" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -274,5 +304,10 @@ export interface DesktopAdapter {
   getTerminalSnapshot(paneId: string): Promise<TerminalSnapshot>;
   closeTerminal(paneId: string): Promise<void>;
   updateUiState(patch: Partial<DesktopUiState>): Promise<DesktopUiState>;
+  getRemoteStatus(): Promise<RemoteHostStatus | null>;
+  setRemoteEnabled(enabled: boolean): Promise<RemoteHostStatus>;
+  beginRemotePairing(): Promise<RemotePairing>;
+  cancelRemotePairing(pairingId: string): Promise<RemoteHostStatus>;
+  revokeRemoteDevice(deviceId: string): Promise<RemoteHostStatus>;
   subscribe(listener: (event: DesktopEvent) => void): () => void;
 }

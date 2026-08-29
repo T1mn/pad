@@ -329,7 +329,7 @@ git diff --check
 | M0 基线和分支 | PASS | 本文、Codex alignment baseline、专用 feature branch |
 | M1 Rust 安全控制面 | PASS | `fmt`、`clippy -D warnings`、98 tests passed / 2 ignored；34 组受保护路径 fail-closed |
 | M2 Electron 宿主 | PASS | arm64 打包、sandbox/context isolation、protocol v2、退出零残留 |
-| M3 Codex 层级 Renderer | PASS | 10 个视口/主题截图、232 项布局与辅助功能检查、127 个 UI tests |
+| M3 Codex 层级 Renderer | PASS | 10 个视口/主题截图、232 项布局与辅助功能检查、141 个 UI tests（含 Remote 设置、配对与跨 Profile 保活） |
 | M4 账号和中文登录 | PASS | 双 Profile 登录/切换/历史隔离黑盒测试；关键生产文案全中文 |
 | M5 Protocol v2 与恢复 | PASS | 1 MiB 边界、安全 DTO、revision/UI state、reload 与数据根单写者测试 |
 | M6 面板与终端 | PASS | 真实 NativePty 子进程、Unicode/input/resize/close 与任务生命周期测试 |

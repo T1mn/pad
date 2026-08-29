@@ -61,6 +61,11 @@ const allowedFields: Record<DesktopAction, readonly string[]> = {
   terminal_close: ['pane_id'],
   get_ui_state: [],
   set_ui_state: ['state'],
+  remote_status: [],
+  remote_set_enabled: ['enabled'],
+  remote_pair_begin: [],
+  remote_pair_cancel: ['pairing_id'],
+  remote_device_revoke: ['device_id'],
 };
 
 export function isDesktopAction(value: unknown): value is DesktopAction {

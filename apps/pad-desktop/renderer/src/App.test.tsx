@@ -40,6 +40,11 @@ const desktopMock = vi.hoisted(() => ({
   getTerminalSnapshot: vi.fn(),
   closeTerminal: vi.fn(),
   updateUiState: vi.fn(),
+  getRemoteStatus: vi.fn(),
+  setRemoteEnabled: vi.fn(),
+  beginRemotePairing: vi.fn(),
+  cancelRemotePairing: vi.fn(),
+  revokeRemoteDevice: vi.fn(),
   subscribe: vi.fn((_listener: (event: DesktopEvent) => void) => () => undefined),
 }));
 
@@ -60,6 +65,11 @@ describe("App account isolation and compact layout", () => {
     desktopMock.updateTask.mockReset();
     desktopMock.switchAccount.mockReset().mockResolvedValue(snapshot("team"));
     desktopMock.updateUiState.mockReset().mockImplementation(async (patch) => ({ ...snapshot("personal").uiState, ...patch }));
+    desktopMock.getRemoteStatus.mockReset().mockResolvedValue(null);
+    desktopMock.setRemoteEnabled.mockReset();
+    desktopMock.beginRemotePairing.mockReset();
+    desktopMock.cancelRemotePairing.mockReset();
+    desktopMock.revokeRemoteDevice.mockReset();
     desktopMock.subscribe.mockReset().mockImplementation((listener: (event: DesktopEvent) => void) => {
       emitDesktopEvent = listener;
       return () => undefined;

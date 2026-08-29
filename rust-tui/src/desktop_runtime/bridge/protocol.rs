@@ -25,6 +25,9 @@ pub(crate) const V2_CAPABILITIES: &[&str] = &[
     "poll_compatibility",
     "terminal",
     "ui_state",
+    "remote_gateway_v1",
+    "remote_pairing",
+    "remote_device_management",
 ];
 
 pub(crate) fn request_version(request: &DesktopRequest) -> u32 {
@@ -95,7 +98,8 @@ pub(crate) fn validate_v2_request(
 
 fn action_fields(action: &str) -> &'static [&'static str] {
     match action {
-        "hello" | "ping" | "bootstrap" | "list_sidebar" | "get_ui_state" | "shutdown" => &[],
+        "hello" | "ping" | "bootstrap" | "list_sidebar" | "get_ui_state" | "shutdown"
+        | "remote_status" | "remote_pair_begin" => &[],
         "create_profile" => &[
             "profile_id",
             "name",
@@ -128,6 +132,7 @@ fn action_fields(action: &str) -> &'static [&'static str] {
             "interaction_id",
             "response_kind",
             "value",
+            "cancelled",
         ],
         "provider_status" => &["profile_id"],
         "set_task" => &["task_id", "pinned", "archived", "unread"],
@@ -148,6 +153,9 @@ fn action_fields(action: &str) -> &'static [&'static str] {
         "terminal_resize" => &["pane_id", "columns", "rows"],
         "terminal_snapshot" | "terminal_close" => &["pane_id"],
         "set_ui_state" => &["state"],
+        "remote_set_enabled" => &["enabled"],
+        "remote_pair_cancel" => &["pairing_id"],
+        "remote_device_revoke" => &["device_id"],
         _ => &[],
     }
 }

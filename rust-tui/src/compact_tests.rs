@@ -54,6 +54,11 @@ pub(crate) fn storage_policy_and_sidebar_cases() {
 pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::data_root_lock::same_root_has_exactly_one_owner();
     crate::desktop_runtime::tests::profile_scoped_process_events_update_the_private_task_record();
+    crate::desktop_runtime::tests::empty_owner_pump_does_not_rewrite_task_metadata();
+    crate::desktop_runtime::tests::request_pi_defers_same_batch_interaction_for_single_owner_fanout(
+    );
+    crate::desktop_runtime::tests::rpc_responses_do_not_mark_the_task_failed();
+    crate::desktop_runtime::tests::auto_answered_permission_is_not_republished_as_pending_ui();
     crate::desktop_runtime::tests::sidebar_snapshot_is_read_from_the_pad_store_only();
     crate::desktop_runtime::tests::empty_task_cwd_inherits_its_selected_project_root();
     crate::desktop_runtime::tests::explicit_permission_gate_is_the_only_full_access_ui_auto_response();
@@ -76,6 +81,7 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::bridge::tests::provider_auth_errors_are_distinguished_from_transport_errors();
     crate::desktop_runtime::bridge::tests::protocol_v2_hello_is_versioned_and_v1_ping_is_unchanged(
     );
+    crate::desktop_runtime::bridge::tests::remote_management_actions_are_v2_only_and_return_the_public_status_shape();
     crate::desktop_runtime::bridge::tests::protocol_v2_rejects_illegal_fields_and_long_ids();
     crate::desktop_runtime::bridge::tests::bounded_frames_recover_after_oversize_and_report_disconnect();
     crate::desktop_runtime::bridge::tests::protocol_v2_bootstrap_uses_renderer_safe_records();
@@ -95,6 +101,42 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::bridge::tests::rust_auth_control_plane_owns_prompt_response_and_secret(
     );
 
+    crate::desktop_runtime::remote::tests::remote_action_allowlist_denies_privileged_and_poll_routes();
+    crate::desktop_runtime::remote::tests::pairing_expires_is_one_time_and_locks_after_three_failures();
+    crate::desktop_runtime::remote::tests::device_tokens_are_persisted_only_as_context_bound_hashes(
+    );
+    crate::desktop_runtime::remote::tests::disabled_gateway_rejects_pair_resume_and_command_at_authoritative_entrypoints();
+    crate::desktop_runtime::remote::tests::concurrent_duplicate_command_has_one_owner_execution_and_one_receipt();
+    crate::desktop_runtime::remote::tests::event_replay_requires_epoch_and_filters_the_bound_profile();
+    crate::desktop_runtime::remote::tests::interleaved_profile_events_keep_contiguous_noop_cursors_without_leaks();
+    crate::desktop_runtime::remote::tests::oversized_event_becomes_small_invalidation_before_ring_and_client_queue();
+    crate::desktop_runtime::remote::tests::read_only_remote_actions_do_not_emit_invalidation_loops(
+    );
+    crate::desktop_runtime::remote::tests::local_status_and_revocation_are_profile_scoped();
+    crate::desktop_runtime::remote::tests::slow_client_queue_is_bounded_and_marked_for_resync();
+    crate::desktop_runtime::remote::tests::remote_projection_removes_paths_credentials_provider_and_raw_stderr();
+    crate::desktop_runtime::remote::tests::profile_bound_remote_actions_ignore_mac_selection_and_reject_other_tasks();
+    crate::desktop_runtime::remote::tests::owner_pump_broadcasts_pi_output_without_any_renderer_poll();
+    crate::desktop_runtime::remote::tests::persisted_listener_port_is_reused_after_gateway_restart(
+    );
+    crate::desktop_runtime::remote::tests::receipt_cases::command_id_is_bound_to_action_and_canonical_params();
+    crate::desktop_runtime::remote::tests::receipt_cases::concurrent_command_id_conflict_executes_only_one_payload();
+    crate::desktop_runtime::remote::tests::receipt_cases::read_receipts_stay_in_memory_and_persistent_receipts_are_bounded();
+    crate::desktop_runtime::remote::tests::receipt_cases::mutation_receipt_persistence_failure_is_never_reported_as_success();
+    crate::desktop_runtime::remote::tests::receipt_cases::restart_with_in_progress_mutation_returns_unknown_without_reexecution();
+    crate::desktop_runtime::remote::tests::connection_cases::disable_closes_without_revoking_and_reenable_accepts_the_same_token();
+    crate::desktop_runtime::remote::tests::connection_cases::reconnect_replaces_the_old_device_connection_and_catches_up_atomically();
+    crate::desktop_runtime::remote::tests::connection_cases::registration_rechecks_disable_revoke_and_total_connection_limit();
+    crate::desktop_runtime::remote::tests::connection_cases::stalled_websocket_writes_hit_the_deadline();
+    crate::desktop_runtime::remote::tests::connection_cases::tls_identity_recovers_when_only_one_file_survives();
+    crate::desktop_runtime::remote::tests::connection_cases::failed_paired_delivery_leaves_no_resumable_orphan_device();
+    crate::desktop_runtime::remote::tests::connection_cases::connection_finish_records_last_seen_without_reviving_revoked_devices();
+    crate::desktop_runtime::remote::tests::connection_cases::failed_enable_and_revoke_persistence_roll_back_authoritative_state();
+    crate::desktop_runtime::remote::tests::pending_cases::pending_ui_is_authoritative_after_event_consumption_and_clears_on_response();
+    crate::desktop_runtime::remote::tests::pending_cases::remote_prompt_starts_an_idle_task_before_delivery();
+    crate::desktop_runtime::remote::tests::pending_cases::expired_and_fire_and_forget_ui_events_never_become_ghost_prompts();
+    crate::desktop_runtime::remote::tests::pending_cases::delayed_remote_history_is_pending_and_never_clears_cached_messages();
+
     crate::pi_runtime::supervisor::tests::command_environment_is_private_and_generation_scoped();
     crate::pi_runtime::supervisor::tests::malformed_frame_does_not_poison_a_later_valid_event();
     crate::pi_runtime::supervisor::tests::stale_generation_messages_are_dropped();
@@ -104,6 +146,7 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_provider_owned_roots();
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_path_outside_profile_root();
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_symlink_escape();
+    crate::pi_runtime::events::tests::rpc_responses_and_unknown_controls_do_not_fail_the_runtime();
     #[cfg(unix)]
     crate::pi_runtime::tests::desktop_pi_program_prefers_the_host_bundle();
 }

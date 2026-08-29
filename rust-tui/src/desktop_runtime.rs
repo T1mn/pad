@@ -10,23 +10,29 @@ use crate::permission_policy::{
     merge_profile_project_task_with_host_defaults, EffectivePolicy, PermissionMode, PolicyLayer,
     Profile, Project, Task, TaskStatus,
 };
+use crate::pi_runtime::events::PiEventKind;
 use crate::pi_runtime::{
-    PiEventReducer, PiPoll, PiRpcSupervisor, PiRuntimeSnapshot, PiSupervisorError,
+    PiApprovalRequest, PiEventReducer, PiPoll, PiRpcSupervisor, PiRuntimeSnapshot,
+    PiSupervisorError,
 };
 use crate::ui::codex_sidebar::{snapshot as sidebar_snapshot, CodexSidebarSnapshot};
 use serde_json::json;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 pub(crate) mod bridge;
 pub(crate) use bridge::run_server;
 mod auth;
+pub(crate) mod remote;
+mod remote_runtime;
 use auth::{AuthError, AuthSnapshot, PiAuthCoordinator};
 mod catalog;
 pub(crate) mod data_root_lock;
 use data_root_lock::DesktopDataRootLock;
 mod helpers;
+mod interactions;
 use helpers::{
     automatic_ui_response, default_desktop_workspace_root, is_unsafe_generated_project_root,
     path_within_root, profile_storage_segment, read_session_messages, task_status, unique_suffix,
@@ -95,6 +101,12 @@ impl From<PiSupervisorError> for DesktopRuntimeError {
 struct ActiveTask {
     supervisor: PiRpcSupervisor,
     reducer: PiEventReducer,
+    pending_ui_requests: BTreeMap<String, PendingUiRequest>,
+}
+
+struct PendingUiRequest {
+    value: serde_json::Value,
+    expires_at: Option<Instant>,
 }
 
 /// One owner for Desktop-side orchestration.  It is deliberately not global;
@@ -104,10 +116,13 @@ pub(crate) struct DesktopRuntime {
     store: PadStore,
     data_root: PathBuf,
     active_tasks: BTreeMap<String, ActiveTask>,
+    deferred_polls: BTreeMap<String, PiPoll>,
     auth: PiAuthCoordinator,
     terminal: DesktopTerminalRuntime,
     next_generation: u64,
     pi_program: PathBuf,
+    remote_gateway: Option<remote::RemoteGateway>,
+    remote_start_error: Option<String>,
     _data_root_lock: Option<DesktopDataRootLock>,
 }
 
@@ -161,10 +176,13 @@ impl DesktopRuntime {
             store,
             data_root,
             active_tasks: BTreeMap::new(),
+            deferred_polls: BTreeMap::new(),
             auth: PiAuthCoordinator::new(),
             terminal: DesktopTerminalRuntime::default(),
             next_generation: 1,
             pi_program: crate::pi_runtime::desktop_pi_program(),
+            remote_gateway: None,
+            remote_start_error: None,
             _data_root_lock: None,
         }
     }
@@ -333,6 +351,7 @@ impl DesktopRuntime {
             ActiveTask {
                 supervisor,
                 reducer: PiEventReducer::new(generation),
+                pending_ui_requests: BTreeMap::new(),
             },
         );
         Ok(generation)
@@ -356,24 +375,93 @@ impl DesktopRuntime {
     /// Drain a task's process without waiting.  Pi events are reduced first;
     /// only the derived Task status is written to SQLite.
     pub(crate) fn poll_task(&mut self, task_id: &str) -> Result<PiPoll, DesktopRuntimeError> {
+        if let Some(poll) = self.deferred_polls.remove(task_id) {
+            return Ok(poll);
+        }
+        self.poll_task_fresh(task_id)
+    }
+
+    fn poll_task_fresh(&mut self, task_id: &str) -> Result<PiPoll, DesktopRuntimeError> {
         let policy_context = self.task_policy_context(task_id)?;
         let (poll, status) = {
             let active = self
                 .active_tasks
                 .get_mut(task_id)
                 .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-            let poll = active.supervisor.poll()?;
+            let pending_before = active.pending_ui_requests.len();
+            let now = Instant::now();
+            active
+                .pending_ui_requests
+                .retain(|_, pending| pending.expires_at.is_none_or(|deadline| deadline > now));
+            let pending_expired = pending_before != active.pending_ui_requests.len();
+            if pending_expired && active.pending_ui_requests.is_empty() {
+                active.reducer.mark_ui_responded();
+            }
+            let mut poll = active.supervisor.poll()?;
+            poll.state_changed = pending_expired;
+            if poll.is_empty() && !pending_expired {
+                return Ok(poll);
+            }
+            let mut automatically_answered = HashSet::new();
             if let Some((policy, cwd)) = policy_context.as_ref() {
                 for message in &poll.messages {
                     if let Some(response) = automatic_ui_response(&message.value, policy, cwd) {
+                        if let Some(id) = response.get("id").and_then(serde_json::Value::as_str) {
+                            automatically_answered.insert(id.to_string());
+                        }
                         active.supervisor.send(response)?;
                     }
                 }
             }
+            if !automatically_answered.is_empty() {
+                let is_answered_request = |value: &serde_json::Value| {
+                    value.get("type").and_then(serde_json::Value::as_str)
+                        == Some("extension_ui_request")
+                        && value
+                            .get("id")
+                            .or_else(|| value.get("requestId"))
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|id| automatically_answered.contains(id))
+                };
+                poll.messages
+                    .retain(|message| !is_answered_request(&message.value));
+                poll.events
+                    .retain(|event| !is_answered_request(&event.value));
+            }
             for event in &poll.events {
+                if event.kind == PiEventKind::AgentSettled {
+                    active.pending_ui_requests.clear();
+                }
                 active.reducer.apply(event.clone());
             }
+            for message in &poll.messages {
+                if message.message_type != "extension_ui_request" {
+                    continue;
+                }
+                let Some(request) = PiApprovalRequest::parse(&message.value) else {
+                    continue;
+                };
+                if matches!(request, PiApprovalRequest::Unknown { .. }) {
+                    continue;
+                }
+                let Some(request_id) = request.id().map(str::to_string) else {
+                    continue;
+                };
+                let expires_at = message
+                    .value
+                    .get("timeout")
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|millis| Instant::now().checked_add(Duration::from_millis(millis)));
+                active.pending_ui_requests.insert(
+                    request_id,
+                    PendingUiRequest {
+                        value: message.value.clone(),
+                        expires_at,
+                    },
+                );
+            }
             if let Some(exit) = poll.exit_status {
+                active.pending_ui_requests.clear();
                 let ended_without_settling =
                     active.reducer.snapshot().status != crate::pi_runtime::PiRuntimeStatus::Idle;
                 if !exit.success() || ended_without_settling {
@@ -462,8 +550,8 @@ impl DesktopRuntime {
         active.supervisor.send(command)?;
 
         for _ in 0..40 {
-            let poll = self.poll_task(task_id)?;
-            if let Some(response) = poll.messages.into_iter().find(|message| {
+            let mut poll = self.poll_task_fresh(task_id)?;
+            if let Some(index) = poll.messages.iter().position(|message| {
                 message.message_type == "response"
                     && message
                         .value
@@ -471,14 +559,38 @@ impl DesktopRuntime {
                         .and_then(|value| value.as_str())
                         == Some(expected_command)
             }) {
+                let response = poll.messages.remove(index);
+                if let Some(event_index) = poll
+                    .events
+                    .iter()
+                    .position(|event| event.value == response.value)
+                {
+                    poll.events.remove(event_index);
+                }
+                self.defer_poll(task_id, poll);
                 return Ok(Some(response.value));
             }
-            if poll.exit_status.is_some() {
+            let exited = poll.exit_status.is_some();
+            self.defer_poll(task_id, poll);
+            if exited {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         Ok(None)
+    }
+
+    fn defer_poll(&mut self, task_id: &str, mut poll: PiPoll) {
+        if poll.is_empty() {
+            return;
+        }
+        let deferred = self.deferred_polls.entry(task_id.to_string()).or_default();
+        deferred.messages.append(&mut poll.messages);
+        deferred.events.append(&mut poll.events);
+        deferred.stderr.append(&mut poll.stderr);
+        deferred.diagnostics.append(&mut poll.diagnostics);
+        deferred.dropped_stale = deferred.dropped_stale.saturating_add(poll.dropped_stale);
+        deferred.exit_status = poll.exit_status.or(deferred.exit_status);
     }
 
     pub(crate) fn get_messages(
@@ -580,73 +692,6 @@ impl DesktopRuntime {
         Ok(())
     }
 
-    pub(crate) fn set_model(
-        &self,
-        task_id: &str,
-        provider: &str,
-        model_id: &str,
-    ) -> Result<(), DesktopRuntimeError> {
-        let active = self
-            .active_tasks
-            .get(task_id)
-            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-        active.supervisor.send(json!({
-            "type": "set_model",
-            "provider": provider,
-            "modelId": model_id,
-        }))?;
-        Ok(())
-    }
-
-    pub(crate) fn set_thinking_level(
-        &self,
-        task_id: &str,
-        level: &str,
-    ) -> Result<(), DesktopRuntimeError> {
-        let active = self
-            .active_tasks
-            .get(task_id)
-            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-        active.supervisor.send(json!({
-            "type": "set_thinking_level",
-            "level": level,
-        }))?;
-        Ok(())
-    }
-
-    pub(crate) fn respond_ui(
-        &self,
-        task_id: &str,
-        request_id: &str,
-        response_kind: Option<&str>,
-        value: serde_json::Value,
-    ) -> Result<(), DesktopRuntimeError> {
-        if request_id.trim().is_empty() {
-            return Err(DesktopRuntimeError::Pi(PiSupervisorError::InvalidCommand(
-                "extension UI response id is empty".to_string(),
-            )));
-        }
-        let active = self
-            .active_tasks
-            .get(task_id)
-            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-        let response = if response_kind == Some("confirm") {
-            json!({
-                "type": "extension_ui_response",
-                "id": request_id,
-                "confirmed": value.as_bool().unwrap_or(false),
-            })
-        } else {
-            json!({
-                "type": "extension_ui_response",
-                "id": request_id,
-                "value": value,
-            })
-        };
-        active.supervisor.send(response)?;
-        Ok(())
-    }
-
     fn update_task_metadata_from_poll(
         &mut self,
         task_id: &str,
@@ -683,6 +728,7 @@ impl DesktopRuntime {
     }
 
     pub(crate) fn stop_task(&mut self, task_id: &str) -> Result<(), DesktopRuntimeError> {
+        self.deferred_polls.remove(task_id);
         let Some(active) = self.active_tasks.remove(task_id) else {
             return Err(DesktopRuntimeError::TaskNotFound(task_id.to_string()));
         };
@@ -699,6 +745,7 @@ impl DesktopRuntime {
     /// retaining its persisted session identity. A live process is aborted
     /// first, so retry cannot leave two writers attached to one JSONL session.
     pub(crate) fn retry_task(&mut self, task_id: &str) -> Result<u64, DesktopRuntimeError> {
+        self.deferred_polls.remove(task_id);
         if let Some(active) = self.active_tasks.remove(task_id) {
             let _ = active.supervisor.shutdown()?;
         }

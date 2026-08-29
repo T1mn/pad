@@ -24,12 +24,12 @@ pub(crate) enum PiApprovalRequest {
     Input {
         id: String,
         title: Option<String>,
-        default: Option<String>,
+        placeholder: Option<String>,
     },
     Editor {
         id: String,
         title: Option<String>,
-        default: Option<String>,
+        prefill: Option<String>,
     },
     Unknown {
         id: Option<String>,
@@ -89,14 +89,12 @@ impl PiApprovalRequest {
             Some("input") => Some(Self::Input {
                 id: id?,
                 title: string_field(object, "title"),
-                default: string_field(object, "default")
-                    .or_else(|| string_field(object, "placeholder")),
+                placeholder: string_field(object, "placeholder"),
             }),
             Some("editor") => Some(Self::Editor {
                 id: id?,
                 title: string_field(object, "title"),
-                default: string_field(object, "default")
-                    .or_else(|| string_field(object, "prefill")),
+                prefill: string_field(object, "prefill"),
             }),
             _ => Some(Self::Unknown { id, method }),
         }
@@ -182,11 +180,9 @@ impl PiApprovalRequest {
                 *default_index,
                 options.len(),
             ),
-            Self::Input { default, .. } => {
-                ApprovalRequest::ui(ApprovalOperation::Input, default.clone(), None, 0)
-            }
-            Self::Editor { default, .. } => {
-                ApprovalRequest::ui(ApprovalOperation::Editor, default.clone(), None, 0)
+            Self::Input { .. } => ApprovalRequest::ui(ApprovalOperation::Input, None, None, 0),
+            Self::Editor { prefill, .. } => {
+                ApprovalRequest::ui(ApprovalOperation::Editor, prefill.clone(), None, 0)
             }
             Self::Unknown { .. } => ApprovalRequest::tool(ApprovalOperation::Unknown, None),
         }
@@ -200,7 +196,7 @@ impl PiApprovalRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PiApprovalResponse {
     Confirm { id: String, value: bool },
-    Select { id: String, index: usize },
+    Select { id: String, value: String },
     Input { id: String, value: String },
 }
 
@@ -215,10 +211,10 @@ impl PiApprovalResponse {
                 "id": id,
                 "confirmed": value,
             }),
-            Self::Select { id, index } => serde_json::json!({
+            Self::Select { id, value } => serde_json::json!({
                 "type": "extension_ui_response",
                 "id": id,
-                "value": index,
+                "value": value,
             }),
             Self::Input { id, value } => serde_json::json!({
                 "type": "extension_ui_response",
@@ -492,6 +488,18 @@ pub(crate) mod tests {
             classify_pi_approval(&select, &policy(PermissionMode::FullAccess)),
             PiApprovalAction::Ask
         );
+    }
+
+    pub(crate) fn select_response_uses_the_option_value_not_its_index() {
+        let response = PiApprovalResponse::Select {
+            id: "s1".to_string(),
+            value: "Keep both".to_string(),
+        }
+        .to_value();
+        assert_eq!(response["type"], "extension_ui_response");
+        assert_eq!(response["id"], "s1");
+        assert_eq!(response["value"], "Keep both");
+        assert!(response.get("index").is_none());
     }
 
     pub(crate) fn protected_paths_never_get_auto_answers() {

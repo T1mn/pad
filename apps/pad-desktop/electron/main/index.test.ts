@@ -26,6 +26,7 @@ vi.mock('electron', () => ({
   Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },
   nativeTheme: { shouldUseDarkColors: false },
   net: { fetch: vi.fn() },
+  powerSaveBlocker: { start: vi.fn(() => 1), stop: vi.fn() },
   protocol: {
     registerSchemesAsPrivileged: (schemes: unknown) => electron.registeredSchemes.push(schemes),
     handle: vi.fn(),

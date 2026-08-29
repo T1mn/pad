@@ -11,6 +11,42 @@ than listed one by one.
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-08-30
+
+### Added
+
+- A native SwiftUI `PAD Remote` companion for iOS 17+, with Chinese task sidebar, live Pi
+  conversation timeline, Composer controls, offline cache, durable command outbox, and QR pairing.
+- A same-LAN WSS gateway in PAD's existing Desktop runtime, with TLS certificate pinning, bounded
+  per-device queues, revision replay, epoch-based resynchronization, heartbeats, and UUID command
+  receipts.
+- PAD Desktop remote settings for starting the gateway, creating a 120-second one-time pairing QR,
+  showing live device status, and revoking paired devices.
+
+### Security
+
+- Remote devices are bound to one PAD Profile and receive redacted DTOs through an explicit action
+  allowlist; login, account switching, Full Access changes, terminals, credentials, and host paths
+  remain unavailable remotely.
+- Pairing secrets are single-use, device tokens are stored as hashes on the Mac and in the iOS
+  Keychain, private gateway files use restrictive permissions, and revocation terminates the active
+  connection as well as future resumes.
+- Remote cache, revision cursor, and outbox state are isolated by paired host identity so one Mac or
+  Profile cannot inherit another pairing's tasks or queued commands.
+
+### Fixed
+
+- Pi control responses no longer enter the task reducer as failures, and same-poll interaction
+  events are deferred to the single Desktop poll owner instead of being swallowed by request paths.
+- Streaming `message_start` / `text_delta` / `message_end` events now update one stable assistant
+  message and reconcile with authoritative history without duplicate output.
+- Duplicate command IDs are tied to the original action and payload; conflicting reuse fails closed,
+  while retransmission of the same mutation returns the persisted receipt without executing twice.
+- iOS transport callbacks now cross one ordered mailbox, and every outbox operation remains bound to
+  its connection generation and paired-host identity across actor suspension.
+- The aggregate runtime-status test now enters its cross-process lock-holder fast path before the
+  expanded Desktop/Remote compact suite, eliminating a deterministic five-second false timeout.
+
 ## [0.7.5] - 2026-08-29
 
 ### Added
@@ -134,7 +170,8 @@ pad-sider (file tree, project index map, split preview, line numbers, Codex turn
 multi-provider relay and proxy settings, the Telegram bot daemon, completion notifications, six-language
 i18n, the native fuzzy picker, agent workflow automation, and the installer plus release pipeline.
 
-[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.6...HEAD
+[0.7.6]: https://github.com/T1mn/pad/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/T1mn/pad/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/T1mn/pad/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/T1mn/pad/compare/v0.7.2...v0.7.3

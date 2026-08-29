@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
-import type { AccountSummary, AuthSession, AuthType, BackendSummary } from "../types";
+import type { AccountSummary, AuthSession, AuthType, BackendSummary, RemoteHostStatus, RemotePairing } from "../types";
 import { toUserFacingError, type UserFacingError } from "../lib/errors";
 import { backendStatusLabel, localizePiAuthOption, localizePiAuthPrompt, permissionModeLabel } from "../lib/labels";
 import { Icon, type IconName } from "./Icons";
 import { ModalSheet } from "./ModalSheet";
+import { RemoteSettingsSection } from "./RemoteSettingsSection";
 
-export type SettingsSection = "general" | "accounts" | "pi" | "permissions" | "data" | "about";
+export type SettingsSection = "general" | "accounts" | "pi" | "remote" | "permissions" | "data" | "about";
 
 interface SettingsViewProps {
   accounts: AccountSummary[];
@@ -15,6 +16,7 @@ interface SettingsViewProps {
   fullAccess: boolean;
   initialSection?: SettingsSection;
   authSession: AuthSession | null;
+  remote: RemoteHostStatus | null;
   onThemeChange(theme: "light" | "dark" | "system"): void;
   onFullAccessChange(value: boolean): void;
   onCreateAccount(name: string, provider?: string): Promise<void>;
@@ -25,6 +27,11 @@ interface SettingsViewProps {
   onCancelLogin(accountId: string): Promise<void>;
   onDismissLogin(): void;
   onLogout(accountId: string, provider?: string): Promise<void>;
+  onRemoteRefresh(): Promise<void>;
+  onRemoteEnabledChange(enabled: boolean): Promise<void>;
+  onBeginRemotePairing(): Promise<RemotePairing>;
+  onCancelRemotePairing(pairingId: string): Promise<void>;
+  onRevokeRemoteDevice(deviceId: string): Promise<void>;
   onBack(): void;
 }
 
@@ -32,6 +39,7 @@ const sections: Array<{ id: SettingsSection; label: string; icon: IconName }> = 
   { id: "general", label: "通用", icon: "settings" },
   { id: "accounts", label: "账号", icon: "layout" },
   { id: "pi", label: "Pi 运行时", icon: "sparkles" },
+  { id: "remote", label: "远程连接", icon: "layout" },
   { id: "permissions", label: "权限与访问", icon: "check" },
   { id: "data", label: "数据与存储", icon: "archive" },
   { id: "about", label: "关于", icon: "code" },
@@ -349,6 +357,7 @@ export function SettingsView({
   fullAccess,
   initialSection = "general",
   authSession,
+  remote,
   onThemeChange,
   onFullAccessChange,
   onCreateAccount,
@@ -359,6 +368,11 @@ export function SettingsView({
   onCancelLogin,
   onDismissLogin,
   onLogout,
+  onRemoteRefresh,
+  onRemoteEnabledChange,
+  onBeginRemotePairing,
+  onCancelRemotePairing,
+  onRevokeRemoteDevice,
   onBack,
 }: SettingsViewProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
@@ -467,6 +481,18 @@ export function SettingsView({
             </section>
           </>}
 
+          {section === "remote" && (
+            <RemoteSettingsSection
+              capabilities={backend.capabilities}
+              status={remote}
+              onRefresh={onRemoteRefresh}
+              onEnabledChange={onRemoteEnabledChange}
+              onBeginPairing={onBeginRemotePairing}
+              onCancelPairing={onCancelRemotePairing}
+              onRevokeDevice={onRevokeRemoteDevice}
+            />
+          )}
+
           {section === "permissions" && <>
             <div className="settings-heading"><h1>权限与访问</h1><p>权限直接读取并写回当前 Pi 账号的持久化权限策略。</p></div>
             <section className="settings-card">
@@ -496,7 +522,7 @@ export function SettingsView({
               <div className="about-logo"><Icon name="sparkles" /></div>
               <h2>PAD Desktop</h2>
               <p>Electron + React · Rust PAD 本地服务 · Pi 运行内核</p>
-              <span>0.7.5</span>
+              <span>0.7.6</span>
             </section>
           </>}
         </div>

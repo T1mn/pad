@@ -49,6 +49,18 @@ cargo build --profile dist
 cp target/dist/pad ~/.local/bin/
 ```
 
+### macOS Desktop 与 iPhone Remote
+
+仓库同时包含 [PAD Desktop](apps/pad-desktop/README.md) 和原生
+[PAD Remote for iOS](apps/pad-ios/README.md)。Desktop 使用 Codex 风格的平铺侧边栏与
+Pi 执行内核；在“设置 → 远程连接”开启后，iPhone 扫描 120 秒一次性二维码即可通过
+WSS 直连这台 Mac，继续查看任务、对话和受控交互。
+
+Remote v1 优先同一局域网的低延迟直连，使用叶证书 SHA-256 指纹固定、Keychain 设备令牌、
+命令 UUID 回执、revision/ACK 重放和前台快速恢复。iOS 后台会保存状态并断开普通 WebSocket，
+回到前台后增量续接；它不会用音频或定位权限伪装永久后台保活。账号登录、终端、目录选择、
+Full Access 与 PAD/Pi 私有数据始终留在 Mac 上。
+
 `pad` 直接托管 Shell PTY 与终端网格。如果你在 WSL2 下使用，请在同一个 WSL 环境里运行 PAD 与 agent CLI。
 
 ### 原生终端工作区

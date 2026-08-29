@@ -20,6 +20,9 @@ Composer、右侧检查器、底部终端和两栏设置；Rust `pad __internal 
    显示/隐藏侧边栏，`⌘,` 打开设置。
 6. 每个 Profile 的任务、登录、Pi root、Session 与 UI 状态相互隔离；切换账号时旧任务树
    会先清空，再载入目标账号。
+7. 打开“设置 → 远程连接”，开启网关并点击“连接 iPhone”；用 PAD iOS 扫描短期二维码后，
+   可以实时查看和继续这台 Mac 上的对话。网络短暂切换时客户端会自动续接，已配对设备也可
+   随时从 Mac 端撤销。
 
 “完全访问”默认开启，用于让普通任务自动执行，减少逐次确认。它不会自动放行 PAD/Pi/
 Codex/ChatGPT 私有目录、Provider 凭据、跨 Profile 路径、macOS TCC 和系统保护区域；可在
@@ -55,6 +58,10 @@ npm run dev
 
 开发模式可以用 `PAD_BIN=/absolute/path/to/pad npm run dev` 指定 Rust host。Renderer 不会
 直接读取 SQLite、环境变量或凭据，也不能自行启动命令。
+
+远程二维码中的短期配对票据只存在于当前配对 Sheet 的组件内存；它不会进入任务记录、
+Electron 日志、localStorage、辅助功能文本或 `remote_changed` 事件。远程状态只向 renderer
+暴露设备显示名、平台、在线状态与安全错误码，不暴露监听地址、证书指纹或本地路径。
 
 ## 构建完整 App
 

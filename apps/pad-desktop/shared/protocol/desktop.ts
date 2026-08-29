@@ -218,6 +218,44 @@ export interface TerminalCloseDto {
   closed: true;
 }
 
+export type RemoteHostStateDto = 'disabled' | 'starting' | 'ready' | 'degraded' | 'failed';
+
+/** Renderer-safe paired-device record. Transport details and credentials are never exposed. */
+export interface RemoteDeviceDto {
+  id: string;
+  display_name: string;
+  platform: string;
+  online: boolean;
+  paired_at: number;
+  last_seen_at?: number;
+}
+
+/** Public remote-host status. It intentionally contains no endpoint, path, token, or raw error. */
+export interface RemoteHostStatusDto {
+  enabled: boolean;
+  state: RemoteHostStateDto;
+  display_name: string;
+  active_connections: number;
+  devices: RemoteDeviceDto[];
+  updated_at: number;
+  error_code?: string;
+}
+
+export interface RemoteStatusResultDto {
+  remote: RemoteHostStatusDto;
+}
+
+export interface RemotePairingDto {
+  pairing_id: string;
+  /** Short-lived opaque URI. Keep only in the pairing sheet's component state. */
+  qr_payload: string;
+  expires_at: number;
+}
+
+export interface RemotePairBeginResultDto {
+  pairing: RemotePairingDto;
+}
+
 export interface DesktopRequestParams {
   hello: Record<string, never>;
   ping: Record<string, never>;
@@ -301,6 +339,11 @@ export interface DesktopRequestParams {
   terminal_close: { pane_id: string };
   get_ui_state: Record<string, never>;
   set_ui_state: { state: DesktopUiStateDto };
+  remote_status: Record<string, never>;
+  remote_set_enabled: { enabled: boolean };
+  remote_pair_begin: Record<string, never>;
+  remote_pair_cancel: { pairing_id: string };
+  remote_device_revoke: { device_id: string };
 }
 
 export type DesktopAction = keyof DesktopRequestParams;
@@ -328,7 +371,8 @@ export type DesktopServerEventKind =
   | 'task_changed'
   | 'account_changed'
   | 'runtime_changed'
-  | 'auth_changed';
+  | 'auth_changed'
+  | 'remote_changed';
 
 export interface DesktopServerEvent<T = unknown> {
   type: 'desktop_event';

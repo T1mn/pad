@@ -31,6 +31,7 @@ const emptySnapshot: DesktopSnapshot = {
     bottomPanelOpen: false,
     sidebarOpen: true,
   },
+  remote: null,
 };
 
 export function isCompactWindow(width: number): boolean {
@@ -63,6 +64,7 @@ function applyDesktopEvent(snapshot: DesktopSnapshot, event: DesktopEvent): Desk
   if (event.type === "snapshot") return event.snapshot;
   if (event.type === "task-updated") return { ...snapshot, tasks: mergeTask(snapshot.tasks, event.task) };
   if (event.type === "auth-updated") return snapshot;
+  if (event.type === "remote-updated") return { ...snapshot, remote: event.status };
   if (event.type === "menu-action") return snapshot;
   const turns = snapshot.turnsByTask[event.taskId] ?? [];
   if (turns.some((turn) => turn.id === event.turn.id)) return snapshot;
@@ -215,6 +217,9 @@ export default function App() {
     const unsubscribe = desktop.subscribe((event) => {
       if (accountSwitchLockRef.current) return;
       if (event.type === "auth-updated") setAuthSession(event.session);
+      else if (event.type === "remote-updated") {
+        setSnapshot((current) => ({ ...current, remote: event.status }));
+      }
       else if (event.type === "menu-action") {
         if (event.action === "new_task") void handleNewTask(null);
         else if (event.action === "search") {
@@ -485,6 +490,26 @@ export default function App() {
     applyPersistedUiState(next.uiState, next.tasks);
   }
 
+  async function handleRemoteRefresh() {
+    const status = await desktop.getRemoteStatus();
+    setSnapshot((current) => ({ ...current, remote: status }));
+  }
+
+  async function handleRemoteEnabledChange(enabled: boolean) {
+    const status = await desktop.setRemoteEnabled(enabled);
+    setSnapshot((current) => ({ ...current, remote: status }));
+  }
+
+  async function handleCancelRemotePairing(pairingId: string) {
+    const status = await desktop.cancelRemotePairing(pairingId);
+    setSnapshot((current) => ({ ...current, remote: status }));
+  }
+
+  async function handleRevokeRemoteDevice(deviceId: string) {
+    const status = await desktop.revokeRemoteDevice(deviceId);
+    setSnapshot((current) => ({ ...current, remote: status }));
+  }
+
   function handleSidebarResizeStart(event: ReactPointerEvent<HTMLDivElement>) {
     if (accountSwitchLockRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -717,6 +742,7 @@ export default function App() {
               fullAccess={fullAccess}
               initialSection={settingsSection}
               authSession={authSession}
+              remote={snapshot.remote}
               onThemeChange={(next) => {
                 const previous = themePreference;
                 setThemePreference(next);
@@ -734,6 +760,11 @@ export default function App() {
               onCancelLogin={handleCancelLogin}
               onDismissLogin={() => setAuthSession(null)}
               onLogout={handleLogout}
+              onRemoteRefresh={handleRemoteRefresh}
+              onRemoteEnabledChange={handleRemoteEnabledChange}
+              onBeginRemotePairing={() => desktop.beginRemotePairing()}
+              onCancelRemotePairing={handleCancelRemotePairing}
+              onRevokeRemoteDevice={handleRevokeRemoteDevice}
               onBack={() => setRoute("task")}
             />
           ) : (

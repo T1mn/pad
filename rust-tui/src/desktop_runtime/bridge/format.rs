@@ -65,50 +65,57 @@ fn pending_ui_requests(poll: &PiPoll) -> Vec<Value> {
     poll.messages
         .iter()
         .filter(|message| message.message_type == "extension_ui_request")
-        .filter_map(|message| {
-            let request = PiApprovalRequest::parse(&message.value)?;
-            let response_kind = match &request {
-                PiApprovalRequest::Confirm { .. } => "confirm",
-                PiApprovalRequest::Select { .. } => "select",
-                PiApprovalRequest::Input { .. } => "input",
-                PiApprovalRequest::Editor { .. } => "editor",
-                PiApprovalRequest::Unknown { .. } => "unknown",
-            };
-            let id = request.id().map(str::to_string);
-            let mut value = json!({
-                "id": id,
-                "kind": response_kind,
-                "response_action": "respond_ui",
-                "requires_response": !matches!(&request, PiApprovalRequest::Unknown { .. }),
-            });
-            let object = value.as_object_mut()?;
-            match request {
-                PiApprovalRequest::Confirm { title, message, .. } => {
-                    object.insert("title".to_string(), title.into());
-                    object.insert("message".to_string(), message.into());
-                }
-                PiApprovalRequest::Select {
-                    title,
-                    options,
-                    default_index,
-                    ..
-                } => {
-                    object.insert("title".to_string(), title.into());
-                    object.insert("options".to_string(), json!(options));
-                    object.insert("default_index".to_string(), default_index.into());
-                }
-                PiApprovalRequest::Input { title, default, .. }
-                | PiApprovalRequest::Editor { title, default, .. } => {
-                    object.insert("title".to_string(), title.into());
-                    object.insert("default".to_string(), default.into());
-                }
-                PiApprovalRequest::Unknown { method, .. } => {
-                    object.insert("method".to_string(), method.into());
-                }
-            }
-            Some(value)
-        })
+        .filter_map(|message| pending_ui_request(&message.value))
         .collect()
+}
+
+pub(crate) fn pending_ui_request(value: &Value) -> Option<Value> {
+    let request = PiApprovalRequest::parse(value)?;
+    let response_kind = match &request {
+        PiApprovalRequest::Confirm { .. } => "confirm",
+        PiApprovalRequest::Select { .. } => "select",
+        PiApprovalRequest::Input { .. } => "input",
+        PiApprovalRequest::Editor { .. } => "editor",
+        PiApprovalRequest::Unknown { .. } => "unknown",
+    };
+    let id = request.id().map(str::to_string);
+    let mut value = json!({
+        "id": id,
+        "kind": response_kind,
+        "response_action": "respond_ui",
+        "requires_response": !matches!(&request, PiApprovalRequest::Unknown { .. }),
+    });
+    let object = value.as_object_mut()?;
+    match request {
+        PiApprovalRequest::Confirm { title, message, .. } => {
+            object.insert("title".to_string(), title.into());
+            object.insert("message".to_string(), message.into());
+        }
+        PiApprovalRequest::Select {
+            title,
+            options,
+            default_index,
+            ..
+        } => {
+            object.insert("title".to_string(), title.into());
+            object.insert("options".to_string(), json!(options));
+            object.insert("default_index".to_string(), default_index.into());
+        }
+        PiApprovalRequest::Input {
+            title, placeholder, ..
+        } => {
+            object.insert("title".to_string(), title.into());
+            object.insert("placeholder".to_string(), placeholder.into());
+        }
+        PiApprovalRequest::Editor { title, prefill, .. } => {
+            object.insert("title".to_string(), title.into());
+            object.insert("prefill".to_string(), prefill.into());
+        }
+        PiApprovalRequest::Unknown { method, .. } => {
+            object.insert("method".to_string(), method.into());
+        }
+    }
+    Some(value)
 }
 
 pub(super) fn snapshot_value(snapshot: &PiRuntimeSnapshot) -> Value {

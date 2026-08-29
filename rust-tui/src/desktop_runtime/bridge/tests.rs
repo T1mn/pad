@@ -326,6 +326,35 @@ pub(crate) fn protocol_v2_hello_is_versioned_and_v1_ping_is_unchanged() {
     );
 }
 
+pub(crate) fn remote_management_actions_are_v2_only_and_return_the_public_status_shape() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    let (legacy, _) = handle_line(&mut runtime, r#"{"id":"legacy","action":"remote_status"}"#);
+    assert_eq!(legacy.error.unwrap().code, "protocol_upgrade_required");
+    let (status, _) = handle_line(
+        &mut runtime,
+        r#"{"id":"remote","action":"remote_status","protocol_version":2}"#,
+    );
+    assert!(status.ok);
+    let remote = &status.result.unwrap()["remote"];
+    for key in [
+        "enabled",
+        "state",
+        "display_name",
+        "active_connections",
+        "devices",
+        "updated_at",
+    ] {
+        assert!(remote.get(key).is_some(), "missing RemoteHostStatus.{key}");
+    }
+    assert!(remote.get("endpoint").is_none());
+    assert!(remote.get("tls_fingerprint").is_none());
+    let (illegal, _) = handle_line(
+        &mut runtime,
+        r#"{"id":"bad","action":"remote_set_enabled","protocol_version":2,"enabled":true,"cwd":"/tmp"}"#,
+    );
+    assert_eq!(illegal.error.unwrap().code, "invalid_fields");
+}
+
 pub(crate) fn protocol_v2_rejects_illegal_fields_and_long_ids() {
     let mut runtime = runtime();
     let (illegal, _) = handle_line(
@@ -371,7 +400,7 @@ pub(crate) fn bounded_frames_recover_after_oversize_and_report_disconnect() {
         Some(ServerInput::InvalidUtf8)
     );
 
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(1);
     read_server_input(Cursor::new(Vec::<u8>::new()), sender);
     assert_eq!(receiver.recv().unwrap(), ServerInput::Disconnected);
 

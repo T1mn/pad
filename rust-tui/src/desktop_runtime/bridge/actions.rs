@@ -71,6 +71,19 @@ pub(crate) fn handle_request(
         Some("terminal_close") => terminal_close(runtime, request),
         Some("get_ui_state") => get_ui_state(runtime),
         Some("set_ui_state") => set_ui_state(runtime, request),
+        Some("remote_status") => Ok(runtime.remote_status()),
+        Some("remote_set_enabled") => runtime.remote_set_enabled(
+            request
+                .enabled
+                .ok_or_else(|| BridgeError::new("invalid_request", "missing enabled"))?,
+        ),
+        Some("remote_pair_begin") => runtime.remote_pair_begin(),
+        Some("remote_pair_cancel") => {
+            runtime.remote_pair_cancel(required(request.pairing_id.as_deref(), "pairing_id")?)
+        }
+        Some("remote_device_revoke") => {
+            runtime.remote_device_revoke(required(request.device_id.as_deref(), "device_id")?)
+        }
         Some(_) | None => Err(BridgeError::new(
             "unknown_action",
             "unsupported PAD Desktop action; call hello to discover protocol capabilities",

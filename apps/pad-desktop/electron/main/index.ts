@@ -16,6 +16,7 @@ import {
   type IpcMainInvokeEvent,
   nativeTheme,
   net,
+  powerSaveBlocker,
   protocol,
   screen,
   session,
@@ -31,6 +32,7 @@ import {
 } from '../../shared/protocol';
 import { installContentSecurityPolicy } from './security';
 import { installApplicationMenu } from './menu';
+import { redactRemotePowerSignal, RemotePowerSaveCoordinator } from './remote-power-blocker';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -139,6 +141,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const backend = new PadBackendClient();
+const remotePower = new RemotePowerSaveCoordinator(powerSaveBlocker);
 let mainWindow: BrowserWindow | null = null;
 let quitAfterBackendStops = false;
 
@@ -158,8 +161,14 @@ if (!app.requestSingleInstanceLock()) {
     installApplicationMenu();
     installIpcHandlers(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     backend.on('event', (event) => {
+      remotePower.observe(event);
+      if (event.type === 'host_status' && event.status !== 'ready' && event.status !== 'starting') {
+        remotePower.dispose();
+      }
       const window = mainWindow;
-      if (window && !window.isDestroyed()) window.webContents.send(DESKTOP_IPC.event, event);
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(DESKTOP_IPC.event, redactRemotePowerSignal(event));
+      }
     });
     backend.start();
     await createWindow();
@@ -375,10 +384,15 @@ export function installIpcHandlers(developmentServerUrl: string | undefined): vo
       if (!request || !isDesktopAction(request.action)) {
         throw new Error('Unsupported PAD desktop action');
       }
-      return backend.request(
+      const response = backend.request(
         request.action,
         sanitizeDesktopParams(request.action, request.params),
       );
+      if (!request.action.startsWith('remote_')) return response;
+      return response.then((result) => {
+        remotePower.observe(result);
+        return result;
+      });
     },
   );
 }
@@ -443,6 +457,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', (event) => {
+  remotePower.dispose();
   if (quitAfterBackendStops) return;
   event.preventDefault();
   void backend.stop().finally(() => {

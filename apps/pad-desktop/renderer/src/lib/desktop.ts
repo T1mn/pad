@@ -9,6 +9,8 @@ import type {
   PadDesktopApi,
   ProfileDto,
   ProjectDto,
+  RemotePairBeginResultDto,
+  RemoteStatusResultDto,
   TaskDto,
   TerminalOpenDto,
   TerminalSnapshotDto,
@@ -26,6 +28,9 @@ import type {
   PendingInteraction,
   ProjectSummary,
   ProviderAuthentication,
+  RemoteHostState,
+  RemoteHostStatus,
+  RemotePairing,
   SendMessageInput,
   SidebarHierarchy,
   SidebarNodeKind,
@@ -58,6 +63,10 @@ interface ProviderStatus {
 
 type AuthAction = "auth_begin" | "auth_status" | "auth_respond" | "auth_cancel" | "logout";
 
+const remoteGatewayCapability = "remote_gateway_v1";
+const remotePairingCapability = "remote_pairing";
+const remoteDeviceCapability = "remote_device_management";
+
 const listeners = new Set<(event: DesktopEvent) => void>();
 
 function emit(event: DesktopEvent) {
@@ -72,6 +81,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
   let uiStateWriteQueue: Promise<void> = Promise.resolve();
   let providerStatuses = new Map<string, ProviderStatus>();
   let snapshot = emptySnapshot();
+  let remoteStatus: RemoteHostStatus | null = null;
   const startedTasks = new Set<string>();
   const pollingTasks = new Map<string, ReturnType<typeof setTimeout>>();
   let refreshQueued = false;
@@ -100,6 +110,32 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
     return { ...result, capabilities: [...new Set([...result.capabilities, ...(hello.capabilities ?? [])])] };
   }
 
+  function supportsRemote(capability = remoteGatewayCapability): boolean {
+    return bootstrap?.capabilities.includes(capability) ?? false;
+  }
+
+  async function refreshRemoteStatus(shouldEmit = false): Promise<RemoteHostStatus | null> {
+    if (!supportsRemote()) {
+      remoteStatus = null;
+    } else {
+      const result = await api.request<"remote_status", RemoteStatusResultDto>("remote_status", {});
+      remoteStatus = mapRemoteStatus(result);
+    }
+    snapshot = { ...snapshot, remote: remoteStatus };
+    if (shouldEmit) emit({ type: "remote-updated", status: remoteStatus });
+    return remoteStatus;
+  }
+
+  async function tryRefreshRemoteStatus(): Promise<RemoteHostStatus | null> {
+    try {
+      return await refreshRemoteStatus();
+    } catch {
+      remoteStatus = null;
+      snapshot = { ...snapshot, remote: null };
+      return null;
+    }
+  }
+
   async function refresh(loadHistory = false, refreshAuthentication = false): Promise<DesktopSnapshot> {
     if (!bootstrap) bootstrap = await bootstrapWithCapabilities();
     const result = await api.request<"list_sidebar", { sidebar?: unknown; ui_state?: DesktopUiStateDto; records: DesktopRecords }>("list_sidebar", {});
@@ -119,6 +155,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       snapshot.turnsByTask,
       snapshot.interactionsByTask,
       uiState,
+      remoteStatus,
     );
     if (loadHistory) await hydrateVisibleHistory(api, next);
     snapshot = next;
@@ -142,6 +179,14 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         emit({ type: "menu-action", action: action as "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" });
       }
     } else if (event.type === "backend_event") {
+      if (desktopServerEventKind(event.payload) === "remote_changed") {
+        void refreshRemoteStatus(true).catch(() => {
+          remoteStatus = null;
+          snapshot = { ...snapshot, remote: null };
+          emit({ type: "remote-updated", status: null });
+        });
+        return;
+      }
       const auth = authSessionFromEvent(event.payload, selectedProfileId ?? "");
       if (auth) emit({ type: "auth-updated", session: auth });
       scheduleRefresh();
@@ -203,6 +248,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         snapshot.turnsByTask,
         snapshot.interactionsByTask,
         uiState,
+        remoteStatus,
       );
       emit({ type: "snapshot", snapshot });
       return uiState;
@@ -218,7 +264,8 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       selectedProfileId = uiState.activeProfileId ?? bootstrap.profile.id;
       rawSidebar = bootstrap.sidebar;
       providerStatuses = await loadProviderStatuses(api, bootstrap.records, bootstrap);
-      snapshot = snapshotFromRecords(bootstrap.records, selectedProfileId, bootstrap, rawSidebar, providerStatuses, {}, {}, uiState);
+      snapshot = snapshotFromRecords(bootstrap.records, selectedProfileId, bootstrap, rawSidebar, providerStatuses, {}, {}, uiState, null);
+      await tryRefreshRemoteStatus();
       await hydrateVisibleTaskData(api, snapshot);
       snapshot.tasks.filter((task) => task.status === "running").forEach((task) => scheduleTaskPoll(task.id));
       return snapshot;
@@ -264,6 +311,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         snapshot.turnsByTask,
         snapshot.interactionsByTask,
         uiState,
+        remoteStatus,
       );
       emit({ type: "snapshot", snapshot });
       return snapshot;
@@ -295,6 +343,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         snapshot.turnsByTask,
         snapshot.interactionsByTask,
         uiState,
+        remoteStatus,
       );
       snapshot.turnsByTask[task.id] = [];
       snapshot.interactionsByTask[task.id] = [];
@@ -312,8 +361,11 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         rawSidebar = result.sidebar ?? rawSidebar;
         selectedProfileId = result.profile.id;
         providerStatuses = await loadProviderStatuses(api, result.records, bootstrap);
+        remoteStatus = null;
+        snapshot = { ...snapshot, remote: null };
         await persistUiState({ activeProfileId: selectedProfileId, selectedTaskId: null });
-        snapshot = snapshotFromRecords(result.records, selectedProfileId, bootstrap, rawSidebar, providerStatuses, {}, {}, uiState);
+        snapshot = snapshotFromRecords(result.records, selectedProfileId, bootstrap, rawSidebar, providerStatuses, {}, {}, uiState, null);
+        await tryRefreshRemoteStatus();
         emit({ type: "snapshot", snapshot });
         return snapshot;
       });
@@ -380,14 +432,19 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         const previousRawSidebar = rawSidebar;
         const previousProviderStatuses = providerStatuses;
         const previousSnapshot = snapshot;
+        const previousRemoteStatus = remoteStatus;
         let persistedTarget = false;
 
         try {
+          remoteStatus = null;
+          snapshot = { ...snapshot, remote: null };
           await persistUiState({ activeProfileId: accountId, selectedTaskId: null });
           persistedTarget = true;
           const next = await refresh(true, true);
+          await tryRefreshRemoteStatus();
           snapshot = next;
-          return next;
+          snapshot = { ...snapshot, remote: remoteStatus };
+          return snapshot;
         } catch (error) {
           let rollbackError: unknown = null;
           if (persistedTarget) {
@@ -405,6 +462,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
           bootstrap = previousBootstrap;
           rawSidebar = previousRawSidebar;
           providerStatuses = previousProviderStatuses;
+          remoteStatus = previousRemoteStatus;
           snapshot = previousSnapshot;
           emit({ type: "snapshot", snapshot: previousSnapshot });
 
@@ -570,6 +628,43 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       requireStableAccount();
       return persistUiState(patch);
     },
+    getRemoteStatus() {
+      requireStableAccount();
+      return refreshRemoteStatus(true);
+    },
+    async setRemoteEnabled(enabled) {
+      requireStableAccount();
+      if (!supportsRemote()) throw new Error("当前 PAD 控制面不支持远程连接。");
+      const result = await api.request<"remote_set_enabled", RemoteStatusResultDto>("remote_set_enabled", { enabled });
+      remoteStatus = mapRemoteStatus(result);
+      snapshot = { ...snapshot, remote: remoteStatus };
+      emit({ type: "remote-updated", status: remoteStatus });
+      return remoteStatus;
+    },
+    async beginRemotePairing() {
+      requireStableAccount();
+      if (!supportsRemote(remotePairingCapability)) throw new Error("当前 PAD 控制面不支持设备配对。");
+      const result = await api.request<"remote_pair_begin", RemotePairBeginResultDto>("remote_pair_begin", {});
+      return mapRemotePairing(result);
+    },
+    async cancelRemotePairing(pairingId) {
+      requireStableAccount();
+      if (!supportsRemote(remotePairingCapability)) throw new Error("当前 PAD 控制面不支持设备配对。");
+      const result = await api.request<"remote_pair_cancel", RemoteStatusResultDto>("remote_pair_cancel", { pairing_id: pairingId });
+      remoteStatus = mapRemoteStatus(result);
+      snapshot = { ...snapshot, remote: remoteStatus };
+      emit({ type: "remote-updated", status: remoteStatus });
+      return remoteStatus;
+    },
+    async revokeRemoteDevice(deviceId) {
+      requireStableAccount();
+      if (!supportsRemote(remoteDeviceCapability)) throw new Error("当前 PAD 控制面不支持设备撤销。");
+      const result = await api.request<"remote_device_revoke", RemoteStatusResultDto>("remote_device_revoke", { device_id: deviceId });
+      remoteStatus = mapRemoteStatus(result);
+      snapshot = { ...snapshot, remote: remoteStatus };
+      emit({ type: "remote-updated", status: remoteStatus });
+      return remoteStatus;
+    },
     subscribe(listener) {
       listeners.add(listener);
       const unsubscribeProtocol = api.subscribe(handleProtocolEvent);
@@ -621,6 +716,76 @@ function mapTerminalSnapshot(value: TerminalSnapshotDto): TerminalSnapshot {
   };
 }
 
+function desktopServerEventKind(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const envelope = isRecord(value.event) ? value.event : value;
+  return textValue(envelope.kind);
+}
+
+function publicText(value: unknown, maximum: number): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, maximum);
+}
+
+function publicTimestamp(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function mapRemoteState(value: unknown): RemoteHostState {
+  return ["disabled", "starting", "ready", "degraded", "failed"].includes(String(value))
+    ? value as RemoteHostState
+    : "failed";
+}
+
+/**
+ * Reduce an untrusted host result to the public remote DTO. Unknown members
+ * such as tokens, filesystem paths, endpoints and raw error messages cannot
+ * survive this projection into renderer state.
+ */
+export function mapRemoteStatus(value: unknown): RemoteHostStatus {
+  const result = isRecord(value) ? value : {};
+  const source = isRecord(result.remote) ? result.remote : result;
+  const rawDevices = Array.isArray(source.devices) ? source.devices : [];
+  const devices = rawDevices.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const id = publicText(entry.id, 256);
+    const displayName = publicText(entry.display_name, 120);
+    const platform = publicText(entry.platform, 64);
+    if (!id || !displayName || !platform || typeof entry.online !== "boolean") return [];
+    const lastSeenAt = publicTimestamp(entry.last_seen_at);
+    return [{
+      id,
+      displayName,
+      platform,
+      online: entry.online,
+      pairedAt: publicTimestamp(entry.paired_at),
+      ...(lastSeenAt > 0 ? { lastSeenAt } : {}),
+    }];
+  });
+  const errorCode = publicText(source.error_code, 80);
+  return {
+    enabled: source.enabled === true,
+    state: mapRemoteState(source.state),
+    displayName: publicText(source.display_name, 120) || "这台 Mac",
+    activeConnections: Math.min(10_000, Math.max(0, Math.trunc(numberValue(source.active_connections)))),
+    devices,
+    updatedAt: publicTimestamp(source.updated_at),
+    ...(errorCode ? { errorCode } : {}),
+  };
+}
+
+export function mapRemotePairing(value: unknown): RemotePairing {
+  const result = isRecord(value) ? value : {};
+  const pairing = isRecord(result.pairing) ? result.pairing : {};
+  const pairingId = publicText(pairing.pairing_id, 256);
+  const qrPayload = typeof pairing.qr_payload === "string" ? pairing.qr_payload : "";
+  const expiresAt = publicTimestamp(pairing.expires_at);
+  if (!pairingId || !qrPayload || qrPayload.length > 16 * 1024 || expiresAt <= 0) {
+    throw new Error("远程配对信息无效，请重新开始配对。");
+  }
+  return { pairingId, qrPayload, expiresAt };
+}
+
 const authSessionsByProfile = new Map<string, AuthSession>();
 
 async function loadProviderStatuses(
@@ -668,6 +833,7 @@ function snapshotFromRecords(
   previousTurns: Record<string, TurnEntry[]>,
   previousInteractions: Record<string, PendingInteraction[]>,
   uiState: DesktopUiState,
+  remote: RemoteHostStatus | null = null,
 ): DesktopSnapshot {
   const projects = records.projects
     .filter((project) =>
@@ -696,6 +862,7 @@ function snapshotFromRecords(
     turnsByTask,
     interactionsByTask,
     uiState,
+    remote,
   };
 }
 
@@ -1283,6 +1450,7 @@ function emptySnapshot(): DesktopSnapshot {
     sidebar: { view: "all", query: "", activeProfileId: null, selectedKey: null, rows: [] },
     backend: { status: "unavailable", capabilities: [], providerAuthentication: "unknown" },
     uiState: defaultUiState(),
+    remote: null,
   };
 }
 
@@ -1497,6 +1665,11 @@ function createUnavailableAdapter(): DesktopAdapter {
     getTerminalSnapshot: unavailable,
     closeTerminal: unavailable,
     updateUiState: unavailable,
+    getRemoteStatus: unavailable,
+    setRemoteEnabled: unavailable,
+    beginRemotePairing: unavailable,
+    cancelRemotePairing: unavailable,
+    revokeRemoteDevice: unavailable,
     subscribe: () => () => undefined,
   };
 }

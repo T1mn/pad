@@ -100,6 +100,167 @@ pub(crate) fn profile_scoped_process_events_update_the_private_task_record() {
     assert!(!runtime.is_running("task-runtime"));
 }
 
+pub(crate) fn empty_owner_pump_does_not_rewrite_task_metadata() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    configure_fake_pi(&mut runtime, &[]);
+    runtime.store_mut().insert_profile(&profile()).unwrap();
+    runtime.store_mut().insert_task(&task()).unwrap();
+    runtime.start_task("task-runtime").unwrap();
+    let mut record = runtime.store().get_task("task-runtime").unwrap().unwrap();
+    record.updated_at = 17;
+    runtime.store_mut().update_task(&record).unwrap();
+    for _ in 0..4 {
+        assert!(runtime.poll_task("task-runtime").unwrap().is_empty());
+    }
+    assert_eq!(
+        runtime
+            .store()
+            .get_task("task-runtime")
+            .unwrap()
+            .unwrap()
+            .updated_at,
+        17
+    );
+    runtime.stop_task("task-runtime").unwrap();
+}
+
+pub(crate) fn request_pi_defers_same_batch_interaction_for_single_owner_fanout() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    configure_fake_pi(
+        &mut runtime,
+        &[
+            serde_json::json!({
+                "type":"response",
+                "command":"get_messages",
+                "success":true,
+                "data":{"messages":[]}
+            }),
+            serde_json::json!({
+                "type":"extension_ui_request",
+                "generation":1,
+                "sequence":1,
+                "id":"approval-1",
+                "method":"confirm",
+                "title":"Continue?"
+            }),
+        ],
+    );
+    runtime.store_mut().insert_profile(&profile()).unwrap();
+    runtime.store_mut().insert_task(&task()).unwrap();
+    runtime.start_task("task-runtime").unwrap();
+    let history = runtime.history("task-runtime").unwrap();
+    assert_eq!(history["command"], "get_messages");
+    let deferred = runtime.poll_task("task-runtime").unwrap();
+    assert_eq!(
+        deferred
+            .messages
+            .iter()
+            .filter(|message| message.message_type == "extension_ui_request")
+            .count(),
+        1
+    );
+    assert_eq!(deferred.events.len(), 1);
+    assert!(runtime.poll_task("task-runtime").unwrap().is_empty());
+    runtime.stop_task("task-runtime").unwrap();
+}
+
+pub(crate) fn rpc_responses_do_not_mark_the_task_failed() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    configure_fake_pi(
+        &mut runtime,
+        &[
+            serde_json::json!({
+                "type":"response", "command":"get_state", "success":true,
+                "data":{"sessionId":"session-rpc"}
+            }),
+            serde_json::json!({
+                "type":"response", "command":"get_messages", "success":true,
+                "data":{"messages":[]}
+            }),
+        ],
+    );
+    runtime.store_mut().insert_profile(&profile()).unwrap();
+    runtime.store_mut().insert_task(&task()).unwrap();
+    runtime.start_task("task-runtime").unwrap();
+    let history = runtime.history("task-runtime").unwrap();
+    assert_eq!(history["command"], "get_messages");
+    assert_eq!(
+        runtime
+            .store()
+            .get_task("task-runtime")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Starting
+    );
+    let deferred = runtime.poll_task("task-runtime").unwrap();
+    assert!(deferred.events.is_empty());
+    runtime.stop_task("task-runtime").unwrap();
+}
+
+pub(crate) fn auto_answered_permission_is_not_republished_as_pending_ui() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    let work = crate::test_support::temp_path("pad-desktop", "auto-answer-work");
+    std::fs::create_dir_all(&work).unwrap();
+    configure_fake_pi(
+        &mut runtime,
+        &[
+            serde_json::json!({"type":"agent_start","generation":1,"sequence":1}),
+            serde_json::json!({
+                "type":"extension_ui_request", "generation":1, "sequence":2,
+                "method":"confirm", "id":"permission-1",
+                "title":"Allow permission?", "message":"Permit this file edit?",
+                "toolName":"edit", "path":work.join("file.txt")
+            }),
+        ],
+    );
+    let mut allowed_profile = profile();
+    allowed_profile.policy = PolicyLayer {
+        mode: Some(PermissionMode::WorkspaceFull),
+        unattended: Some(true),
+        ..PolicyLayer::default()
+    };
+    let mut allowed_task = task();
+    allowed_task.cwd = work.clone();
+    runtime
+        .store_mut()
+        .insert_profile(&allowed_profile)
+        .unwrap();
+    runtime.store_mut().insert_task(&allowed_task).unwrap();
+    runtime.start_task("task-runtime").unwrap();
+    let mut saw_runtime_event = false;
+    for _ in 0..20 {
+        let poll = runtime.poll_task("task-runtime").unwrap();
+        assert!(!poll.messages.iter().any(|message| {
+            message.message_type == "extension_ui_request" && message.value["id"] == "permission-1"
+        }));
+        assert!(!poll
+            .events
+            .iter()
+            .any(|event| event.value["id"] == "permission-1"));
+        saw_runtime_event |= poll
+            .messages
+            .iter()
+            .any(|message| message.message_type == "agent_start");
+        if saw_runtime_event {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(saw_runtime_event);
+    assert_eq!(
+        runtime
+            .store()
+            .get_task("task-runtime")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Running
+    );
+    runtime.stop_task("task-runtime").unwrap();
+    let _ = std::fs::remove_dir_all(work);
+}
+
 pub(crate) fn sidebar_snapshot_is_read_from_the_pad_store_only() {
     let mut runtime = DesktopRuntime::in_memory().unwrap();
     runtime.store_mut().insert_profile(&profile()).unwrap();

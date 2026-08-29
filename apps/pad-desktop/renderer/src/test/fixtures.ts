@@ -50,5 +50,6 @@ export function snapshot(profileId = "personal"): DesktopSnapshot {
       bottomPanelOpen: false,
       sidebarOpen: true,
     },
+    remote: null,
   };
 }

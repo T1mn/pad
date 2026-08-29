@@ -174,7 +174,7 @@ pub(super) fn set_thinking_level(
 }
 
 pub(super) fn respond_ui(
-    runtime: &DesktopRuntime,
+    runtime: &mut DesktopRuntime,
     request: &DesktopRequest,
 ) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;
@@ -185,16 +185,18 @@ pub(super) fn respond_ui(
             .or(request.interaction_id.as_deref()),
         "request_id",
     )?;
-    let value = request
-        .value
-        .clone()
-        .ok_or_else(|| BridgeError::new("invalid_request", "missing value"))?;
+    let value = request.value.clone();
+    let cancelled = request.cancelled.unwrap_or(false);
+    if value.is_none() && !cancelled {
+        return Err(BridgeError::new("invalid_request", "missing value"));
+    }
     runtime
         .respond_ui(
             task_id,
             request_id,
             request.response_kind.as_deref(),
             value.clone(),
+            cancelled,
         )
         .map_err(BridgeError::from)?;
     Ok(json!({
@@ -202,6 +204,7 @@ pub(super) fn respond_ui(
         "request_id": request_id,
         "accepted": true,
         "value": value,
+        "cancelled": cancelled,
     }))
 }
 

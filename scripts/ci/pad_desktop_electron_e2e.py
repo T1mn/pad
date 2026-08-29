@@ -172,7 +172,22 @@ def check_bundle(app_argument: pathlib.Path, scratch: pathlib.Path) -> Bundle:
         for key in plist
         if isinstance(key, str) and key.startswith("NS") and key.endswith("UsageDescription")
     )
-    require(not tcc_keys, f"unnecessary TCC usage descriptions present: {', '.join(tcc_keys)}")
+    require(
+        tcc_keys == ["NSLocalNetworkUsageDescription"],
+        "the remote gateway must request only local-network access; "
+        f"found: {', '.join(tcc_keys) or 'none'}",
+    )
+    local_network_reason = plist_string(plist, "NSLocalNetworkUsageDescription")
+    require(
+        "PAD" in local_network_reason and len(local_network_reason) >= 12,
+        "NSLocalNetworkUsageDescription must clearly explain PAD Remote pairing",
+    )
+    bonjour_services = plist.get("NSBonjourServices")
+    require(
+        isinstance(bonjour_services, list)
+        and "_pad-remote._tcp" in bonjour_services,
+        "Info.plist must advertise _pad-remote._tcp over Bonjour",
+    )
     require("NSAppTransportSecurity" not in plist, "unnecessary ATS override is present")
 
     icon_name = plist_string(plist, "CFBundleIconFile")

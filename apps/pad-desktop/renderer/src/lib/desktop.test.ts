@@ -5,11 +5,110 @@ import {
   buildSidebarHierarchy,
   createBridgeAdapter,
   mapHistoryMessage,
+  mapRemotePairing,
+  mapRemoteStatus,
   normalizeAttachmentPaths,
   pendingInteractionsFromPoll,
   promptWithAttachments,
   sanitizeProfileForRenderer,
 } from "./desktop";
+
+describe("远程连接 renderer DTO", () => {
+  it("仅保留公开状态字段并丢弃 token、路径与原始错误", () => {
+    const mapped = mapRemoteStatus({
+      remote: {
+        enabled: true,
+        state: "ready",
+        display_name: "Tim 的 Mac",
+        active_connections: 2,
+        updated_at: 1_800_000_000,
+        error_code: "",
+        token: "must-not-leak",
+        path: "/private/remote.sqlite",
+        raw_error: "secret stack trace",
+        endpoint: "192.0.2.10:443",
+        devices: [{
+          id: "phone-1",
+          display_name: "iPhone",
+          platform: "iOS",
+          online: true,
+          paired_at: 1_700_000_000,
+          last_seen_at: 1_800_000_000,
+          token: "device-secret",
+          profile_id: "private-profile",
+        }],
+      },
+    });
+
+    expect(mapped).toEqual({
+      enabled: true,
+      state: "ready",
+      displayName: "Tim 的 Mac",
+      activeConnections: 2,
+      updatedAt: 1_800_000_000,
+      devices: [{
+        id: "phone-1",
+        displayName: "iPhone",
+        platform: "iOS",
+        online: true,
+        pairedAt: 1_700_000_000,
+        lastSeenAt: 1_800_000_000,
+      }],
+    });
+    expect(JSON.stringify(mapped)).not.toMatch(/token|path|raw_error|endpoint|profile/i);
+  });
+
+  it("配对结果只保留短期 id、原始 QR payload 与过期时间", () => {
+    const payload = "pad-remote://pair?ticket=opaque";
+    expect(mapRemotePairing({
+      pairing: { pairing_id: "pair-1", qr_payload: payload, expires_at: 1_800_000_030, raw_secret: "drop" },
+      path: "/private",
+    })).toEqual({ pairingId: "pair-1", qrPayload: payload, expiresAt: 1_800_000_030 });
+  });
+
+  it("remote_changed 事件会重新读取状态而不信任事件 payload", async () => {
+    const fixture = bridgeFixture(0);
+    fixture.bootstrap.capabilities = ["remote_gateway_v1"];
+    let protocolListener: Parameters<PadDesktopApi["subscribe"]>[0] = () => undefined;
+    let remoteReads = 0;
+    const api: PadDesktopApi = {
+      bootstrap: vi.fn(async () => fixture.bootstrap),
+      request: vi.fn(async (action: string) => {
+        if (action === "hello") return { capabilities: ["remote_gateway_v1"] };
+        if (action === "provider_status") return {};
+        if (action === "remote_status") {
+          remoteReads += 1;
+          return { remote: { enabled: true, state: "ready", display_name: "Mac", active_connections: remoteReads - 1, devices: [], updated_at: remoteReads } };
+        }
+        throw new Error(`unexpected action ${action}`);
+      }) as PadDesktopApi["request"],
+      chooseProjectDirectory: vi.fn(),
+      subscribe: vi.fn((listener) => {
+        protocolListener = listener;
+        return () => undefined;
+      }),
+    };
+    const adapter = createBridgeAdapter(api);
+    const initial = await adapter.loadSnapshot();
+    expect(initial.remote?.activeConnections).toBe(0);
+    let latest = initial.remote;
+    const unsubscribe = adapter.subscribe((event) => {
+      if (event.type === "remote-updated") latest = event.status;
+    });
+    protocolListener({
+      type: "backend_event",
+      payload: {
+        type: "desktop_event",
+        protocol_version: 2,
+        sequence: 1,
+        event: { kind: "remote_changed", payload: { remote: { token: "event-secret", active_connections: 999 } } },
+      },
+    });
+    await vi.waitFor(() => expect(latest?.activeConnections).toBe(1));
+    expect(remoteReads).toBe(2);
+    unsubscribe();
+  });
+});
 
 describe("结构化 history 时间线", () => {
   it("只从 metadata/artifacts 显式字段建立 typed artifacts，不解析看起来像 diff 的正文", () => {
@@ -530,6 +629,50 @@ describe("任务按需加载与账号切换事务", () => {
     releasePersist?.();
     const switched = await switching;
     expect(switched.accounts.find((account) => account.active)?.id).toBe("team");
+  });
+
+  it("账号切换先清空旧远程状态，再为目标账号重新读取", async () => {
+    const fixture = bridgeFixture(0, true);
+    fixture.bootstrap.capabilities = ["history", "remote_gateway_v1"];
+    let persisted = structuredClone(fixture.bootstrap.ui_state);
+    const remoteProfiles: string[] = [];
+    const request = vi.fn(async (action: string, params: Record<string, unknown>) => {
+      if (action === "hello") return { capabilities: ["history", "remote_gateway_v1"] };
+      if (action === "provider_status") return { provider_authentication: "authenticated" };
+      if (action === "remote_status") {
+        const profileId = persisted.active_profile_id ?? "personal";
+        remoteProfiles.push(profileId);
+        return { remote: { enabled: true, state: "ready", display_name: `${profileId} Mac`, active_connections: 0, devices: [], updated_at: remoteProfiles.length } };
+      }
+      if (action === "set_ui_state") {
+        persisted = structuredClone(params.state as DesktopUiStateDto);
+        return { state: persisted, sidebar: { rows: [] } };
+      }
+      if (action === "list_sidebar") return { records: fixture.records, sidebar: { rows: [] }, ui_state: persisted };
+      throw new Error(`unexpected action ${action}`);
+    });
+    const adapter = createBridgeAdapter({
+      bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+      request: request as unknown as PadDesktopApi["request"],
+      chooseProjectDirectory: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    });
+    await adapter.loadSnapshot();
+    const transitionSnapshots: Array<{ profile: string | null; remote: string | null }> = [];
+    const unsubscribe = adapter.subscribe((event) => {
+      if (event.type === "snapshot") transitionSnapshots.push({
+        profile: event.snapshot.uiState.activeProfileId,
+        remote: event.snapshot.remote?.displayName ?? null,
+      });
+    });
+
+    const switched = await adapter.switchAccount("team");
+
+    expect(remoteProfiles).toEqual(["personal", "team"]);
+    expect(transitionSnapshots).toContainEqual({ profile: "team", remote: null });
+    expect(transitionSnapshots).not.toContainEqual({ profile: "team", remote: "personal Mac" });
+    expect(switched.remote?.displayName).toBe("team Mac");
+    unsubscribe();
   });
 });
 

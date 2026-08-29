@@ -2,9 +2,11 @@
 
 - `native_terminal_smoke.py`：通过伪终端验证 PAD 原生终端的启动、Shell 输入、焦点返回与退出。
 - `pad_desktop_e2e_smoke.py`：macOS 打包 App 黑盒测试，覆盖 arm64/签名、Desktop server、Profile 隔离、Full Access 策略、guarded approval round-trip、Task stop/reopen、Pin/Archive/Unread 持久化、Pi session/history 恢复和 confirm/select/input UI 请求行为。
-- `pad_desktop_electron_e2e.py`：最终 Electron `.app` 黑盒验收；验证 arm64/签名/Fuses/随包运行时、Protocol v2 Rust sidecar、Profile A/B 与独立 SQLite；12 类 synthetic Codex/ChatGPT/custom `CODEX_HOME` 均须拒绝作为数据根且内容/元数据不变；并通过 CDP 留存宽窄窗口 DOM、截图、中文可访问性树和零残留进程证据。
+- `pad_desktop_electron_e2e.py`：最终 Electron `.app` 黑盒验收；验证 arm64/签名/Fuses/随包运行时、本地网络与 Bonjour Remote 声明、Protocol v2 Rust sidecar、Profile A/B 与独立 SQLite；12 类 synthetic Codex/ChatGPT/custom `CODEX_HOME` 均须拒绝作为数据根且内容/元数据不变；并通过 CDP 留存宽窄窗口 DOM、截图、中文可访问性树和零残留进程证据。
 - `pad_desktop_visual.py`：最终 Electron `.app` 视觉矩阵门禁；在隔离 HOME 中采集 light/dark × 五档窗口截图，检查平铺/overlay 布局、DOM 几何、中文动作、ARIA/focus-visible 与水平溢出，并只对用户提供的同名基线计算真实 SSIM/像素差。
 - `pad_desktop_perf.py`：最终 Electron `.app` 性能门禁；使用临时 HOME/CDP 测量 renderer 可交互冷启动与独立 bootstrap、10 秒空闲进程树 CPU/RSS 和 Renderer JS heap，并把 3 秒/2%/450 MiB、Protocol v2、backend ready 与零错误提示判定写入 JSON。
+- `pad_remote_e2e.py`：使用临时数据根和标准库 WSS 客户端黑盒验证 Remote v1 的 TLS 指纹、一次性配对、UUID 冲突拒绝、同设备连接替换、Profile 隔离、ACK/重放、重启续接、禁用/恢复、撤销断连、私有文件权限、命令 P95 与热恢复 P95。
+- `pad_ios_typecheck.sh`：不依赖可启动 Simulator，直接用 Xcode SDK 对 iOS App 的 Simulator/真机目标和 XCTest 源码做完整 Swift 类型检查。
 - `linux_installer_smoke.sh`：Linux 安装器冒烟测试。
 - `mock_agent.sh`：CI 用 mock agent。
 - `power_smoke.py`：pad 原生终端空闲 CPU 预算测试，作为耗电量代理指标。

@@ -78,6 +78,7 @@ pub(crate) fn pi_runtime_adapter_tests() {
     crate::pi_runtime::events::tests::approval_and_tool_events_update_runtime_status();
     crate::pi_runtime::approval::tests::full_access_auto_answers_confirm_but_not_unknown_ui();
     crate::pi_runtime::approval::tests::unattended_uses_input_default_and_select_default();
+    crate::pi_runtime::approval::tests::select_response_uses_the_option_value_not_its_index();
     crate::pi_runtime::approval::tests::protected_paths_never_get_auto_answers();
     crate::pi_runtime::approval::tests::tool_operation_and_target_are_conservative();
     crate::pi_runtime::tests::pi_agent_detection_accepts_binary_paths();

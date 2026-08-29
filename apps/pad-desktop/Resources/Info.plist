@@ -15,13 +15,19 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>0.7.6</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>76</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PAD Desktop 使用本地网络，让已配对的 iPhone 实时连接这台 Mac。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pad-remote._tcp</string>
+	</array>
 	<key>NSHumanReadableCopyright</key>
 	<string>PAD 桌面</string>
 	<key>CFBundleDevelopmentRegion</key>
