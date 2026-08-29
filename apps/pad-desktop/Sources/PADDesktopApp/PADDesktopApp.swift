@@ -1152,9 +1152,9 @@ private enum CodexMetrics {
     static let windowMinHeight: CGFloat = 680
     static let windowDefaultWidth: CGFloat = 1460
     static let windowDefaultHeight: CGFloat = 900
-    static let sidebarMinWidth: CGFloat = 260
-    static let sidebarIdealWidth: CGFloat = 300
-    static let sidebarMaxWidth: CGFloat = 380
+    static let sidebarMinWidth: CGFloat = 240
+    static let sidebarIdealWidth: CGFloat = 275
+    static let sidebarMaxWidth: CGFloat = 360
     static let transcriptMaxWidth: CGFloat = 960
     static let composerMaxWidth: CGFloat = 960
 }
@@ -1196,18 +1196,36 @@ struct PADDesktopApp: App {
 
 struct DesktopShell: View {
     @ObservedObject var model: DesktopModel
+    @State private var isSidebarVisible = true
+    @State private var sidebarWidth = CodexMetrics.sidebarIdealWidth
+    @State private var sidebarDragStartWidth: CGFloat?
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: CodexMetrics.sidebarMinWidth,
-                                                 ideal: CodexMetrics.sidebarIdealWidth,
-                                                 max: CodexMetrics.sidebarMaxWidth)
-        } detail: {
-            ConversationView(model: model)
+        Group {
+            if isSidebarVisible {
+                HStack(spacing: 0) {
+                    SidebarView(model: model)
+                        .frame(width: sidebarWidth)
+                    TiledSidebarDivider(
+                        width: $sidebarWidth,
+                        dragStartWidth: $sidebarDragStartWidth
+                    )
+                    ConversationView(model: model)
+                        .frame(minWidth: 640, maxWidth: .infinity)
+                }
+            } else {
+                ConversationView(model: model)
+            }
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
+                    isSidebarVisible.toggle()
+                } label: {
+                    Label(isSidebarVisible ? "隐藏边栏" : "显示边栏",
+                          systemImage: "sidebar.left")
+                }
+                .help(isSidebarVisible ? "隐藏边栏" : "显示边栏")
                 Button(action: model.createTask) {
                     Label("新建任务", systemImage: "square.and.pencil")
                 }
@@ -1243,6 +1261,42 @@ struct DesktopShell: View {
     }
 }
 
+struct TiledSidebarDivider: View {
+    @Binding var width: CGFloat
+    @Binding var dragStartWidth: CGFloat?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 5)
+            .overlay {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let initialWidth = dragStartWidth ?? width
+                        if dragStartWidth == nil { dragStartWidth = initialWidth }
+                        width = min(
+                            CodexMetrics.sidebarMaxWidth,
+                            max(CodexMetrics.sidebarMinWidth, initialWidth + value.translation.width)
+                        )
+                    }
+                    .onEnded { _ in dragStartWidth = nil }
+            )
+            .onHover { isHovered in
+                if isHovered {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+}
+
 struct SidebarView: View {
     @ObservedObject var model: DesktopModel
 
@@ -1261,47 +1315,25 @@ struct SidebarView: View {
                     .font(.headline.weight(.semibold))
                 Spacer()
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 13)
-            .padding(.bottom, 9)
+            .padding(.horizontal, 12)
+            .padding(.top, 11)
+            .padding(.bottom, 8)
 
-            Button(action: model.createTask) {
-                HStack(spacing: 9) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.callout.weight(.medium))
-                    Text("新建任务")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                    Image(systemName: "plus.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
+            VStack(spacing: 1) {
+                SidebarActionRow(
+                    title: "新建任务",
+                    systemImage: "square.and.pencil",
+                    trailingSystemImage: "plus",
+                    action: model.createTask
+                )
+                SidebarActionRow(
+                    title: "打开本地项目",
+                    systemImage: "folder.badge.plus",
+                    action: model.addProject
+                )
             }
-            .buttonStyle(.plain)
-            // Codex keeps the primary action visually quiet; selection is
-            // reserved for the task/filter rows below it.
-            .background(Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 10)
-            .padding(.bottom, 2)
-
-            Button(action: model.addProject) {
-                HStack(spacing: 9) {
-                    Image(systemName: "folder.badge.plus")
-                        .font(.callout.weight(.medium))
-                    Text("打开本地项目")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 9)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -1331,38 +1363,43 @@ struct SidebarView: View {
                 .menuIndicator(.hidden)
                 .help("筛选任务")
             }
+            .frame(height: 30)
             .padding(.horizontal, 9)
-            .padding(.vertical, 7)
-            .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 10)
+            .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
 
-            List(selection: $model.selectedTaskID) {
-                Section("项目") {
-                    if model.visibleProjects.isEmpty && model.visibleTasks.isEmpty {
-                        Text("暂无任务")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    SidebarSection(title: "项目") {
+                        if model.visibleProjects.isEmpty && model.visibleTasks.isEmpty {
+                            Text("暂无任务")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .frame(height: 30)
+                        }
+                        ForEach(model.visibleProjects) { project in
+                            ProjectGroup(project: project, model: model)
+                        }
                     }
-                    ForEach(model.visibleProjects) { project in
-                        ProjectGroup(project: project, model: model)
+
+                    SidebarSection(title: "最近") {
+                        ForEach(model.visibleTasks.filter { $0.projectID == nil }.prefix(20)) { task in
+                            SidebarTaskButton(
+                                task: task,
+                                selected: model.selectedTaskID == task.id,
+                                action: { model.select(task: task) }
+                            )
+                        }
                     }
                 }
-
-                Section("最近") {
-                    ForEach(model.visibleTasks.filter { $0.projectID == nil }.prefix(20)) { task in
-                        TaskRow(task: task)
-                            .tag(task.id)
-                            .onTapGesture { model.select(task: task) }
-                    }
-                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 12)
             }
-            .listStyle(.sidebar)
 
-            Divider()
             ProfilePicker(model: model)
-                .padding(.horizontal, 10)
-                .padding(.top, 8)
             HStack(spacing: 7) {
                 Circle()
                     .fill(model.pi.state.color)
@@ -1375,20 +1412,78 @@ struct SidebarView: View {
                 if !model.selectedProfileIsLoggedIn {
                     Button("登录") { model.openPiLogin() }
                         .font(.caption2.weight(.medium))
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
                         .controlSize(.small)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 5)
-            .padding(.bottom, 11)
+            .padding(.horizontal, 12)
+            .padding(.top, 2)
+            .padding(.bottom, 9)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(nsColor: .underPageBackgroundColor))
+    }
+}
+
+struct SidebarActionRow: View {
+    let title: String
+    let systemImage: String
+    var trailingSystemImage: String? = nil
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .frame(width: 16)
+                Text(title)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let trailingSystemImage {
+                    Image(systemName: trailingSystemImage)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
+            .padding(.horizontal, 8)
+            .frame(height: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(isHovered ? Color.primary.opacity(0.055) : .clear,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { isHovered = $0 }
+    }
+}
+
+struct SidebarSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 8)
+                .frame(height: 20)
+            VStack(spacing: 1) {
+                content
+            }
+        }
     }
 }
 
 struct ProfilePicker: View {
     @ObservedObject var model: DesktopModel
+    @State private var isHovered = false
 
     var body: some View {
         ZStack {
@@ -1406,7 +1501,7 @@ struct ProfilePicker: View {
                     }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(model.selectedProfile.name)
-                        .font(.headline)
+                        .font(.callout.weight(.medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text(model.selectedProfile.subtitle)
@@ -1422,6 +1517,7 @@ struct ProfilePicker: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
             .contentShape(Rectangle())
             .allowsHitTesting(false)
 
@@ -1455,7 +1551,11 @@ struct ProfilePicker: View {
             .menuIndicator(.hidden)
             .accessibilityLabel("切换 Pi 账号：\(model.selectedProfile.name)")
         }
-        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+        .background(isHovered ? Color.primary.opacity(0.055) : .clear,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 8)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -1542,27 +1642,68 @@ struct SidebarFilterRow: View {
 struct ProjectGroup: View {
     let project: Project
     @ObservedObject var model: DesktopModel
+    @State private var isExpanded = true
+    @State private var isHovered = false
 
     var body: some View {
-        DisclosureGroup {
-            ForEach(model.visibleTasks.filter { $0.projectID == project.id }) { task in
-                TaskRow(task: task)
-                    .onTapGesture { model.select(task: task) }
-            }
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: "folder")
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
+        VStack(spacing: 1) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 10)
+                    Image(systemName: "folder")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
                     Text(project.name)
                         .lineLimit(1)
-                    Text(project.path)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .font(.callout)
+                .padding(.horizontal, 8)
+                .frame(height: 30)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(isHovered ? Color.primary.opacity(0.055) : .clear,
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .help(project.path)
+            .onHover { isHovered = $0 }
+
+            if isExpanded {
+                ForEach(model.visibleTasks.filter { $0.projectID == project.id }) { task in
+                    SidebarTaskButton(
+                        task: task,
+                        selected: model.selectedTaskID == task.id,
+                        action: { model.select(task: task) }
+                    )
+                    .padding(.leading, 17)
                 }
             }
         }
+    }
+}
+
+struct SidebarTaskButton: View {
+    let task: DesktopTask
+    let selected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            TaskRow(task: task)
+                .padding(.horizontal, 8)
+                .frame(height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(selected ? Color.primary.opacity(0.09) : (isHovered ? Color.primary.opacity(0.055) : .clear),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -1575,7 +1716,7 @@ struct TaskRow: View {
                 .font(.caption2)
                 .foregroundStyle(task.state.color)
             Text(task.title)
-                .lineLimit(2)
+                .lineLimit(1)
             Spacer(minLength: 0)
             if task.isPinned {
                 Image(systemName: "pin.fill")
