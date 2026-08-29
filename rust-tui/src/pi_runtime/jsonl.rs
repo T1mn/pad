@@ -102,6 +102,10 @@ impl JsonlCodec {
         }
     }
 
+    #[allow(
+        dead_code,
+        reason = "buffer inspection remains available for transport diagnostics"
+    )]
     pub(crate) fn buffered_bytes(&self) -> usize {
         self.buffer.len()
     }

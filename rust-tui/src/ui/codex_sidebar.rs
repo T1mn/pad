@@ -32,6 +32,10 @@ pub(crate) enum CodexSidebarIcon {
 impl CodexSidebarIcon {
     /// Stable, renderer-neutral symbol names.  A renderer can map these to
     /// SF Symbols, SVGs, or text without changing the sidebar data contract.
+    #[allow(
+        dead_code,
+        reason = "SF Symbol names remain available to native macOS sidebar renderers"
+    )]
     pub(crate) const fn symbol(self) -> &'static str {
         match self {
             Self::NewTask => "plus.message",
@@ -84,6 +88,13 @@ impl From<TaskStatus> for CodexSidebarStatus {
 }
 
 impl CodexSidebarStatus {
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "English status labels remain a tested renderer-neutral fallback"
+        )
+    )]
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::None => "",
@@ -104,6 +115,10 @@ impl CodexSidebarStatus {
 
     /// A compact renderer-neutral status symbol for rows that need a status
     /// affordance in a narrow sidebar.
+    #[allow(
+        dead_code,
+        reason = "SF Symbol status names remain available to native macOS row renderers"
+    )]
     pub(crate) const fn symbol(self) -> &'static str {
         match self {
             Self::None => "",

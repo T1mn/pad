@@ -1,7 +1,7 @@
 # paths
 
 - `base.rs` / `base_tests.rs`：`PAD_HOME`（未设置时为 `~/.pad`）下基础目录、日志、脚本、session、配置等路径函数和基础路径测试。
-- `base.rs`：PAD Desktop 使用独立的 `PAD_DESKTOP_DATA_DIR`（macOS 默认 `~/Library/Application Support/PAD Desktop`）及 `v1/store/pad.sqlite`，不复用 `~/.pad`。
+- `base.rs`：PAD Desktop 使用独立的 `PAD_DESKTOP_DATA_DIR`（macOS 默认 `~/Library/Application Support/PAD Desktop`）及 `v1/store/pad.sqlite`，不复用 `~/.pad`；Desktop/Profile/Pi 私有目录在 Unix 上修复为 `0700`，普通私有文件为 `0600`，且不跟随目录树中的符号链接。
 - `../paths.rs` 内联 `claude`：统一解析 `CLAUDE_CONFIG_DIR`，并提供 Claude settings / projects 路径。
 - `hook_bridge.rs` / `hook_bridge/`：Claude/Codex hook bridge 模板安装、状态检查与模板生成。
 - `codex_hooks.rs`：Codex hooks feature 开关、`hooks.json` 写入与版本兼容。

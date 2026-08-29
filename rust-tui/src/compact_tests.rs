@@ -4,6 +4,10 @@
 
 pub(crate) fn storage_policy_and_sidebar_cases() {
     crate::pad_store::tests::builds_private_schema_with_foreign_keys_and_version();
+    crate::pad_store::tests::desktop_ui_state_round_trip_survives_close_and_reopen();
+    crate::pad_store::tests::migration_from_v1_preserves_all_existing_records();
+    crate::pad_store::tests::desktop_ui_state_enforces_bounds_and_reports_corruption();
+    crate::pad_store::tests::desktop_ui_state_document_is_pad_private_and_secret_free();
     crate::pad_store::tests::crud_round_trip_preserves_profile_project_task_and_section_items();
     crate::pad_store::tests::data_survives_close_and_reopen();
     crate::pad_store::tests::foreign_keys_and_polymorphic_triggers_reject_orphan_references();
@@ -16,6 +20,10 @@ pub(crate) fn storage_policy_and_sidebar_cases() {
     crate::permission_policy_tests::guarded_allows_reads_and_prompts_for_writes();
     crate::permission_policy_tests::workspace_full_allows_workspace_mutation_but_prompts_external_work();
     crate::permission_policy_tests::system_full_allows_external_operations_but_never_protected_namespace();
+    crate::permission_policy_tests::system_full_only_auto_allows_statically_verified_shell_commands(
+    );
+    crate::permission_policy_tests::quoted_and_concatenated_shell_literals_cannot_hide_protected_paths();
+    crate::permission_policy_tests::symlink_targets_are_resolved_before_full_access_is_allowed();
     crate::permission_policy_tests::unattended_policy_turns_confirmation_into_deny();
     crate::permission_policy_tests::merge_layers_uses_specific_scalar_and_additive_collections();
     crate::permission_policy_tests::model_hierarchy_adds_project_roots_and_task_cwd();
@@ -44,10 +52,12 @@ pub(crate) fn storage_policy_and_sidebar_cases() {
 }
 
 pub(crate) fn desktop_runtime_and_supervisor_cases() {
+    crate::desktop_runtime::data_root_lock::same_root_has_exactly_one_owner();
     crate::desktop_runtime::tests::profile_scoped_process_events_update_the_private_task_record();
     crate::desktop_runtime::tests::sidebar_snapshot_is_read_from_the_pad_store_only();
     crate::desktop_runtime::tests::empty_task_cwd_inherits_its_selected_project_root();
     crate::desktop_runtime::tests::explicit_permission_gate_is_the_only_full_access_ui_auto_response();
+    crate::desktop_runtime::tests::cross_profile_project_cannot_supply_automatic_approval_policy();
     crate::desktop_runtime::tests::existing_task_session_is_restored_and_state_metadata_is_persisted();
     crate::desktop_runtime::tests::existing_task_session_outside_profile_root_is_rejected();
     crate::desktop_runtime::tests::history_falls_back_to_read_only_profile_session_journal();
@@ -64,6 +74,26 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::bridge::tests::provider_status_reports_profile_scoped_authentication_shape();
     crate::desktop_runtime::bridge::tests::poll_exposes_structured_ui_requests_without_answering_them();
     crate::desktop_runtime::bridge::tests::provider_auth_errors_are_distinguished_from_transport_errors();
+    crate::desktop_runtime::bridge::tests::protocol_v2_hello_is_versioned_and_v1_ping_is_unchanged(
+    );
+    crate::desktop_runtime::bridge::tests::protocol_v2_rejects_illegal_fields_and_long_ids();
+    crate::desktop_runtime::bridge::tests::bounded_frames_recover_after_oversize_and_report_disconnect();
+    crate::desktop_runtime::bridge::tests::protocol_v2_bootstrap_uses_renderer_safe_records();
+    crate::desktop_runtime::bridge::tests::v2_redaction_covers_every_default_protected_namespace();
+    #[cfg(unix)]
+    crate::desktop_runtime::bridge::tests::protocol_v2_enforces_active_profile_for_records_and_task_controls();
+    crate::desktop_runtime::bridge::tests::v2_history_poll_and_events_redact_private_tool_data_only(
+    );
+    crate::desktop_runtime::bridge::tests::actual_v2_history_and_poll_routes_apply_redaction();
+    crate::desktop_runtime::bridge::tests::actual_v2_error_route_redacts_private_session_path();
+    crate::desktop_runtime::bridge::tests::v2_server_events_cover_task_runtime_account_and_auth();
+    crate::desktop_runtime::bridge::tests::ui_state_v2_normalizes_references_and_drives_sidebar_snapshot();
+    crate::desktop_runtime::bridge::tests::ui_state_v2_survives_runtime_restart();
+    #[cfg(unix)]
+    crate::desktop_runtime::bridge::tests::terminal_v2_bridge_is_task_bound_bounded_and_redacted();
+    #[cfg(unix)]
+    crate::desktop_runtime::bridge::tests::rust_auth_control_plane_owns_prompt_response_and_secret(
+    );
 
     crate::pi_runtime::supervisor::tests::command_environment_is_private_and_generation_scoped();
     crate::pi_runtime::supervisor::tests::malformed_frame_does_not_poison_a_later_valid_event();
@@ -74,4 +104,6 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_provider_owned_roots();
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_path_outside_profile_root();
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_symlink_escape();
+    #[cfg(unix)]
+    crate::pi_runtime::tests::desktop_pi_program_prefers_the_host_bundle();
 }

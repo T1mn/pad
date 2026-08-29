@@ -7,27 +7,77 @@
 pub(crate) mod approval;
 pub(crate) mod events;
 pub(crate) mod jsonl;
+#[allow(
+    dead_code,
+    reason = "the read-only Pi session index is staged for history recovery and remains test-covered"
+)]
 pub(crate) mod session_index;
 pub(crate) mod supervisor;
 
-pub(crate) use approval::{
-    classify_pi_approval, tool_operation, tool_target_path, PiApprovalAction, PiApprovalRequest,
-    PiApprovalResponse,
-};
-pub(crate) use events::{PiEvent, PiEventKind, PiEventReducer, PiRuntimeSnapshot, PiRuntimeStatus};
-pub(crate) use jsonl::{
-    encode_command, encode_json_line, JsonlCodec, JsonlError, PiMessage, DEFAULT_MAX_FRAME_BYTES,
-};
-pub(crate) use session_index::{
-    index_file as index_session_file, rebuild as rebuild_session_index, PiIndexedEntry,
-    PiSessionIndex, PiSessionIndexCursor, SessionIndexError, SessionIndexRebuild,
-};
-pub(crate) use supervisor::{
-    PiExitStatus, PiPoll, PiRpcSupervisor, PiSupervisorError, PiSupervisorMessage,
-};
+pub(crate) use approval::{pi_policy_operation, PiApprovalRequest, PiApprovalResponse};
+#[cfg(test)]
+pub(crate) use events::PiEventKind;
+pub(crate) use events::{PiEvent, PiEventReducer, PiRuntimeSnapshot, PiRuntimeStatus};
+pub(crate) use jsonl::{encode_command, JsonlCodec, JsonlError, PiMessage};
+pub(crate) use supervisor::{PiPoll, PiRpcSupervisor, PiSupervisorError};
+
+/// Resolve the Pi executable owned by the Desktop host.
+///
+/// Packaged builds place the Rust host at `Contents/Resources/pad` and the Pi
+/// launcher at `Contents/Resources/bin/pi`.  Development builds may instead
+/// use a system installation.  The renderer never supplies this value.
+pub(crate) fn desktop_pi_program() -> std::path::PathBuf {
+    if let Ok(host) = std::env::current_exe() {
+        if let Some(program) = bundled_pi_program_for_host(&host) {
+            return program;
+        }
+    }
+    ["/opt/homebrew/bin/pi", "/usr/local/bin/pi", "/usr/bin/pi"]
+        .into_iter()
+        .map(std::path::PathBuf::from)
+        .find(|candidate| is_executable_file(candidate))
+        .unwrap_or_else(|| std::path::PathBuf::from("pi"))
+}
+
+fn bundled_pi_program_for_host(host: &std::path::Path) -> Option<std::path::PathBuf> {
+    let host_dir = host.parent()?;
+    let mut candidates = vec![host_dir.join("bin").join("pi")];
+    if let Some(contents_dir) = host_dir.parent() {
+        candidates.push(contents_dir.join("Resources").join("bin").join("pi"));
+    }
+    candidates
+        .into_iter()
+        .find(|candidate| is_executable_file(candidate))
+        .and_then(|candidate| candidate.canonicalize().ok().or(Some(candidate)))
+}
+
+fn is_executable_file(path: &std::path::Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
 
 /// String-based provider/profile mapping keeps this module usable while the
 /// legacy terminal enums are being extended by the host integration.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "native profile detection remains as a tested compatibility entry point"
+    )
+)]
 pub(crate) fn is_pi_agent(agent_name: &str, command: &str) -> bool {
     agent_name.trim().eq_ignore_ascii_case("pi")
         || command
@@ -58,6 +108,13 @@ pub(crate) fn build_pi_rpc_command(command: &str) -> String {
 /// Build the Desktop launch command for one persisted Profile.  Profile
 /// roots are PAD-owned values, so a task switching accounts never falls back
 /// to another profile's Pi config or session journal.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "free-form profile launch remains only for compatibility tests; Desktop uses the fixed executable path"
+    )
+)]
 pub(crate) fn build_pi_rpc_command_for_profile(
     command: &str,
     profile: &crate::permission_policy::Profile,
@@ -122,18 +179,21 @@ fn build_pi_rpc_command_with_roots(
 }
 
 pub(crate) fn profile_storage_segment(profile_id: &str) -> String {
-    let segment = profile_id
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
+    if profile_id.is_empty() {
+        return "default".to_string();
+    }
+    let mut segment = String::with_capacity(profile_id.len());
+    for byte in profile_id.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.') {
+            segment.push(char::from(*byte));
+        } else {
+            use std::fmt::Write as _;
+            let _ = write!(segment, "%{byte:02X}");
+        }
+    }
     match segment.as_str() {
-        "" | "." | ".." => "default".to_string(),
+        "." => "%2E".to_string(),
+        ".." => "%2E%2E".to_string(),
         _ => segment,
     }
 }
@@ -172,12 +232,59 @@ pub(crate) mod tests {
             ..Default::default()
         };
         let (agent_dir, session_dir) = profile_pi_roots(&profile);
-        assert!(agent_dir.ends_with("v1/profiles/account_acme/pi-agent"));
-        assert!(session_dir.ends_with("v1/profiles/account_acme/pi-sessions"));
+        assert!(agent_dir.ends_with("v1/profiles/account%2Facme/pi-agent"));
+        assert!(session_dir.ends_with("v1/profiles/account%2Facme/pi-sessions"));
         let command = build_pi_rpc_command_for_profile("pi", &profile);
-        assert!(command.contains("account_acme/pi-agent"));
-        assert!(command.contains("account_acme/pi-sessions"));
+        assert!(command.contains("account%2Facme/pi-agent"));
+        assert!(command.contains("account%2Facme/pi-sessions"));
         assert!(!command.contains(".codex"));
         assert!(!command.contains("/.pi"));
+    }
+
+    pub(crate) fn profile_storage_segments_are_injective_for_unsafe_ids() {
+        let values = [
+            "a/b",
+            "a?b",
+            "a_b",
+            "a%2Fb",
+            ".",
+            "..",
+            "账号/甲",
+            "账号?甲",
+        ];
+        let segments = values
+            .iter()
+            .map(|value| profile_storage_segment(value))
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(segments.len(), values.len());
+        assert_eq!(profile_storage_segment("a/b"), "a%2Fb");
+        assert_eq!(profile_storage_segment("a?b"), "a%3Fb");
+        assert_eq!(profile_storage_segment("a%2Fb"), "a%252Fb");
+        assert!(!profile_storage_segment("账号/甲").contains('/'));
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn desktop_pi_program_prefers_the_host_bundle() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "pad-desktop-pi-bundle-{}-{}",
+            std::process::id(),
+            crate::time::unix_now_nanos()
+        ));
+        let host = root.join("Contents/Resources/pad");
+        let pi = root.join("Contents/Resources/bin/pi");
+        fs::create_dir_all(pi.parent().unwrap()).unwrap();
+        fs::write(&host, "host").unwrap();
+        fs::write(&pi, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&pi, fs::Permissions::from_mode(0o700)).unwrap();
+
+        assert_eq!(
+            bundled_pi_program_for_host(&host).unwrap(),
+            pi.canonicalize().unwrap()
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 }

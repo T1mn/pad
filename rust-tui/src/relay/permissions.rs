@@ -81,6 +81,10 @@ mod claude {
 /// adapter.  The existing provider-specific booleans remain the compatibility
 /// path; these types add a single, testable decision point for new desktop
 /// runtimes without changing the persisted theme schema.
+#[allow(
+    dead_code,
+    reason = "the relay permission model is a compatibility boundary retained while Desktop uses permission_policy"
+)]
 pub(crate) mod policy {
     use std::fs;
     use std::path::{Component, Path, PathBuf};
@@ -142,11 +146,38 @@ pub(crate) mod policy {
             Self::new([
                 home.join(".codex"),
                 home.join(".pi"),
+                home.join(".chatgpt"),
+                home.join("Library/Application Support/Codex"),
+                home.join("Library/Application Support/OpenAI"),
+                home.join("Library/Application Support/com.openai.codex"),
                 home.join("Library/Application Support/com.openai.chat"),
                 home.join("Library/Application Support/com.openai.chatgpt"),
                 home.join("Library/Application Support/ChatGPT"),
+                home.join("Library/Containers/com.openai.codex"),
+                home.join("Library/Containers/com.openai.chat"),
+                home.join("Library/Containers/com.openai.chatgpt"),
+                home.join("Library/Group Containers/group.com.openai.codex"),
                 home.join("Library/Group Containers/group.com.openai.chat"),
                 home.join("Library/Group Containers/group.com.openai.chatgpt"),
+                home.join("Library/Group Containers/2DC432GLL2.com.openai.codex.notifications"),
+                home.join("Library/Group Containers/2DC432GLL2.com.openai.sky.CUAService"),
+                home.join("Library/Caches/Codex"),
+                home.join("Library/Caches/com.openai.codex"),
+                home.join("Library/Caches/ChatGPT"),
+                home.join("Library/Caches/com.openai.chat"),
+                home.join("Library/Caches/com.openai.chatgpt"),
+                home.join("Library/Logs/com.openai.codex"),
+                home.join("Library/Logs/com.openai.chat"),
+                home.join("Library/Logs/com.openai.chatgpt"),
+                home.join("Library/HTTPStorages/com.openai.codex"),
+                home.join("Library/HTTPStorages/com.openai.codex.binarycookies"),
+                home.join("Library/HTTPStorages/com.openai.chat"),
+                home.join("Library/HTTPStorages/com.openai.chat.binarycookies"),
+                home.join("Library/HTTPStorages/com.openai.chatgpt"),
+                home.join("Library/HTTPStorages/com.openai.chatgpt.binarycookies"),
+                home.join("Library/Preferences/com.openai.codex.plist"),
+                home.join("Library/Preferences/com.openai.chat.plist"),
+                home.join("Library/Preferences/com.openai.chatgpt.plist"),
             ])
         }
 

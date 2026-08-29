@@ -1,11 +1,17 @@
+use super::format::{poll_has_provider_auth_error, poll_value};
 use super::*;
+use crate::permission_policy::Profile;
 use crate::pi_runtime::PiPoll;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
 fn runtime() -> DesktopRuntime {
     let mut runtime = DesktopRuntime::in_memory().unwrap();
+    crate::desktop_runtime::tests::configure_fake_pi(
+        &mut runtime,
+        &[json!({"type": "agent_settled"})],
+    );
     let profile = Profile {
         id: "profile-bridge".to_string(),
         name: "Bridge profile".to_string(),
@@ -31,6 +37,11 @@ pub(crate) fn protocol_returns_codex_sidebar_for_bootstrap() {
 
 pub(crate) fn create_task_start_poll_and_stop_round_trip() {
     let mut runtime = runtime();
+    let injected_marker = std::env::temp_dir().join(format!(
+        "pad-renderer-command-must-not-run-{}-{}",
+        std::process::id(),
+        crate::time::unix_now_nanos()
+    ));
     let task_request: DesktopRequest = serde_json::from_value(json!({
         "action": "create_task",
         "profile_id": "profile-bridge",
@@ -45,10 +56,17 @@ pub(crate) fn create_task_start_poll_and_stop_round_trip() {
     let start_request: DesktopRequest = serde_json::from_value(json!({
         "action": "start_task",
         "task_id": "task-bridge",
-        "command": "/bin/sh -c 'printf \"%s\\n\" \"{\\\"type\\\":\\\"agent_settled\\\"}\"'",
+        // Protocol v1 clients may still send this former field. Serde keeps
+        // the request compatible, but Rust must ignore it and use its fixed
+        // bundled Pi launcher.
+        "command": format!("/usr/bin/touch {}", injected_marker.display()),
     }))
     .unwrap();
     handle_request(&mut runtime, &start_request).unwrap();
+    assert!(
+        !injected_marker.exists(),
+        "renderer-supplied command was executed"
+    );
     let poll_request: DesktopRequest = serde_json::from_value(json!({
         "action": "poll",
         "task_id": "task-bridge",
@@ -180,6 +198,15 @@ pub(crate) fn response_shape_is_id_ok_result_or_error() {
     assert_eq!(value["ok"], true);
     assert!(value.get("result").is_some());
     assert!(value.get("error").is_none());
+    assert_eq!(
+        value["result"],
+        json!({
+            "protocol_version": 1,
+            "runtime": "pad-desktop",
+            "pi": true,
+        }),
+        "Desktop protocol v1 ping contract changed"
+    );
 }
 
 pub(crate) fn renderer_alias_fields_deserialize_for_model_and_ui_response() {
@@ -275,3 +302,122 @@ pub(crate) fn provider_auth_errors_are_distinguished_from_transport_errors() {
     };
     assert!(!poll_has_provider_auth_error(&transport_error));
 }
+
+pub(crate) fn protocol_v2_hello_is_versioned_and_v1_ping_is_unchanged() {
+    let mut runtime = runtime();
+    let (hello, stop) = handle_line(
+        &mut runtime,
+        r#"{"id":"hello","action":"hello","protocol_version":2}"#,
+    );
+    assert!(!stop);
+    assert!(hello.ok);
+    let value = hello.result.unwrap();
+    assert_eq!(value["protocol"]["current"], 2);
+    assert_eq!(value["protocol"]["supported"], json!([1, 2]));
+    assert_eq!(value["server"]["name"], "pad-desktop");
+    assert!(value["capabilities"]
+        .as_array()
+        .is_some_and(|items| items.contains(&json!("safe_renderer_dto"))));
+
+    let (legacy, _) = handle_line(&mut runtime, r#"{"id":"v1","action":"ping"}"#);
+    assert_eq!(
+        legacy.result.unwrap(),
+        json!({ "protocol_version": 1, "runtime": "pad-desktop", "pi": true })
+    );
+}
+
+pub(crate) fn protocol_v2_rejects_illegal_fields_and_long_ids() {
+    let mut runtime = runtime();
+    let (illegal, _) = handle_line(
+        &mut runtime,
+        r#"{"id":"bad","action":"start_task","protocol_version":2,"task_id":"task","command":"touch /tmp/no"}"#,
+    );
+    assert_eq!(illegal.error.unwrap().code, "invalid_fields");
+
+    let request = json!({
+        "id": "x".repeat(protocol::MAX_DESKTOP_REQUEST_ID_BYTES + 1),
+        "action": "ping",
+        "protocol_version": 2,
+    });
+    let (long_id, _) = handle_line(&mut runtime, &request.to_string());
+    assert_eq!(long_id.error.unwrap().code, "invalid_request_id");
+
+    let (legacy_auth, _) = handle_line(
+        &mut runtime,
+        r#"{"id":"legacy-auth","action":"auth_status"}"#,
+    );
+    assert_eq!(legacy_auth.error.unwrap().code, "protocol_upgrade_required");
+}
+
+pub(crate) fn bounded_frames_recover_after_oversize_and_report_disconnect() {
+    use std::io::Cursor;
+    use std::sync::mpsc;
+
+    let mut bytes = vec![b'x'; protocol::MAX_DESKTOP_FRAME_BYTES + 1];
+    bytes.extend_from_slice(b"\n{\"action\":\"ping\"}\n");
+    let mut reader = Cursor::new(bytes);
+    assert_eq!(
+        read_bounded_frame(&mut reader).unwrap(),
+        Some(ServerInput::FrameTooLarge)
+    );
+    assert_eq!(
+        read_bounded_frame(&mut reader).unwrap(),
+        Some(ServerInput::Line(r#"{"action":"ping"}"#.to_string()))
+    );
+
+    let mut invalid = Cursor::new(vec![0xff, b'\n']);
+    assert_eq!(
+        read_bounded_frame(&mut invalid).unwrap(),
+        Some(ServerInput::InvalidUtf8)
+    );
+
+    let (sender, receiver) = mpsc::channel();
+    read_server_input(Cursor::new(Vec::<u8>::new()), sender);
+    assert_eq!(receiver.recv().unwrap(), ServerInput::Disconnected);
+
+    let oversized_response = DesktopResponse {
+        id: Some("large-response".to_string()),
+        ok: true,
+        result: Some(json!({ "data": "x".repeat(protocol::MAX_DESKTOP_FRAME_BYTES) })),
+        error: None,
+    };
+    let mut output = Vec::new();
+    write_response_line(&mut output, &oversized_response).unwrap();
+    assert!(output.len() <= protocol::MAX_DESKTOP_FRAME_BYTES + 1);
+    let replacement: Value = serde_json::from_slice(&output[..output.len() - 1]).unwrap();
+    assert_eq!(replacement["id"], "large-response");
+    assert_eq!(replacement["error"]["code"], "response_too_large");
+
+    let mut event_output = Vec::new();
+    write_event_line(
+        &mut event_output,
+        &json!({ "type": "desktop_event", "data": "x".repeat(protocol::MAX_DESKTOP_FRAME_BYTES) }),
+    )
+    .unwrap();
+    assert!(
+        event_output.is_empty(),
+        "oversized advisory event was emitted"
+    );
+}
+
+mod control_plane;
+mod security;
+
+#[cfg(unix)]
+pub(crate) use control_plane::{
+    rust_auth_control_plane_owns_prompt_response_and_secret,
+    terminal_v2_bridge_is_task_bound_bounded_and_redacted,
+};
+pub(crate) use control_plane::{
+    ui_state_v2_normalizes_references_and_drives_sidebar_snapshot,
+    ui_state_v2_survives_runtime_restart, v2_server_events_cover_task_runtime_account_and_auth,
+};
+#[cfg(unix)]
+pub(crate) use security::protocol_v2_enforces_active_profile_for_records_and_task_controls;
+pub(crate) use security::{
+    actual_v2_error_route_redacts_private_session_path,
+    actual_v2_history_and_poll_routes_apply_redaction,
+    protocol_v2_bootstrap_uses_renderer_safe_records,
+    v2_history_poll_and_events_redact_private_tool_data_only,
+    v2_redaction_covers_every_default_protected_namespace,
+};

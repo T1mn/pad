@@ -210,7 +210,10 @@ fn paths_base_suite() {
     run_cases!(
         crate::paths::base::tests::explicit_pad_home_is_used_without_rewriting_process_home,
         crate::paths::base::tests::desktop_store_uses_a_separate_application_data_suffix,
+        crate::paths::base::tests::desktop_data_root_is_rejected_before_touching_provider_or_broad_paths,
+        crate::paths::base::tests::desktop_data_root_accepts_only_a_scoped_safe_directory_without_creating_it,
         crate::paths::base::tests::terminal_workspace_lives_under_pad_home,
+        crate::paths::base::tests::private_tree_repairs_directory_and_file_modes_without_following_symlinks,
     );
 }
 

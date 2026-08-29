@@ -11,6 +11,26 @@ than listed one by one.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-08-29
+
+### Added
+
+- A directly installable Apple Silicon `PAD Desktop.app` built with Electron and React, with a
+  tiled macOS Codex-style hierarchy, complete Simplified Chinese UI, typed preload boundary, task
+  timeline, Composer, settings, inspector, and a real NativePty bottom terminal.
+- Visual Pi account creation, provider login, logout, isolated Profile switching, persistent UI
+  state, and account-scoped task history backed by PAD SQLite.
+- Packaged PAD, Bun, and Pi runtimes plus deterministic ZIP/DMG release, visual-matrix, black-box
+  isolation, accessibility, and performance acceptance scripts.
+
+### Security
+
+- Desktop protocol v2 exposes renderer-safe DTOs, strict action fields and 1 MiB frames; private
+  credentials, environment values, Pi journals, and PAD/Codex/ChatGPT paths are redacted.
+- A single-writer data-root lock, per-Profile Pi roots, and Full Access policy keep ordinary work
+  unattended while continuing to deny PAD/Pi/Codex/ChatGPT private data, macOS TCC, credentials,
+  and cross-Profile access.
+
 ## [0.7.4] - 2026-08-03
 
 ### Security
@@ -114,7 +134,8 @@ pad-sider (file tree, project index map, split preview, line numbers, Codex turn
 multi-provider relay and proxy settings, the Telegram bot daemon, completion notifications, six-language
 i18n, the native fuzzy picker, agent workflow automation, and the installer plus release pipeline.
 
-[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/T1mn/pad/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/T1mn/pad/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/T1mn/pad/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/T1mn/pad/compare/v0.7.1...v0.7.2

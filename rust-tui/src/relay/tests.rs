@@ -84,4 +84,5 @@ pub(crate) fn pi_runtime_adapter_tests() {
     crate::pi_runtime::tests::pi_command_defaults_without_rewriting_explicit_commands();
     crate::pi_runtime::tests::pi_rpc_command_isolated_from_codex_and_pi_homes();
     crate::pi_runtime::tests::profile_pi_roots_are_isolated_and_safe_for_empty_records();
+    crate::pi_runtime::tests::profile_storage_segments_are_injective_for_unsafe_ids();
 }

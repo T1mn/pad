@@ -7,17 +7,24 @@
 //! process.
 
 use super::{DesktopRuntime, DesktopRuntimeError};
-use crate::permission_policy::{PermissionMode, PolicyLayer, Profile, Task, TaskEnvironment};
+use crate::pad_store::DesktopUiState;
+use crate::permission_policy::{PermissionMode, TaskEnvironment};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::error::Error;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::thread;
+use std::time::Duration;
 
+mod actions;
 mod format;
-use format::{poll_has_provider_auth_error, poll_value, runtime_status_name, snapshot_value};
+mod protocol;
+use actions::auth_result;
+pub(crate) use actions::handle_request;
 
-const DESKTOP_PROTOCOL_VERSION: u32 = 1;
+const DESKTOP_PROTOCOL_VERSION: u32 = protocol::LEGACY_PROTOCOL_VERSION;
 
 /// Stable request envelope consumed by the native macOS host.
 ///
@@ -28,6 +35,8 @@ pub(crate) struct DesktopRequest {
     #[serde(default)]
     pub id: Option<String>,
     pub action: Option<String>,
+    #[serde(default)]
+    pub protocol_version: Option<u32>,
     #[serde(default)]
     pub profile_id: Option<String>,
     #[serde(default)]
@@ -42,8 +51,6 @@ pub(crate) struct DesktopRequest {
     pub summary: Option<String>,
     #[serde(default)]
     pub cwd: Option<PathBuf>,
-    #[serde(default)]
-    pub command: Option<String>,
     #[serde(default)]
     pub prompt: Option<String>,
     #[serde(default)]
@@ -86,6 +93,26 @@ pub(crate) struct DesktopRequest {
     pub value: Option<Value>,
     #[serde(default)]
     pub since: Option<String>,
+    #[serde(default)]
+    pub auth_type: Option<String>,
+    #[serde(default)]
+    pub attempt_id: Option<String>,
+    #[serde(default)]
+    pub prompt_id: Option<String>,
+    #[serde(default)]
+    pub cancelled: Option<bool>,
+    #[serde(default)]
+    pub pane_id: Option<String>,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub columns: Option<u16>,
+    #[serde(default)]
+    pub rows: Option<u16>,
+    #[serde(default)]
+    pub data: Option<String>,
+    #[serde(default)]
+    pub state: Option<DesktopUiState>,
 }
 
 #[derive(Debug, Serialize)]
@@ -119,6 +146,14 @@ impl BridgeError {
     }
 }
 
+impl std::fmt::Display for BridgeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for BridgeError {}
+
 impl From<DesktopRuntimeError> for BridgeError {
     fn from(error: DesktopRuntimeError) -> Self {
         let code = match error {
@@ -130,6 +165,7 @@ impl From<DesktopRuntimeError> for BridgeError {
             DesktopRuntimeError::ProfileMismatch { .. } => "profile_mismatch",
             DesktopRuntimeError::InvalidSessionPath { .. } => "invalid_session_path",
             DesktopRuntimeError::TaskAlreadyRunning(_) => "task_already_running",
+            DesktopRuntimeError::DataRootLocked => "desktop_data_root_locked",
         };
         Self::new(code, error.to_string())
     }
@@ -140,27 +176,328 @@ impl From<DesktopRuntimeError> for BridgeError {
 pub(crate) fn run_server() -> Result<(), Box<dyn Error>> {
     let mut runtime =
         DesktopRuntime::open_default().map_err(|error| io::Error::other(error.to_string()))?;
-    let stdin = io::stdin();
+    let (input_tx, input_rx) = mpsc::channel();
+    thread::spawn(move || read_server_input(io::BufReader::new(io::stdin()), input_tx));
     let mut stdout = io::BufWriter::new(io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let (response, should_stop) = handle_line(&mut runtime, &line);
-        serde_json::to_writer(&mut stdout, &response)?;
-        stdout.write_all(b"\n")?;
-        stdout.flush()?;
-        if should_stop {
-            break;
+    let mut negotiated_v2 = false;
+    let mut sequence = 0_u64;
+    loop {
+        match input_rx.recv_timeout(Duration::from_millis(40)) {
+            Ok(ServerInput::Line(line)) => {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let request = serde_json::from_str::<DesktopRequest>(&line).ok();
+                negotiated_v2 |= request.as_ref().is_some_and(|request| {
+                    request.protocol_version == Some(protocol::CURRENT_PROTOCOL_VERSION)
+                        || request.action.as_deref() == Some("hello")
+                });
+                let (response, should_stop) = handle_line(&mut runtime, &line);
+                write_response_line(&mut stdout, &response)?;
+                if negotiated_v2 {
+                    if let Some(request) = request.as_ref() {
+                        if protocol::request_version(request) == protocol::CURRENT_PROTOCOL_VERSION
+                        {
+                            for event in
+                                events_after_request(&runtime, request, &response, &mut sequence)
+                            {
+                                write_event_line(&mut stdout, &event)?;
+                            }
+                        }
+                    }
+                }
+                stdout.flush()?;
+                if should_stop {
+                    break;
+                }
+            }
+            Ok(ServerInput::FrameTooLarge) => {
+                write_protocol_error(
+                    &mut stdout,
+                    "frame_too_large",
+                    "Desktop request exceeds the protocol frame limit",
+                )?;
+            }
+            Ok(ServerInput::InvalidUtf8) => {
+                write_protocol_error(
+                    &mut stdout,
+                    "invalid_utf8",
+                    "Desktop request must be valid UTF-8",
+                )?;
+            }
+            Ok(ServerInput::IoError(message)) => {
+                write_protocol_error(&mut stdout, "transport_error", &message)?;
+                break;
+            }
+            Ok(ServerInput::Disconnected) => break,
+            Err(RecvTimeoutError::Timeout) if negotiated_v2 => {
+                let (snapshot, changed) = runtime.auth_status();
+                if changed {
+                    let mut payload = match auth_result(&runtime, snapshot) {
+                        Ok(payload) => payload,
+                        // An authentication helper may still be completing
+                        // after the user switched accounts. Keep it owned by
+                        // Rust, but never publish that account's state into
+                        // the newly active renderer.
+                        Err(error) if error.code == "profile_not_active" => continue,
+                        Err(error) => return Err(Box::new(error)),
+                    };
+                    protocol::sanitize_v2_result(&runtime, &mut payload)?;
+                    sequence = sequence.saturating_add(1);
+                    write_event_line(
+                        &mut stdout,
+                        &protocol::event_frame(sequence, "auth_changed", payload.clone()),
+                    )?;
+                    sequence = sequence.saturating_add(1);
+                    write_event_line(
+                        &mut stdout,
+                        &protocol::event_frame(sequence, "account_changed", payload),
+                    )?;
+                    stdout.flush()?;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
         }
     }
     Ok(())
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum ServerInput {
+    Line(String),
+    FrameTooLarge,
+    InvalidUtf8,
+    IoError(String),
+    Disconnected,
+}
+
+fn read_server_input(reader: impl BufRead, sender: Sender<ServerInput>) {
+    let mut reader = reader;
+    loop {
+        match read_bounded_frame(&mut reader) {
+            Ok(Some(input)) => {
+                let disconnected = input == ServerInput::Disconnected;
+                if sender.send(input).is_err() || disconnected {
+                    break;
+                }
+            }
+            Ok(None) => {
+                let _ = sender.send(ServerInput::Disconnected);
+                break;
+            }
+            Err(error) => {
+                let _ = sender.send(ServerInput::IoError(error.to_string()));
+                break;
+            }
+        }
+    }
+}
+
+fn read_bounded_frame(reader: &mut impl BufRead) -> io::Result<Option<ServerInput>> {
+    let mut frame = Vec::new();
+    let mut oversized = false;
+    loop {
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            if frame.is_empty() && !oversized {
+                return Ok(None);
+            }
+            break;
+        }
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let consumed = newline.map_or(available.len(), |index| index + 1);
+        let data_len = newline.unwrap_or(available.len());
+        if !oversized {
+            if frame.len().saturating_add(data_len) > protocol::MAX_DESKTOP_FRAME_BYTES {
+                oversized = true;
+                frame.clear();
+            } else {
+                frame.extend_from_slice(&available[..data_len]);
+            }
+        }
+        reader.consume(consumed);
+        if newline.is_some() {
+            break;
+        }
+    }
+    if oversized {
+        return Ok(Some(ServerInput::FrameTooLarge));
+    }
+    while matches!(frame.last(), Some(b'\r')) {
+        frame.pop();
+    }
+    match String::from_utf8(frame) {
+        Ok(line) => Ok(Some(ServerInput::Line(line))),
+        Err(_) => Ok(Some(ServerInput::InvalidUtf8)),
+    }
+}
+
+fn write_encoded_line(writer: &mut impl Write, encoded: &[u8]) -> io::Result<()> {
+    if encoded.len() > protocol::MAX_DESKTOP_FRAME_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Desktop response exceeds the protocol frame limit",
+        ));
+    }
+    writer.write_all(encoded)?;
+    writer.write_all(b"\n")
+}
+
+fn write_json_line(writer: &mut impl Write, value: &impl Serialize) -> io::Result<()> {
+    let encoded = serde_json::to_vec(value)?;
+    write_encoded_line(writer, &encoded)
+}
+
+/// A large request result is replaced with a small correlated error rather
+/// than letting one history response tear down the long-lived server.
+fn write_response_line(writer: &mut impl Write, response: &DesktopResponse) -> io::Result<()> {
+    let encoded = serde_json::to_vec(response)?;
+    if encoded.len() <= protocol::MAX_DESKTOP_FRAME_BYTES {
+        return write_encoded_line(writer, &encoded);
+    }
+    write_json_line(
+        writer,
+        &DesktopResponse {
+            id: response.id.clone(),
+            ok: false,
+            result: None,
+            error: Some(DesktopErrorBody {
+                code: "response_too_large",
+                message: "Desktop response exceeds the protocol frame limit".to_string(),
+            }),
+        },
+    )
+}
+
+/// Server events are advisory invalidations. If a future event accidentally
+/// grows beyond the negotiated frame bound, drop that event while preserving
+/// the request/response stream and the poll compatibility path.
+fn write_event_line(writer: &mut impl Write, event: &Value) -> io::Result<()> {
+    let encoded = serde_json::to_vec(event)?;
+    if encoded.len() > protocol::MAX_DESKTOP_FRAME_BYTES {
+        return Ok(());
+    }
+    write_encoded_line(writer, &encoded)
+}
+
+fn write_protocol_error(
+    writer: &mut impl Write,
+    code: &'static str,
+    message: &str,
+) -> io::Result<()> {
+    write_response_line(
+        writer,
+        &DesktopResponse {
+            id: None,
+            ok: false,
+            result: None,
+            error: Some(DesktopErrorBody {
+                code,
+                message: message.to_string(),
+            }),
+        },
+    )?;
+    writer.flush()
+}
+
+fn events_after_request(
+    runtime: &DesktopRuntime,
+    request: &DesktopRequest,
+    response: &DesktopResponse,
+    sequence: &mut u64,
+) -> Vec<Value> {
+    if !response.ok {
+        return Vec::new();
+    }
+    let action = request.action.as_deref().unwrap_or("");
+    let mut events = Vec::new();
+    let mut push = |kind: &str, payload: Value| {
+        *sequence = sequence.saturating_add(1);
+        events.push(protocol::event_frame(*sequence, kind, payload));
+    };
+    if matches!(
+        action,
+        "create_task"
+            | "start_task"
+            | "retry_task"
+            | "prompt"
+            | "poll"
+            | "abort"
+            | "stop"
+            | "stop_task"
+            | "set_task"
+    ) {
+        let task = request.task_id.as_deref().and_then(|task_id| {
+            protocol::safe_task_from_runtime(runtime, task_id)
+                .ok()
+                .flatten()
+        });
+        push(
+            "task_changed",
+            json!({ "action": action, "task_id": request.task_id, "task": task }),
+        );
+    }
+    if matches!(
+        action,
+        "start_task"
+            | "retry_task"
+            | "prompt"
+            | "poll"
+            | "abort"
+            | "runtime_snapshot"
+            | "stop"
+            | "stop_task"
+    ) {
+        push(
+            "runtime_changed",
+            json!({
+                "action": action,
+                "task_id": request.task_id,
+                "runtime": response.result.as_ref().and_then(|result| result.get("runtime")).cloned(),
+                "backend": response.result.as_ref().and_then(|result| result.get("backend")).cloned(),
+            }),
+        );
+    }
+    if matches!(action, "create_profile" | "set_profile" | "logout") {
+        push(
+            "account_changed",
+            json!({
+                "action": action,
+                "profile_id": request.profile_id,
+                "account": response.result.as_ref().and_then(|result| result.get("account")).cloned(),
+            }),
+        );
+    }
+    if matches!(
+        action,
+        "auth_begin" | "auth_status" | "auth_respond" | "auth_cancel" | "logout"
+    ) {
+        push(
+            "auth_changed",
+            response.result.clone().unwrap_or(Value::Null),
+        );
+    }
+    events
+}
+
 pub(crate) fn handle_line(runtime: &mut DesktopRuntime, line: &str) -> (DesktopResponse, bool) {
-    let request = match serde_json::from_str::<DesktopRequest>(line) {
-        Ok(request) => request,
+    if line.len() > protocol::MAX_DESKTOP_FRAME_BYTES {
+        return (
+            DesktopResponse {
+                id: None,
+                ok: false,
+                result: None,
+                error: Some(DesktopErrorBody {
+                    code: "frame_too_large",
+                    message: "Desktop request exceeds the protocol frame limit".to_string(),
+                }),
+            },
+            false,
+        );
+    }
+    let raw = match serde_json::from_str::<Value>(line) {
+        Ok(value) => value,
         Err(error) => {
             return (
                 DesktopResponse {
@@ -176,7 +513,89 @@ pub(crate) fn handle_line(runtime: &mut DesktopRuntime, line: &str) -> (DesktopR
             );
         }
     };
+    let request = match serde_json::from_value::<DesktopRequest>(raw.clone()) {
+        Ok(request) => request,
+        Err(error) => {
+            return (
+                DesktopResponse {
+                    id: None,
+                    ok: false,
+                    result: None,
+                    error: Some(DesktopErrorBody {
+                        code: "invalid_request",
+                        message: error.to_string(),
+                    }),
+                },
+                false,
+            );
+        }
+    };
     let id = request.id.clone();
+    if request
+        .protocol_version
+        .is_some_and(|version| !matches!(version, 1 | 2))
+    {
+        return (
+            DesktopResponse {
+                id,
+                ok: false,
+                result: None,
+                error: Some(DesktopErrorBody {
+                    code: "unsupported_protocol_version",
+                    message: "PAD Desktop supports protocol versions 1 and 2".to_string(),
+                }),
+            },
+            false,
+        );
+    }
+    if request.protocol_version == Some(protocol::CURRENT_PROTOCOL_VERSION) {
+        if let Err(error) = protocol::validate_v2_request(&raw, &request) {
+            let message = protocol::sanitize_v2_error_message(runtime, &error.message);
+            return (
+                DesktopResponse {
+                    id,
+                    ok: false,
+                    result: None,
+                    error: Some(DesktopErrorBody {
+                        code: error.code,
+                        message,
+                    }),
+                },
+                false,
+            );
+        }
+    }
+    if matches!(
+        request.action.as_deref(),
+        Some(
+            "auth_begin"
+                | "auth_status"
+                | "auth_respond"
+                | "auth_cancel"
+                | "logout"
+                | "terminal_open"
+                | "terminal_input"
+                | "terminal_resize"
+                | "terminal_snapshot"
+                | "terminal_close"
+                | "get_ui_state"
+                | "set_ui_state"
+        )
+    ) && protocol::request_version(&request) != protocol::CURRENT_PROTOCOL_VERSION
+    {
+        return (
+            DesktopResponse {
+                id,
+                ok: false,
+                result: None,
+                error: Some(DesktopErrorBody {
+                    code: "protocol_upgrade_required",
+                    message: "this control-plane action requires Desktop protocol v2".to_string(),
+                }),
+            },
+            false,
+        );
+    }
     let action = request.action.as_deref().unwrap_or("");
     if action == "shutdown" {
         return (
@@ -200,570 +619,27 @@ pub(crate) fn handle_line(runtime: &mut DesktopRuntime, line: &str) -> (DesktopR
             },
             false,
         ),
-        Err(error) => (
-            DesktopResponse {
-                id,
-                ok: false,
-                result: None,
-                error: Some(DesktopErrorBody {
-                    code: error.code,
-                    message: error.message,
-                }),
-            },
-            false,
-        ),
-    }
-}
-
-pub(crate) fn handle_request(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    match request.action.as_deref() {
-        Some("ping") => Ok(json!({
-            "protocol_version": DESKTOP_PROTOCOL_VERSION,
-            "runtime": "pad-desktop",
-            "pi": true,
-        })),
-        Some("bootstrap") => bootstrap(runtime),
-        Some("list_sidebar") => sidebar(runtime),
-        Some("create_profile") => create_profile(runtime, request),
-        Some("create_project") => create_project(runtime, request),
-        Some("create_task") => create_task(runtime, request),
-        Some("start_task") => start_task(runtime, request),
-        Some("retry_task") => retry_task(runtime, request),
-        Some("prompt") => prompt(runtime, request),
-        Some("poll") => poll(runtime, request),
-        Some("history") => history(runtime, request),
-        Some("get_messages") => get_messages(runtime, request),
-        Some("get_state") => get_state(runtime, request),
-        Some("get_entries") => get_entries(runtime, request),
-        Some("set_model") => set_model(runtime, request),
-        Some("set_thinking_level") => set_thinking_level(runtime, request),
-        Some("respond_ui") => respond_ui(runtime, request),
-        Some("extension_ui_response") => respond_ui(runtime, request),
-        Some("provider_status") => provider_status(runtime, request),
-        Some("abort") => abort(runtime, request),
-        Some("runtime_snapshot") => runtime_snapshot(runtime, request),
-        Some("stop") => stop(runtime, request),
-        Some("stop_task") => stop(runtime, request),
-        Some("set_task") => set_task(runtime, request),
-        Some("set_profile") => set_profile(runtime, request),
-        Some(_) | None => Err(BridgeError::new(
-            "unknown_action",
-            "action must be one of ping, bootstrap, list_sidebar, create_profile, create_project, create_task, start_task, retry_task, prompt, poll, history, get_messages, get_state, get_entries, set_model, set_thinking_level, respond_ui, extension_ui_response, provider_status, abort, runtime_snapshot, stop_task, set_task, set_profile",
-        )),
-    }
-}
-
-fn bootstrap(runtime: &mut DesktopRuntime) -> Result<Value, BridgeError> {
-    let profile = runtime
-        .ensure_default_profile()
-        .map_err(BridgeError::from)?;
-    runtime
-        .ensure_default_project(&profile.id)
-        .map_err(BridgeError::from)?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    let authenticated_providers = runtime.authenticated_providers(&profile);
-    Ok(json!({
-        "protocol_version": DESKTOP_PROTOCOL_VERSION,
-        "backend": {
-            "status": "ready",
-            "provider_authentication": runtime.provider_authentication_status(&profile),
-            "authenticated_providers": authenticated_providers,
-            "selected_provider": profile.default_provider,
-            "selected_model": profile.default_model,
-        },
-        "profile": profile,
-        "capabilities": [
-            "profiles", "projects", "tasks", "codex_sidebar",
-            "pi_rpc", "full_access_policy", "private_store",
-            "history", "provider_status", "extension_ui_response",
-            "set_model", "set_thinking_level", "create_project", "stop"
-        ],
-        "sidebar": sidebar,
-        "records": records,
-    }))
-}
-
-fn sidebar(runtime: &DesktopRuntime) -> Result<Value, BridgeError> {
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    Ok(json!({ "sidebar": sidebar, "records": records }))
-}
-
-fn records_value(runtime: &DesktopRuntime) -> Result<Value, BridgeError> {
-    let profiles = runtime
-        .store()
-        .list_profiles()
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    let projects = runtime
-        .store()
-        .list_projects(true)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    let tasks = runtime
-        .store()
-        .list_tasks(None, true)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    Ok(json!({ "profiles": profiles, "projects": projects, "tasks": tasks }))
-}
-
-fn create_profile(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let profile = Profile {
-        id: request.profile_id.clone().unwrap_or_default(),
-        name: request.name.clone().unwrap_or_default(),
-        credential_ref: request.credential_ref.clone(),
-        default_provider: request.default_provider.clone(),
-        default_model: request.default_model.clone(),
-        policy: PolicyLayer {
-            mode: request.permission_mode.or(Some(PermissionMode::SystemFull)),
-            unattended: request.unattended.or(Some(true)),
-            protected_namespaces: crate::permission_policy::default_protected_namespaces(
-                &dirs::home_dir().unwrap_or_else(|| PathBuf::from("/")),
-            ),
-            ..PolicyLayer::default()
-        },
-        ..Profile::default()
-    };
-    let profile = runtime.create_profile(profile).map_err(BridgeError::from)?;
-    runtime
-        .ensure_default_project(&profile.id)
-        .map_err(BridgeError::from)?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    let authenticated_providers = runtime.authenticated_providers(&profile);
-    Ok(json!({
-        "profile": profile,
-        "authentication": {
-            "status": runtime.provider_authentication_status(&profile),
-            "authenticated_providers": authenticated_providers,
-        },
-        "sidebar": sidebar,
-        "records": records,
-    }))
-}
-
-fn create_project(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
-    let primary_root = request
-        .cwd
-        .clone()
-        .ok_or_else(|| BridgeError::new("invalid_request", "missing cwd"))?;
-    let project = runtime
-        .create_project(
-            profile_id,
-            request.name.clone().unwrap_or_default(),
-            primary_root,
-        )
-        .map_err(BridgeError::from)?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    Ok(json!({ "project": project, "sidebar": sidebar, "records": records }))
-}
-
-fn create_task(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let profile_id = match request.profile_id.clone() {
-        Some(id) if !id.trim().is_empty() => id,
-        _ => runtime
-            .store()
-            .list_profiles()
-            .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
-            .into_iter()
-            .next()
-            .map(|profile| profile.id)
-            .ok_or_else(|| {
-                BridgeError::new("profile_not_found", "no PAD Desktop profile exists")
-            })?,
-    };
-    let task = Task {
-        id: request.task_id.clone().unwrap_or_default(),
-        project_id: request.project_id.clone(),
-        profile_id,
-        title: request.title.clone().unwrap_or_default(),
-        summary: request.summary.clone().unwrap_or_default(),
-        cwd: request.cwd.clone().unwrap_or_default(),
-        environment: request.environment.unwrap_or_default(),
-        policy: PolicyLayer {
-            mode: request.permission_mode,
-            unattended: request.unattended,
-            ..PolicyLayer::default()
-        },
-        ..Task::default()
-    };
-    let task = runtime.create_task(task).map_err(BridgeError::from)?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    Ok(json!({ "task": task, "sidebar": sidebar, "records": records }))
-}
-
-fn start_task(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let generation = runtime
-        .start_task(task_id, request.command.as_deref().unwrap_or("pi"))
-        .map_err(BridgeError::from)?;
-    let provider_authentication = runtime
-        .store()
-        .get_task(task_id)
-        .ok()
-        .flatten()
-        .and_then(|task| runtime.store().get_profile(&task.profile_id).ok().flatten())
-        .map(|profile| runtime.provider_authentication_status(&profile))
-        .unwrap_or("unknown");
-    Ok(json!({
-        "task_id": task_id,
-        "generation": generation,
-        "running": true,
-        "backend": {
-            "status": "ready",
-            "provider_authentication": provider_authentication,
-            "task_runtime": "starting",
-        },
-    }))
-}
-
-fn retry_task(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let generation = runtime
-        .retry_task(task_id, request.command.as_deref().unwrap_or("pi"))
-        .map_err(BridgeError::from)?;
-    Ok(json!({
-        "task_id": task_id,
-        "generation": generation,
-        "running": true,
-        "retrying": true,
-    }))
-}
-
-fn prompt(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let prompt = required(request.prompt.as_deref(), "prompt")?;
-    runtime
-        .send_prompt(task_id, prompt)
-        .map_err(BridgeError::from)?;
-    Ok(json!({ "task_id": task_id, "accepted": true }))
-}
-
-fn get_messages(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let response = runtime.get_messages(task_id).map_err(BridgeError::from)?;
-    native_response(runtime, task_id, "get_messages", response)
-}
-
-fn history(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let response = runtime.history(task_id).map_err(BridgeError::from)?;
-    let messages = response
-        .get("data")
-        .and_then(|data| data.get("messages"))
-        .cloned()
-        .unwrap_or_else(|| json!([]));
-    let mut result = native_response(runtime, task_id, "history", Some(response))?;
-    if let Some(object) = result.as_object_mut() {
-        object.insert("messages".to_string(), messages);
-    }
-    Ok(result)
-}
-
-fn get_state(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let response = runtime.get_state(task_id).map_err(BridgeError::from)?;
-    native_response(runtime, task_id, "get_state", response)
-}
-
-fn get_entries(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let response = if let Some(since) = request.since.as_deref() {
-        runtime
-            .get_entries_since(task_id, since)
-            .map_err(BridgeError::from)?
-    } else {
-        runtime.get_entries(task_id).map_err(BridgeError::from)?
-    };
-    native_response(runtime, task_id, "get_entries", response)
-}
-
-fn native_response(
-    runtime: &DesktopRuntime,
-    task_id: &str,
-    command: &str,
-    response: Option<Value>,
-) -> Result<Value, BridgeError> {
-    let task = runtime
-        .store()
-        .get_task(task_id)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    Ok(json!({
-        "task_id": task_id,
-        "command": command,
-        "response": response,
-        "pending": response.is_none(),
-        "task": task,
-        "sidebar": sidebar,
-    }))
-}
-
-fn set_model(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let provider = required(
-        request
-            .default_provider
-            .as_deref()
-            .or(request.provider.as_deref()),
-        "provider",
-    )?;
-    let model_id = required(
-        request
-            .model_id
-            .as_deref()
-            .or(request.default_model.as_deref())
-            .or(request.model.as_deref()),
-        "model_id",
-    )?;
-    runtime
-        .set_model(task_id, provider, model_id)
-        .map_err(BridgeError::from)?;
-    Ok(json!({
-        "task_id": task_id,
-        "accepted": true,
-        "provider": provider,
-        "model_id": model_id,
-    }))
-}
-
-fn set_thinking_level(
-    runtime: &DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let level = required(request.thinking_level.as_deref(), "thinking_level")?;
-    runtime
-        .set_thinking_level(task_id, level)
-        .map_err(BridgeError::from)?;
-    Ok(json!({ "task_id": task_id, "accepted": true, "thinking_level": level }))
-}
-
-fn respond_ui(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let request_id = required(
-        request
-            .request_id
-            .as_deref()
-            .or(request.interaction_id.as_deref()),
-        "request_id",
-    )?;
-    let value = request
-        .value
-        .clone()
-        .ok_or_else(|| BridgeError::new("invalid_request", "missing value"))?;
-    runtime
-        .respond_ui(
-            task_id,
-            request_id,
-            request.response_kind.as_deref(),
-            value.clone(),
-        )
-        .map_err(BridgeError::from)?;
-    Ok(json!({
-        "task_id": task_id,
-        "request_id": request_id,
-        "accepted": true,
-        "value": value,
-    }))
-}
-
-fn provider_status(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let profile = if let Some(profile_id) = request.profile_id.as_deref() {
-        runtime
-            .store()
-            .get_profile(profile_id)
-            .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
-            .ok_or_else(|| {
-                BridgeError::new(
-                    "profile_not_found",
-                    format!("Desktop profile '{profile_id}' was not found"),
-                )
-            })?
-    } else {
-        runtime
-            .store()
-            .list_profiles()
-            .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
-            .into_iter()
-            .next()
-            .ok_or_else(|| BridgeError::new("profile_not_found", "no PAD Desktop profile exists"))?
-    };
-    Ok(json!({
-        "profile_id": profile.id,
-        "status": "ready",
-        "provider_authentication": runtime.provider_authentication_status(&profile),
-        "authenticated_providers": runtime.authenticated_providers(&profile),
-        "selected_provider": profile.default_provider,
-        "selected_model": profile.default_model,
-    }))
-}
-
-fn abort(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    runtime.abort_task(task_id).map_err(BridgeError::from)?;
-    Ok(json!({ "task_id": task_id, "accepted": true }))
-}
-
-fn poll(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let poll = runtime.poll_task(task_id).map_err(BridgeError::from)?;
-    let snapshot = runtime
-        .runtime_snapshot(task_id)
-        .map_err(BridgeError::from)?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let task = runtime
-        .store()
-        .get_task(task_id)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    let profile = task
-        .as_ref()
-        .and_then(|task| runtime.store().get_profile(&task.profile_id).ok().flatten());
-    let provider_authentication = if poll_has_provider_auth_error(&poll) {
-        "missing"
-    } else {
-        profile
-            .as_ref()
-            .map(|profile| runtime.provider_authentication_status(profile))
-            .unwrap_or("unknown")
-    };
-    let task_runtime = snapshot
-        .as_ref()
-        .map(|snapshot| runtime_status_name(snapshot.status))
-        .unwrap_or("unknown");
-    Ok(json!({
-        "task_id": task_id,
-        "poll": poll_value(&poll),
-        "runtime": snapshot.as_ref().map(snapshot_value),
-        "task": task,
-        "backend": {
-            "status": "ready",
-            "provider_authentication": provider_authentication,
-            "task_runtime": task_runtime,
-        },
-        "sidebar": sidebar,
-    }))
-}
-
-fn runtime_snapshot(
-    runtime: &DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let snapshot = runtime
-        .runtime_snapshot(task_id)
-        .map_err(BridgeError::from)?;
-    Ok(json!({
-        "task_id": task_id,
-        "runtime": snapshot.as_ref().map(snapshot_value),
-    }))
-}
-
-fn stop(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    runtime.stop_task(task_id).map_err(BridgeError::from)?;
-    Ok(json!({ "task_id": task_id, "stopped": true }))
-}
-
-fn set_task(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
-    let task_id = required(request.task_id.as_deref(), "task_id")?;
-    let mut task = runtime
-        .store()
-        .get_task(task_id)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
-        .ok_or_else(|| {
-            BridgeError::new(
-                "task_not_found",
-                format!("Desktop task '{task_id}' was not found"),
+        Err(error) => {
+            let message =
+                if protocol::request_version(&request) == protocol::CURRENT_PROTOCOL_VERSION {
+                    protocol::sanitize_v2_error_message(runtime, &error.message)
+                } else {
+                    error.message
+                };
+            (
+                DesktopResponse {
+                    id,
+                    ok: false,
+                    result: None,
+                    error: Some(DesktopErrorBody {
+                        code: error.code,
+                        message,
+                    }),
+                },
+                false,
             )
-        })?;
-    if let Some(pinned) = request.pinned {
-        task.pinned = pinned;
+        }
     }
-    if let Some(archived) = request.archived {
-        task.archived = archived;
-    }
-    if let Some(unread) = request.unread {
-        task.unread = unread;
-    }
-    task.updated_at = super::unix_timestamp();
-    runtime
-        .store_mut()
-        .update_task(&task)
-        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    Ok(json!({ "task": task, "sidebar": sidebar, "records": records }))
-}
-
-fn set_profile(
-    runtime: &mut DesktopRuntime,
-    request: &DesktopRequest,
-) -> Result<Value, BridgeError> {
-    let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
-    let mut profile = runtime
-        .update_profile_policy(profile_id, request.permission_mode, request.unattended)
-        .map_err(BridgeError::from)?;
-    if request.default_provider.is_some()
-        || request.default_model.is_some()
-        || request.credential_ref.is_some()
-    {
-        profile = runtime
-            .update_profile_settings(
-                profile_id,
-                request.default_provider.clone(),
-                request.default_model.clone(),
-                request.credential_ref.clone(),
-            )
-            .map_err(BridgeError::from)?;
-    }
-    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
-    let records = records_value(runtime)?;
-    let authenticated_providers = runtime.authenticated_providers(&profile);
-    Ok(json!({
-        "profile": profile,
-        "authentication": {
-            "status": runtime.provider_authentication_status(&profile),
-            "authenticated_providers": authenticated_providers,
-        },
-        "sidebar": sidebar,
-        "records": records,
-    }))
-}
-
-fn required<'a>(value: Option<&'a str>, field: &'static str) -> Result<&'a str, BridgeError> {
-    value
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| BridgeError::new("invalid_request", format!("missing {field}")))
 }
 
 #[cfg(test)]

@@ -15,7 +15,8 @@
 - `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照与 patch 持久化。
 - `pad_store/`：PAD Desktop 私有 SQLite Control Plane（Profile/Project/Task/Section），不触碰 Codex/ChatGPT 数据库。
-- `desktop_runtime.rs` / `desktop_runtime/`：Desktop facade 与 `pad __internal desktop-server` JSONL 控制面；组合 Store、Codex Sidebar snapshot、Profile-scoped Pi supervisor、Full Access 策略和 Task 状态回写，辅助逻辑与 focused contract tests 分离存放。
+- `permission_policy.rs` / `permission_policy/`：Profile→Project→Task 权限合并、受保护路径/symlink 解析和只允许纯字面量命令自动确认的 shell 静态门禁。
+- `desktop_runtime.rs` / `desktop_runtime/`：Desktop facade 与 `pad __internal desktop-server` JSONL 控制面；组合 Store、Codex Sidebar snapshot、Profile-scoped Pi supervisor、Rust-owned Pi 认证、protocol v2 安全 DTO/事件、分层 Full Access 策略和 Task 状态回写，并保留 protocol v1 兼容；自动审批统一经 `permission_policy::evaluate_operation`。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
 - `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/` / `codex_rollout.rs`：同步 PAD 私有 Codex home provider 元数据，解析普通或冷压缩 rollout，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。

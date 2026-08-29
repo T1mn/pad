@@ -8,7 +8,7 @@ use super::{StoreError, StoreResult};
 use rusqlite::Connection;
 
 /// Schema version currently understood by this build of PAD.
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 1;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 2;
 
 /// Apply all migrations in one transaction.
 pub(crate) fn apply_migrations(connection: &mut Connection) -> StoreResult<()> {
@@ -26,11 +26,18 @@ pub(crate) fn apply_migrations(connection: &mut Connection) -> StoreResult<()> {
         });
     }
 
-    if version < 1 {
+    if version < CURRENT_SCHEMA_VERSION {
         let transaction = connection.transaction().map_err(StoreError::from)?;
-        transaction
-            .execute_batch(MIGRATION_V1)
-            .map_err(StoreError::from)?;
+        if version < 1 {
+            transaction
+                .execute_batch(MIGRATION_V1)
+                .map_err(StoreError::from)?;
+        }
+        if version < 2 {
+            transaction
+                .execute_batch(MIGRATION_V2)
+                .map_err(StoreError::from)?;
+        }
         transaction
             .pragma_update(None, "user_version", CURRENT_SCHEMA_VERSION)
             .map_err(StoreError::from)?;
@@ -161,4 +168,30 @@ BEGIN
     DELETE FROM section_items
     WHERE item_kind = 'task' AND item_id = OLD.id;
 END;
+"#;
+
+const MIGRATION_V2: &str = r#"
+-- A singleton PAD-owned document keeps Desktop presentation state separate
+-- from profiles, tasks, Pi journals, and every provider-owned database.  The
+-- SQL checks are a second boundary behind the strongly typed repository API.
+CREATE TABLE IF NOT EXISTS desktop_ui_state (
+    singleton_id INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+    state_json TEXT NOT NULL
+        CHECK (json_valid(state_json))
+        CHECK (json_type(state_json) IS 'object')
+        CHECK (length(CAST(state_json AS BLOB)) <= 49152)
+        CHECK (COALESCE(json_type(state_json, '$.active_profile_id') IN ('null', 'text'), 0))
+        CHECK (COALESCE(json_type(state_json, '$.selected_task_id') IN ('null', 'text'), 0))
+        CHECK (json_type(state_json, '$.sidebar_width') IS 'integer')
+        CHECK (COALESCE(json_extract(state_json, '$.sidebar_width') BETWEEN 240 AND 520, 0))
+        CHECK (COALESCE(json_extract(state_json, '$.theme') IN ('light', 'dark', 'system'), 0))
+        CHECK (COALESCE(json_type(state_json, '$.right_panel_open') IN ('true', 'false'), 0))
+        CHECK (COALESCE(json_type(state_json, '$.bottom_panel_open') IN ('true', 'false'), 0))
+        CHECK (COALESCE(json_type(state_json, '$.sidebar_open') IN ('true', 'false'), 0))
+        CHECK (json_type(state_json, '$.collapsed_section_ids') IS 'array')
+        CHECK (json_array_length(state_json, '$.collapsed_section_ids') <= 256)
+        CHECK (json_type(state_json, '$.collapsed_project_ids') IS 'array')
+        CHECK (json_array_length(state_json, '$.collapsed_project_ids') <= 256),
+    updated_at INTEGER NOT NULL
+);
 "#;

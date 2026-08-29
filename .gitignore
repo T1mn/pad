@@ -1,2 +1,4 @@
 /rust-tui/target/
 /rust-tui/dist/
+**/__pycache__/
+*.py[cod]

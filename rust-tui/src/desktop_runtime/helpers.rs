@@ -1,6 +1,11 @@
 use crate::pad_store::PadStore;
-use crate::permission_policy::{Profile, TaskStatus};
-use crate::pi_runtime::{PiApprovalRequest, PiApprovalResponse, PiPoll, PiRuntimeStatus};
+use crate::permission_policy::{
+    canonicalize_existing_prefix, evaluate_operation, EffectivePolicy, PolicyDecision, Profile,
+    TaskStatus,
+};
+use crate::pi_runtime::{
+    pi_policy_operation, PiApprovalRequest, PiApprovalResponse, PiPoll, PiRuntimeStatus,
+};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,25 +25,30 @@ pub(super) fn read_session_messages(path: &Path) -> Vec<Value> {
         .collect()
 }
 
-pub(super) fn automatic_ui_response(value: &Value) -> Option<Value> {
+pub(super) fn automatic_ui_response(
+    value: &Value,
+    policy: &EffectivePolicy,
+    cwd: &Path,
+) -> Option<Value> {
+    if !policy.unattended {
+        return None;
+    }
     let request = PiApprovalRequest::parse(value)?;
-    // Full Access is limited to explicit permission gates. Ordinary confirm,
-    // select, input, and editor prompts remain visible to the renderer.
-    let raw = serde_json::to_string(value).ok()?.to_ascii_lowercase();
-    // Protected provider/PAD credentials and session paths are never automatic.
-    if raw.contains(".codex")
-        || raw.contains("/.pi/")
-        || raw.contains("/com.openai.")
-        || raw.contains("auth.json")
-        || raw.contains("credential")
-        || !request.is_explicit_permission_confirmation()
-    {
+    // Text only distinguishes a permission gate from a business question.
+    // The actual allow/deny decision is exclusively made by the structured
+    // Profile -> Project -> Task policy evaluator below.
+    if !request.is_explicit_permission_confirmation() {
         return None;
     }
     let PiApprovalRequest::Confirm { id, .. } = request else {
         return None;
     };
-    Some(PiApprovalResponse::Confirm { id, value: true }.to_value())
+    match evaluate_operation(policy, &pi_policy_operation(value), cwd) {
+        PolicyDecision::Allow { .. } => {
+            Some(PiApprovalResponse::Confirm { id, value: true }.to_value())
+        }
+        PolicyDecision::Prompt { .. } | PolicyDecision::Deny { .. } => None,
+    }
 }
 
 pub(super) fn task_status(status: PiRuntimeStatus) -> TaskStatus {
@@ -215,18 +225,6 @@ pub(super) fn contains_provider_namespace(path: &Path) -> bool {
                 | "openai"
         )
     })
-}
-
-fn canonicalize_existing_prefix(path: &Path) -> Option<PathBuf> {
-    let mut existing = path.to_path_buf();
-    while !existing.exists() {
-        if !existing.pop() {
-            return None;
-        }
-    }
-    let canonical = fs::canonicalize(&existing).ok()?;
-    let remainder = path.strip_prefix(&existing).ok()?;
-    Some(canonical.join(remainder))
 }
 
 fn lexical_normalize(path: &Path) -> PathBuf {

@@ -9,9 +9,8 @@
 use super::{encode_command, JsonlCodec, JsonlError, PiEvent, PiMessage};
 use serde_json::Value;
 use std::fmt;
-use std::fs;
 use std::io::{self, ErrorKind, Read, Write};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -20,6 +19,12 @@ use std::time::{Duration, Instant};
 const STDERR_BUFFER_LIMIT: usize = 512 * 1024;
 const SHUTDOWN_GRACE: Duration = Duration::from_millis(150);
 const POLL_CHUNK_BYTES: usize = 32 * 1024;
+
+mod validation;
+use validation::{
+    has_rpc_mode, is_env_program, is_environment_assignment, is_pi_program, shell_words,
+    validate_pi_session_args, validate_runtime_root,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PiExitStatus {
@@ -106,6 +111,10 @@ pub(crate) struct PiPoll {
 }
 
 impl PiPoll {
+    #[allow(
+        dead_code,
+        reason = "compatibility helper retained for callers that consume one supervisor poll atomically"
+    )]
     pub(crate) fn is_empty(&self) -> bool {
         self.messages.is_empty()
             && self.events.is_empty()
@@ -123,6 +132,10 @@ pub(crate) struct PiSupervisor {
 /// Names used by the desktop host while the public integration surface is
 /// being assembled.  Keep the implementation type intentionally small.
 pub(crate) type PiRpcSupervisor = PiSupervisor;
+#[allow(
+    dead_code,
+    reason = "compatibility name retained while Desktop callers migrate to PiPoll"
+)]
 pub(crate) type PiSupervisorMessage = PiPoll;
 
 struct Inner {
@@ -131,6 +144,13 @@ struct Inner {
     stdout: ChildStdout,
     codec: JsonlCodec,
     generation: u64,
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the generation root is exposed to isolation tests through PiSupervisor::root"
+        )
+    )]
     root: PathBuf,
     stdout_closed: bool,
     exit_status: Option<PiExitStatus>,
@@ -144,6 +164,13 @@ impl PiSupervisor {
     /// stale PI env assignments, and applies a generation-specific private
     /// directory after parsing.  This prevents an older command string from
     /// defeating isolation.
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "legacy native launch remains available for compatibility and isolation tests"
+        )
+    )]
     pub(crate) fn spawn(
         command: &str,
         cwd: impl AsRef<Path>,
@@ -158,6 +185,13 @@ impl PiSupervisor {
     /// from the legacy native-terminal root and from every other profile.
     /// Unlike the native compatibility path, these roots remain stable across
     /// process generations so an existing Pi session can be reopened.
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "free-form profile launch is retained for compatibility tests; Desktop uses the fixed launcher"
+        )
+    )]
     pub(crate) fn spawn_for_profile(
         command: &str,
         cwd: impl AsRef<Path>,
@@ -166,6 +200,24 @@ impl PiSupervisor {
     ) -> Result<Self, PiSupervisorError> {
         let (agent_dir, session_dir) = super::profile_pi_roots(profile);
         Self::spawn_with_roots(command, cwd, generation, agent_dir, session_dir, false)
+    }
+
+    /// Spawn the fixed Pi executable selected by the Rust Desktop host.
+    /// Unlike `spawn_for_profile`, this API accepts no free-form command or
+    /// environment assignments, so a renderer request cannot launch another
+    /// binary or smuggle additional process arguments.
+    pub(crate) fn spawn_desktop_for_profile(
+        program: &Path,
+        cwd: impl AsRef<Path>,
+        generation: u64,
+        profile: &crate::permission_policy::Profile,
+    ) -> Result<Self, PiSupervisorError> {
+        let command = format!(
+            "{} --mode rpc",
+            crate::shell_quote::single_quote(&program.to_string_lossy())
+        );
+        let (agent_dir, session_dir) = super::profile_pi_roots(profile);
+        Self::spawn_with_roots(&command, cwd, generation, agent_dir, session_dir, false)
     }
 
     fn spawn_with_roots(
@@ -221,8 +273,10 @@ impl PiSupervisor {
         } else {
             session_dir
         };
-        fs::create_dir_all(&root)?;
-        fs::create_dir_all(&session_dir)?;
+        crate::paths::base::ensure_private_dir(&root)?;
+        crate::paths::base::ensure_private_dir(&session_dir)?;
+        crate::paths::base::harden_private_tree(&root)?;
+        crate::paths::base::harden_private_tree(&session_dir)?;
         if is_pi_program(&program) {
             validate_pi_session_args(&args, &session_dir, cwd.as_ref())?;
         }
@@ -234,6 +288,19 @@ impl PiSupervisor {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // SAFETY: `umask` is async-signal-safe and touches only the child
+            // process state between fork and exec.  It ensures Pi creates new
+            // auth/session files as 0600 and directories as 0700.
+            unsafe {
+                process.pre_exec(|| {
+                    libc::umask(0o077);
+                    Ok(())
+                });
+            }
+        }
         for (key, value) in environment {
             process.env(key, value);
         }
@@ -249,12 +316,12 @@ impl PiSupervisor {
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Pi RPC stdout was not piped"))?;
+            .ok_or_else(|| io::Error::other("Pi RPC stdout was not piped"))?;
         set_nonblocking(&stdout)?;
         let stderr = child
             .stderr
             .take()
-            .ok_or_else(|| io::Error::new(ErrorKind::Other, "Pi RPC stderr was not piped"))?;
+            .ok_or_else(|| io::Error::other("Pi RPC stderr was not piped"))?;
         let stderr_buffer = Arc::new(Mutex::new(Vec::new()));
         let stderr_sink = Arc::clone(&stderr_buffer);
         let stderr_thread = thread::Builder::new()
@@ -277,6 +344,10 @@ impl PiSupervisor {
         })
     }
 
+    #[allow(
+        dead_code,
+        reason = "generation inspection is part of the supervisor compatibility API"
+    )]
     pub(crate) fn generation(&self) -> Result<u64, PiSupervisorError> {
         Ok(self.lock()?.generation)
     }
@@ -288,6 +359,13 @@ impl PiSupervisor {
         Ok(inner.refresh_exit()?.is_some())
     }
 
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the private root accessor is retained for isolation tests"
+        )
+    )]
     pub(crate) fn root(&self) -> Result<PathBuf, PiSupervisorError> {
         Ok(self.lock()?.root.clone())
     }
@@ -324,6 +402,10 @@ impl PiSupervisor {
         Ok(poll)
     }
 
+    #[allow(
+        dead_code,
+        reason = "compatibility alias retained for hosts that still call read_available"
+    )]
     pub(crate) fn read_available(&self) -> Result<PiPoll, PiSupervisorError> {
         self.poll()
     }
@@ -363,6 +445,13 @@ impl PiSupervisor {
         Ok(status)
     }
 
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "hard termination is exercised by supervisor lifecycle tests; production prefers shutdown"
+        )
+    )]
     pub(crate) fn kill(&self) -> Result<PiExitStatus, PiSupervisorError> {
         let (status, stderr_thread) = {
             let mut inner = self.lock()?;
@@ -536,217 +625,6 @@ fn set_nonblocking(stdout: &ChildStdout) -> io::Result<()> {
         }
     }
     Ok(())
-}
-
-fn is_env_program(program: &str) -> bool {
-    Path::new(program)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "env")
-}
-
-fn is_pi_program(program: &str) -> bool {
-    Path::new(program)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.eq_ignore_ascii_case("pi"))
-}
-
-fn is_environment_assignment(word: &str) -> bool {
-    let Some((key, _)) = word.split_once('=') else {
-        return false;
-    };
-    !key.is_empty()
-        && key.bytes().enumerate().all(|(index, byte)| {
-            (index == 0 && (byte == b'_' || byte.is_ascii_alphabetic()))
-                || (index > 0 && (byte == b'_' || byte.is_ascii_alphanumeric()))
-        })
-}
-
-fn has_rpc_mode(args: &[String]) -> bool {
-    args.iter().any(|arg| arg == "--mode=rpc")
-        || args.windows(2).any(|pair| pair == ["--mode", "rpc"])
-}
-
-fn validate_runtime_root(path: &Path, label: &str) -> Result<(), PiSupervisorError> {
-    if !path.is_absolute() {
-        return Err(PiSupervisorError::InvalidCommand(format!(
-            "Pi {label} root must be absolute: {}",
-            path.display()
-        )));
-    }
-    let provider_namespace = path.components().any(|component| {
-        let std::path::Component::Normal(value) = component else {
-            return false;
-        };
-        matches!(
-            value.to_string_lossy().to_ascii_lowercase().as_str(),
-            ".codex"
-                | "codex"
-                | ".pi"
-                | ".chatgpt"
-                | "chatgpt"
-                | "com.openai.codex"
-                | "com.openai.chatgpt"
-                | "com.openai.chat"
-                | "openai"
-        )
-    });
-    if provider_namespace {
-        return Err(PiSupervisorError::InvalidCommand(format!(
-            "Pi {label} root is inside a provider-owned namespace: {}",
-            path.display()
-        )));
-    }
-    Ok(())
-}
-
-fn validate_pi_session_args(
-    args: &[String],
-    session_root: &Path,
-    cwd: &Path,
-) -> Result<(), PiSupervisorError> {
-    let session_root = fs::canonicalize(session_root)
-        .map(|path| lexical_normalize(&path))
-        .unwrap_or_else(|_| lexical_normalize(session_root));
-    let mut index = 0;
-    while index < args.len() {
-        let argument = &args[index];
-        let (kind, candidate) = if let Some(value) = argument.strip_prefix("--session=") {
-            ("session", Some(value))
-        } else if let Some(value) = argument.strip_prefix("--session-dir=") {
-            ("session-dir", Some(value))
-        } else if argument == "--session" || argument == "--session-dir" {
-            (
-                argument.trim_start_matches('-'),
-                args.get(index + 1).map(String::as_str),
-            )
-        } else {
-            index += 1;
-            continue;
-        };
-        let candidate = candidate
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| {
-                PiSupervisorError::InvalidCommand(format!("Pi {kind} argument is missing"))
-            })?;
-        let candidate = Path::new(candidate);
-        let candidate = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            cwd.join(candidate)
-        };
-        let within_root = canonicalize_existing_prefix(&candidate)
-            .map(|resolved| {
-                let resolved = lexical_normalize(&resolved);
-                resolved == session_root || resolved.starts_with(&session_root)
-            })
-            .unwrap_or_else(|| {
-                let normalized = lexical_normalize(&candidate);
-                normalized == session_root || normalized.starts_with(&session_root)
-            });
-        if !within_root {
-            return Err(PiSupervisorError::InvalidCommand(format!(
-                "Pi {kind} path is outside the Profile session root: {}",
-                candidate.display()
-            )));
-        }
-        index += if argument == "--session" || argument == "--session-dir" {
-            2
-        } else {
-            1
-        };
-    }
-    Ok(())
-}
-
-fn lexical_normalize(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
-            Component::RootDir => normalized.push(Path::new(std::path::MAIN_SEPARATOR_STR)),
-            Component::CurDir => {}
-            Component::ParentDir => {
-                let _ = normalized.pop();
-            }
-            Component::Normal(value) => normalized.push(value),
-        }
-    }
-    normalized
-}
-
-fn canonicalize_existing_prefix(path: &Path) -> Option<PathBuf> {
-    let mut existing = path.to_path_buf();
-    while !existing.exists() {
-        if !existing.pop() {
-            return None;
-        }
-    }
-    let canonical_existing = fs::canonicalize(&existing).ok()?;
-    let remainder = path.strip_prefix(&existing).ok()?;
-    Some(canonical_existing.join(remainder))
-}
-
-fn shell_words(command: &str) -> Result<Vec<String>, PiSupervisorError> {
-    let mut words = Vec::new();
-    let mut word = String::new();
-    let mut chars = command.chars().peekable();
-    let mut quote = None;
-    let mut started = false;
-    while let Some(ch) = chars.next() {
-        match quote {
-            Some('\'') => {
-                if ch == '\'' {
-                    quote = None;
-                } else {
-                    word.push(ch);
-                }
-            }
-            Some('"') => {
-                if ch == '"' {
-                    quote = None;
-                } else if ch == '\\' {
-                    let escaped = chars.next().ok_or_else(|| {
-                        PiSupervisorError::InvalidCommand("trailing escape".to_string())
-                    })?;
-                    word.push(escaped);
-                } else {
-                    word.push(ch);
-                }
-            }
-            None if ch.is_whitespace() => {
-                if started {
-                    words.push(std::mem::take(&mut word));
-                    started = false;
-                }
-            }
-            None if ch == '\'' || ch == '"' => {
-                quote = Some(ch);
-                started = true;
-            }
-            None if ch == '\\' => {
-                word.push(chars.next().ok_or_else(|| {
-                    PiSupervisorError::InvalidCommand("trailing escape".to_string())
-                })?);
-                started = true;
-            }
-            None => {
-                word.push(ch);
-                started = true;
-            }
-            Some(_) => unreachable!("shell parser only creates single or double quotes"),
-        }
-    }
-    if quote.is_some() {
-        return Err(PiSupervisorError::InvalidCommand(
-            "unterminated quote".to_string(),
-        ));
-    }
-    if started {
-        words.push(word);
-    }
-    Ok(words)
 }
 
 #[cfg(test)]

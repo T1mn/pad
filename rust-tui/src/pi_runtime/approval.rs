@@ -1,3 +1,4 @@
+use crate::permission_policy::{OperationKind, PolicyOperation};
 use crate::relay::permissions::policy::{
     classify_approval, ApprovalDecision, ApprovalOperation, ApprovalRequest, AutoAnswer,
     RuntimePermissionPolicy,
@@ -161,6 +162,13 @@ impl PiApprovalRequest {
         .any(|marker| text.contains(marker))
     }
 
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "legacy relay-policy conversion remains test-covered while Desktop uses permission_policy"
+        )
+    )]
     pub(crate) fn to_policy_request(&self) -> ApprovalRequest {
         match self {
             Self::Confirm { .. } => ApprovalRequest::ui(ApprovalOperation::Confirm, None, None, 0),
@@ -185,6 +193,10 @@ impl PiApprovalRequest {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "select and input responses remain part of the Pi extension UI transport contract"
+)]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PiApprovalResponse {
     Confirm { id: String, value: bool },
@@ -217,12 +229,26 @@ impl PiApprovalResponse {
     }
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "legacy relay-policy approval action remains covered by compatibility tests"
+    )
+)]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PiApprovalAction {
     Ask,
     Auto(PiApprovalResponse),
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "legacy relay-policy classifier remains covered while Desktop uses permission_policy"
+    )
+)]
 pub(crate) fn classify_pi_approval(
     request: &PiApprovalRequest,
     policy: &RuntimePermissionPolicy,
@@ -251,25 +277,86 @@ pub(crate) fn classify_pi_approval(
 /// A missing/ambiguous path remains `None`, which intentionally leads to a
 /// normal approval rather than granting an automatic answer.
 pub(crate) fn tool_target_path(value: &Value) -> Option<PathBuf> {
-    let object = value.as_object()?;
-    for key in [
-        "path",
-        "filePath",
-        "file_path",
-        "cwd",
-        "workdir",
-        "directory",
-    ] {
-        if let Some(path) = object.get(key).and_then(Value::as_str) {
-            let path = path.trim();
-            if !path.is_empty() {
-                return Some(PathBuf::from(path));
+    for object in structured_objects(value) {
+        for key in [
+            "path",
+            "filePath",
+            "file_path",
+            "cwd",
+            "workdir",
+            "directory",
+            "target",
+        ] {
+            if let Some(path) = object.get(key).and_then(Value::as_str) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    return Some(PathBuf::from(path));
+                }
             }
         }
     }
     None
 }
 
+/// Convert a structured Pi permission request into the shared Desktop policy
+/// operation.  This adapter classifies transport fields only; all allow,
+/// prompt and deny decisions remain in `permission_policy::evaluate_operation`.
+pub(crate) fn pi_policy_operation(value: &Value) -> PolicyOperation {
+    let name = structured_string(value, &["toolName", "tool_name", "name", "tool"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let command = structured_string(value, &["command", "cmd", "detail"]);
+    let descriptor = format!(
+        "{name} {}",
+        command.as_deref().unwrap_or_default().to_ascii_lowercase()
+    );
+    let kind = if contains_any(
+        &descriptor,
+        &[
+            "credential",
+            "keychain",
+            "api_key",
+            "api-key",
+            "auth.json",
+            "find-generic-password",
+            "add-generic-password",
+            "token",
+            "login",
+        ],
+    ) {
+        OperationKind::Credential
+    } else if contains_any(&name, &["delete", "remove", "unlink", "rmdir"]) || name == "rm" {
+        OperationKind::Delete
+    } else if contains_any(&name, &["install", "package"]) {
+        OperationKind::Install
+    } else if contains_any(&name, &["kill", "process", "terminate", "stop"]) {
+        OperationKind::ProcessControl
+    } else if contains_any(&name, &["http", "network", "fetch", "download", "upload"]) {
+        OperationKind::Network
+    } else if contains_any(&name, &["read", "grep", "search", "find"]) || name == "ls" {
+        OperationKind::Read
+    } else if contains_any(&name, &["write", "edit", "patch", "create", "move", "copy"]) {
+        OperationKind::Write
+    } else {
+        // A permission-specific confirm with no tool metadata is treated as
+        // execution with an unknown/external scope. System Full may allow it;
+        // Workspace Full must receive a structured in-workspace path.
+        OperationKind::Execute
+    };
+    PolicyOperation {
+        kind,
+        path: tool_target_path(value),
+        command,
+    }
+}
+
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "legacy relay-policy tool mapping remains covered by compatibility tests"
+    )
+)]
 pub(crate) fn tool_operation(value: &Value) -> ApprovalOperation {
     let name = value
         .get("toolName")
@@ -297,6 +384,39 @@ pub(crate) fn tool_operation(value: &Value) -> ApprovalOperation {
     } else {
         ApprovalOperation::Unknown
     }
+}
+
+fn structured_objects(value: &Value) -> Vec<&Map<String, Value>> {
+    let Some(root) = value.as_object() else {
+        return Vec::new();
+    };
+    let mut objects = vec![root];
+    for key in ["details", "tool", "request", "payload", "args", "input"] {
+        if let Some(object) = root.get(key).and_then(Value::as_object) {
+            objects.push(object);
+        }
+    }
+    objects
+}
+
+fn structured_string(value: &Value, keys: &[&str]) -> Option<String> {
+    for object in structured_objects(value) {
+        for key in keys {
+            if let Some(value) = object
+                .get(*key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn contains_any(value: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| value.contains(needle))
 }
 
 fn string_field(object: &Map<String, Value>, key: &str) -> Option<String> {
@@ -383,6 +503,24 @@ pub(crate) mod tests {
             classify_approval(&request, &policy(PermissionMode::Unattended)),
             ApprovalDecision::Ask
         );
+
+        let home = dirs::home_dir().expect("test host has a home directory");
+        let standard = RuntimePermissionPolicy::default();
+        for relative in [
+            "Library/Application Support/Codex/Session Storage/state",
+            "Library/Application Support/OpenAI/Codex/session.jsonl",
+            "Library/Group Containers/2DC432GLL2.com.openai.codex.notifications/state",
+            "Library/Group Containers/2DC432GLL2.com.openai.sky.CUAService/state",
+            "Library/Caches/com.openai.codex/index",
+            "Library/Preferences/com.openai.codex.plist",
+        ] {
+            let target = home.join(relative);
+            assert!(
+                !standard.allows_path(&target),
+                "standard policy allowed Codex state: {}",
+                target.display()
+            );
+        }
     }
 
     pub(crate) fn tool_operation_and_target_are_conservative() {
@@ -395,6 +533,35 @@ pub(crate) mod tests {
         assert_eq!(
             tool_operation(&json!({"toolName":"something"})),
             ApprovalOperation::Unknown
+        );
+
+        let nested = json!({
+            "method": "confirm",
+            "payload": {
+                "toolName": "delete_file",
+                "path": "/workspace/old.txt",
+                "command": "rm old.txt"
+            }
+        });
+        assert_eq!(
+            pi_policy_operation(&nested),
+            PolicyOperation {
+                kind: OperationKind::Delete,
+                path: Some(PathBuf::from("/workspace/old.txt")),
+                command: Some("rm old.txt".into()),
+            }
+        );
+        assert_eq!(
+            pi_policy_operation(&json!({"toolName":"credential_store"})).kind,
+            OperationKind::Credential
+        );
+        assert_eq!(
+            pi_policy_operation(&json!({
+                "toolName":"bash",
+                "command":"security find-generic-password -s provider"
+            }))
+            .kind,
+            OperationKind::Credential
         );
     }
 }

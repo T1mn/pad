@@ -1,0 +1,48 @@
+{
+  "name": "pad-desktop-electron",
+  "productName": "PAD Desktop",
+  "version": "0.7.5",
+  "description": "Electron renderer shell for the Pi-powered PAD Desktop control plane",
+  "main": ".vite/build/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "./scripts/run-electron-forge.sh start",
+    "typecheck": "tsc --noEmit",
+    "test:ui": "vitest run --config vitest.config.mts",
+    "package:electron": "./scripts/run-electron-forge.sh package",
+    "make:electron": "./scripts/run-electron-forge.sh make",
+    "build": "npm run typecheck && npm run package:electron"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-zip": "7.11.2",
+    "@electron-forge/plugin-vite": "7.11.2",
+    "@electron-forge/plugin-fuses": "7.11.2",
+    "@electron-forge/shared-types": "7.11.2",
+    "@electron/fuses": "1.8.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "42.10.1",
+    "jsdom": "28.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.0"
+  },
+  "overrides": {
+    "@electron/rebuild": "4.0.6",
+    "extract-zip": "npm:@electron-internal/extract-zip@1.0.5",
+    "tar": "7.5.22",
+    "tmp": "0.2.7"
+  }
+}

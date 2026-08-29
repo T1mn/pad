@@ -7,13 +7,32 @@
 //! read model and the policy decision boundary around that session.
 
 use serde::{Deserialize, Serialize};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
+
+mod model;
+mod path;
+mod shell;
+
+#[allow(
+    unused_imports,
+    reason = "Pi recovery DTOs remain part of the permission-policy API before every consumer lands"
+)]
+pub(crate) use model::{
+    PiSessionCursor, PiSessionEntryRef, PiSessionHeader, PiSessionMetadata, Profile, Project,
+    Section, SectionItem, Task, TaskEnvironment, TaskStatus,
+};
+#[cfg(test)]
+pub(crate) use path::canonicalize_policy_path;
+pub(crate) use path::{canonicalize_existing_prefix, matching_protected_namespace};
+use path::{classify_risk, resolve_policy_path};
+use shell::{assess_shell_command, ShellCommandAssessment};
 
 /// The amount of automation granted to a PAD task.
 ///
-/// `SystemFull` means that PAD will not ask for tool confirmation.  It is still
-/// subject to the protected namespace check and to macOS controls such as TCC,
-/// Keychain and the user's own process permissions.
+/// `SystemFull` means that PAD will not ask for tool confirmation when the
+/// operation target can be statically verified.  It is still subject to the
+/// protected namespace check; dynamically evaluated shell syntax is never
+/// automatic, nor are macOS controls such as TCC and Keychain bypassed.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum PermissionMode {
@@ -22,10 +41,14 @@ pub(crate) enum PermissionMode {
     Guarded,
     /// Everything in the declared workspace roots is automatic.
     WorkspaceFull,
-    /// All operations are automatic except PAD's protected namespaces.
+    /// Statically verified operations are automatic outside protected namespaces.
     SystemFull,
 }
 
+#[allow(
+    dead_code,
+    reason = "full-access predicate remains part of the policy API for native and Desktop consumers"
+)]
 impl PermissionMode {
     pub(crate) const fn is_full_access(self) -> bool {
         matches!(self, Self::WorkspaceFull | Self::SystemFull)
@@ -60,6 +83,13 @@ pub(crate) struct PolicyOperation {
     pub command: Option<String>,
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "operation constructors remain part of the policy API and are exercised by policy tests"
+    )
+)]
 impl PolicyOperation {
     pub(crate) fn new(kind: OperationKind) -> Self {
         Self {
@@ -125,6 +155,13 @@ pub(crate) enum PolicyDecision {
     Deny { risk: RiskClass, reason: String },
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "decision predicates remain part of the policy API and are exercised by policy tests"
+    )
+)]
 impl PolicyDecision {
     pub(crate) const fn is_allowed(&self) -> bool {
         matches!(self, Self::Allow { .. })
@@ -191,6 +228,10 @@ pub(crate) struct EffectivePolicy {
     pub unattended: bool,
 }
 
+#[allow(
+    dead_code,
+    reason = "policy constructors remain part of the hierarchy API for native and Desktop consumers"
+)]
 impl EffectivePolicy {
     pub(crate) fn guarded() -> Self {
         Self::default()
@@ -260,16 +301,39 @@ pub(crate) fn merge_policy_layers(
 /// cwd to the workspace scope.  The optional profile/project/task references
 /// are intentionally independent so projectless tasks and profile-only tasks
 /// are representable.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "the compatibility merge helper remains test-covered; Desktop adds host defaults explicitly"
+    )
+)]
 pub(crate) fn merge_profile_project_task(
     profile: &Profile,
     project: Option<&Project>,
     task: Option<&Task>,
+) -> EffectivePolicy {
+    merge_profile_project_task_with_host_defaults(profile, project, task, &[])
+}
+
+/// Merge the persisted hierarchy while adding host-owned namespaces that no
+/// Profile/Project/Task layer is allowed to remove.  Desktop passes
+/// [`default_protected_namespaces`] here on every decision so a legacy or
+/// partially migrated Profile cannot accidentally make provider state
+/// writable through Full Access.
+pub(crate) fn merge_profile_project_task_with_host_defaults(
+    profile: &Profile,
+    project: Option<&Project>,
+    task: Option<&Task>,
+    host_protected_namespaces: &[ProtectedNamespace],
 ) -> EffectivePolicy {
     let mut policy = merge_policy_layers(
         &profile.policy,
         project.map(|project| &project.policy),
         task.map(|task| &task.policy),
     );
+
+    append_unique_namespaces(&mut policy.protected_namespaces, host_protected_namespaces);
 
     if let Some(project) = project {
         append_unique_path(&mut policy.workspace_roots, &project.primary_root);
@@ -301,9 +365,18 @@ pub(crate) fn default_protected_namespaces(home: &Path) -> Vec<ProtectedNamespac
         ("codex-home", home.join(".codex")),
         ("pi-home", home.join(".pi")),
         ("legacy-pad-home", home.join(".pad")),
+        ("legacy-chatgpt-home", home.join(".chatgpt")),
         (
             "codex-application-support",
             home.join("Library/Application Support/com.openai.codex"),
+        ),
+        (
+            "codex-application-support-current",
+            home.join("Library/Application Support/Codex"),
+        ),
+        (
+            "openai-application-support",
+            home.join("Library/Application Support/OpenAI"),
         ),
         (
             "chatgpt-application-support",
@@ -314,6 +387,10 @@ pub(crate) fn default_protected_namespaces(home: &Path) -> Vec<ProtectedNamespac
             home.join("Library/Application Support/com.openai.chatgpt"),
         ),
         (
+            "chatgpt-application-support-current",
+            home.join("Library/Application Support/ChatGPT"),
+        ),
+        (
             "codex-group-container",
             home.join("Library/Group Containers/group.com.openai.codex"),
         ),
@@ -321,62 +398,94 @@ pub(crate) fn default_protected_namespaces(home: &Path) -> Vec<ProtectedNamespac
             "chatgpt-group-container",
             home.join("Library/Group Containers/group.com.openai.chat"),
         ),
+        (
+            "chatgpt-group-container-legacy",
+            home.join("Library/Group Containers/group.com.openai.chatgpt"),
+        ),
+        (
+            "codex-notifications-group-container",
+            home.join("Library/Group Containers/2DC432GLL2.com.openai.codex.notifications"),
+        ),
+        (
+            "chatgpt-cua-service-group-container",
+            home.join("Library/Group Containers/2DC432GLL2.com.openai.sky.CUAService"),
+        ),
+        (
+            "codex-container",
+            home.join("Library/Containers/com.openai.codex"),
+        ),
+        (
+            "chatgpt-container",
+            home.join("Library/Containers/com.openai.chat"),
+        ),
+        (
+            "chatgpt-container-legacy",
+            home.join("Library/Containers/com.openai.chatgpt"),
+        ),
+        ("codex-cache", home.join("Library/Caches/Codex")),
+        (
+            "codex-cache-bundle",
+            home.join("Library/Caches/com.openai.codex"),
+        ),
+        ("chatgpt-cache", home.join("Library/Caches/ChatGPT")),
+        (
+            "chatgpt-cache-bundle",
+            home.join("Library/Caches/com.openai.chat"),
+        ),
+        (
+            "chatgpt-cache-bundle-legacy",
+            home.join("Library/Caches/com.openai.chatgpt"),
+        ),
+        ("codex-logs", home.join("Library/Logs/com.openai.codex")),
+        ("chatgpt-logs", home.join("Library/Logs/com.openai.chat")),
+        (
+            "chatgpt-logs-legacy",
+            home.join("Library/Logs/com.openai.chatgpt"),
+        ),
+        (
+            "codex-http-storage",
+            home.join("Library/HTTPStorages/com.openai.codex"),
+        ),
+        (
+            "codex-http-cookie-storage",
+            home.join("Library/HTTPStorages/com.openai.codex.binarycookies"),
+        ),
+        (
+            "chatgpt-http-storage",
+            home.join("Library/HTTPStorages/com.openai.chat"),
+        ),
+        (
+            "chatgpt-http-cookie-storage",
+            home.join("Library/HTTPStorages/com.openai.chat.binarycookies"),
+        ),
+        (
+            "chatgpt-http-storage-legacy",
+            home.join("Library/HTTPStorages/com.openai.chatgpt"),
+        ),
+        (
+            "chatgpt-http-cookie-storage-legacy",
+            home.join("Library/HTTPStorages/com.openai.chatgpt.binarycookies"),
+        ),
+        (
+            "codex-preferences",
+            home.join("Library/Preferences/com.openai.codex.plist"),
+        ),
+        (
+            "chatgpt-preferences",
+            home.join("Library/Preferences/com.openai.chat.plist"),
+        ),
+        (
+            "chatgpt-preferences-legacy",
+            home.join("Library/Preferences/com.openai.chatgpt.plist"),
+        ),
+        (
+            "pad-desktop-application-support",
+            home.join("Library/Application Support/PAD Desktop"),
+        ),
     ]
     .into_iter()
     .map(|(name, root)| ProtectedNamespace::new(name, root))
     .collect()
-}
-
-/// Lexically canonicalize a path without touching the filesystem.
-///
-/// This resolves `.` and `..`, removes duplicate separators through
-/// `Path::components`, and makes relative paths relative to `base_dir`.  The
-/// host should call `std::fs::canonicalize` first for an existing path when it
-/// needs symlink resolution; new files cannot be canonicalized by the OS until
-/// their parent exists, so this function is the safe fallback for both cases.
-pub(crate) fn canonicalize_policy_path(path: &Path, base_dir: &Path) -> PathBuf {
-    let joined = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        base_dir.join(path)
-    };
-    let mut result = PathBuf::new();
-
-    for component in joined.components() {
-        match component {
-            Component::Prefix(prefix) => result.push(prefix.as_os_str()),
-            Component::RootDir => result.push(Path::new(std::path::MAIN_SEPARATOR_STR)),
-            Component::CurDir => {}
-            Component::ParentDir => {
-                // Do not allow `..` to escape an absolute root.  For a
-                // relative base this removes the last normal component.
-                let popped = result.pop();
-                if !popped && !result.has_root() {
-                    result.push(Component::ParentDir.as_os_str());
-                }
-            }
-            Component::Normal(part) => result.push(part),
-        }
-    }
-
-    if result.as_os_str().is_empty() {
-        PathBuf::from(".")
-    } else {
-        result
-    }
-}
-
-/// Return the protected namespace containing `path`, if any.
-pub(crate) fn matching_protected_namespace<'a>(
-    path: &Path,
-    base_dir: &Path,
-    namespaces: &'a [ProtectedNamespace],
-) -> Option<&'a ProtectedNamespace> {
-    let canonical_path = canonicalize_policy_path(path, base_dir);
-    namespaces.iter().find(|namespace| {
-        let canonical_root = canonicalize_policy_path(&namespace.root, base_dir);
-        canonical_path == canonical_root || canonical_path.starts_with(&canonical_root)
-    })
 }
 
 /// Evaluate one Pi/tool operation against an already merged policy.
@@ -388,7 +497,7 @@ pub(crate) fn evaluate_operation(
     let canonical_target = operation
         .path
         .as_deref()
-        .map(|path| canonicalize_policy_path(path, cwd));
+        .map(|path| resolve_policy_path(path, cwd));
 
     if let Some(target) = canonical_target.as_deref() {
         if let Some(namespace) =
@@ -402,6 +511,48 @@ pub(crate) fn evaluate_operation(
                     namespace.name
                 ),
             };
+        }
+    }
+
+    // Credential access is administrative, not a task-level Full Access
+    // operation.  Provider login/keychain flows use a separate control-plane
+    // route and must never be accepted by an unattended Pi prompt.
+    if operation.kind == OperationKind::Credential {
+        return PolicyDecision::Deny {
+            risk: RiskClass::Credential,
+            reason: "credential operations require the dedicated profile administration flow"
+                .to_string(),
+        };
+    }
+
+    if let Some(command) = operation.command.as_deref() {
+        match assess_shell_command(command, cwd, &policy.protected_namespaces) {
+            ShellCommandAssessment::Verified => {}
+            ShellCommandAssessment::Protected(namespace) => {
+                return PolicyDecision::Deny {
+                    risk: RiskClass::ProtectedNamespace,
+                    reason: format!(
+                        "command resolves inside protected namespace {}",
+                        namespace.name
+                    ),
+                };
+            }
+            ShellCommandAssessment::Unresolved(reason) => {
+                let reason = format!(
+                    "shell command cannot be statically verified: {reason}; automatic confirmation is disabled"
+                );
+                return if policy.unattended {
+                    PolicyDecision::Deny {
+                        risk: RiskClass::Unknown,
+                        reason,
+                    }
+                } else {
+                    PolicyDecision::Prompt {
+                        risk: RiskClass::Unknown,
+                        reason,
+                    }
+                };
+            }
         }
     }
 
@@ -433,56 +584,6 @@ pub(crate) fn evaluate_operation(
             risk,
             reason: reason.to_string(),
         }
-    }
-}
-
-/// Classify an operation by action and canonical workspace scope.
-pub(crate) fn classify_risk(
-    policy: &EffectivePolicy,
-    operation: &PolicyOperation,
-    cwd: &Path,
-) -> RiskClass {
-    let in_workspace = operation.path.as_deref().is_some_and(|path| {
-        let target = canonicalize_policy_path(path, cwd);
-        policy.workspace_roots.iter().any(|root| {
-            let canonical_root = canonicalize_policy_path(root, cwd);
-            target == canonical_root || target.starts_with(&canonical_root)
-        })
-    });
-
-    match operation.kind {
-        OperationKind::Read => {
-            if operation.path.is_none() || in_workspace {
-                RiskClass::ReadOnly
-            } else {
-                RiskClass::ExternalRead
-            }
-        }
-        OperationKind::Write => {
-            if in_workspace {
-                RiskClass::WorkspaceWrite
-            } else {
-                RiskClass::ExternalWrite
-            }
-        }
-        OperationKind::Execute => {
-            if in_workspace {
-                RiskClass::WorkspaceExecute
-            } else {
-                RiskClass::ExternalExecute
-            }
-        }
-        OperationKind::Delete => {
-            if in_workspace {
-                RiskClass::WorkspaceDestructive
-            } else {
-                RiskClass::ExternalDestructive
-            }
-        }
-        OperationKind::Network => RiskClass::Network,
-        OperationKind::Credential => RiskClass::Credential,
-        OperationKind::Install => RiskClass::Install,
-        OperationKind::ProcessControl => RiskClass::ProcessControl,
     }
 }
 
@@ -519,202 +620,4 @@ fn append_unique_namespaces(
     for namespace in incoming {
         append_unique_namespace(namespaces, namespace.clone());
     }
-}
-
-/// Minimal Pi session header retained from the append-only JSONL journal.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PiSessionHeader {
-    #[serde(rename = "type", default)]
-    pub entry_type: String,
-    #[serde(default)]
-    pub version: u32,
-    #[serde(default)]
-    pub id: String,
-    #[serde(default)]
-    pub timestamp: Option<String>,
-    #[serde(default)]
-    pub cwd: PathBuf,
-    #[serde(rename = "parentSession", default)]
-    pub parent_session: Option<String>,
-}
-
-/// PAD's cheap read model for a Pi session.  It is safe to rebuild from Pi's
-/// JSONL entries after a crash and therefore must never be the conversation
-/// source of truth.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PiSessionMetadata {
-    #[serde(default)]
-    pub session_id: String,
-    #[serde(default)]
-    pub session_file: PathBuf,
-    #[serde(default)]
-    pub cwd: PathBuf,
-    #[serde(default)]
-    pub parent_session_id: Option<String>,
-    #[serde(default)]
-    pub leaf_id: Option<String>,
-    #[serde(default)]
-    pub session_name: Option<String>,
-    #[serde(default)]
-    pub message_count: u64,
-    #[serde(default)]
-    pub entry_count: u64,
-    #[serde(default)]
-    pub created_at: Option<String>,
-    #[serde(default)]
-    pub updated_at: Option<String>,
-}
-
-/// Incremental sync cursor for `get_entries(since)` style Pi RPC recovery.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PiSessionCursor {
-    #[serde(default)]
-    pub last_entry_id: Option<String>,
-    #[serde(default)]
-    pub leaf_id: Option<String>,
-    #[serde(default)]
-    pub rpc_sequence: u64,
-}
-
-/// Stable identity of one entry in Pi's session tree.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PiSessionEntryRef {
-    pub id: String,
-    #[serde(default)]
-    pub parent_id: Option<String>,
-    #[serde(rename = "type", default)]
-    pub entry_type: String,
-}
-
-/// Execution state displayed by the sidebar and task header.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum TaskStatus {
-    #[default]
-    Idle,
-    Starting,
-    Running,
-    Streaming,
-    ToolRunning,
-    NeedsApproval,
-    NeedsInput,
-    Compacting,
-    Retrying,
-    Disconnected,
-    Failed,
-    Completed,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum TaskEnvironment {
-    #[default]
-    Local,
-    Worktree,
-    Remote,
-}
-
-/// A credential/profile boundary.  `credential_ref` is a Keychain reference,
-/// never the secret itself.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Profile {
-    pub id: String,
-    pub name: String,
-    pub agent_dir: PathBuf,
-    pub session_dir: PathBuf,
-    #[serde(default)]
-    pub credential_ref: Option<String>,
-    #[serde(default)]
-    pub default_provider: Option<String>,
-    #[serde(default)]
-    pub default_model: Option<String>,
-    #[serde(default)]
-    pub policy: PolicyLayer,
-    #[serde(default)]
-    pub created_at: u64,
-    #[serde(default)]
-    pub updated_at: u64,
-}
-
-/// A Codex-style project: one primary cwd plus optional readable/editable roots.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Project {
-    pub id: String,
-    pub name: String,
-    pub primary_root: PathBuf,
-    #[serde(default)]
-    pub additional_roots: Vec<PathBuf>,
-    #[serde(default)]
-    pub profile_id: Option<String>,
-    #[serde(default)]
-    pub policy: PolicyLayer,
-    #[serde(default)]
-    pub pinned: bool,
-    #[serde(default)]
-    pub archived: bool,
-    #[serde(default)]
-    pub created_at: u64,
-    #[serde(default)]
-    pub updated_at: u64,
-}
-
-/// A single Pi-backed conversation/task shown in the sidebar.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Task {
-    pub id: String,
-    #[serde(default)]
-    pub project_id: Option<String>,
-    pub profile_id: String,
-    #[serde(default)]
-    pub pi_session_id: Option<String>,
-    #[serde(default)]
-    pub session_file: Option<PathBuf>,
-    #[serde(default)]
-    pub title: String,
-    #[serde(default)]
-    pub summary: String,
-    pub cwd: PathBuf,
-    #[serde(default)]
-    pub environment: TaskEnvironment,
-    #[serde(default)]
-    pub status: TaskStatus,
-    #[serde(default)]
-    pub leaf_id: Option<String>,
-    #[serde(default)]
-    pub unread: bool,
-    #[serde(default)]
-    pub pinned: bool,
-    #[serde(default)]
-    pub archived: bool,
-    #[serde(default)]
-    pub policy: PolicyLayer,
-    #[serde(default)]
-    pub created_at: u64,
-    #[serde(default)]
-    pub updated_at: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "id", rename_all = "snake_case")]
-pub(crate) enum SectionItem {
-    Project(String),
-    Task(String),
-}
-
-/// A user-created sidebar section.  Organization changes never alter the
-/// Project/Task context or the underlying Pi session.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Section {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub order: u32,
-    #[serde(default)]
-    pub collapsed: bool,
-    #[serde(default)]
-    pub items: Vec<SectionItem>,
-    #[serde(default)]
-    pub created_at: u64,
-    #[serde(default)]
-    pub updated_at: u64,
 }

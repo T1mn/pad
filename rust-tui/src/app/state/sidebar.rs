@@ -79,6 +79,10 @@ mod state {
         /// Codex-style Desktop navigation projection.  The legacy PAD pane
         /// list remains above for compatibility while the new Desktop shell
         /// renders this independent Profile/Project/Task hierarchy.
+        #[allow(
+            dead_code,
+            reason = "renderer-neutral Desktop navigation state is retained beside the legacy TUI sidebar"
+        )]
         pub codex_sidebar: CodexSidebarState,
         pub visible_sidebar_stats: VisibleSidebarStats,
         pub preferred_panel_width_cache: Option<PreferredPanelWidthCache>,

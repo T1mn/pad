@@ -49,8 +49,9 @@ impl PiEventKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum PiRuntimeStatus {
+    #[default]
     Starting,
     Idle,
     Running,
@@ -62,12 +63,6 @@ pub(crate) enum PiRuntimeStatus {
     Retrying,
     Failed,
     Disconnected,
-}
-
-impl Default for PiRuntimeStatus {
-    fn default() -> Self {
-        Self::Starting
-    }
 }
 
 impl PiRuntimeStatus {
@@ -83,6 +78,10 @@ impl PiRuntimeStatus {
         )
     }
 
+    #[allow(
+        dead_code,
+        reason = "kept as a status predicate for native and future renderer consumers"
+    )]
     pub(crate) fn needs_user_action(self) -> bool {
         matches!(self, Self::NeedsApproval | Self::NeedsInput | Self::Failed)
     }

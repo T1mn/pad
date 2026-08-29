@@ -28,7 +28,7 @@ mod sort {
 }
 
 pub use build::{build_sidebar_folders, thread_from_live_panel};
-pub(crate) use codex::{CodexSidebarNode, CodexSidebarRow, CodexSidebarState, CodexSidebarView};
+pub(crate) use codex::{CodexSidebarNode, CodexSidebarState};
 pub use display::clean_title;
 pub use model::{
     SidebarFolder, SidebarFolderSummary, SidebarItem, SidebarThread, ThreadActivityOverride,

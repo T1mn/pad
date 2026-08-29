@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::json;
+use std::fs;
 use std::thread;
 
 fn wait_for_output(supervisor: &PiSupervisor) -> PiPoll {

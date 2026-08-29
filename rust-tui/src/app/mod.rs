@@ -9,6 +9,10 @@ mod display_scope {
     impl App {
         /// Build one immutable Codex-style sidebar payload for a Desktop
         /// renderer or IPC caller.
+        #[allow(
+            dead_code,
+            reason = "renderer-neutral sidebar snapshot remains available to native host adapters"
+        )]
         pub(crate) fn codex_sidebar_snapshot(
             &self,
         ) -> crate::ui::codex_sidebar::CodexSidebarSnapshot {
@@ -19,6 +23,10 @@ mod display_scope {
         /// PAD's private store. This never scans or mutates provider sessions;
         /// the caller owns the Store lifetime and may invoke it on startup or
         /// after a sidebar mutation.
+        #[allow(
+            dead_code,
+            reason = "legacy TUI integration hook remains available during Desktop sidebar migration"
+        )]
         pub(crate) fn reload_codex_sidebar_from_store(
             &mut self,
             store: &crate::pad_store::PadStore,

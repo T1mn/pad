@@ -5,25 +5,35 @@
 //! and one Profile-scoped Pi supervisor per active Task without duplicating
 //! policy or process code in the renderer.
 
-use crate::pad_store::{open_default, PadStore, StoreError};
-use crate::permission_policy::{PermissionMode, PolicyLayer, Profile, Project, Task, TaskStatus};
+use crate::pad_store::{DesktopSidebarView, DesktopUiState, PadStore, StoreError};
+use crate::permission_policy::{
+    merge_profile_project_task_with_host_defaults, EffectivePolicy, PermissionMode, PolicyLayer,
+    Profile, Project, Task, TaskStatus,
+};
 use crate::pi_runtime::{
     PiEventReducer, PiPoll, PiRpcSupervisor, PiRuntimeSnapshot, PiSupervisorError,
 };
 use crate::ui::codex_sidebar::{snapshot as sidebar_snapshot, CodexSidebarSnapshot};
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
 
 pub(crate) mod bridge;
 pub(crate) use bridge::run_server;
+mod auth;
+use auth::{AuthError, AuthSnapshot, PiAuthCoordinator};
+mod catalog;
+pub(crate) mod data_root_lock;
+use data_root_lock::DesktopDataRootLock;
 mod helpers;
 use helpers::{
     automatic_ui_response, default_desktop_workspace_root, is_unsafe_generated_project_root,
     path_within_root, profile_storage_segment, read_session_messages, task_status, unique_suffix,
     unix_timestamp,
 };
+mod terminal;
+use terminal::DesktopTerminalRuntime;
 
 #[derive(Debug)]
 pub(crate) enum DesktopRuntimeError {
@@ -35,6 +45,7 @@ pub(crate) enum DesktopRuntimeError {
     ProfileMismatch { task_id: String, profile_id: String },
     InvalidSessionPath { task_id: String, path: PathBuf },
     TaskAlreadyRunning(String),
+    DataRootLocked,
 }
 
 impl fmt::Display for DesktopRuntimeError {
@@ -59,6 +70,9 @@ impl fmt::Display for DesktopRuntimeError {
             ),
             Self::TaskAlreadyRunning(id) => {
                 write!(formatter, "Desktop task '{id}' is already running")
+            }
+            Self::DataRootLocked => {
+                formatter.write_str("another PAD desktop-server already owns this data root")
             }
         }
     }
@@ -88,25 +102,81 @@ struct ActiveTask {
 /// state while the single-writer rule is enforced by the active-task map.
 pub(crate) struct DesktopRuntime {
     store: PadStore,
+    data_root: PathBuf,
     active_tasks: BTreeMap<String, ActiveTask>,
+    auth: PiAuthCoordinator,
+    terminal: DesktopTerminalRuntime,
     next_generation: u64,
+    pi_program: PathBuf,
+    _data_root_lock: Option<DesktopDataRootLock>,
 }
 
 impl DesktopRuntime {
     pub(crate) fn open_default() -> Result<Self, DesktopRuntimeError> {
-        Ok(Self::from_store(open_default()?))
+        let requested_root = crate::paths::pad_desktop_data_dir();
+        let root = crate::paths::base::validate_pad_desktop_data_root(&requested_root)
+            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))?;
+        crate::paths::base::ensure_pad_desktop_private_layout(&root)
+            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))?;
+        let data_root_lock = DesktopDataRootLock::acquire(&root).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                DesktopRuntimeError::DataRootLocked
+            } else {
+                DesktopRuntimeError::Store(StoreError::Io(error))
+            }
+        })?;
+        let mut runtime = Self::from_store(PadStore::open(
+            root.join("v1").join("store").join("pad.sqlite"),
+        )?);
+        runtime.data_root = root;
+        runtime._data_root_lock = Some(data_root_lock);
+        Ok(runtime)
     }
 
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "the in-memory runtime is retained for protocol and isolation tests"
+        )
+    )]
     pub(crate) fn in_memory() -> Result<Self, DesktopRuntimeError> {
         Ok(Self::from_store(PadStore::in_memory()?))
     }
 
     fn from_store(store: PadStore) -> Self {
+        #[cfg(test)]
+        let data_root = {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(1);
+            std::env::temp_dir().join(format!(
+                "pad-desktop-runtime-test-{}-{}",
+                std::process::id(),
+                NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
+            ))
+        };
+        #[cfg(not(test))]
+        let data_root = crate::paths::pad_desktop_data_dir();
         Self {
             store,
+            data_root,
             active_tasks: BTreeMap::new(),
+            auth: PiAuthCoordinator::new(),
+            terminal: DesktopTerminalRuntime::default(),
             next_generation: 1,
+            pi_program: crate::pi_runtime::desktop_pi_program(),
+            _data_root_lock: None,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_pi_program_for_test(&mut self, program: PathBuf) {
+        self.pi_program = program;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_auth_launcher_for_test(&mut self, program: PathBuf, package_root: PathBuf) {
+        self.auth.set_launcher_for_test(program, package_root);
     }
 
     pub(crate) fn store(&self) -> &PadStore {
@@ -117,278 +187,82 @@ impl DesktopRuntime {
         &mut self.store
     }
 
-    pub(crate) fn ensure_default_profile(&mut self) -> Result<Profile, DesktopRuntimeError> {
-        if let Some(mut profile) = self.store.list_profiles()?.into_iter().next() {
-            // Profiles created by the initial Desktop preview had no policy;
-            // upgrade that one legacy record to the documented Full Access
-            // default while retaining any explicit user choice thereafter.
-            if profile.policy.mode.is_none() {
-                profile.policy.mode = Some(PermissionMode::SystemFull);
-                profile.policy.unattended = Some(true);
-                if profile.policy.protected_namespaces.is_empty() {
-                    profile.policy.protected_namespaces =
-                        crate::permission_policy::default_protected_namespaces(
-                            &dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("/")),
-                        );
-                }
-                profile.updated_at = unix_timestamp();
-                self.store.update_profile(&profile)?;
-            }
-            return Ok(profile);
-        }
-
-        let id = "default".to_string();
-        let fallback = crate::paths::pad_desktop_data_dir()
-            .join("v1")
-            .join("profiles")
-            .join("default");
-        let profile = Profile {
-            id,
-            name: "Default".to_string(),
-            agent_dir: fallback.join("pi-agent"),
-            session_dir: fallback.join("pi-sessions"),
-            policy: PolicyLayer {
-                mode: Some(PermissionMode::SystemFull),
-                unattended: Some(true),
-                protected_namespaces: crate::permission_policy::default_protected_namespaces(
-                    &dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("/")),
-                ),
-                ..PolicyLayer::default()
-            },
-            created_at: unix_timestamp(),
-            updated_at: unix_timestamp(),
-            ..Profile::default()
-        };
-        self.store.insert_profile(&profile)?;
-        Ok(profile)
-    }
-
-    pub(crate) fn create_profile(
-        &mut self,
-        mut profile: Profile,
-    ) -> Result<Profile, DesktopRuntimeError> {
-        if profile.id.trim().is_empty() {
-            profile.id = format!("profile-{}", unique_suffix());
-        }
-        if profile.name.trim().is_empty() {
-            profile.name = profile.id.clone();
-        }
-        let fallback = crate::paths::pad_desktop_data_dir()
-            .join("v1")
-            .join("profiles")
-            .join(profile_storage_segment(&profile.id));
-        if profile.agent_dir.as_os_str().is_empty() {
-            profile.agent_dir = fallback.join("pi-agent");
-        }
-        if profile.session_dir.as_os_str().is_empty() {
-            profile.session_dir = fallback.join("pi-sessions");
-        }
-        if profile.created_at == 0 {
-            profile.created_at = unix_timestamp();
-        }
-        profile.updated_at = unix_timestamp();
-        self.store.insert_profile(&profile)?;
-        Ok(profile)
-    }
-
-    /// Update the automation policy for a persisted Profile.
-    ///
-    /// The Desktop renderer may optimistically update its badge, but the
-    /// private PAD store remains the source of truth.  Keeping this mutation
-    /// here also ensures policy changes use the same profile boundary as Pi
-    /// process startup.
-    pub(crate) fn update_profile_policy(
-        &mut self,
-        profile_id: &str,
-        permission_mode: Option<PermissionMode>,
-        unattended: Option<bool>,
-    ) -> Result<Profile, DesktopRuntimeError> {
-        let mut profile = self
-            .store
-            .get_profile(profile_id)?
-            .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(profile_id.to_string()))?;
-        if let Some(mode) = permission_mode {
-            profile.policy.mode = Some(mode);
-        }
-        if let Some(value) = unattended {
-            profile.policy.unattended = Some(value);
-        }
-        profile.updated_at = unix_timestamp();
-        self.store.update_profile(&profile)?;
-        Ok(profile)
-    }
-
-    /// Update non-secret provider selection metadata. `credential_ref` is a
-    /// keychain reference only; the bridge never accepts or persists a token
-    /// value. Keeping this mutation beside policy updates makes profile
-    /// switching explicit and keeps each Pi process on one profile boundary.
-    pub(crate) fn update_profile_settings(
-        &mut self,
-        profile_id: &str,
-        default_provider: Option<String>,
-        default_model: Option<String>,
-        credential_ref: Option<String>,
-    ) -> Result<Profile, DesktopRuntimeError> {
-        let mut profile = self
-            .store
-            .get_profile(profile_id)?
-            .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(profile_id.to_string()))?;
-        if let Some(provider) = default_provider {
-            profile.default_provider = Some(provider);
-        }
-        if let Some(model) = default_model {
-            profile.default_model = if model.trim().is_empty() || model == "auto" {
-                None
-            } else {
-                Some(model)
-            };
-        }
-        if let Some(reference) = credential_ref {
-            profile.credential_ref = Some(reference);
-        }
-        profile.updated_at = unix_timestamp();
-        self.store.update_profile(&profile)?;
-        Ok(profile)
-    }
-
-    /// Return provider names present in this Profile's private Pi auth file.
-    /// Values are intentionally not returned (and no provider-owned path is
-    /// read), so the sidebar can show account readiness without exposing a
-    /// token or changing Codex/ChatGPT credentials.
-    pub(crate) fn authenticated_providers(&self, profile: &Profile) -> Vec<String> {
-        helpers::authenticated_providers(profile)
-    }
-
-    pub(crate) fn provider_authentication_status(&self, profile: &Profile) -> &'static str {
-        helpers::provider_authentication_status(profile)
-    }
-
-    pub(crate) fn ensure_default_project(
-        &mut self,
-        profile_id: &str,
-    ) -> Result<Option<Project>, DesktopRuntimeError> {
-        if let Some(mut project) = self
-            .store
-            .list_projects(true)?
-            .into_iter()
-            .find(|project| project.profile_id.as_deref() == Some(profile_id))
-        {
-            // Finder launches a macOS app with `/` as its working directory.
-            // Older builds therefore created a generated Workspace whose root
-            // covered the entire disk. Repair only that generated placeholder;
-            // never rewrite a project path the user explicitly selected.
-            if project.id == format!("project-{}", profile_storage_segment(profile_id))
-                && project.name == "Workspace"
-                && is_unsafe_generated_project_root(&project.primary_root)
-            {
-                project.primary_root = default_desktop_workspace_root();
-                project.updated_at = unix_timestamp();
-                self.store.update_project(&project)?;
-            }
-            return Ok(Some(project));
-        }
-        let root = default_desktop_workspace_root();
-        let project = Project {
-            id: format!("project-{}", profile_storage_segment(profile_id)),
-            name: "Workspace".to_string(),
-            primary_root: root,
-            profile_id: Some(profile_id.to_string()),
-            created_at: unix_timestamp(),
-            updated_at: unix_timestamp(),
-            ..Project::default()
-        };
-        self.store.insert_project(&project)?;
-        Ok(Some(project))
-    }
-
-    pub(crate) fn create_project(
-        &mut self,
-        profile_id: &str,
-        mut name: String,
-        primary_root: PathBuf,
-    ) -> Result<Project, DesktopRuntimeError> {
-        self.store
-            .get_profile(profile_id)?
-            .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(profile_id.to_string()))?;
-        if name.trim().is_empty() {
-            name = primary_root
-                .file_name()
-                .and_then(|value| value.to_str())
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or("Workspace")
-                .to_string();
-        }
-        let project = Project {
-            id: format!("project-{}", unique_suffix()),
-            name,
-            primary_root,
-            profile_id: Some(profile_id.to_string()),
-            created_at: unix_timestamp(),
-            updated_at: unix_timestamp(),
-            ..Project::default()
-        };
-        self.store.insert_project(&project)?;
-        Ok(project)
-    }
-
-    pub(crate) fn create_task(&mut self, mut task: Task) -> Result<Task, DesktopRuntimeError> {
-        let profile = self
-            .store
-            .get_profile(&task.profile_id)?
-            .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(task.profile_id.clone()))?;
-        let task_project = if let Some(project_id) = task.project_id.as_deref() {
-            let project = self
-                .store
-                .get_project(project_id)?
-                .ok_or_else(|| DesktopRuntimeError::ProjectNotFound(project_id.to_string()))?;
-            if project
-                .profile_id
-                .as_deref()
-                .is_some_and(|profile_id| profile_id != profile.id)
-            {
-                return Err(DesktopRuntimeError::ProfileMismatch {
-                    task_id: task.id.clone(),
-                    profile_id: profile.id,
-                });
-            }
-            Some(project)
-        } else {
-            None
-        };
-        if task.id.trim().is_empty() {
-            task.id = format!("task-{}", unique_suffix());
-        }
-        if task.title.trim().is_empty() {
-            task.title = "New task".to_string();
-        }
-        if task.cwd.as_os_str().is_empty() {
-            task.cwd = task_project
-                .as_ref()
-                .map(|project| project.primary_root.clone())
-                .unwrap_or_else(default_desktop_workspace_root);
-        }
-        if task.created_at == 0 {
-            task.created_at = unix_timestamp();
-        }
-        task.updated_at = unix_timestamp();
-        self.store.insert_task(&task)?;
-        Ok(task)
+    pub(crate) fn data_root(&self) -> &std::path::Path {
+        &self.data_root
     }
 
     pub(crate) fn sidebar_snapshot(&self) -> Result<CodexSidebarSnapshot, DesktopRuntimeError> {
-        let (profiles, projects, tasks, sections) = self.store.load_sidebar_records()?;
-        let mut sidebar = crate::sidebar::CodexSidebarState::default();
+        let (profiles, mut projects, mut tasks, mut sections) =
+            self.store.load_sidebar_records()?;
+        let ui_state = self.desktop_ui_state()?;
+        // Only the active Profile's project/task hierarchy may reach a
+        // renderer snapshot. Profile rows themselves remain available as the
+        // deliberately small account-switch surface.
+        if let Some(active_profile_id) = ui_state.active_profile_id.as_deref() {
+            projects.retain(|project| project.profile_id.as_deref() == Some(active_profile_id));
+            tasks.retain(|task| task.profile_id == active_profile_id);
+        } else {
+            projects.clear();
+            tasks.clear();
+        }
+        let visible_project_ids = projects
+            .iter()
+            .map(|project| project.id.as_str())
+            .collect::<HashSet<_>>();
+        let visible_task_ids = tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<HashSet<_>>();
+        for section in &mut sections {
+            section.items.retain(|item| match item {
+                crate::permission_policy::SectionItem::Project(id) => {
+                    visible_project_ids.contains(id.as_str())
+                }
+                crate::permission_policy::SectionItem::Task(id) => {
+                    visible_task_ids.contains(id.as_str())
+                }
+            });
+        }
+        sections.retain(|section| !section.items.is_empty());
+        let section_ids = sections
+            .iter()
+            .map(|section| section.id.as_str())
+            .collect::<HashSet<_>>();
+        let project_ids = projects
+            .iter()
+            .map(|project| project.id.as_str())
+            .collect::<HashSet<_>>();
+        let mut sidebar = crate::sidebar::CodexSidebarState {
+            active_profile_id: ui_state.active_profile_id.clone(),
+            view: match ui_state.sidebar_view {
+                DesktopSidebarView::All => crate::sidebar::codex::CodexSidebarView::All,
+                DesktopSidebarView::Pinned => crate::sidebar::codex::CodexSidebarView::Pinned,
+                DesktopSidebarView::Archive => crate::sidebar::codex::CodexSidebarView::Archive,
+            },
+            collapsed_sections: collapse_record_ids(
+                &ui_state.collapsed_section_ids,
+                "section:",
+                &section_ids,
+            ),
+            collapsed_projects: collapse_record_ids(
+                &ui_state.collapsed_project_ids,
+                "project:",
+                &project_ids,
+            ),
+            ..Default::default()
+        };
         sidebar.replace_data(profiles, projects, tasks, sections);
+        // Collapsing a parent only hides a row; it must not change the active
+        // conversation selected in the adjacent content pane.
+        sidebar.selected = ui_state
+            .selected_task_id
+            .map(crate::sidebar::CodexSidebarNode::Task);
         Ok(sidebar_snapshot(&sidebar))
     }
 
     /// Start one Pi process for an existing PAD Task.  The Profile roots are
     /// selected from the Store, never from renderer-supplied environment data.
-    pub(crate) fn start_task(
-        &mut self,
-        task_id: &str,
-        command: &str,
-    ) -> Result<u64, DesktopRuntimeError> {
+    pub(crate) fn start_task(&mut self, task_id: &str) -> Result<u64, DesktopRuntimeError> {
         if let Some(active) = self.active_tasks.get(task_id) {
             if active.supervisor.has_exited()? {
                 self.active_tasks.remove(task_id);
@@ -404,14 +278,13 @@ impl DesktopRuntime {
             .store
             .get_profile(&task.profile_id)?
             .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(task.profile_id.clone()))?;
-        self.start_task_with_profile(&task, &profile, command)
+        self.start_task_with_profile(&task, &profile)
     }
 
     fn start_task_with_profile(
         &mut self,
         task: &Task,
         profile: &Profile,
-        command: &str,
     ) -> Result<u64, DesktopRuntimeError> {
         if task.profile_id != profile.id {
             return Err(DesktopRuntimeError::ProfileMismatch {
@@ -421,8 +294,12 @@ impl DesktopRuntime {
         }
         let generation = self.next_generation;
         self.next_generation = self.next_generation.saturating_add(1).max(1);
-        let supervisor =
-            PiRpcSupervisor::spawn_for_profile(command, &task.cwd, generation, profile)?;
+        let supervisor = PiRpcSupervisor::spawn_desktop_for_profile(
+            &self.pi_program,
+            &task.cwd,
+            generation,
+            profile,
+        )?;
         // A Task's Pi session is durable metadata, not a command-line option
         // supplied by the renderer. Restore it only after the Profile-scoped
         // supervisor has validated and created its private roots. The startup
@@ -479,34 +356,16 @@ impl DesktopRuntime {
     /// Drain a task's process without waiting.  Pi events are reduced first;
     /// only the derived Task status is written to SQLite.
     pub(crate) fn poll_task(&mut self, task_id: &str) -> Result<PiPoll, DesktopRuntimeError> {
-        let auto_answer = self
-            .store
-            .get_task(task_id)?
-            .and_then(|task| {
-                self.store
-                    .get_profile(&task.profile_id)
-                    .ok()
-                    .flatten()
-                    .map(|profile| {
-                        matches!(
-                            profile.policy.mode,
-                            Some(PermissionMode::SystemFull | PermissionMode::WorkspaceFull)
-                        ) || matches!(
-                            task.policy.mode,
-                            Some(PermissionMode::SystemFull | PermissionMode::WorkspaceFull)
-                        )
-                    })
-            })
-            .unwrap_or(false);
+        let policy_context = self.task_policy_context(task_id)?;
         let (poll, status) = {
             let active = self
                 .active_tasks
                 .get_mut(task_id)
                 .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
             let poll = active.supervisor.poll()?;
-            if auto_answer {
+            if let Some((policy, cwd)) = policy_context.as_ref() {
                 for message in &poll.messages {
-                    if let Some(response) = automatic_ui_response(&message.value) {
+                    if let Some(response) = automatic_ui_response(&message.value, policy, cwd) {
                         active.supervisor.send(response)?;
                     }
                 }
@@ -530,6 +389,60 @@ impl DesktopRuntime {
             self.store.update_task(&task)?;
         }
         Ok(poll)
+    }
+
+    /// Resolve the one effective policy used by Desktop automatic approval.
+    /// A corrupt cross-Profile project reference deliberately produces no
+    /// policy, which leaves the request for the user instead of inheriting
+    /// another account's permissions.
+    fn task_policy_context(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<(EffectivePolicy, PathBuf)>, DesktopRuntimeError> {
+        let Some(task) = self.store.get_task(task_id)? else {
+            return Ok(None);
+        };
+        let Some(mut profile) = self.store.get_profile(&task.profile_id)? else {
+            return Ok(None);
+        };
+        let (agent_dir, session_dir) = crate::pi_runtime::profile_pi_roots(&profile);
+        profile.agent_dir = agent_dir;
+        profile.session_dir = session_dir;
+        let project = match task.project_id.as_deref() {
+            Some(project_id) => self.store.get_project(project_id)?,
+            None => None,
+        };
+        if project.as_ref().is_some_and(|project| {
+            project
+                .profile_id
+                .as_deref()
+                .is_some_and(|profile_id| profile_id != task.profile_id)
+        }) {
+            return Ok(None);
+        }
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+        let mut mandatory = crate::permission_policy::default_protected_namespaces(&home);
+        mandatory.push(crate::permission_policy::ProtectedNamespace::new(
+            "pad-desktop-data",
+            self.data_root.clone(),
+        ));
+        mandatory.push(crate::permission_policy::ProtectedNamespace::new(
+            "pad-home",
+            crate::paths::pad_home_dir(),
+        ));
+        if let Some(codex_home) = crate::paths::base::protected_codex_home() {
+            mandatory.push(crate::permission_policy::ProtectedNamespace::new(
+                "codex-home-env",
+                codex_home,
+            ));
+        }
+        let policy = merge_profile_project_task_with_host_defaults(
+            &profile,
+            project.as_ref(),
+            Some(&task),
+            &mandatory,
+        );
+        Ok(Some((policy, task.cwd)))
     }
 
     /// Send one native Pi RPC request and wait only for already-available
@@ -739,7 +652,24 @@ impl DesktopRuntime {
         task_id: &str,
         poll: &PiPoll,
     ) -> Result<(), DesktopRuntimeError> {
-        helpers::update_task_metadata_from_poll(&mut self.store, task_id, poll)
+        helpers::update_task_metadata_from_poll(&mut self.store, task_id, poll)?;
+        if let Some(task) = self.store.get_task(task_id)? {
+            if let Some(session_file) = task.session_file {
+                if let Some(profile) = self.store.get_profile(&task.profile_id)? {
+                    let session_root = crate::pi_runtime::profile_pi_roots(&profile).1;
+                    let session_file = if session_file.is_absolute() {
+                        session_file
+                    } else {
+                        session_root.join(session_file)
+                    };
+                    if path_within_root(&session_file, &session_root) {
+                        crate::paths::base::harden_private_tree(&session_file)
+                            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn runtime_snapshot(
@@ -768,11 +698,7 @@ impl DesktopRuntime {
     /// Start a fresh Pi process for a previously stopped/failed Task while
     /// retaining its persisted session identity. A live process is aborted
     /// first, so retry cannot leave two writers attached to one JSONL session.
-    pub(crate) fn retry_task(
-        &mut self,
-        task_id: &str,
-        command: &str,
-    ) -> Result<u64, DesktopRuntimeError> {
+    pub(crate) fn retry_task(&mut self, task_id: &str) -> Result<u64, DesktopRuntimeError> {
         if let Some(active) = self.active_tasks.remove(task_id) {
             let _ = active.supervisor.shutdown()?;
         }
@@ -781,12 +707,41 @@ impl DesktopRuntime {
             task.updated_at = unix_timestamp();
             self.store.update_task(&task)?;
         }
-        self.start_task(task_id, command)
+        self.start_task(task_id)
     }
 
+    #[allow(
+        dead_code,
+        reason = "runtime status probe is retained for native host integrations"
+    )]
     pub(crate) fn is_running(&self, task_id: &str) -> bool {
         self.active_tasks.contains_key(task_id)
     }
+}
+
+fn collapse_record_ids(
+    values: &[String],
+    renderer_prefix: &str,
+    valid_ids: &HashSet<&str>,
+) -> HashSet<String> {
+    values
+        .iter()
+        .filter_map(|value| {
+            let candidate = value.strip_prefix(renderer_prefix).unwrap_or(value);
+            valid_ids.contains(candidate).then(|| candidate.to_string())
+        })
+        .collect()
+}
+
+fn ensure_profile_private_storage(profile: &Profile) -> Result<(), DesktopRuntimeError> {
+    let (agent_dir, session_dir) = crate::pi_runtime::profile_pi_roots(profile);
+    for directory in [agent_dir, session_dir] {
+        crate::paths::base::ensure_private_dir(&directory)
+            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))?;
+        crate::paths::base::harden_private_tree(&directory)
+            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

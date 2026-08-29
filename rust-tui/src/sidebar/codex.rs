@@ -67,6 +67,13 @@ pub(crate) struct CodexSidebarState {
     pub collapsed_projects: HashSet<String>,
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "native navigation methods remain available while Electron drives the same read model through IPC"
+    )
+)]
 impl CodexSidebarState {
     pub(crate) fn replace_data(
         &mut self,
@@ -125,6 +132,10 @@ impl CodexSidebarState {
         self.retain_visible_selection();
     }
 
+    #[allow(
+        dead_code,
+        reason = "direct selection remains part of the renderer-neutral navigation API"
+    )]
     pub(crate) fn select(&mut self, node: CodexSidebarNode) -> bool {
         if self.visible_rows().iter().any(|row| row.node == node) {
             self.selected = Some(node);
@@ -156,6 +167,10 @@ impl CodexSidebarState {
         self.selected.clone()
     }
 
+    #[allow(
+        dead_code,
+        reason = "direct section toggling remains part of the renderer-neutral navigation API"
+    )]
     pub(crate) fn toggle_section(&mut self, section_id: &str) -> bool {
         let Some(section) = self
             .sections
@@ -173,6 +188,10 @@ impl CodexSidebarState {
         true
     }
 
+    #[allow(
+        dead_code,
+        reason = "direct project toggling remains part of the renderer-neutral navigation API"
+    )]
     pub(crate) fn toggle_project(&mut self, project_id: &str) -> bool {
         if !self.projects.iter().any(|project| project.id == project_id) {
             return false;

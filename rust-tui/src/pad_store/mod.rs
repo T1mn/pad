@@ -13,9 +13,9 @@ mod schema;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub(crate) use crate::permission_policy::{
-    Profile, Project, Section, SectionItem, Task, TaskEnvironment, TaskStatus,
-};
+pub(crate) use crate::permission_policy::{Profile, Project, Section, SectionItem, Task};
+#[cfg(test)]
+pub(crate) use crate::permission_policy::{TaskEnvironment, TaskStatus};
 
 use rusqlite::{Connection, OpenFlags};
 use std::error::Error;
@@ -24,17 +24,13 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
-pub(crate) use repository::PadStore;
+pub(crate) use repository::{DesktopSidebarView, DesktopUiState, PadStore};
+#[cfg(test)]
+pub(crate) use repository::{DesktopTheme, SidebarWidth};
+#[cfg(test)]
 pub(crate) use schema::CURRENT_SCHEMA_VERSION;
 
 pub(crate) type StoreResult<T> = Result<T, StoreError>;
-
-/// Open the Desktop store at its platform-private default location.  The
-/// native PAD TUI does not call this helper; the future macOS host does so
-/// only for its own Desktop process.
-pub(crate) fn open_default() -> StoreResult<PadStore> {
-    PadStore::open(crate::paths::pad_desktop_store_path())
-}
 
 /// Errors returned by the PAD private store.
 #[derive(Debug)]
@@ -128,6 +124,13 @@ pub(crate) fn open_database(path: impl AsRef<Path>) -> StoreResult<(Connection, 
     Ok((connection, path))
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "the in-memory store constructor is retained for tests and ephemeral previews"
+    )
+)]
 pub(crate) fn open_memory_database() -> StoreResult<Connection> {
     let mut connection = Connection::open_in_memory()?;
     configure_connection(&mut connection)?;
