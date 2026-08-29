@@ -88,12 +88,14 @@ impl PiApprovalRequest {
             Some("input") => Some(Self::Input {
                 id: id?,
                 title: string_field(object, "title"),
-                default: string_field(object, "default"),
+                default: string_field(object, "default")
+                    .or_else(|| string_field(object, "placeholder")),
             }),
             Some("editor") => Some(Self::Editor {
                 id: id?,
                 title: string_field(object, "title"),
-                default: string_field(object, "default"),
+                default: string_field(object, "default")
+                    .or_else(|| string_field(object, "prefill")),
             }),
             _ => Some(Self::Unknown { id, method }),
         }
@@ -107,6 +109,56 @@ impl PiApprovalRequest {
             | Self::Editor { id, .. } => Some(id),
             Self::Unknown { id, .. } => id.as_deref(),
         }
+    }
+
+    /// Return whether this request is an explicit permission gate rather than
+    /// a business/workflow question.  Pi extensions use the same `confirm`
+    /// primitive for both kinds of dialog, so Full Access must require a
+    /// permission-specific phrase before answering it automatically.
+    ///
+    /// This intentionally errs on the side of asking.  A bare "Continue?",
+    /// project-trust dialog, or any select/input/editor request remains
+    /// visible to the Desktop UI even when the profile is unattended.
+    pub(crate) fn is_explicit_permission_confirmation(&self) -> bool {
+        let Self::Confirm { title, message, .. } = self else {
+            return false;
+        };
+        let text = format!(
+            "{} {}",
+            title.as_deref().unwrap_or_default(),
+            message.as_deref().unwrap_or_default()
+        )
+        .to_ascii_lowercase();
+        if text.trim().is_empty()
+            || text.contains("trust")
+            || text.contains("project")
+            || text.contains("信任")
+            || text.contains("项目")
+        {
+            return false;
+        }
+        [
+            "permission",
+            "allow",
+            "approve",
+            "authorize",
+            "authorise",
+            "permit",
+            "consent",
+            "approval",
+            "grant",
+            "access",
+            // Pi extensions can localize their dialog copy. Keep the same
+            // conservative semantics for Chinese permission prompts.
+            "权限",
+            "允许",
+            "批准",
+            "授权",
+            "许可",
+            "同意",
+        ]
+        .iter()
+        .any(|marker| text.contains(marker))
     }
 
     pub(crate) fn to_policy_request(&self) -> ApprovalRequest {
@@ -149,7 +201,7 @@ impl PiApprovalResponse {
             Self::Confirm { id, value } => serde_json::json!({
                 "type": "extension_ui_response",
                 "id": id,
-                "value": value,
+                "confirmed": value,
             }),
             Self::Select { id, index } => serde_json::json!({
                 "type": "extension_ui_response",
@@ -175,6 +227,12 @@ pub(crate) fn classify_pi_approval(
     request: &PiApprovalRequest,
     policy: &RuntimePermissionPolicy,
 ) -> PiApprovalAction {
+    // `confirm` is overloaded by Pi extensions.  Only a dialog whose copy
+    // explicitly describes permission may be auto-confirmed.  Never infer a
+    // user's answer to a select/input/editor business prompt from a default.
+    if !request.is_explicit_permission_confirmation() {
+        return PiApprovalAction::Ask;
+    }
     match classify_approval(&request.to_policy_request(), policy) {
         ApprovalDecision::Allow | ApprovalDecision::Ask => PiApprovalAction::Ask,
         ApprovalDecision::AutoAnswer(answer) => match (request, answer) {
@@ -184,19 +242,6 @@ pub(crate) fn classify_pi_approval(
                     value: true,
                 })
             }
-            (PiApprovalRequest::Select { id, .. }, AutoAnswer::SelectDefault(index)) => {
-                PiApprovalAction::Auto(PiApprovalResponse::Select {
-                    id: id.clone(),
-                    index,
-                })
-            }
-            (
-                PiApprovalRequest::Input { id, .. } | PiApprovalRequest::Editor { id, .. },
-                AutoAnswer::InputDefault(value),
-            ) => PiApprovalAction::Auto(PiApprovalResponse::Input {
-                id: id.clone(),
-                value,
-            }),
             _ => PiApprovalAction::Ask,
         },
     }
@@ -276,7 +321,8 @@ pub(crate) mod tests {
 
     pub(crate) fn full_access_auto_answers_confirm_but_not_unknown_ui() {
         let confirm = PiApprovalRequest::parse(&json!({
-            "type": "extension_ui_request", "method": "confirm", "id": "c1"
+            "type": "extension_ui_request", "method": "confirm", "id": "c1",
+            "title": "Allow tool execution?", "message": "Permit this command?"
         }))
         .unwrap();
         assert_eq!(confirm.id(), Some("c1"));
@@ -296,6 +342,16 @@ pub(crate) mod tests {
             classify_pi_approval(&unknown, &policy(PermissionMode::Unattended)),
             PiApprovalAction::Ask
         );
+
+        let generic_confirm = PiApprovalRequest::parse(&json!({
+            "type": "extension_ui_request", "method": "confirm", "id": "c2",
+            "title": "Continue?", "message": "Proceed with this workflow?"
+        }))
+        .unwrap();
+        assert_eq!(
+            classify_pi_approval(&generic_confirm, &policy(PermissionMode::FullAccess)),
+            PiApprovalAction::Ask
+        );
     }
 
     pub(crate) fn unattended_uses_input_default_and_select_default() {
@@ -305,10 +361,7 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(
             classify_pi_approval(&input, &policy(PermissionMode::Unattended)),
-            PiApprovalAction::Auto(PiApprovalResponse::Input {
-                id: "i1".into(),
-                value: "yes".into(),
-            })
+            PiApprovalAction::Ask
         );
 
         let select = PiApprovalRequest::parse(&json!({
@@ -317,10 +370,7 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(
             classify_pi_approval(&select, &policy(PermissionMode::FullAccess)),
-            PiApprovalAction::Auto(PiApprovalResponse::Select {
-                id: "s1".into(),
-                index: 1,
-            })
+            PiApprovalAction::Ask
         );
     }
 

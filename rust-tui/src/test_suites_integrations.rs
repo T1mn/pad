@@ -191,6 +191,7 @@ fn runtime_status_identity_suite() {
 
 #[test]
 fn runtime_status_tests_suite() {
+    crate::compact_tests::desktop_runtime_and_supervisor_cases();
     if std::env::var_os("PAD_STATUS_LOCK_TEST_PATH").is_some() {
         crate::runtime_status::tests::lock::hold_status_lock_for_test();
         return;

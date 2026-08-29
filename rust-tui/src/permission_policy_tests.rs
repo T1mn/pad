@@ -10,8 +10,7 @@ fn workspace_policy(mode: PermissionMode) -> EffectivePolicy {
     }
 }
 
-#[test]
-fn permission_modes_use_stable_snake_case_json() {
+pub(crate) fn permission_modes_use_stable_snake_case_json() {
     assert_eq!(
         serde_json::to_string(&PermissionMode::Guarded).unwrap(),
         "\"guarded\""
@@ -26,8 +25,7 @@ fn permission_modes_use_stable_snake_case_json() {
     );
 }
 
-#[test]
-fn lexical_canonicalization_resolves_traversal() {
+pub(crate) fn lexical_canonicalization_resolves_traversal() {
     assert_eq!(
         canonicalize_policy_path(
             Path::new("./src/../.codex/session.json"),
@@ -41,8 +39,7 @@ fn lexical_canonicalization_resolves_traversal() {
     );
 }
 
-#[test]
-fn protected_namespace_matching_is_component_safe() {
+pub(crate) fn protected_namespace_matching_is_component_safe() {
     let namespaces = vec![ProtectedNamespace::new("codex", "/Users/test/.codex")];
     assert!(matching_protected_namespace(
         Path::new("/Users/test/.codex/sessions/a.jsonl"),
@@ -58,8 +55,7 @@ fn protected_namespace_matching_is_component_safe() {
     .is_none());
 }
 
-#[test]
-fn guarded_allows_reads_and_prompts_for_writes() {
+pub(crate) fn guarded_allows_reads_and_prompts_for_writes() {
     let policy = workspace_policy(PermissionMode::Guarded);
     let read = evaluate_operation(
         &policy,
@@ -78,8 +74,7 @@ fn guarded_allows_reads_and_prompts_for_writes() {
     assert_eq!(write.risk(), RiskClass::WorkspaceWrite);
 }
 
-#[test]
-fn workspace_full_allows_workspace_mutation_but_prompts_external_work() {
+pub(crate) fn workspace_full_allows_workspace_mutation_but_prompts_external_work() {
     let policy = workspace_policy(PermissionMode::WorkspaceFull);
     let delete = evaluate_operation(
         &policy,
@@ -105,8 +100,7 @@ fn workspace_full_allows_workspace_mutation_but_prompts_external_work() {
     assert_eq!(outside.risk(), RiskClass::ExternalWrite);
 }
 
-#[test]
-fn system_full_allows_external_operations_but_never_protected_namespace() {
+pub(crate) fn system_full_allows_external_operations_but_never_protected_namespace() {
     let policy = workspace_policy(PermissionMode::SystemFull);
     let network = evaluate_operation(
         &policy,
@@ -127,8 +121,7 @@ fn system_full_allows_external_operations_but_never_protected_namespace() {
     assert_eq!(protected.risk(), RiskClass::ProtectedNamespace);
 }
 
-#[test]
-fn unattended_policy_turns_confirmation_into_deny() {
+pub(crate) fn unattended_policy_turns_confirmation_into_deny() {
     let mut policy = workspace_policy(PermissionMode::Guarded);
     policy.unattended = true;
     let decision = evaluate_operation(
@@ -140,8 +133,7 @@ fn unattended_policy_turns_confirmation_into_deny() {
     assert!(!decision.requires_confirmation());
 }
 
-#[test]
-fn merge_layers_uses_specific_scalar_and_additive_collections() {
+pub(crate) fn merge_layers_uses_specific_scalar_and_additive_collections() {
     let profile = PolicyLayer {
         mode: Some(PermissionMode::Guarded),
         workspace_roots: vec![PathBuf::from("/profile")],
@@ -167,8 +159,7 @@ fn merge_layers_uses_specific_scalar_and_additive_collections() {
     assert_eq!(merged.protected_namespaces.len(), 3);
 }
 
-#[test]
-fn model_hierarchy_adds_project_roots_and_task_cwd() {
+pub(crate) fn model_hierarchy_adds_project_roots_and_task_cwd() {
     let profile = Profile {
         id: "p".into(),
         name: "default".into(),
@@ -197,8 +188,7 @@ fn model_hierarchy_adds_project_roots_and_task_cwd() {
         .any(|item| item.name == "profile-agent-dir"));
 }
 
-#[test]
-fn defaults_protect_pad_pi_and_codex_namespaces() {
+pub(crate) fn defaults_protect_pad_pi_and_codex_namespaces() {
     let namespaces = default_protected_namespaces(Path::new("/Users/test"));
     assert!(namespaces
         .iter()
@@ -211,8 +201,7 @@ fn defaults_protect_pad_pi_and_codex_namespaces() {
         .any(|item| item.root == Path::new("/Users/test/.pad")));
 }
 
-#[test]
-fn pi_session_metadata_round_trips_parent_and_cursor_fields() {
+pub(crate) fn pi_session_metadata_round_trips_parent_and_cursor_fields() {
     let header = PiSessionHeader {
         entry_type: "session".into(),
         version: 3,
@@ -239,8 +228,7 @@ fn pi_session_metadata_round_trips_parent_and_cursor_fields() {
     );
 }
 
-#[test]
-fn sidebar_section_serializes_polymorphic_items() {
+pub(crate) fn sidebar_section_serializes_polymorphic_items() {
     let section = Section {
         id: "sec".into(),
         name: "Pinned Work".into(),

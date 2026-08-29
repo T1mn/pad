@@ -350,7 +350,7 @@ fn missing_title(kind: &str, id: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
 
@@ -374,8 +374,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn project_and_task_keep_row_depth_and_logical_indent() {
+    pub(crate) fn project_and_task_keep_row_depth_and_logical_indent() {
         let rows = vec![
             CodexSidebarRow {
                 depth: 1,
@@ -398,8 +397,7 @@ mod tests {
         assert_eq!(display[1].indent_columns, 4);
     }
 
-    #[test]
-    fn task_status_mapping_covers_domain_states() {
+    pub(crate) fn task_status_mapping_covers_domain_states() {
         let statuses = [
             TaskStatus::Idle,
             TaskStatus::Starting,
@@ -436,8 +434,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn important_runtime_states_are_visible_on_task_rows() {
+    pub(crate) fn important_runtime_states_are_visible_on_task_rows() {
         let rows = vec![
             CodexSidebarRow {
                 depth: 1,
@@ -469,8 +466,7 @@ mod tests {
         assert!(display[2].archived);
     }
 
-    #[test]
-    fn missing_references_are_safe_and_explicit() {
+    pub(crate) fn missing_references_are_safe_and_explicit() {
         let rows = vec![
             CodexSidebarRow {
                 depth: 0,
@@ -501,8 +497,7 @@ mod tests {
         assert_eq!(display[1].title, "Missing task · gone-task");
     }
 
-    #[test]
-    fn display_rows_have_stable_ipc_shape() {
+    pub(crate) fn display_rows_have_stable_ipc_shape() {
         let row = display_row(
             &CodexSidebarRow {
                 depth: 1,
@@ -520,8 +515,7 @@ mod tests {
         assert_eq!(value["missing_reference"], true);
     }
 
-    #[test]
-    fn snapshot_keeps_navigation_state_and_display_rows_together() {
+    pub(crate) fn snapshot_keeps_navigation_state_and_display_rows_together() {
         let mut state = CodexSidebarState::default();
         state.set_query("pi");
         let snapshot = snapshot(&state);

@@ -8,14 +8,14 @@
 - `time.rs` / `logger.rs` / `shell_quote.rs` / `shell_quote_tests.rs` / `text_match.rs` / `text_match_tests.rs` / `text_normalize.rs` / `text_normalize_tests.rs`：crate 内共享时间戳、debug log、shell quoting、文本匹配与文本归一化 helper。
 - `panic_boundary.rs` / `panic_boundary_tests.rs`：标记并测试可被局部隔离的 worker panic，避免全局 panic hook 错误退出 TUI。
 - `test_support.rs`：测试期共享 HOME 锁和临时路径 helper。
-- `test_suites.rs` / `test_suites_*.rs`：100 项测试入口的功能域套件；同步套件继续调用与实现相邻的原 case，异步与 ignored 测试保持独立运行语义。定向执行时筛选 `test_suites::<bucket>::<domain>_suite`；失败汇总会列出具体原 case 路径。
+- `test_suites.rs` / `test_suites_*.rs` / `compact_tests.rs`：100 项测试入口的功能域套件；同步套件继续调用与实现相邻的原 case，异步与 ignored 测试保持独立运行语义，legacy/desktop case 由 compact 聚合入口执行。定向执行时筛选 `test_suites::<bucket>::<domain>_suite`；失败汇总会列出具体原 case 路径。
 - `app/`：应用状态、导航、预览、hook 与异步任务。
 - `ui/`：TUI 布局、状态栏、预览、设置弹窗。
 - `theme.rs` / `theme/`：配置模型、加载保存、主题。
 - `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照与 patch 持久化。
 - `pad_store/`：PAD Desktop 私有 SQLite Control Plane（Profile/Project/Task/Section），不触碰 Codex/ChatGPT 数据库。
-- `desktop_runtime.rs` / `desktop_runtime/bridge.rs`：Desktop facade 与 `pad __internal desktop-server` JSONL 控制面；组合 Store、Codex Sidebar snapshot、Profile-scoped Pi supervisor、Full Access 策略和 Task 状态回写。
+- `desktop_runtime.rs` / `desktop_runtime/`：Desktop facade 与 `pad __internal desktop-server` JSONL 控制面；组合 Store、Codex Sidebar snapshot、Profile-scoped Pi supervisor、Full Access 策略和 Task 状态回写，辅助逻辑与 focused contract tests 分离存放。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
 - `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/` / `codex_rollout.rs`：同步 PAD 私有 Codex home provider 元数据，解析普通或冷压缩 rollout，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。

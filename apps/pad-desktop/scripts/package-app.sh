@@ -14,8 +14,10 @@ swift build --configuration "${BUILD_CONFIG}"
 # native host so a copied .app does not depend on the checkout's working
 # directory.  Set PAD_RUST_BINARY to reuse an already-built binary.
 PAD_REPO_DIR="${APP_DIR}/../.."
-PAD_RUST_BINARY="${PAD_RUST_BINARY:-${PAD_REPO_DIR}/rust-tui/target/${BUILD_CONFIG}/pad}"
-if [[ ! -x "${PAD_RUST_BINARY}" ]]; then
+PAD_RUST_BINARY_OVERRIDE="${PAD_RUST_BINARY:-}"
+if [[ -n "${PAD_RUST_BINARY_OVERRIDE}" ]]; then
+  PAD_RUST_BINARY="${PAD_RUST_BINARY_OVERRIDE}"
+else
   cargo build --release --locked --manifest-path "${PAD_REPO_DIR}/rust-tui/Cargo.toml"
   PAD_RUST_BINARY="${PAD_REPO_DIR}/rust-tui/target/release/pad"
 fi
@@ -35,14 +37,25 @@ cp "${APP_DIR}/Resources/PADDesktop.icns" "${CONTENTS}/Resources/PADDesktop.icns
 chmod +x "${CONTENTS}/MacOS/PADDesktop"
 chmod +x "${CONTENTS}/Resources/pad"
 
-# Bundle the Node/Pi runtime when the build machine has a global Pi install.
-# The Rust host then finds Resources/bin/pi first, while development builds
-# continue to use the user's PATH when these optional sources are unavailable.
+# Bundle the Pi runtime when the build machine has a global Pi install.  Bun is
+# preferred because its arm64 binary only depends on macOS system libraries;
+# copying Homebrew's Node alone would leave /opt/homebrew/opt/* dylib paths in
+# a supposedly standalone app.  A static node shim keeps PiLogin's existing
+# SDK entrypoint working while the Pi sidecar uses dist/bun/cli.js.
+# Development builds continue to use the user's PATH when these sources are
+# unavailable.
 PI_PACKAGE_SOURCE="${PAD_PI_PACKAGE:-/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent}"
 NODE_SOURCE="${PAD_NODE_BIN:-/opt/homebrew/bin/node}"
-if [[ -d "${PI_PACKAGE_SOURCE}" && -x "${NODE_SOURCE}" ]]; then
+BUN_SOURCE="${PAD_BUN_BIN:-/opt/homebrew/bin/bun}"
+if [[ -d "${PI_PACKAGE_SOURCE}" && -x "${BUN_SOURCE}" ]]; then
   mkdir -p "${CONTENTS}/Resources/pi" "${CONTENTS}/Resources/bin"
-  mkdir -p "${CONTENTS}/Resources/lib"
+  cp -R "${PI_PACKAGE_SOURCE}/." "${CONTENTS}/Resources/pi/"
+  cp "${BUN_SOURCE}" "${CONTENTS}/Resources/bin/bun"
+  cp "${APP_DIR}/Resources/node-bun-shim.sh" "${CONTENTS}/Resources/bin/node"
+  cp "${APP_DIR}/Resources/pi" "${CONTENTS}/Resources/bin/pi"
+  chmod +x "${CONTENTS}/Resources/bin/bun" "${CONTENTS}/Resources/bin/node" "${CONTENTS}/Resources/bin/pi"
+elif [[ -d "${PI_PACKAGE_SOURCE}" && -x "${NODE_SOURCE}" ]]; then
+  mkdir -p "${CONTENTS}/Resources/pi" "${CONTENTS}/Resources/bin" "${CONTENTS}/Resources/lib"
   cp -R "${PI_PACKAGE_SOURCE}/." "${CONTENTS}/Resources/pi/"
   cp "${NODE_SOURCE}" "${CONTENTS}/Resources/bin/node"
   NODE_REAL="$(realpath "${NODE_SOURCE}")"

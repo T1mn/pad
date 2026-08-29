@@ -428,7 +428,7 @@ impl CodexSidebarState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
 
@@ -452,8 +452,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn renders_codex_project_task_hierarchy_and_projectless_task() {
+    pub(crate) fn renders_codex_project_task_hierarchy_and_projectless_task() {
         let mut state = CodexSidebarState::default();
         state.replace_data(
             vec![Profile {
@@ -491,8 +490,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn pinned_view_keeps_project_for_a_pinned_task() {
+    pub(crate) fn pinned_view_keeps_project_for_a_pinned_task() {
         let mut state = CodexSidebarState::default();
         let mut pinned_task = task("task-1", Some("project-1"), "Pinned task");
         pinned_task.pinned = true;
@@ -514,8 +512,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn search_retains_matching_project_ancestor() {
+    pub(crate) fn search_retains_matching_project_ancestor() {
         let mut state = CodexSidebarState::default();
         state.replace_data(
             Vec::new(),
@@ -534,8 +531,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn selection_wraps_over_visible_codex_rows() {
+    pub(crate) fn selection_wraps_over_visible_codex_rows() {
         let mut state = CodexSidebarState::default();
         state.replace_data(
             Vec::new(),

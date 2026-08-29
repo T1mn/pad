@@ -430,7 +430,7 @@ fn io_error(path: &Path, error: io::Error) -> SessionIndexError {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -461,8 +461,7 @@ mod tests {
         fs::write(path, content).expect("write fixture");
     }
 
-    #[test]
-    fn indexes_header_entries_messages_leaf_parent_and_cursor() {
+    pub(crate) fn indexes_header_entries_messages_leaf_parent_and_cursor() {
         let dir = TempDir::new();
         let path = dir.path.join("session.jsonl");
         write(
@@ -497,8 +496,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn empty_and_missing_header_are_diagnostic_and_read_only() {
+    pub(crate) fn empty_and_missing_header_are_diagnostic_and_read_only() {
         let dir = TempDir::new();
         let empty = dir.path.join("empty.jsonl");
         write(&empty, "");
@@ -521,8 +519,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn unterminated_tail_returns_error_without_repairing_source() {
+    pub(crate) fn unterminated_tail_returns_error_without_repairing_source() {
         let dir = TempDir::new();
         let path = dir.path.join("truncated.jsonl");
         let content = concat!(
@@ -538,8 +535,7 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), before);
     }
 
-    #[test]
-    fn rebuild_is_read_only_and_keeps_healthy_files_when_path_is_invalid() {
+    pub(crate) fn rebuild_is_read_only_and_keeps_healthy_files_when_path_is_invalid() {
         let dir = TempDir::new();
         let healthy = dir.path.join("healthy.jsonl");
         write(&healthy, "{\"type\":\"session\",\"id\":\"ok\"}\n");

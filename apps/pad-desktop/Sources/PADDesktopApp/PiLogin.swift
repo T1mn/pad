@@ -214,9 +214,17 @@ final class PiLoginCoordinator: NSObject, ObservableObject {
                   let type = object["type"] as? String else { continue }
             switch type {
             case "prompt":
-                let options = (object["options"] as? [[String: Any]] ?? []).compactMap { item -> PiLoginOption? in
-                    guard let id = item["id"] as? String, let label = item["label"] as? String else { return nil }
-                    return PiLoginOption(id: id, label: label, description: item["description"] as? String)
+                let options: [PiLoginOption]
+                if let items = object["options"] as? [[String: Any]] {
+                    options = items.compactMap { item -> PiLoginOption? in
+                        guard let label = item["label"] as? String else { return nil }
+                        let id = item["id"] as? String ?? label
+                        return PiLoginOption(id: id, label: label, description: item["description"] as? String)
+                    }
+                } else {
+                    options = (object["options"] as? [String] ?? []).map {
+                        PiLoginOption(id: $0, label: $0, description: nil)
+                    }
                 }
                 prompt = PiLoginPrompt(id: object["id"] as? String ?? UUID().uuidString,
                                        kind: object["kind"] as? String ?? "text",
@@ -342,8 +350,17 @@ struct PiLoginSheet: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        TextField("服务商，例如 openai-codex、anthropic", text: $coordinator.provider)
-                            .textFieldStyle(.roundedBorder)
+                        Picker("服务商", selection: $coordinator.provider) {
+                            Text("OpenAI / Codex").tag("openai-codex")
+                            Text("Anthropic").tag("anthropic")
+                            Text("Google Gemini").tag("google")
+                            Text("OpenAI API").tag("openai")
+                            Text("GitHub Copilot").tag("github-copilot")
+                            Text("xAI").tag("xai")
+                            Text("OpenRouter").tag("openrouter")
+                            Text("DeepSeek").tag("deepseek")
+                        }
+                        .pickerStyle(.menu)
                         Picker("登录方式", selection: $coordinator.authType) {
                             Text("订阅 / OAuth").tag("oauth")
                             Text("API Key").tag("api_key")

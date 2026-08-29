@@ -5,6 +5,9 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if [ -d "$SCRIPT_DIR/../lib" ]; then
   export DYLD_LIBRARY_PATH="$SCRIPT_DIR/../lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 fi
+if [ -x "$SCRIPT_DIR/bun" ] && [ -f "$SCRIPT_DIR/../pi/dist/bun/cli.js" ]; then
+  exec "$SCRIPT_DIR/bun" "$SCRIPT_DIR/../pi/dist/bun/cli.js" "$@"
+fi
 if "$SCRIPT_DIR/node" --version >/dev/null 2>&1; then
   exec "$SCRIPT_DIR/node" "$SCRIPT_DIR/../pi/dist/bundle/cli.js" "$@"
 fi

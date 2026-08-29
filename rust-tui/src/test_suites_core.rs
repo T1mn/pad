@@ -2,6 +2,7 @@
 
 #[test]
 fn atomic_file_tests_suite() {
+    crate::compact_tests::storage_policy_and_sidebar_cases();
     run_cases!(
         crate::atomic_file::tests::write_private_creates_missing_parent_dirs,
         crate::atomic_file::tests::write_private_forces_owner_only_permissions,

@@ -102,8 +102,7 @@ fn section(id: &str, items: Vec<SectionItem>) -> Section {
     }
 }
 
-#[test]
-fn builds_private_schema_with_foreign_keys_and_version() {
+pub(crate) fn builds_private_schema_with_foreign_keys_and_version() {
     let database = TemporaryDatabase::new();
     let store = PadStore::open(&database.path).expect("open PAD store");
 
@@ -143,8 +142,7 @@ fn builds_private_schema_with_foreign_keys_and_version() {
     assert_eq!(version, CURRENT_SCHEMA_VERSION);
 }
 
-#[test]
-fn crud_round_trip_preserves_profile_project_task_and_section_items() {
+pub(crate) fn crud_round_trip_preserves_profile_project_task_and_section_items() {
     let database = TemporaryDatabase::new();
     let mut store = PadStore::open(&database.path).unwrap();
     let mut stored_profile = profile("p1");
@@ -213,8 +211,7 @@ fn crud_round_trip_preserves_profile_project_task_and_section_items() {
     );
 }
 
-#[test]
-fn data_survives_close_and_reopen() {
+pub(crate) fn data_survives_close_and_reopen() {
     let database = TemporaryDatabase::new();
     {
         let mut store = PadStore::open(&database.path).unwrap();
@@ -252,8 +249,7 @@ fn data_survives_close_and_reopen() {
     assert!(sections.is_empty());
 }
 
-#[test]
-fn foreign_keys_and_polymorphic_triggers_reject_orphan_references() {
+pub(crate) fn foreign_keys_and_polymorphic_triggers_reject_orphan_references() {
     let database = TemporaryDatabase::new();
     let mut store = PadStore::open(&database.path).unwrap();
     store.insert_profile(&profile("p1")).unwrap();
@@ -287,8 +283,7 @@ fn foreign_keys_and_polymorphic_triggers_reject_orphan_references() {
     assert!(direct_insert.is_err());
 }
 
-#[test]
-fn deleting_targets_removes_section_items_without_orphans() {
+pub(crate) fn deleting_targets_removes_section_items_without_orphans() {
     let database = TemporaryDatabase::new();
     let mut store = PadStore::open(&database.path).unwrap();
     store.insert_profile(&profile("p1")).unwrap();
@@ -317,8 +312,7 @@ fn deleting_targets_removes_section_items_without_orphans() {
     assert!(store.section_items("section-1").unwrap().is_empty());
 }
 
-#[test]
-fn provider_owned_paths_are_rejected_before_database_creation() {
+pub(crate) fn provider_owned_paths_are_rejected_before_database_creation() {
     let root = TemporaryDatabase::new();
     let protected = root
         .path

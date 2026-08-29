@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod compact_tests;
+#[cfg(test)]
 mod test_suites;
 
 use std::error::Error;
@@ -34,7 +36,7 @@ mod panic_boundary;
 mod paths;
 mod permission_policy;
 #[cfg(test)]
-mod permission_policy_tests;
+pub(crate) mod permission_policy_tests;
 mod pi_runtime;
 mod preview_source;
 mod relay;

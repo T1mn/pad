@@ -22,15 +22,23 @@ enum SidebarFilter: String, CaseIterable, Identifiable {
 
 enum TaskState: String {
     case idle
+    case starting
     case running
-    case waiting
+    case streaming
+    case toolRunning
+    case retrying
+    case needsApproval
+    case needsInput
     case failed
 
     var symbol: String {
         switch self {
         case .idle: return "circle"
-        case .running: return "circle.fill"
-        case .waiting: return "exclamationmark.circle.fill"
+        case .starting: return "ellipsis.circle"
+        case .running, .streaming: return "circle.fill"
+        case .toolRunning: return "hammer.circle.fill"
+        case .retrying: return "arrow.clockwise.circle.fill"
+        case .needsApproval, .needsInput: return "exclamationmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         }
     }
@@ -38,9 +46,31 @@ enum TaskState: String {
     var color: Color {
         switch self {
         case .idle: return .secondary
-        case .running: return .green
-        case .waiting: return .orange
+        case .starting, .running, .streaming, .toolRunning: return .green
+        case .retrying: return .orange
+        case .needsApproval, .needsInput: return .orange
         case .failed: return .red
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .idle: return "已就绪"
+        case .starting: return "正在启动"
+        case .running: return "运行中"
+        case .streaming: return "正在生成"
+        case .toolRunning: return "执行工具"
+        case .retrying: return "重试中"
+        case .needsApproval: return "等待审批"
+        case .needsInput: return "等待输入"
+        case .failed: return "失败"
+        }
+    }
+
+    var isActive: Bool {
+        switch self {
+        case .starting, .running, .streaming, .toolRunning, .retrying: return true
+        case .idle, .needsApproval, .needsInput, .failed: return false
         }
     }
 }
@@ -52,6 +82,8 @@ struct Profile: Identifiable, Hashable {
     var accent: Color
     var agentDirectory: String? = nil
     var sessionDirectory: String? = nil
+    var credentialRef: String? = nil
+    var defaultModel: String? = nil
 }
 
 struct Project: Identifiable, Hashable {
@@ -66,6 +98,7 @@ struct DesktopTask: Identifiable, Hashable {
     var title: String
     var projectID: String?
     var profileID: String
+    var cwd: String
     var state: TaskState
     var isPinned: Bool
     var isArchived: Bool
@@ -82,7 +115,7 @@ struct Message: Identifiable, Hashable {
 
     let id: UUID
     let role: Role
-    let text: String
+    var text: String
     let timestamp: Date
 
     init(id: UUID = UUID(), role: Role, text: String, timestamp: Date = Date()) {
@@ -91,6 +124,15 @@ struct Message: Identifiable, Hashable {
         self.text = text
         self.timestamp = timestamp
     }
+}
+
+struct PendingInteraction: Identifiable, Hashable {
+    let id: String
+    let taskID: String
+    let kind: String
+    let message: String
+    let options: [String]
+    let responseKind: String
 }
 
 // MARK: - PAD desktop-server bridge
@@ -109,9 +151,9 @@ final class PiRPCClient: NSObject, ObservableObject {
 
         var label: String {
             switch self {
-            case .ready: return "Pi 已就绪"
-            case .connecting: return "正在启动 Pi"
-            case .connected: return "Pi 已连接"
+            case .ready: return "Pi 引擎已就绪"
+            case .connecting: return "正在启动 Pi 引擎"
+            case .connected: return "Pi 引擎已连接"
             case .unavailable(let reason): return reason
             case .failed(let reason): return reason
             }
@@ -151,8 +193,16 @@ final class PiRPCClient: NSObject, ObservableObject {
         request(action: "create_task", fields: fields, completion: completion)
     }
 
-    func createProfile(name: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
-        request(action: "create_profile", fields: ["name": name], completion: completion)
+    func createProject(profileID: String, name: String, cwd: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
+        request(action: "create_project", fields: [
+            "profile_id": profileID,
+            "name": name,
+            "cwd": cwd
+        ], completion: completion)
+    }
+
+    func createProfile(name: String, provider: String = "openai-codex", completion: @escaping ([String: Any]?, Error?) -> Void) {
+        request(action: "create_profile", fields: ["name": name, "default_provider": provider], completion: completion)
     }
 
     func setProfile(profileID: String, fullAccess: Bool, completion: @escaping ([String: Any]?, Error?) -> Void = { _, _ in }) {
@@ -161,6 +211,17 @@ final class PiRPCClient: NSObject, ObservableObject {
             "permission_mode": fullAccess ? "system_full" : "guarded",
             "unattended": fullAccess
         ], completion: completion)
+    }
+
+    func setProfileMetadata(profileID: String, provider: String, model: String? = nil, credentialRef: String? = nil,
+                            completion: @escaping ([String: Any]?, Error?) -> Void = { _, _ in }) {
+        var fields: [String: Any] = [
+            "profile_id": profileID,
+            "default_provider": provider
+        ]
+        if let model { fields["default_model"] = model }
+        if let credentialRef { fields["credential_ref"] = credentialRef }
+        request(action: "set_profile", fields: fields, completion: completion)
     }
 
     func startTask(taskID: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
@@ -173,6 +234,34 @@ final class PiRPCClient: NSObject, ObservableObject {
 
     func poll(taskID: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
         request(action: "poll", fields: ["task_id": taskID], completion: completion)
+    }
+
+    func history(taskID: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
+        request(action: "history", fields: ["task_id": taskID], completion: completion)
+    }
+
+    func respondUI(taskID: String, interactionID: String, responseKind: String, value: Any, completion: @escaping ([String: Any]?, Error?) -> Void = { _, _ in }) {
+        request(action: "extension_ui_response", fields: [
+            "task_id": taskID,
+            "interaction_id": interactionID,
+            "response_kind": responseKind,
+            "value": value
+        ], completion: completion)
+    }
+
+    func setModel(taskID: String, provider: String, model: String, completion: @escaping ([String: Any]?, Error?) -> Void = { _, _ in }) {
+        request(action: "set_model", fields: [
+            "task_id": taskID,
+            "provider": provider,
+            "model": model
+        ], completion: completion)
+    }
+
+    func setThinkingLevel(taskID: String, level: String, completion: @escaping ([String: Any]?, Error?) -> Void = { _, _ in }) {
+        request(action: "set_thinking_level", fields: [
+            "task_id": taskID,
+            "thinking_level": level
+        ], completion: completion)
     }
 
     func stopTask(taskID: String) {
@@ -335,12 +424,24 @@ final class DesktopModel: ObservableObject {
     @Published var selectedProfileID = ""
     @Published var searchText = ""
     @Published var composerText = ""
+    @Published var draftProjectID: String?
+    @Published var draftWorkingDirectory = FileManager.default.currentDirectoryPath
+    @Published var pendingInteraction: PendingInteraction?
+    @Published var selectedProvider = "openai-codex"
+    @Published var selectedModel = "auto"
+    @Published var availableModels = ["auto"]
+    @Published var selectedThinkingLevel = "medium"
+    @Published var attachedPaths: [String] = []
+    @Published private(set) var backendCapabilities: Set<String> = []
     // The authoritative value is replaced by the bootstrap Profile policy.
     // Keep a conservative value while the bridge is still connecting.
     @Published var fullAccess = false
     @Published var isShowingProfilePicker = false
     @Published var isShowingOutputPanel = false
     @Published var isShowingPiLogin = false
+    @Published var isShowingProfileWizard = false
+    @Published var profileWizardName = ""
+    @Published var profileWizardProvider = "openai-codex"
     @Published var notice: String?
 
     let pi = PiRPCClient()
@@ -348,6 +449,8 @@ final class DesktopModel: ObservableObject {
     private var pollingTaskIDs = Set<String>()
     private var startedTaskIDs = Set<String>()
     private var profileFullAccess: [String: Bool] = [:]
+    private var loadedHistoryTaskIDs = Set<String>()
+    private var streamingMessageIDs: [String: UUID] = [:]
 
     init() {
         pi.onBackendError = { [weak self] message in
@@ -360,8 +463,11 @@ final class DesktopModel: ObservableObject {
                 return
             }
             guard let result else { return }
+            if let capabilities = result["capabilities"] as? [String] {
+                self.backendCapabilities = Set(capabilities)
+            }
             self.applyRecords(result["records"] as? [String: Any])
-            if self.tasks.isEmpty { self.createTask() }
+            self.prepareDraftIfNeeded()
         }
     }
 
@@ -373,6 +479,15 @@ final class DesktopModel: ObservableObject {
     var selectedProfile: Profile {
         profiles.first(where: { $0.id == selectedProfileID }) ??
             Profile(id: "", name: "PAD 桌面", subtitle: "连接中", accent: .secondary)
+    }
+
+    var hasDraft: Bool { !selectedProfileID.isEmpty && selectedTaskID == nil }
+
+    var selectedTaskState: TaskState? { selectedTask?.state }
+
+    var selectedProfileIsLoggedIn: Bool {
+        guard let reference = selectedProfile.credentialRef else { return false }
+        return !reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var visibleTasks: [DesktopTask] {
@@ -390,7 +505,10 @@ final class DesktopModel: ObservableObject {
 
     var visibleProjects: [Project] {
         projects.filter { project in
-            project.profileID == selectedProfileID && visibleTasks.contains(where: { $0.projectID == project.id })
+            guard project.profileID == selectedProfileID else { return false }
+            return searchText.isEmpty
+                || project.name.localizedCaseInsensitiveContains(searchText)
+                || visibleTasks.contains(where: { $0.projectID == project.id })
         }
     }
 
@@ -399,30 +517,103 @@ final class DesktopModel: ObservableObject {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].hasUnread = false
         }
+        pi.setTaskFlags(taskID: task.id, pinned: nil, archived: nil, unread: false)
+        if backendCapabilities.contains("history") { loadHistoryIfNeeded(taskID: task.id) }
     }
 
     func createTask() {
-        let profileID = selectedProfileID
-        guard !profileID.isEmpty else {
+        guard !selectedProfileID.isEmpty else {
             notice = "PAD 后端尚未完成初始化，请稍后重试。"
             return
         }
-        let projectID = visibleProjects.first?.id
-        pi.createTask(profileID: profileID, projectID: projectID, title: "新任务", cwd: FileManager.default.currentDirectoryPath) { [weak self] result, error in
-            guard let self else { return }
-            if let error { self.notice = error.localizedDescription; return }
-            if let records = result?["records"] as? [String: Any] { self.applyRecords(records) }
-            if let task = result?["task"] as? [String: Any], let id = task["id"] as? String {
-                self.selectedFilter = .all
-                self.selectedTaskID = id
-            }
-            self.composerText = ""
+        selectedFilter = .all
+        selectedTaskID = nil
+        draftProjectID = visibleProjects.first?.id
+        draftWorkingDirectory = visibleProjects.first?.path ?? FileManager.default.currentDirectoryPath
+        composerText = ""
+        attachedPaths = []
+    }
+
+    func chooseWorkingDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "选择工作目录"
+        if panel.runModal() == .OK, let url = panel.url {
+            createOrSelectProject(for: url)
         }
     }
 
-    func createProfile() {
-        let name = "配置 \(profiles.count + 1)"
-        pi.createProfile(name: name) { [weak self] result, error in
+    func addProject() {
+        if !hasDraft { createTask() }
+        chooseWorkingDirectory()
+    }
+
+    private func createOrSelectProject(for url: URL) {
+        draftWorkingDirectory = url.path
+        if let project = projects.first(where: { $0.path == url.path && $0.profileID == selectedProfileID }) {
+            draftProjectID = project.id
+            return
+        }
+        let name = url.lastPathComponent.isEmpty ? "本地项目" : url.lastPathComponent
+        pi.createProject(profileID: selectedProfileID, name: name, cwd: url.path) { [weak self] result, error in
+            guard let self else { return }
+            if let error { self.notice = error.localizedDescription; return }
+            if let records = result?["records"] as? [String: Any] { self.applyRecords(records) }
+            self.selectedTaskID = nil
+            if let project = result?["project"] as? [String: Any], let id = project["id"] as? String {
+                self.draftProjectID = id
+                self.draftWorkingDirectory = url.path
+            }
+        }
+    }
+
+    func chooseAttachments() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "添加上下文"
+        if panel.runModal() == .OK {
+            attachedPaths = panel.urls.map(\.path)
+        }
+    }
+
+    func selectDraftProject(_ project: Project?) {
+        draftProjectID = project?.id
+        if let path = project?.path, !path.isEmpty { draftWorkingDirectory = path }
+    }
+
+    func prepareDraftIfNeeded() {
+        guard selectedTaskID == nil, !selectedProfileID.isEmpty else { return }
+        let project = draftProjectID.flatMap { selectedID in
+            visibleProjects.first(where: { $0.id == selectedID })
+        } ?? visibleProjects.first
+        if draftProjectID == nil { draftProjectID = project?.id }
+        // Finder launches apps with `/` as their process cwd. A new task must
+        // inherit the selected PAD project instead of presenting or sending
+        // that unsafe implementation detail as the task working directory.
+        if draftWorkingDirectory.isEmpty || draftWorkingDirectory == "/" {
+            if let projectPath = project?.path, !projectPath.isEmpty {
+                draftWorkingDirectory = projectPath
+            } else {
+                draftWorkingDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+            }
+        }
+    }
+
+    func startProfileWizard() {
+        profileWizardName = ""
+        profileWizardProvider = "openai-codex"
+        isShowingProfileWizard = true
+    }
+
+    func createProfile(name: String, provider: String) {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return }
+        isShowingProfileWizard = false
+        pi.createProfile(name: cleanName, provider: provider) { [weak self] result, error in
             guard let self else { return }
             if let error { self.notice = error.localizedDescription; return }
             if let records = result?["records"] as? [String: Any] { self.applyRecords(records) }
@@ -430,6 +621,7 @@ final class DesktopModel: ObservableObject {
                 self.recordProfilePolicy(profile)
                 self.selectProfile(id)
                 self.selectedTaskID = nil
+                self.isShowingPiLogin = true
             }
         }
     }
@@ -442,22 +634,127 @@ final class DesktopModel: ObservableObject {
         isShowingPiLogin = true
     }
 
+    func finishPiLogin() {
+        guard piLogin.phase == .succeeded,
+              let profileIndex = profiles.firstIndex(where: { $0.id == selectedProfileID }) else { return }
+        let profileID = profiles[profileIndex].id
+        let provider = piLogin.provider.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !provider.isEmpty else { return }
+        // This is only a stable reference for the UI/store. The actual secret
+        // remains in the Profile-private Pi auth.json managed by PiLogin.
+        let credentialRef = "pi-auth://\(profileID)"
+        profiles[profileIndex].credentialRef = credentialRef
+        pi.setProfileMetadata(profileID: profileID, provider: provider, credentialRef: credentialRef) { [weak self] result, error in
+            guard let self else { return }
+            if let error {
+                self.notice = error.localizedDescription
+                return
+            }
+            if let profile = result?["profile"] as? [String: Any] {
+                self.recordProfilePolicy(profile)
+            }
+            self.notice = "Pi 账号登录成功。"
+            self.refreshFromBackend()
+        }
+    }
+
+    func refreshFromBackend() {
+        pi.bootstrap { [weak self] result, error in
+            guard let self else { return }
+            if let error { self.notice = error.localizedDescription; return }
+            guard let result else { return }
+            self.applyRecords(result["records"] as? [String: Any])
+        }
+    }
+
     func selectProfile(_ profileID: String) {
         selectedProfileID = profileID
         selectedTaskID = tasks.first(where: { $0.profileID == profileID && !$0.isArchived })?.id
         fullAccess = profileFullAccess[profileID] ?? false
+        selectedProvider = providerForProfile(profileID)
+        selectedModel = profiles.first(where: { $0.id == profileID })?.defaultModel ?? "auto"
+        draftProjectID = visibleProjects.first?.id
+        draftWorkingDirectory = visibleProjects.first?.path ?? FileManager.default.currentDirectoryPath
+        if backendCapabilities.contains("history"), let taskID = selectedTaskID {
+            loadHistoryIfNeeded(taskID: taskID)
+        }
     }
 
     func send() {
         let prompt = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, let taskID = selectedTaskID,
-              let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        guard !prompt.isEmpty else { return }
+        let runtimePrompt = promptWithAttachments(prompt)
+        guard let taskID = selectedTaskID else {
+            createTaskAndSend(prompt, runtimePrompt: runtimePrompt)
+            return
+        }
+        appendUserPrompt(prompt, taskID: taskID)
+        dispatchPrompt(runtimePrompt, taskID: taskID)
+    }
+
+    func stopSelectedTask() {
+        guard let taskID = selectedTaskID else { return }
+        pi.stopTask(taskID: taskID)
+        pollingTaskIDs.remove(taskID)
+        startedTaskIDs.remove(taskID)
+        if let index = tasks.firstIndex(where: { $0.id == taskID }) {
+            tasks[index].state = .idle
+        }
+    }
+
+    func retrySelectedTask() {
+        guard let taskID = selectedTaskID,
+              let task = selectedTask,
+              let prompt = task.messages.last(where: { $0.role == .user })?.text else { return }
+        if let index = tasks.firstIndex(where: { $0.id == taskID }) { tasks[index].state = .retrying }
+        dispatchPrompt(prompt, taskID: taskID)
+    }
+
+    private func createTaskAndSend(_ prompt: String, runtimePrompt: String) {
+        guard !selectedProfileID.isEmpty else { return }
+        let title = String(prompt.prefix(48))
+        pi.createTask(profileID: selectedProfileID, projectID: draftProjectID, title: title, cwd: draftWorkingDirectory) { [weak self] result, error in
+            guard let self else { return }
+            if let error { self.notice = error.localizedDescription; return }
+            if let records = result?["records"] as? [String: Any] { self.applyRecords(records) }
+            guard let task = result?["task"] as? [String: Any], let id = task["id"] as? String else {
+                self.notice = "后端未返回新任务 ID。"
+                return
+            }
+            self.selectedFilter = .all
+            self.selectedTaskID = id
+            self.appendUserPrompt(prompt, taskID: id)
+            self.dispatchPrompt(runtimePrompt, taskID: id)
+        }
+    }
+
+    private func promptWithAttachments(_ prompt: String) -> String {
+        guard !attachedPaths.isEmpty else { return prompt }
+        let files = attachedPaths.map { "- \($0)" }.joined(separator: "\n")
+        return """
+        请把以下本地文件作为本次任务的上下文：
+        \(files)
+
+        用户请求：
+        \(prompt)
+        """
+    }
+
+    private func appendUserPrompt(_ prompt: String, taskID: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
         tasks[index].messages.append(Message(role: .user, text: prompt))
-        tasks[index].state = .running
+        tasks[index].state = .starting
         if tasks[index].title == "New task" || tasks[index].title == "新任务" {
             tasks[index].title = String(prompt.prefix(48))
         }
         composerText = ""
+        if !attachedPaths.isEmpty {
+            tasks[index].messages.append(Message(role: .system, text: "已附加 \(attachedPaths.count) 个上下文文件"))
+            attachedPaths = []
+        }
+    }
+
+    private func dispatchPrompt(_ prompt: String, taskID: String) {
         if startedTaskIDs.contains(taskID) {
             sendPrompt(prompt, taskID: taskID)
             return
@@ -470,7 +767,23 @@ final class DesktopModel: ObservableObject {
                 return
             }
             self.startedTaskIDs.insert(taskID)
-            self.sendPrompt(prompt, taskID: taskID)
+            self.configureRuntimeAndSend(prompt, taskID: taskID)
+        }
+    }
+
+    private func configureRuntimeAndSend(_ prompt: String, taskID: String) {
+        pi.setThinkingLevel(taskID: taskID, level: selectedThinkingLevel) { [weak self] _, thinkingError in
+            guard let self else { return }
+            if let thinkingError { self.notice = thinkingError.localizedDescription }
+            guard self.selectedModel != "auto" else {
+                self.sendPrompt(prompt, taskID: taskID)
+                return
+            }
+            self.pi.setModel(taskID: taskID, provider: self.selectedProvider, model: self.selectedModel) { [weak self] _, modelError in
+                guard let self else { return }
+                if let modelError { self.notice = modelError.localizedDescription }
+                self.sendPrompt(prompt, taskID: taskID)
+            }
         }
     }
 
@@ -481,6 +794,85 @@ final class DesktopModel: ObservableObject {
             self.tasks.firstIndex(where: { $0.id == taskID }).map { self.tasks[$0].state = .failed }
         }
         schedulePoll(taskID: taskID)
+    }
+
+    private func loadHistoryIfNeeded(taskID: String) {
+        guard loadedHistoryTaskIDs.insert(taskID).inserted else { return }
+        pi.history(taskID: taskID) { [weak self] result, error in
+            guard let self else { return }
+            // Older servers can legitimately omit history. Do not disrupt the
+            // selected task; a newer bridge can populate the transcript here.
+            guard error == nil, let result,
+                  let messages = result["messages"] as? [[String: Any]],
+                  let index = self.tasks.firstIndex(where: { $0.id == taskID }) else { return }
+            let history = messages.compactMap(self.parseMessage)
+            if !history.isEmpty { self.tasks[index].messages = history }
+        }
+    }
+
+    private func parseMessage(_ raw: [String: Any]) -> Message? {
+        let nested = raw["message"] as? [String: Any]
+        guard let rawText = raw["text"] ?? raw["content"] ?? nested?["content"] ?? nested?["text"] ?? raw["message"],
+              let text = extractText(rawText) else { return nil }
+        let roleName = (raw["role"] as? String) ?? (nested?["role"] as? String)
+        let role: Message.Role = roleName == "user" ? .user : (roleName == "system" ? .system : .assistant)
+        return Message(role: role, text: text)
+    }
+
+    func respond(to interaction: PendingInteraction, value: String) {
+        let response: Any
+        switch interaction.responseKind {
+        case "confirm":
+            response = value == "y" || value == "true" || value == "允许一次"
+        case "select":
+            response = Int(value) ?? value
+        default:
+            response = value
+        }
+        pi.respondUI(taskID: interaction.taskID, interactionID: interaction.id, responseKind: interaction.responseKind, value: response) { [weak self] _, error in
+            if let error { self?.notice = error.localizedDescription }
+        }
+        pendingInteraction = nil
+    }
+
+    func chooseModel(_ model: String) {
+        selectedModel = model
+        persistModelSelection()
+        guard model != "auto", let taskID = selectedTaskID, startedTaskIDs.contains(taskID) else { return }
+        pi.setModel(taskID: taskID, provider: selectedProvider, model: model) { [weak self] _, error in
+            if let error { self?.notice = error.localizedDescription }
+        }
+    }
+
+    func chooseProvider(_ provider: String) {
+        selectedProvider = provider
+        persistModelSelection()
+        guard selectedModel != "auto", let taskID = selectedTaskID, startedTaskIDs.contains(taskID) else { return }
+        pi.setModel(taskID: taskID, provider: provider, model: selectedModel) { [weak self] _, error in
+            if let error { self?.notice = error.localizedDescription }
+        }
+    }
+
+    func chooseThinkingLevel(_ level: String) {
+        selectedThinkingLevel = level
+        guard let taskID = selectedTaskID, startedTaskIDs.contains(taskID) else { return }
+        pi.setThinkingLevel(taskID: taskID, level: level) { [weak self] _, error in
+            if let error { self?.notice = error.localizedDescription }
+        }
+    }
+
+    private func persistModelSelection() {
+        guard !selectedProfileID.isEmpty else { return }
+        pi.setProfileMetadata(profileID: selectedProfileID, provider: selectedProvider, model: selectedModel) { [weak self] _, error in
+            if let error { self?.notice = error.localizedDescription }
+        }
+    }
+
+    private func providerForProfile(_ profileID: String) -> String {
+        guard let profile = profiles.first(where: { $0.id == profileID }) else { return "openai-codex" }
+        guard profile.subtitle.hasPrefix("默认服务商：") else { return "openai-codex" }
+        let provider = String(profile.subtitle.dropFirst("默认服务商：".count))
+        return provider.isEmpty ? "openai-codex" : provider
     }
 
     func togglePin() {
@@ -541,7 +933,7 @@ final class DesktopModel: ObservableObject {
             }
             if let result { self.applyPoll(result, taskID: taskID) }
             let state = self.tasks.first(where: { $0.id == taskID })?.state ?? .idle
-            if state == .running || state == .waiting {
+            if state.isActive || state == .needsApproval || state == .needsInput {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.pollOnce(taskID: taskID) }
             } else {
                 self.pollingTaskIDs.remove(taskID)
@@ -550,9 +942,15 @@ final class DesktopModel: ObservableObject {
     }
 
     private func applyPoll(_ result: [String: Any], taskID: String) {
-        if let poll = result["poll"] as? [String: Any], let messages = poll["messages"] as? [[String: Any]] {
-            for message in messages {
-                if let value = message["value"] { appendAssistantText(extractText(value), taskID: taskID) }
+        if let poll = result["poll"] as? [String: Any] {
+            if let events = poll["events"] as? [[String: Any]] {
+                events.forEach { applyRuntimeEvent($0, taskID: taskID) }
+            }
+            if let messages = poll["messages"] as? [[String: Any]] {
+                for message in messages where message["type"] as? String == "response" {
+                    guard let value = message["value"] as? [String: Any], value["success"] as? Bool == false else { continue }
+                    notice = extractText(value["error"] ?? value) ?? "Pi 请求失败"
+                }
             }
             if let diagnostics = poll["diagnostics"] as? [String], !diagnostics.isEmpty {
                 notice = diagnostics.joined(separator: "\n")
@@ -561,6 +959,23 @@ final class DesktopModel: ObservableObject {
         if let runtime = result["runtime"] as? [String: Any], let status = runtime["status"] as? String,
            let index = tasks.firstIndex(where: { $0.id == taskID }) {
             tasks[index].state = taskState(status)
+            let pending = (result["poll"] as? [String: Any])?["pending_ui_requests"] as? [[String: Any]]
+            if let request = pending?.first(where: { ($0["requires_response"] as? Bool) ?? false }),
+               let id = request["id"] as? String {
+                let responseKind = request["kind"] as? String ?? "unknown"
+                let kind = responseKind == "confirm" ? "审批请求" : (responseKind == "select" ? "选择" : "需要输入")
+                let message = request["message"] as? String ?? request["title"] as? String ?? "Pi 需要你的输入才能继续。"
+                let requestOptions = request["options"] as? [String] ?? []
+                let options = responseKind == "confirm" ? ["允许一次", "拒绝"] : requestOptions
+                pendingInteraction = PendingInteraction(id: id, taskID: taskID, kind: kind, message: message, options: options, responseKind: responseKind)
+            } else if status == "needs_approval" || status == "needs_input" {
+                // The Pi request is emitted once and subsequent polls only
+                // carry the reducer status. Preserve its real request id until
+                // the user answers; replacing it with a synthetic UUID would
+                // make the visible approval card impossible to submit.
+            } else {
+                if pendingInteraction?.taskID == taskID { pendingInteraction = nil }
+            }
         }
         if let poll = result["poll"] as? [String: Any],
            let exit = poll["exit_status"] as? [String: Any] {
@@ -573,11 +988,58 @@ final class DesktopModel: ObservableObject {
         }
     }
 
-    private func appendAssistantText(_ text: String?, taskID: String) {
-        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
-        tasks[index].messages.append(Message(role: .assistant, text: text))
-        tasks[index].state = .idle
+    private func applyRuntimeEvent(_ event: [String: Any], taskID: String) {
+        switch event["type"] as? String {
+        case "message_update":
+            guard let deltaEvent = event["assistantMessageEvent"] as? [String: Any],
+                  deltaEvent["type"] as? String == "text_delta",
+                  let delta = deltaEvent["delta"] as? String else { return }
+            appendStreamingDelta(delta, taskID: taskID)
+        case "message_end":
+            guard let message = event["message"] as? [String: Any],
+                  message["role"] as? String == "assistant",
+                  let text = extractText(message["content"] ?? message["text"] ?? message),
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            finishStreamingMessage(text, taskID: taskID)
+        case "tool_execution_start":
+            let name = (event["toolName"] as? String)
+                ?? (event["tool"] as? String)
+                ?? "工具"
+            appendSystemMessage("正在运行：\(name)", taskID: taskID)
+        case "extension_error":
+            notice = extractText(event["error"] ?? event) ?? "Pi 扩展执行失败"
+        case "agent_settled":
+            streamingMessageIDs.removeValue(forKey: taskID)
+        default:
+            break
+        }
+    }
+
+    private func appendStreamingDelta(_ delta: String, taskID: String) {
+        guard !delta.isEmpty, let taskIndex = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        if let messageID = streamingMessageIDs[taskID],
+           let messageIndex = tasks[taskIndex].messages.firstIndex(where: { $0.id == messageID }) {
+            tasks[taskIndex].messages[messageIndex].text += delta
+            return
+        }
+        let message = Message(role: .assistant, text: delta)
+        streamingMessageIDs[taskID] = message.id
+        tasks[taskIndex].messages.append(message)
+    }
+
+    private func finishStreamingMessage(_ text: String, taskID: String) {
+        guard let taskIndex = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        if let messageID = streamingMessageIDs.removeValue(forKey: taskID),
+           let messageIndex = tasks[taskIndex].messages.firstIndex(where: { $0.id == messageID }) {
+            tasks[taskIndex].messages[messageIndex].text = text
+        } else if tasks[taskIndex].messages.last?.role != .assistant || tasks[taskIndex].messages.last?.text != text {
+            tasks[taskIndex].messages.append(Message(role: .assistant, text: text))
+        }
+    }
+
+    private func appendSystemMessage(_ text: String, taskID: String) {
+        guard let taskIndex = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        tasks[taskIndex].messages.append(Message(role: .system, text: text))
     }
 
     private func applyRecords(_ records: [String: Any]?) {
@@ -589,7 +1051,9 @@ final class DesktopModel: ObservableObject {
                 let provider = raw["default_provider"] as? String
                 let subtitle = provider.map { "默认服务商：\($0)" } ?? "PAD 配置"
                 return Profile(id: id, name: displayProfileName(name, id: id), subtitle: subtitle, accent: colors[offset % colors.count],
-                               agentDirectory: raw["agent_dir"] as? String, sessionDirectory: raw["session_dir"] as? String)
+                               agentDirectory: raw["agent_dir"] as? String, sessionDirectory: raw["session_dir"] as? String,
+                               credentialRef: raw["credential_ref"] as? String,
+                               defaultModel: raw["default_model"] as? String)
             }
             if !parsed.isEmpty {
                 profiles = parsed
@@ -597,6 +1061,8 @@ final class DesktopModel: ObservableObject {
             }
             rawProfiles.forEach(recordProfilePolicy)
             fullAccess = profileFullAccess[selectedProfileID] ?? false
+            selectedProvider = providerForProfile(selectedProfileID)
+            selectedModel = profiles.first(where: { $0.id == selectedProfileID })?.defaultModel ?? "auto"
         }
         if let rawProjects = records["projects"] as? [[String: Any]] {
             projects = rawProjects.compactMap { raw in
@@ -605,16 +1071,26 @@ final class DesktopModel: ObservableObject {
             }
         }
         if let rawTasks = records["tasks"] as? [[String: Any]] {
+            let previousMessages = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.messages) })
             tasks = rawTasks.compactMap { raw in
                 guard let id = raw["id"] as? String, let profileID = raw["profile_id"] as? String else { return nil }
                 let title = raw["title"] as? String ?? "新任务"
+                let cwd = raw["cwd"] as? String ?? ""
+                let isLegacyAutoDraft = (title == "New task" || title == "新任务")
+                    && (cwd.isEmpty || cwd == "/")
+                    && (raw["session_file"] is NSNull || raw["session_file"] == nil)
+                    && ((raw["summary"] as? String)?.isEmpty ?? true)
+                if isLegacyAutoDraft { return nil }
                 return DesktopTask(id: id, title: title == "New task" ? "新任务" : title, projectID: raw["project_id"] as? String,
-                                   profileID: profileID, state: taskState(raw["status"] as? String ?? "idle"),
+                                   profileID: profileID, cwd: cwd, state: taskState(raw["status"] as? String ?? "idle"),
                                    isPinned: raw["pinned"] as? Bool ?? false, isArchived: raw["archived"] as? Bool ?? false,
-                                   hasUnread: raw["unread"] as? Bool ?? false, messages: [])
+                                   hasUnread: raw["unread"] as? Bool ?? false, messages: previousMessages[id] ?? [])
             }
             if selectedTaskID == nil || !tasks.contains(where: { $0.id == selectedTaskID }) {
                 selectedTaskID = tasks.first(where: { $0.profileID == selectedProfileID && !$0.isArchived })?.id
+            }
+            if backendCapabilities.contains("history"), let taskID = selectedTaskID {
+                loadHistoryIfNeeded(taskID: taskID)
             }
         }
     }
@@ -638,8 +1114,14 @@ final class DesktopModel: ObservableObject {
 
     private func taskState(_ status: String) -> TaskState {
         switch status {
-        case "starting", "running", "streaming", "tool_running": return .running
-        case "needs_approval", "needs_input": return .waiting
+        case "starting": return .starting
+        case "running": return .running
+        case "streaming": return .streaming
+        case "tool_running": return .toolRunning
+        case "retrying": return .retrying
+        case "compacting": return .running
+        case "needs_approval": return .needsApproval
+        case "needs_input": return .needsInput
         case "failed", "disconnected": return .failed
         default: return .idle
         }
@@ -648,7 +1130,7 @@ final class DesktopModel: ObservableObject {
     private func extractText(_ value: Any) -> String? {
         if let string = value as? String { return string }
         if let object = value as? [String: Any] {
-            for key in ["text", "message", "delta", "content"] {
+            for key in ["text", "message", "delta", "content", "assistantMessageEvent", "event", "data", "value"] {
                 if let nested = object[key], let text = extractText(nested) { return text }
             }
         }
@@ -731,9 +1213,6 @@ struct DesktopShell: View {
                 }
                 .help("新建任务（⇧⌘N）")
             }
-            ToolbarItem(placement: .automatic) {
-                FullAccessBadge(enabled: model.fullAccess)
-            }
         }
         .alert("PAD 桌面", isPresented: Binding(
             get: { model.notice != nil },
@@ -748,10 +1227,18 @@ struct DesktopShell: View {
         }) {
             PiLoginSheet(profile: model.selectedProfile, coordinator: model.piLogin) {
                 if model.piLogin.phase == .succeeded {
-                    model.notice = "Pi 账号登录成功。"
+                    model.finishPiLogin()
                 }
                 model.isShowingPiLogin = false
             }
+        }
+        .sheet(isPresented: $model.isShowingProfileWizard) {
+            ProfileWizardSheet(
+                name: $model.profileWizardName,
+                provider: $model.profileWizardProvider,
+                onCancel: { model.isShowingProfileWizard = false },
+                onCreate: { model.createProfile(name: model.profileWizardName, provider: model.profileWizardProvider) }
+            )
         }
     }
 }
@@ -772,15 +1259,7 @@ struct SidebarView: View {
                 .frame(width: 25, height: 25)
                 Text("PAD")
                     .font(.headline.weight(.semibold))
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
                 Spacer()
-                Button { model.createTask() } label: {
-                    Image(systemName: "square.and.pencil")
-                }
-                .buttonStyle(.plain)
-                .help("新建任务")
             }
             .padding(.horizontal, 14)
             .padding(.top, 13)
@@ -805,6 +1284,23 @@ struct SidebarView: View {
             // reserved for the task/filter rows below it.
             .background(Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .padding(.horizontal, 10)
+            .padding(.bottom, 2)
+
+            Button(action: model.addProject) {
+                HStack(spacing: 9) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.callout.weight(.medium))
+                    Text("打开本地项目")
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
             .padding(.bottom, 9)
 
             HStack(spacing: 8) {
@@ -819,6 +1315,21 @@ struct SidebarView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 }
+                Menu {
+                    ForEach(SidebarFilter.allCases) { filter in
+                        Button {
+                            model.selectedFilter = filter
+                        } label: {
+                            Label(filter.rawValue, systemImage: model.selectedFilter == filter ? "checkmark" : filter.symbol)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .help("筛选任务")
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
@@ -827,14 +1338,6 @@ struct SidebarView: View {
             .padding(.bottom, 10)
 
             List(selection: $model.selectedTaskID) {
-                Section {
-                    ForEach(SidebarFilter.allCases) { filter in
-                        SidebarFilterRow(filter: filter, selected: model.selectedFilter == filter) {
-                            model.selectedFilter = filter
-                        }
-                    }
-                }
-
                 Section("项目") {
                     if model.visibleProjects.isEmpty && model.visibleTasks.isEmpty {
                         Text("暂无任务")
@@ -847,7 +1350,7 @@ struct SidebarView: View {
                 }
 
                 Section("最近") {
-                    ForEach(model.visibleTasks.prefix(20)) { task in
+                    ForEach(model.visibleTasks.filter { $0.projectID == nil }.prefix(20)) { task in
                         TaskRow(task: task)
                             .tag(task.id)
                             .onTapGesture { model.select(task: task) }
@@ -869,10 +1372,12 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer()
-                Image(systemName: "gearshape")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .help("设置")
+                if !model.selectedProfileIsLoggedIn {
+                    Button("登录") { model.openPiLogin() }
+                        .font(.caption2.weight(.medium))
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.top, 5)
@@ -937,7 +1442,7 @@ struct ProfilePicker: View {
                     Label("登录 Pi 账号", systemImage: "person.crop.circle.badge.checkmark")
                 }
                 Button {
-                    model.createProfile()
+                    model.startProfileWizard()
                 } label: {
                     Label("添加 Pi 账号", systemImage: "person.badge.plus")
                 }
@@ -951,6 +1456,69 @@ struct ProfilePicker: View {
             .accessibilityLabel("切换 Pi 账号：\(model.selectedProfile.name)")
         }
         .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+    }
+}
+
+struct ProfileWizardSheet: View {
+    @Binding var name: String
+    @Binding var provider: String
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "person.badge.plus")
+                    .font(.system(size: 27))
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("添加 Pi 账号")
+                        .font(.title3.weight(.semibold))
+                    Text("先命名配置，再进入原生登录流程")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(22)
+            Divider()
+            VStack(alignment: .leading, spacing: 16) {
+                Text("账号名称")
+                    .font(.subheadline.weight(.medium))
+                TextField("例如：个人 OpenAI", text: $name)
+                    .textFieldStyle(.roundedBorder)
+                Text("服务商")
+                    .font(.subheadline.weight(.medium))
+                Picker("服务商", selection: $provider) {
+                    Text("OpenAI / Codex").tag("openai-codex")
+                    Text("Anthropic").tag("anthropic")
+                    Text("Google").tag("google")
+                    Text("OpenAI API").tag("openai")
+                    Text("GitHub Copilot").tag("github-copilot")
+                    Text("xAI").tag("xai")
+                    Text("OpenRouter").tag("openrouter")
+                    Text("DeepSeek").tag("deepseek")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                Text("创建后会自动打开登录向导。凭据仅保存在该 Profile 的私有 Pi 目录中。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button("取消", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                    Button("创建并登录", action: onCreate)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(22)
+        }
+        .frame(width: 460, height: 360)
     }
 }
 
@@ -979,7 +1547,6 @@ struct ProjectGroup: View {
         DisclosureGroup {
             ForEach(model.visibleTasks.filter { $0.projectID == project.id }) { task in
                 TaskRow(task: task)
-                    .tag(task.id)
                     .onTapGesture { model.select(task: task) }
             }
         } label: {
@@ -1058,6 +1625,12 @@ struct ConversationView: View {
                             }
                         }
                     }
+                    if let interaction = model.pendingInteraction {
+                        InteractionCard(interaction: interaction, model: model)
+                    }
+                    Composer(model: model)
+                } else if model.hasDraft {
+                    DraftTaskView(model: model)
                     Composer(model: model)
                 } else {
                     EmptyWorkspaceView(create: model.createTask)
@@ -1084,9 +1657,27 @@ struct ConversationHeader: View {
                 Text(model.selectedTask?.title ?? "PAD 桌面")
                     .font(.headline)
                     .lineLimit(1)
-                Text(model.selectedProfile.name + " · Pi 通道")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Label("Pi 引擎", systemImage: "bolt.horizontal.circle")
+                        .foregroundStyle(model.pi.state.color)
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    if model.selectedProfileIsLoggedIn {
+                        Label(model.selectedProfile.name, systemImage: "person.crop.circle.fill")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("登录账号") { model.openPiLogin() }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                    }
+                    if let state = model.selectedTaskState {
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+                        Label(state.label, systemImage: state.symbol)
+                            .foregroundStyle(state.color)
+                    }
+                }
+                .font(.caption)
             }
             Spacer()
             if let task = model.selectedTask {
@@ -1128,9 +1719,6 @@ struct OutputPanel: View {
                 Text("工作区")
                     .font(.headline)
                 Spacer()
-                Image(systemName: "plus")
-                    .foregroundStyle(.secondary)
-                    .help("添加输出")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -1182,12 +1770,7 @@ struct OutputPanel: View {
     }
 
     private func taskStateLabel(_ state: TaskState) -> String {
-        switch state {
-        case .idle: return "已就绪"
-        case .running: return "运行中"
-        case .waiting: return "等待输入"
-        case .failed: return "失败"
-        }
+        state.label
     }
 }
 
@@ -1246,31 +1829,42 @@ struct MessageBubble: View {
 
 struct Composer: View {
     @ObservedObject var model: DesktopModel
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 10) {
-                Button { } label: {
+                Button(action: model.chooseAttachments) {
                     Image(systemName: "plus")
                         .font(.callout.weight(.medium))
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("添加附件或上下文（即将支持）")
+                .help("添加上下文文件")
                 TextField("向 Pi 发送消息…", text: $model.composerText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...6)
+                    .focused($isFocused)
                     .onSubmit {
                         if !NSEvent.modifierFlags.contains(.shift) { model.send() }
                     }
-                Button(action: model.send) {
-                    Image(systemName: "arrow.up.circle.fill")
+                Button {
+                    if model.selectedTaskState?.isActive == true {
+                        model.stopSelectedTask()
+                    } else if model.selectedTaskState == .failed {
+                        model.retrySelectedTask()
+                    } else {
+                        model.send()
+                    }
+                } label: {
+                    Image(systemName: model.selectedTaskState?.isActive == true ? "stop.circle.fill" : (model.selectedTaskState == .failed ? "arrow.clockwise.circle.fill" : "arrow.up.circle.fill"))
                         .font(.title2)
-                        .foregroundStyle(model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
+                        .foregroundStyle(model.selectedTaskState?.isActive == true ? Color.red : (model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.selectedTaskState != .failed ? Color.secondary : Color.accentColor))
                 }
                 .buttonStyle(.plain)
-                .disabled(model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(model.selectedTaskState?.isActive != true && model.selectedTaskState != .failed && model.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help(model.selectedTaskState?.isActive == true ? "停止任务" : (model.selectedTaskState == .failed ? "重试" : "发送"))
             }
             HStack(spacing: 12) {
                 Button {
@@ -1282,12 +1876,22 @@ struct Composer: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(model.fullAccess ? .orange : .secondary)
                 .help(model.fullAccess ? "关闭完全访问" : "开启完全访问")
+                if model.hasDraft {
+                    ProjectContextPicker(model: model)
+                    WorkingDirectoryButton(model: model)
+                } else if let task = model.selectedTask, !task.cwd.isEmpty {
+                    Label(URL(fileURLWithPath: task.cwd).lastPathComponent, systemImage: "folder")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(task.cwd)
+                }
                 Spacer()
-                Text(model.selectedProfile.subtitle)
+                ModelPicker(model: model)
+                Text(model.selectedTaskState?.label ?? "草稿")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(model.selectedTaskState?.color ?? .secondary)
                     .lineLimit(1)
-                Text("按回车发送")
+                Text("回车发送")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -1305,6 +1909,172 @@ struct Composer: View {
         .padding(.top, 10)
         .padding(.bottom, 16)
         .background(Color(nsColor: .textBackgroundColor))
+        .onAppear { isFocused = true }
+        .onChange(of: model.selectedTaskID) { _ in isFocused = true }
+    }
+}
+
+struct DraftTaskView: View {
+    @ObservedObject var model: DesktopModel
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 34))
+                .foregroundStyle(.purple)
+            Text("新任务")
+                .font(.title2.weight(.semibold))
+            Text("输入第一条消息后，PAD 才会创建任务并写入本地 Store。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 7) {
+                Image(systemName: "folder")
+                Text(model.draftWorkingDirectory)
+                    .lineLimit(1)
+                if let project = model.projects.first(where: { $0.id == model.draftProjectID }) {
+                    Text("· \(project.name)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.quaternary.opacity(0.5), in: Capsule())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(36)
+    }
+}
+
+struct InteractionCard: View {
+    let interaction: PendingInteraction
+    @ObservedObject var model: DesktopModel
+    @State private var input = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(interaction.kind, systemImage: interaction.kind == "审批请求" ? "checkmark.shield" : "questionmark.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.orange)
+            Text(interaction.message)
+                .font(.callout)
+                .textSelection(.enabled)
+            if interaction.responseKind == "confirm" {
+                HStack {
+                    Button("允许一次") { model.respond(to: interaction, value: "y") }
+                        .buttonStyle(.borderedProminent)
+                    Button("拒绝") { model.respond(to: interaction, value: "n") }
+                        .buttonStyle(.bordered)
+                }
+            } else if interaction.responseKind == "select" {
+                HStack {
+                    ForEach(Array(interaction.options.enumerated()), id: \.offset) { index, option in
+                        // Pi's select response is an option index, not the
+                        // display string. Keep the label human-readable while
+                        // sending the protocol's stable numeric value.
+                        Button(option) { model.respond(to: interaction, value: String(index)) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+            } else {
+                HStack {
+                    TextField("输入后继续", text: $input)
+                        .textFieldStyle(.roundedBorder)
+                    Button("提交") { model.respond(to: interaction, value: input) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: CodexMetrics.composerMaxWidth, alignment: .leading)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+    }
+}
+
+struct ProjectContextPicker: View {
+    @ObservedObject var model: DesktopModel
+
+    var body: some View {
+        Menu {
+            Button("不绑定项目") { model.selectDraftProject(nil) }
+            ForEach(model.projects.filter { $0.profileID == model.selectedProfileID }) { project in
+                Button {
+                    model.selectDraftProject(project)
+                } label: {
+                    Label(project.name, systemImage: project.id == model.draftProjectID ? "checkmark" : "folder")
+                }
+            }
+        } label: {
+            Label("项目", systemImage: "folder")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .help("选择项目")
+    }
+}
+
+struct WorkingDirectoryButton: View {
+    @ObservedObject var model: DesktopModel
+
+    var body: some View {
+        Button(action: model.chooseWorkingDirectory) {
+            Label("目录", systemImage: "folder.badge.gearshape")
+                .font(.caption)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("选择工作目录")
+    }
+}
+
+struct ModelPicker: View {
+    @ObservedObject var model: DesktopModel
+
+    var body: some View {
+        Menu {
+            Section("服务商") {
+                Label(model.selectedProvider, systemImage: "server.rack")
+            }
+            Section("模型") {
+                ForEach(model.availableModels, id: \.self) { item in
+                    Button {
+                        model.chooseModel(item)
+                    } label: {
+                        Label(item == "auto" ? "自动选择" : item, systemImage: item == model.selectedModel ? "checkmark" : "cpu")
+                    }
+                }
+            }
+            Section("思考强度") {
+                ForEach(["off", "minimal", "low", "medium", "high", "xhigh", "max"], id: \.self) { level in
+                    Button {
+                        model.chooseThinkingLevel(level)
+                    } label: {
+                        Label(thinkingLevelLabel(level), systemImage: level == model.selectedThinkingLevel ? "checkmark" : "brain")
+                    }
+                }
+            }
+        } label: {
+            Label(model.selectedModel == "auto" ? "自动 · \(thinkingLevelLabel(model.selectedThinkingLevel))" : "\(model.selectedModel) · \(thinkingLevelLabel(model.selectedThinkingLevel))", systemImage: "cpu")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .help("选择服务商和模型")
+    }
+
+    private func thinkingLevelLabel(_ level: String) -> String {
+        switch level {
+        case "off": return "关闭思考"
+        case "minimal": return "极简"
+        case "low": return "低"
+        case "high": return "高"
+        case "xhigh": return "很高"
+        case "max": return "最高"
+        default: return "中"
+        }
     }
 }
 

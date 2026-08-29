@@ -69,8 +69,7 @@ pub(crate) mod runtime_overlays {
     include!("tests/runtime_overlays.rs");
 }
 
-#[test]
-fn pi_runtime_adapter_tests() {
+pub(crate) fn pi_runtime_adapter_tests() {
     crate::pi_runtime::jsonl::tests::split_chunks_preserve_jsonl_messages();
     crate::pi_runtime::jsonl::tests::reject_crlf_and_oversized_frames();
     crate::pi_runtime::jsonl::tests::command_and_message_validation_use_type_discriminator();

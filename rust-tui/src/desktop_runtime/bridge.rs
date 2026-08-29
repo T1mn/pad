@@ -8,12 +8,14 @@
 
 use super::{DesktopRuntime, DesktopRuntimeError};
 use crate::permission_policy::{PermissionMode, PolicyLayer, Profile, Task, TaskEnvironment};
-use crate::pi_runtime::{PiPoll, PiRuntimeSnapshot, PiRuntimeStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::error::Error;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
+
+mod format;
+use format::{poll_has_provider_auth_error, poll_value, runtime_status_name, snapshot_value};
 
 const DESKTOP_PROTOCOL_VERSION: u32 = 1;
 
@@ -62,6 +64,28 @@ pub(crate) struct DesktopRequest {
     pub archived: Option<bool>,
     #[serde(default)]
     pub unread: Option<bool>,
+    #[serde(default)]
+    pub model_id: Option<String>,
+    /// Compatibility aliases used by the Swift renderer.  The canonical
+    /// bridge names remain `default_provider`/`model_id`, but accepting these
+    /// aliases keeps an older bundled renderer interoperable with a newer
+    /// host during app upgrades.
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub thinking_level: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
+    #[serde(default)]
+    pub interaction_id: Option<String>,
+    #[serde(default)]
+    pub response_kind: Option<String>,
+    #[serde(default)]
+    pub value: Option<Value>,
+    #[serde(default)]
+    pub since: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -104,6 +128,7 @@ impl From<DesktopRuntimeError> for BridgeError {
             DesktopRuntimeError::ProfileNotFound(_) => "profile_not_found",
             DesktopRuntimeError::ProjectNotFound(_) => "project_not_found",
             DesktopRuntimeError::ProfileMismatch { .. } => "profile_mismatch",
+            DesktopRuntimeError::InvalidSessionPath { .. } => "invalid_session_path",
             DesktopRuntimeError::TaskAlreadyRunning(_) => "task_already_running",
         };
         Self::new(code, error.to_string())
@@ -203,10 +228,22 @@ pub(crate) fn handle_request(
         Some("bootstrap") => bootstrap(runtime),
         Some("list_sidebar") => sidebar(runtime),
         Some("create_profile") => create_profile(runtime, request),
+        Some("create_project") => create_project(runtime, request),
         Some("create_task") => create_task(runtime, request),
         Some("start_task") => start_task(runtime, request),
+        Some("retry_task") => retry_task(runtime, request),
         Some("prompt") => prompt(runtime, request),
         Some("poll") => poll(runtime, request),
+        Some("history") => history(runtime, request),
+        Some("get_messages") => get_messages(runtime, request),
+        Some("get_state") => get_state(runtime, request),
+        Some("get_entries") => get_entries(runtime, request),
+        Some("set_model") => set_model(runtime, request),
+        Some("set_thinking_level") => set_thinking_level(runtime, request),
+        Some("respond_ui") => respond_ui(runtime, request),
+        Some("extension_ui_response") => respond_ui(runtime, request),
+        Some("provider_status") => provider_status(runtime, request),
+        Some("abort") => abort(runtime, request),
         Some("runtime_snapshot") => runtime_snapshot(runtime, request),
         Some("stop") => stop(runtime, request),
         Some("stop_task") => stop(runtime, request),
@@ -214,7 +251,7 @@ pub(crate) fn handle_request(
         Some("set_profile") => set_profile(runtime, request),
         Some(_) | None => Err(BridgeError::new(
             "unknown_action",
-            "action must be one of ping, bootstrap, list_sidebar, create_profile, create_task, start_task, prompt, poll, runtime_snapshot, stop_task, set_task, set_profile",
+            "action must be one of ping, bootstrap, list_sidebar, create_profile, create_project, create_task, start_task, retry_task, prompt, poll, history, get_messages, get_state, get_entries, set_model, set_thinking_level, respond_ui, extension_ui_response, provider_status, abort, runtime_snapshot, stop_task, set_task, set_profile",
         )),
     }
 }
@@ -228,12 +265,22 @@ fn bootstrap(runtime: &mut DesktopRuntime) -> Result<Value, BridgeError> {
         .map_err(BridgeError::from)?;
     let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
     let records = records_value(runtime)?;
+    let authenticated_providers = runtime.authenticated_providers(&profile);
     Ok(json!({
         "protocol_version": DESKTOP_PROTOCOL_VERSION,
+        "backend": {
+            "status": "ready",
+            "provider_authentication": runtime.provider_authentication_status(&profile),
+            "authenticated_providers": authenticated_providers,
+            "selected_provider": profile.default_provider,
+            "selected_model": profile.default_model,
+        },
         "profile": profile,
         "capabilities": [
             "profiles", "projects", "tasks", "codex_sidebar",
-            "pi_rpc", "full_access_policy", "private_store"
+            "pi_rpc", "full_access_policy", "private_store",
+            "history", "provider_status", "extension_ui_response",
+            "set_model", "set_thinking_level", "create_project", "stop"
         ],
         "sidebar": sidebar,
         "records": records,
@@ -288,7 +335,37 @@ fn create_profile(
         .map_err(BridgeError::from)?;
     let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
     let records = records_value(runtime)?;
-    Ok(json!({ "profile": profile, "sidebar": sidebar, "records": records }))
+    let authenticated_providers = runtime.authenticated_providers(&profile);
+    Ok(json!({
+        "profile": profile,
+        "authentication": {
+            "status": runtime.provider_authentication_status(&profile),
+            "authenticated_providers": authenticated_providers,
+        },
+        "sidebar": sidebar,
+        "records": records,
+    }))
+}
+
+fn create_project(
+    runtime: &mut DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
+    let primary_root = request
+        .cwd
+        .clone()
+        .ok_or_else(|| BridgeError::new("invalid_request", "missing cwd"))?;
+    let project = runtime
+        .create_project(
+            profile_id,
+            request.name.clone().unwrap_or_default(),
+            primary_root,
+        )
+        .map_err(BridgeError::from)?;
+    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
+    let records = records_value(runtime)?;
+    Ok(json!({ "project": project, "sidebar": sidebar, "records": records }))
 }
 
 fn create_task(
@@ -337,10 +414,39 @@ fn start_task(
     let generation = runtime
         .start_task(task_id, request.command.as_deref().unwrap_or("pi"))
         .map_err(BridgeError::from)?;
+    let provider_authentication = runtime
+        .store()
+        .get_task(task_id)
+        .ok()
+        .flatten()
+        .and_then(|task| runtime.store().get_profile(&task.profile_id).ok().flatten())
+        .map(|profile| runtime.provider_authentication_status(&profile))
+        .unwrap_or("unknown");
     Ok(json!({
         "task_id": task_id,
         "generation": generation,
         "running": true,
+        "backend": {
+            "status": "ready",
+            "provider_authentication": provider_authentication,
+            "task_runtime": "starting",
+        },
+    }))
+}
+
+fn retry_task(
+    runtime: &mut DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let generation = runtime
+        .retry_task(task_id, request.command.as_deref().unwrap_or("pi"))
+        .map_err(BridgeError::from)?;
+    Ok(json!({
+        "task_id": task_id,
+        "generation": generation,
+        "running": true,
+        "retrying": true,
     }))
 }
 
@@ -353,6 +459,181 @@ fn prompt(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, B
     Ok(json!({ "task_id": task_id, "accepted": true }))
 }
 
+fn get_messages(
+    runtime: &mut DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let response = runtime.get_messages(task_id).map_err(BridgeError::from)?;
+    native_response(runtime, task_id, "get_messages", response)
+}
+
+fn history(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let response = runtime.history(task_id).map_err(BridgeError::from)?;
+    let messages = response
+        .get("data")
+        .and_then(|data| data.get("messages"))
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    let mut result = native_response(runtime, task_id, "history", Some(response))?;
+    if let Some(object) = result.as_object_mut() {
+        object.insert("messages".to_string(), messages);
+    }
+    Ok(result)
+}
+
+fn get_state(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let response = runtime.get_state(task_id).map_err(BridgeError::from)?;
+    native_response(runtime, task_id, "get_state", response)
+}
+
+fn get_entries(
+    runtime: &mut DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let response = if let Some(since) = request.since.as_deref() {
+        runtime
+            .get_entries_since(task_id, since)
+            .map_err(BridgeError::from)?
+    } else {
+        runtime.get_entries(task_id).map_err(BridgeError::from)?
+    };
+    native_response(runtime, task_id, "get_entries", response)
+}
+
+fn native_response(
+    runtime: &DesktopRuntime,
+    task_id: &str,
+    command: &str,
+    response: Option<Value>,
+) -> Result<Value, BridgeError> {
+    let task = runtime
+        .store()
+        .get_task(task_id)
+        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
+    let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
+    Ok(json!({
+        "task_id": task_id,
+        "command": command,
+        "response": response,
+        "pending": response.is_none(),
+        "task": task,
+        "sidebar": sidebar,
+    }))
+}
+
+fn set_model(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let provider = required(
+        request
+            .default_provider
+            .as_deref()
+            .or(request.provider.as_deref()),
+        "provider",
+    )?;
+    let model_id = required(
+        request
+            .model_id
+            .as_deref()
+            .or(request.default_model.as_deref())
+            .or(request.model.as_deref()),
+        "model_id",
+    )?;
+    runtime
+        .set_model(task_id, provider, model_id)
+        .map_err(BridgeError::from)?;
+    Ok(json!({
+        "task_id": task_id,
+        "accepted": true,
+        "provider": provider,
+        "model_id": model_id,
+    }))
+}
+
+fn set_thinking_level(
+    runtime: &DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let level = required(request.thinking_level.as_deref(), "thinking_level")?;
+    runtime
+        .set_thinking_level(task_id, level)
+        .map_err(BridgeError::from)?;
+    Ok(json!({ "task_id": task_id, "accepted": true, "thinking_level": level }))
+}
+
+fn respond_ui(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    let request_id = required(
+        request
+            .request_id
+            .as_deref()
+            .or(request.interaction_id.as_deref()),
+        "request_id",
+    )?;
+    let value = request
+        .value
+        .clone()
+        .ok_or_else(|| BridgeError::new("invalid_request", "missing value"))?;
+    runtime
+        .respond_ui(
+            task_id,
+            request_id,
+            request.response_kind.as_deref(),
+            value.clone(),
+        )
+        .map_err(BridgeError::from)?;
+    Ok(json!({
+        "task_id": task_id,
+        "request_id": request_id,
+        "accepted": true,
+        "value": value,
+    }))
+}
+
+fn provider_status(
+    runtime: &mut DesktopRuntime,
+    request: &DesktopRequest,
+) -> Result<Value, BridgeError> {
+    let profile = if let Some(profile_id) = request.profile_id.as_deref() {
+        runtime
+            .store()
+            .get_profile(profile_id)
+            .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
+            .ok_or_else(|| {
+                BridgeError::new(
+                    "profile_not_found",
+                    format!("Desktop profile '{profile_id}' was not found"),
+                )
+            })?
+    } else {
+        runtime
+            .store()
+            .list_profiles()
+            .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| BridgeError::new("profile_not_found", "no PAD Desktop profile exists"))?
+    };
+    Ok(json!({
+        "profile_id": profile.id,
+        "status": "ready",
+        "provider_authentication": runtime.provider_authentication_status(&profile),
+        "authenticated_providers": runtime.authenticated_providers(&profile),
+        "selected_provider": profile.default_provider,
+        "selected_model": profile.default_model,
+    }))
+}
+
+fn abort(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let task_id = required(request.task_id.as_deref(), "task_id")?;
+    runtime.abort_task(task_id).map_err(BridgeError::from)?;
+    Ok(json!({ "task_id": task_id, "accepted": true }))
+}
+
 fn poll(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;
     let poll = runtime.poll_task(task_id).map_err(BridgeError::from)?;
@@ -360,10 +641,35 @@ fn poll(runtime: &mut DesktopRuntime, request: &DesktopRequest) -> Result<Value,
         .runtime_snapshot(task_id)
         .map_err(BridgeError::from)?;
     let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
+    let task = runtime
+        .store()
+        .get_task(task_id)
+        .map_err(|error| BridgeError::from(DesktopRuntimeError::Store(error)))?;
+    let profile = task
+        .as_ref()
+        .and_then(|task| runtime.store().get_profile(&task.profile_id).ok().flatten());
+    let provider_authentication = if poll_has_provider_auth_error(&poll) {
+        "missing"
+    } else {
+        profile
+            .as_ref()
+            .map(|profile| runtime.provider_authentication_status(profile))
+            .unwrap_or("unknown")
+    };
+    let task_runtime = snapshot
+        .as_ref()
+        .map(|snapshot| runtime_status_name(snapshot.status))
+        .unwrap_or("unknown");
     Ok(json!({
         "task_id": task_id,
         "poll": poll_value(&poll),
         "runtime": snapshot.as_ref().map(snapshot_value),
+        "task": task,
+        "backend": {
+            "status": "ready",
+            "provider_authentication": provider_authentication,
+            "task_runtime": task_runtime,
+        },
         "sidebar": sidebar,
     }))
 }
@@ -424,12 +730,34 @@ fn set_profile(
     request: &DesktopRequest,
 ) -> Result<Value, BridgeError> {
     let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
-    let profile = runtime
+    let mut profile = runtime
         .update_profile_policy(profile_id, request.permission_mode, request.unattended)
         .map_err(BridgeError::from)?;
+    if request.default_provider.is_some()
+        || request.default_model.is_some()
+        || request.credential_ref.is_some()
+    {
+        profile = runtime
+            .update_profile_settings(
+                profile_id,
+                request.default_provider.clone(),
+                request.default_model.clone(),
+                request.credential_ref.clone(),
+            )
+            .map_err(BridgeError::from)?;
+    }
     let sidebar = runtime.sidebar_snapshot().map_err(BridgeError::from)?;
     let records = records_value(runtime)?;
-    Ok(json!({ "profile": profile, "sidebar": sidebar, "records": records }))
+    let authenticated_providers = runtime.authenticated_providers(&profile);
+    Ok(json!({
+        "profile": profile,
+        "authentication": {
+            "status": runtime.provider_authentication_status(&profile),
+            "authenticated_providers": authenticated_providers,
+        },
+        "sidebar": sidebar,
+        "records": records,
+    }))
 }
 
 fn required<'a>(value: Option<&'a str>, field: &'static str) -> Result<&'a str, BridgeError> {
@@ -438,235 +766,5 @@ fn required<'a>(value: Option<&'a str>, field: &'static str) -> Result<&'a str, 
         .ok_or_else(|| BridgeError::new("invalid_request", format!("missing {field}")))
 }
 
-fn poll_value(poll: &PiPoll) -> Value {
-    let messages = poll
-        .messages
-        .iter()
-        .map(|message| {
-            json!({
-                "type": message.message_type,
-                "id": message.id,
-                "value": message.value,
-            })
-        })
-        .collect::<Vec<_>>();
-    let events = poll
-        .events
-        .iter()
-        .map(|event| event.value.clone())
-        .collect::<Vec<_>>();
-    let exit_status = poll.exit_status.map(|status| {
-        json!({
-            "code": status.code,
-            "signal": status.signal,
-            "killed": status.killed,
-            "success": status.success(),
-        })
-    });
-    json!({
-        "messages": messages,
-        "events": events,
-        "stderr": String::from_utf8_lossy(&poll.stderr),
-        "diagnostics": poll.diagnostics,
-        "dropped_stale": poll.dropped_stale,
-        "exit_status": exit_status,
-    })
-}
-
-fn snapshot_value(snapshot: &PiRuntimeSnapshot) -> Value {
-    json!({
-        "generation": snapshot.generation,
-        "status": runtime_status_name(snapshot.status),
-        "pending_message_count": snapshot.pending_message_count,
-        "active_tool_call_id": snapshot.active_tool_call_id,
-        "last_sequence": snapshot.last_sequence,
-    })
-}
-
-fn runtime_status_name(status: PiRuntimeStatus) -> &'static str {
-    match status {
-        PiRuntimeStatus::Starting => "starting",
-        PiRuntimeStatus::Idle => "idle",
-        PiRuntimeStatus::Running => "running",
-        PiRuntimeStatus::Streaming => "streaming",
-        PiRuntimeStatus::ToolRunning => "tool_running",
-        PiRuntimeStatus::NeedsApproval => "needs_approval",
-        PiRuntimeStatus::NeedsInput => "needs_input",
-        PiRuntimeStatus::Compacting => "compacting",
-        PiRuntimeStatus::Retrying => "retrying",
-        PiRuntimeStatus::Failed => "failed",
-        PiRuntimeStatus::Disconnected => "disconnected",
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::Path;
-    use std::thread;
-    use std::time::Duration;
-
-    fn runtime() -> DesktopRuntime {
-        let mut runtime = DesktopRuntime::in_memory().unwrap();
-        let profile = Profile {
-            id: "profile-bridge".to_string(),
-            name: "Bridge profile".to_string(),
-            agent_dir: std::env::temp_dir().join("pad-bridge-agent"),
-            session_dir: std::env::temp_dir().join("pad-bridge-sessions"),
-            ..Profile::default()
-        };
-        runtime.store_mut().insert_profile(&profile).unwrap();
-        runtime
-    }
-
-    #[test]
-    fn protocol_returns_codex_sidebar_for_bootstrap() {
-        let mut runtime = DesktopRuntime::in_memory().unwrap();
-        let request: DesktopRequest =
-            serde_json::from_str(r#"{"id":"b1","action":"bootstrap"}"#).unwrap();
-        let result = handle_request(&mut runtime, &request).unwrap();
-        assert_eq!(result["protocol_version"], DESKTOP_PROTOCOL_VERSION);
-        assert_eq!(result["sidebar"]["view"], "all");
-        assert_eq!(result["profile"]["id"], "default");
-    }
-
-    #[test]
-    fn create_task_start_poll_and_stop_round_trip() {
-        let mut runtime = runtime();
-        let task_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "create_task",
-            "profile_id": "profile-bridge",
-            "task_id": "task-bridge",
-            "title": "Bridge task",
-            "cwd": std::env::temp_dir(),
-        }))
-        .unwrap();
-        let result = handle_request(&mut runtime, &task_request).unwrap();
-        assert_eq!(result["task"]["id"], "task-bridge");
-
-        let start_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "start_task",
-            "task_id": "task-bridge",
-            "command": "/bin/sh -c 'printf \"%s\\n\" \"{\\\"type\\\":\\\"agent_settled\\\"}\"'",
-        }))
-        .unwrap();
-        handle_request(&mut runtime, &start_request).unwrap();
-        let poll_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "poll",
-            "task_id": "task-bridge",
-        }))
-        .unwrap();
-        let mut result = handle_request(&mut runtime, &poll_request).unwrap();
-        for _ in 0..30 {
-            if result["poll"]["events"]
-                .as_array()
-                .is_some_and(|events| !events.is_empty())
-            {
-                break;
-            }
-            thread::sleep(Duration::from_millis(5));
-            result = handle_request(&mut runtime, &poll_request).unwrap();
-        }
-        assert!(result["poll"]["events"]
-            .as_array()
-            .is_some_and(|events| !events.is_empty()));
-        let stop_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "stop_task",
-            "task_id": "task-bridge",
-        }))
-        .unwrap();
-        assert_eq!(
-            handle_request(&mut runtime, &stop_request).unwrap()["stopped"],
-            true
-        );
-        assert!(!runtime.is_running("task-bridge"));
-        assert!(Path::new(".").exists());
-    }
-
-    #[test]
-    fn malformed_input_is_one_error_response_and_does_not_write_stdout() {
-        let mut runtime = runtime();
-        let (response, stop) = handle_line(&mut runtime, "not json");
-        assert!(!stop);
-        assert!(!response.ok);
-        assert_eq!(response.error.as_ref().unwrap().code, "invalid_json");
-    }
-
-    #[test]
-    fn full_access_fields_are_persisted_on_profile_and_task_requests() {
-        let mut runtime = DesktopRuntime::in_memory().unwrap();
-        let profile_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "create_profile",
-            "profile_id": "full",
-            "name": "Full",
-            "permission_mode": "system_full",
-            "unattended": true,
-        }))
-        .unwrap();
-        let profile_result = handle_request(&mut runtime, &profile_request).unwrap();
-        assert_eq!(profile_result["profile"]["policy"]["mode"], "system_full");
-        assert_eq!(profile_result["profile"]["policy"]["unattended"], true);
-    }
-
-    #[test]
-    fn set_task_persists_sidebar_flags() {
-        let mut runtime = runtime();
-        let create_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "create_task",
-            "profile_id": "profile-bridge",
-            "task_id": "task-flags",
-            "title": "Flagged task",
-            "cwd": std::env::temp_dir(),
-        }))
-        .unwrap();
-        handle_request(&mut runtime, &create_request).unwrap();
-
-        let set_request: DesktopRequest = serde_json::from_value(json!({
-            "action": "set_task",
-            "task_id": "task-flags",
-            "pinned": true,
-            "archived": true,
-        }))
-        .unwrap();
-        let result = handle_request(&mut runtime, &set_request).unwrap();
-        assert_eq!(result["task"]["pinned"], true);
-        assert_eq!(result["task"]["archived"], true);
-        let stored = runtime.store().get_task("task-flags").unwrap().unwrap();
-        assert!(stored.pinned);
-        assert!(stored.archived);
-    }
-
-    #[test]
-    fn set_profile_persists_policy() {
-        let mut runtime = runtime();
-        let request: DesktopRequest = serde_json::from_value(json!({
-            "action": "set_profile",
-            "profile_id": "profile-bridge",
-            "permission_mode": "guarded",
-            "unattended": false,
-        }))
-        .unwrap();
-
-        let result = handle_request(&mut runtime, &request).unwrap();
-        assert_eq!(result["profile"]["policy"]["mode"], "guarded");
-        assert_eq!(result["profile"]["policy"]["unattended"], false);
-        let stored = runtime
-            .store()
-            .get_profile("profile-bridge")
-            .unwrap()
-            .unwrap();
-        assert_eq!(stored.policy.mode, Some(PermissionMode::Guarded));
-        assert_eq!(stored.policy.unattended, Some(false));
-    }
-
-    #[test]
-    fn response_shape_is_id_ok_result_or_error() {
-        let mut runtime = runtime();
-        let (response, _) = handle_line(&mut runtime, r#"{"id":"x","action":"ping"}"#);
-        let value = serde_json::to_value(response).unwrap();
-        assert_eq!(value["id"], "x");
-        assert_eq!(value["ok"], true);
-        assert!(value.get("result").is_some());
-        assert!(value.get("error").is_none());
-    }
-}
+pub(crate) mod tests;

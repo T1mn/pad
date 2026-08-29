@@ -11,7 +11,7 @@ mod repository;
 mod schema;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub(crate) use crate::permission_policy::{
     Profile, Project, Section, SectionItem, Task, TaskEnvironment, TaskStatus,
