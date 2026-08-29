@@ -195,6 +195,9 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn command_exists_detects_program_in_path() {
+        let _env_guard = crate::test_support::home_env_lock()
+            .lock()
+            .expect("lock process env for test");
         let temp = std::env::temp_dir().join(format!("pad-notify-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp);
         std::fs::create_dir_all(&temp).unwrap();

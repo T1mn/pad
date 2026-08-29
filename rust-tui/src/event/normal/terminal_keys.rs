@@ -3,6 +3,10 @@ use crate::terminal_runtime::{TerminalScroll, TerminalSize};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
+    if is_quit_chord(key) {
+        app.should_quit = true;
+        return true;
+    }
     if is_close_chord(key) {
         return close_active_terminal(app);
     }
@@ -59,6 +63,12 @@ pub(super) fn handle_terminal_key(app: &mut App, key: KeyEvent) -> bool {
         let _ = app.send_terminal_input(bytes);
     }
     true
+}
+
+fn is_quit_chord(key: KeyEvent) -> bool {
+    matches!(key.code, KeyCode::F(16))
+        || (matches!(key.code, KeyCode::Char('q' | 'Q'))
+            && key.modifiers.contains(KeyModifiers::SUPER))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -184,6 +194,7 @@ fn terminal_command_action(key: KeyEvent) -> Option<TerminalCommandAction> {
         KeyCode::Char('3') => Some(TerminalCommandAction::NewTab(TerminalProfile::Claude)),
         KeyCode::Char('4') => Some(TerminalCommandAction::NewTab(TerminalProfile::GithubCli)),
         KeyCode::Char('5') => Some(TerminalCommandAction::NewTab(TerminalProfile::OpenCode)),
+        KeyCode::Char('6') => Some(TerminalCommandAction::NewTab(TerminalProfile::Pi)),
         KeyCode::Char('v') => Some(TerminalCommandAction::Split(
             TerminalSplitAxis::Columns,
             TerminalProfile::Shell,
@@ -207,6 +218,10 @@ fn terminal_command_action(key: KeyEvent) -> Option<TerminalCommandAction> {
         KeyCode::Char('o') => Some(TerminalCommandAction::Split(
             TerminalSplitAxis::Columns,
             TerminalProfile::OpenCode,
+        )),
+        KeyCode::Char('p') => Some(TerminalCommandAction::Split(
+            TerminalSplitAxis::Columns,
+            TerminalProfile::Pi,
         )),
         KeyCode::Char('h' | 'k') | KeyCode::Left | KeyCode::Up => {
             Some(TerminalCommandAction::PreviousPane)

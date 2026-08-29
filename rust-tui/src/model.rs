@@ -6,6 +6,7 @@ mod agent {
     pub enum AgentType {
         Claude,
         Codex,
+        Pi,
         Grok,
         Kimi,
         Gemini,
@@ -26,6 +27,7 @@ mod agent {
             match self {
                 AgentType::Claude => "claude",
                 AgentType::Codex => "codex",
+                AgentType::Pi => "pi",
                 AgentType::Grok => "grok",
                 AgentType::Kimi => "kimi",
                 AgentType::Gemini => "gemini",
@@ -41,6 +43,14 @@ mod agent {
                 AgentType::Claude
             } else if contains_ascii_ignore_case(processes, "codex") {
                 AgentType::Codex
+            } else if processes.split_whitespace().any(|token| {
+                token
+                    .rsplit_once('/')
+                    .map(|(_, basename)| basename)
+                    .unwrap_or(token)
+                    .eq_ignore_ascii_case("pi")
+            }) {
+                AgentType::Pi
             } else if contains_ascii_ignore_case(processes, "grok") {
                 AgentType::Grok
             } else if contains_ascii_ignore_case(processes, "kimi") {

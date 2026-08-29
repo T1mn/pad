@@ -1,4 +1,4 @@
-use crate::theme::{Config, SoundEventConfig};
+use crate::theme::{Config, ProfileConfig, SoundEventConfig};
 use std::collections::HashMap;
 
 pub(super) fn apply_root_fields(table: &HashMap<String, toml::Value>, config: &mut Config) {
@@ -21,8 +21,49 @@ pub(super) fn apply_section_fields(table: &HashMap<String, toml::Value>, config:
     apply_display(table.get("display"), config);
     apply_sound(table.get("sound"), config);
     apply_telegram(table.get("telegram"), config);
+    apply_profile(table.get("profile"), config);
     super::codex::apply_codex(table.get("codex"), config);
     apply_permissions(table.get("agent_permissions"), config);
+}
+
+fn apply_profile(value: Option<&toml::Value>, config: &mut Config) {
+    let Some(toml::Value::Table(profile)) = value else {
+        return;
+    };
+
+    if let Some(toml::Value::String(name)) = profile.get("name") {
+        let name = name.trim();
+        if !name.is_empty() {
+            config.profile.name = name.to_string();
+        }
+    }
+
+    // `default_permission_mode` is canonical.  `full_access` is retained as
+    // an explicit compatibility alias for the single-toggle UX.
+    let explicit_mode = profile
+        .get("default_permission_mode")
+        .and_then(toml::Value::as_str)
+        .map(|mode| {
+            config.profile.default_permission_mode =
+                ProfileConfig::normalized_permission_mode(mode);
+        })
+        .is_some();
+    let full_access = profile.get("full_access").and_then(toml::Value::as_bool);
+    if let Some(enabled) = full_access {
+        config.profile.full_access = enabled;
+    }
+    if explicit_mode {
+        // A present canonical mode wins over the compatibility alias when an
+        // old file contains both fields with conflicting values.
+        config.profile.full_access =
+            config.profile.default_permission_mode == ProfileConfig::SYSTEM_FULL_ACCESS;
+    } else if config.profile.full_access {
+        config.profile.default_permission_mode = ProfileConfig::SYSTEM_FULL_ACCESS.to_string();
+    }
+
+    if let Some(enabled) = profile.get("unattended").and_then(toml::Value::as_bool) {
+        config.profile.unattended = enabled;
+    }
 }
 
 fn apply_preview(value: Option<&toml::Value>, config: &mut Config) {

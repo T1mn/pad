@@ -31,6 +31,7 @@ pub struct PanePlacement {
 pub struct TabPlacement {
     pub index: usize,
     pub rect: Rect,
+    pub close: Option<Rect>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,6 +46,7 @@ pub struct TerminalPlacement {
 struct TabLabel {
     label: String,
     active: bool,
+    closable: bool,
 }
 
 struct TabBarWidget<'a> {
@@ -72,10 +74,14 @@ impl Widget for TabBarWidget<'_> {
                 } else {
                     Style::default().fg(self.theme.comment)
                 };
-                separator.into_iter().chain(std::iter::once(Span::styled(
-                    format!(" {} ", tab.label),
-                    style,
-                )))
+                let label = if tab.closable {
+                    format!(" {} × ", tab.label)
+                } else {
+                    format!(" {} ", tab.label)
+                };
+                separator
+                    .into_iter()
+                    .chain(std::iter::once(Span::styled(label, style)))
             })
             .collect::<Vec<_>>();
         Paragraph::new(Line::from(spans))
@@ -228,6 +234,7 @@ fn tab_labels(app: &App) -> Vec<TabLabel> {
         vec![TabLabel {
             label: t(app.locale, "terminal.empty_title").to_string(),
             active: true,
+            closable: false,
         }]
     } else {
         workspace
@@ -243,6 +250,7 @@ fn tab_labels(app: &App) -> Vec<TabLabel> {
                         .unwrap_or_else(|| format!("Tab {}", index + 1))
                 }),
                 active: index == workspace.active_tab,
+                closable: true,
             })
             .collect()
     }
@@ -255,12 +263,21 @@ fn place_tabs(area: Rect, tabs: &[TabLabel]) -> Vec<TabPlacement> {
         .enumerate()
         .map(|(index, tab)| {
             let separator_width = if index == 0 { 0 } else { 3 };
-            let desired_width =
-                separator_width + UnicodeWidthStr::width(tab.label.as_str()).saturating_add(2);
+            let label_width = UnicodeWidthStr::width(tab.label.as_str());
+            let padding_width = if tab.closable { 4 } else { 2 };
+            let desired_width = separator_width + label_width.saturating_add(padding_width);
             let width = desired_width.min(usize::from(right.saturating_sub(cursor))) as u16;
             let rect = Rect::new(cursor, area.y, width, area.height);
+            let close_x = cursor
+                .saturating_add(separator_width as u16)
+                .saturating_add(label_width as u16)
+                .saturating_add(2);
+            let close = (tab.closable && close_x < rect.right()).then(|| {
+                let width = rect.right().saturating_sub(close_x).min(2);
+                Rect::new(close_x, area.y, width, area.height)
+            });
             cursor = cursor.saturating_add(width).min(right);
-            TabPlacement { index, rect }
+            TabPlacement { index, rect, close }
         })
         .collect()
 }

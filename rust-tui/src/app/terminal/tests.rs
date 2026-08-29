@@ -69,6 +69,17 @@ pub(crate) fn tabs_remember_focus_and_clamp_after_close() {
     assert_eq!(workspace.tabs.len(), 1);
     assert_eq!(workspace.active_tab, 0);
     assert_eq!(workspace.focused_pane_id(), Some(third));
+
+    let fourth = workspace.add_tab(TerminalProfile::Codex, cwd()).unwrap();
+    let fifth = workspace
+        .split_focused(TerminalSplitAxis::Columns, TerminalProfile::Claude, cwd())
+        .unwrap();
+    let removed = workspace.close_tab(1).unwrap();
+    assert_eq!(removed, vec![fourth, fifth]);
+    assert_eq!(workspace.tabs.len(), 1);
+    assert!(workspace.pane(fourth).is_none());
+    assert!(workspace.pane(fifth).is_none());
+    assert_eq!(workspace.focused_pane_id(), Some(third));
     workspace.validate().unwrap();
 }
 
@@ -111,6 +122,15 @@ pub(crate) fn workspace_json_contains_only_stable_layout_and_launch_data() {
         restored.pane(codex).unwrap().command.program.as_deref(),
         Some("codex")
     );
+
+    let mut legacy = TerminalWorkspace::default();
+    let legacy_codex = legacy.add_tab(TerminalProfile::Shell, cwd()).unwrap();
+    assert!(legacy.rename_pane(legacy_codex, "Codex · pad-terminal-tests".into()));
+    legacy.normalize_after_restore().unwrap();
+    assert_eq!(
+        legacy.pane(legacy_codex).unwrap().profile,
+        TerminalProfile::Codex
+    );
 }
 
 pub(crate) fn all_builtin_profiles_have_deterministic_commands() {
@@ -118,6 +138,7 @@ pub(crate) fn all_builtin_profiles_have_deterministic_commands() {
         (TerminalProfile::Shell, None),
         (TerminalProfile::Codex, Some("codex")),
         (TerminalProfile::Claude, Some("claude")),
+        (TerminalProfile::Pi, Some("pi")),
         (TerminalProfile::OpenCode, Some("opencode")),
         (TerminalProfile::GithubCli, None),
     ];
@@ -125,12 +146,36 @@ pub(crate) fn all_builtin_profiles_have_deterministic_commands() {
         assert_eq!(profile.default_command().program.as_deref(), expected);
     }
     assert_eq!(
+        TerminalProfile::Pi.default_command().args,
+        vec!["--mode".to_string(), "rpc".to_string()]
+    );
+    assert_eq!(
         agent_registry::native_profile_agent_type(TerminalProfile::OpenCode),
         Some(AgentType::OpenCode)
     );
     assert_eq!(
         agent_registry::native_profile_agent_type(TerminalProfile::Shell),
         None
+    );
+    assert_eq!(
+        agent_registry::native_agent_terminal_profile(&AgentType::Codex),
+        TerminalProfile::Codex
+    );
+    assert_eq!(
+        agent_registry::native_agent_terminal_profile(&AgentType::Claude),
+        TerminalProfile::Claude
+    );
+    assert_eq!(
+        agent_registry::native_agent_terminal_profile(&AgentType::OpenCode),
+        TerminalProfile::OpenCode
+    );
+    assert_eq!(
+        agent_registry::native_profile_agent_type(TerminalProfile::Pi),
+        Some(AgentType::Pi)
+    );
+    assert_eq!(
+        agent_registry::native_agent_terminal_profile(&AgentType::Pi),
+        TerminalProfile::Pi
     );
 }
 

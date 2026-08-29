@@ -540,6 +540,7 @@ mod style {
         match agent_type {
             AgentType::Claude => Color::Rgb(249, 140, 87),
             AgentType::Codex => Color::Rgb(88, 166, 255),
+            AgentType::Pi => Color::Rgb(100, 200, 160),
             AgentType::Grok => Color::Rgb(255, 70, 70),
             AgentType::Kimi => Color::Rgb(80, 200, 120),
             AgentType::Gemini => Color::Rgb(180, 140, 255),
@@ -704,6 +705,9 @@ mod width {
     const THREAD_TITLE_WIDTH_LIMIT: usize = 72;
 
     pub fn preferred_panel_width(app: &mut App) -> u16 {
+        if app.sidebar.collapsed {
+            return 0;
+        }
         let thread_list_view = app.thread_list_view();
         let locale = app.locale;
         let live_only = app.showing_live_sessions();
@@ -755,7 +759,7 @@ mod width {
         let auto_width =
             (content_width.max(title_width) as u16 + 6).clamp(MIN_PANEL_WIDTH, MAX_PANEL_WIDTH);
         let width = manual_width
-            .map(|manual| auto_width.max(manual.clamp(MIN_PANEL_WIDTH, MAX_PANEL_WIDTH)))
+            .map(|manual| manual.clamp(MIN_PANEL_WIDTH, MAX_PANEL_WIDTH))
             .unwrap_or(auto_width);
         app.sidebar.preferred_panel_width_cache = Some(PreferredPanelWidthCache {
             width,

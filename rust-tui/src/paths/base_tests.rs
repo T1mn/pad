@@ -1,4 +1,4 @@
-use super::{resolve_pad_home_dir, terminal_workspace_path};
+use super::{pad_desktop_store_path, resolve_pad_home_dir, terminal_workspace_path};
 use std::path::PathBuf;
 
 pub(crate) fn explicit_pad_home_is_used_without_rewriting_process_home() {
@@ -22,4 +22,13 @@ pub(crate) fn terminal_workspace_lives_under_pad_home() {
         path.file_name().and_then(|name| name.to_str()),
         Some("terminal-workspace.json")
     );
+}
+
+pub(crate) fn desktop_store_uses_a_separate_application_data_suffix() {
+    let path = pad_desktop_store_path();
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("pad.sqlite")
+    );
+    assert!(path.ends_with("v1/store/pad.sqlite"));
 }

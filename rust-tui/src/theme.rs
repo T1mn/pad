@@ -166,6 +166,9 @@ mod config {
         pub display: DisplayConfig,
         pub sound: SoundConfig,
         pub telegram: TelegramConfig,
+        /// PAD-owned profile defaults. This does not read or write Codex or
+        /// ChatGPT session storage.
+        pub profile: ProfileConfig,
         pub codex: CodexConfig,
         pub agent_permissions: AgentPermissionsConfig,
     }
@@ -182,6 +185,7 @@ mod config {
                 display: DisplayConfig::default(),
                 sound: SoundConfig::default(),
                 telegram: TelegramConfig::default(),
+                profile: ProfileConfig::default(),
                 codex: CodexConfig::default(),
                 agent_permissions: AgentPermissionsConfig::default(),
             }
@@ -213,6 +217,7 @@ mod config {
             default_agent("deepseek"),
             default_agent("gemini"),
             default_agent("opencode"),
+            default_agent("pi"),
         ]
     }
 
@@ -309,7 +314,7 @@ pub use load::ConfigRecovery;
 pub use palette_core::Theme;
 pub use provider::{normalize_provider_key, ProviderConfig};
 pub use settings::{
-    AgentPermissionsConfig, CodexConfig, DisplayConfig, PreviewConfig, SoundConfig,
+    AgentPermissionsConfig, CodexConfig, DisplayConfig, PreviewConfig, ProfileConfig, SoundConfig,
     SoundEventConfig, TelegramConfig,
 };
 

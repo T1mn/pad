@@ -50,6 +50,9 @@ fn settings_detail_modal_size(app: &App) -> (u16, u16) {
             (78, recommended_list_modal_height(9, 2, 1, 1).clamp(16, 22))
         }
         Some(SettingsDetailKind::AutoRefresh)
+        | Some(SettingsDetailKind::ProfilePermissionMode)
+        | Some(SettingsDetailKind::ProfileFullAccess)
+        | Some(SettingsDetailKind::ProfileUnattended)
         | Some(SettingsDetailKind::ClaudeFullAccess)
         | Some(SettingsDetailKind::PreviewMode)
         | Some(SettingsDetailKind::DisplayMode)

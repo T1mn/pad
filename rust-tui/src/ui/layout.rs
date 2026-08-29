@@ -15,7 +15,9 @@ pub fn compute_layout(
         .constraints(vec![Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
-    let constraints = if show_tree {
+    let constraints = if preferred_left_width == Some(0) {
+        vec![Constraint::Length(0), Constraint::Min(0)]
+    } else if show_tree {
         let (left_pct, right_pct) = match area.width {
             0..=99 => (48, 52),
             100..=139 => (42, 58),
@@ -26,9 +28,8 @@ pub fn compute_layout(
             Constraint::Percentage(right_pct),
         ]
     } else {
-        let min_left = 6;
-        let max_left = normal_mode_max_left_width(main_layout[0].width, min_left);
-        let left = preferred_left_width.unwrap_or(16).clamp(min_left, max_left);
+        let requested = preferred_left_width.unwrap_or(16);
+        let left = clamp_normal_left_width(main_layout[0].width, requested);
         vec![Constraint::Length(left), Constraint::Min(0)]
     };
 
@@ -38,6 +39,15 @@ pub fn compute_layout(
         .split(main_layout[0]);
 
     (main_layout.to_vec(), body_layout.to_vec())
+}
+
+pub(crate) fn clamp_normal_left_width(body_width: u16, requested: u16) -> u16 {
+    const MIN_LEFT_WIDTH: u16 = 6;
+
+    requested.clamp(
+        MIN_LEFT_WIDTH,
+        normal_mode_max_left_width(body_width, MIN_LEFT_WIDTH),
+    )
 }
 
 fn normal_mode_max_left_width(body_width: u16, min_left: u16) -> u16 {

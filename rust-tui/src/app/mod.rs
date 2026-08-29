@@ -7,6 +7,29 @@ mod display_scope {
     use super::App;
 
     impl App {
+        /// Build one immutable Codex-style sidebar payload for a Desktop
+        /// renderer or IPC caller.
+        pub(crate) fn codex_sidebar_snapshot(
+            &self,
+        ) -> crate::ui::codex_sidebar::CodexSidebarSnapshot {
+            crate::ui::codex_sidebar::snapshot(&self.sidebar.codex_sidebar)
+        }
+
+        /// Refresh only the Desktop Codex-style navigation projection from
+        /// PAD's private store. This never scans or mutates provider sessions;
+        /// the caller owns the Store lifetime and may invoke it on startup or
+        /// after a sidebar mutation.
+        pub(crate) fn reload_codex_sidebar_from_store(
+            &mut self,
+            store: &crate::pad_store::PadStore,
+        ) -> Result<(), crate::pad_store::StoreError> {
+            let (profiles, projects, tasks, sections) = store.load_sidebar_records()?;
+            self.sidebar
+                .codex_sidebar
+                .replace_data(profiles, projects, tasks, sections);
+            Ok(())
+        }
+
         pub fn invalidate_sidebar_cache(&mut self) {
             self.sidebar.sidebar_folders_dirty = true;
             self.sidebar.visible_sidebar_items_dirty = true;

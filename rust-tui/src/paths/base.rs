@@ -8,6 +8,29 @@ pub fn pad_home_dir() -> PathBuf {
     )
 }
 
+/// PAD Desktop's private application-data root. It intentionally does not
+/// reuse the legacy `PAD_HOME`/`~/.pad` tree so the Desktop store can be
+/// migrated, backed up and removed independently from the native TUI.
+pub fn pad_desktop_data_dir() -> PathBuf {
+    if let Some(override_dir) =
+        std::env::var_os("PAD_DESKTOP_DATA_DIR").filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(override_dir);
+    }
+
+    dirs::data_dir()
+        .or_else(|| dirs::home_dir().map(|home| home.join("Library").join("Application Support")))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("PAD Desktop")
+}
+
+pub fn pad_desktop_store_path() -> PathBuf {
+    pad_desktop_data_dir()
+        .join("v1")
+        .join("store")
+        .join("pad.sqlite")
+}
+
 fn resolve_pad_home_dir(
     override_dir: Option<PathBuf>,
     environment_home: Option<PathBuf>,

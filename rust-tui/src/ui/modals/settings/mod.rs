@@ -132,6 +132,10 @@ mod list {
                 "theme" => "切换整体配色方案",
                 "auto_refresh" => "自动刷新 agent 和 session 列表",
                 "codex_settings" => "配置 Codex 权限、速度、联网、状态栏和摘要",
+                "profile" => "配置 PAD Profile 的默认权限模式和无人值守执行",
+                "profile_permission_mode" => "切换 Profile 的默认权限模式",
+                "profile_full_access" => "切换 Profile 的完全访问默认值",
+                "profile_unattended" => "允许 Profile 在后台无人值守执行",
                 "claude_full_access" => "启动时自动应用 Claude 高权限配置",
                 "sound" => crate::i18n::t(locale, desc_key),
                 "relay" => "配置各 agent 的 provider / proxy",
@@ -147,6 +151,10 @@ mod list {
                 "theme" => "切換整體配色方案",
                 "auto_refresh" => "自動刷新 agent 和 session 列表",
                 "codex_settings" => "配置 Codex 權限、速度、聯網、狀態列和摘要",
+                "profile" => "配置 PAD Profile 的預設權限模式和無人值守執行",
+                "profile_permission_mode" => "切換 Profile 的預設權限模式",
+                "profile_full_access" => "切換 Profile 的完全存取預設值",
+                "profile_unattended" => "允許 Profile 在背景無人值守執行",
                 "claude_full_access" => "啟動時自動套用 Claude 高權限配置",
                 "sound" => crate::i18n::t(locale, desc_key),
                 "relay" => "配置各 agent 的 provider / proxy",
@@ -164,6 +172,10 @@ mod list {
                 "codex_settings" => {
                     "Configure Codex permissions, speed, web search, status line, and summaries"
                 }
+                "profile" => "Configure PAD profile permission and unattended defaults",
+                "profile_permission_mode" => "Choose the profile default permission mode",
+                "profile_full_access" => "Toggle profile Full Access by default",
+                "profile_unattended" => "Allow profile tasks to run unattended",
                 "claude_full_access" => "Apply Claude high-access launch settings automatically",
                 "sound" => crate::i18n::t(locale, desc_key),
                 "relay" => "Configure provider and proxy settings for agents",

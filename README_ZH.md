@@ -56,10 +56,15 @@ cp target/dist/pad ~/.local/bin/
 - `Tab` 聚焦右侧终端，`F12` 返回左侧。
 - `C` 仍然打开 PAD 的全局目录索引，不再承担终端聚焦。
 - 在全局索引里选择目录和 Agent 后，会在该目录新建 native terminal tab，并运行配置中的 Agent 命令。
+- `Command+B` 折叠或恢复左侧列表；也可以直接拖动左右分隔线调整宽度。`Command+Shift+H/L` 每次缩窄/加宽 6 列。Kitty 下使用 PAD 条件映射：`map --when-focus-on var:pad cmd+b send_key f13`、`map --when-focus-on var:pad cmd+shift+h send_key f14`、`map --when-focus-on var:pad cmd+shift+l send_key f15`。
+- 修改 `kitty.conf` 后，先按 `Ctrl+Command+,` 重新加载 Kitty 配置，再重启 PAD，让 PAD 重新发布 `pad` 焦点标记。
+- 顶部 terminal tab 支持鼠标：点击或按住横向拖过标签来切换，点击 `×`（或中键点击）关闭整个 tab；在右侧工作区双指横向滑动也可以切换 tab。
 - `F11` 打开 PAD Terminal 命令层（支持增强键盘协议时也可用 `Ctrl+Shift+Space`）。
-- 命令层中：`1`～`5` 新建 Shell / Codex / Claude / GitHub CLI / OpenCode 标签；`v`/`s` 创建 Shell 左右/上下分屏，`c`/`a`/`g`/`o` 创建对应 Agent 分屏。`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
+- 命令层中：`1`～`6` 新建 Shell / Codex / Claude / GitHub CLI / OpenCode / Pi RPC 标签；`v`/`s` 创建 Shell 左右/上下分屏，`c`/`a`/`g`/`o`/`p` 创建对应 Agent 分屏。`h/j/k/l` 切换 pane，`[`/`]` 切换标签，`r` 重命名，`x` 关闭。GitHub profile 会打开带标签的交互式 Shell（在里面运行 `gh`），避免裸 `gh` 打印帮助后立即退出。
 - `Shift+PgUp/PgDn/Home/End` 控制历史视口；鼠标滚轮会在应用鼠标上报与 PAD scrollback 之间自动仲裁。
-- tab、split、label、profile 与启动目录保存到 `~/.pad/terminal-workspace.json`；重启会创建新的 PTY，不会伪装成恢复旧进程。损坏或来自更新 schema 的文件会先原样保留为 `terminal-workspace.invalid*.json`，再创建干净工作区。
+- `Command+W` 关闭当前 pane；`Command+Q` 只退出 PAD，不退出 Kitty。左侧聚焦时也可以用 `q` 退出。Kitty 需要增加 `map --when-focus-on var:pad cmd+q send_key f16`。
+- Native pane 会向 OpenCode 宣布 `xterm-256color` 和 truecolor，并清除父 shell 的 `NO_COLOR=1`，保证多色 TUI 正常显示。
+- tab、split、label、profile 与启动目录保存到 `~/.pad/terminal-workspace.json`；重启会创建新的 PTY，并在左侧重建已知的 Codex/Claude/OpenCode live session，但不会伪装成恢复旧进程。损坏或来自更新 schema 的文件会先原样保留为 `terminal-workspace.invalid*.json`，再创建干净工作区。
 - 全局 Agent Launcher 选中的命令只在本次运行中启动；PAD 重启后相应标签会安全恢复为交互式 Shell，不会静默重新执行配置文本。
 
 ## 演示

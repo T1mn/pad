@@ -35,6 +35,15 @@ pub(crate) fn command_layer_accepts_explicit_prefixes() {
     )));
     assert!(is_close_chord(key(KeyCode::Char('w'), KeyModifiers::SUPER)));
     assert!(!is_close_chord(key(KeyCode::Char('w'), KeyModifiers::ALT)));
+    assert!(is_quit_chord(key(KeyCode::F(16), KeyModifiers::NONE)));
+    assert!(is_quit_chord(key(KeyCode::Char('q'), KeyModifiers::SUPER)));
+
+    let mut quit_app = App::new();
+    assert!(handle_terminal_key(
+        &mut quit_app,
+        key(KeyCode::F(16), KeyModifiers::NONE)
+    ));
+    assert!(quit_app.should_quit);
 
     #[cfg(unix)]
     crate::test_support::with_temp_home("pad-terminal-keys", "global-command", |_| {
@@ -104,10 +113,21 @@ pub(crate) fn command_actions_cover_layout_profiles_and_navigation() {
         Some(TerminalCommandAction::NewTab(TerminalProfile::OpenCode))
     );
     assert_eq!(
+        terminal_command_action(key(KeyCode::Char('6'), KeyModifiers::NONE)),
+        Some(TerminalCommandAction::NewTab(TerminalProfile::Pi))
+    );
+    assert_eq!(
         terminal_command_action(key(KeyCode::Char('o'), KeyModifiers::NONE)),
         Some(TerminalCommandAction::Split(
             TerminalSplitAxis::Columns,
             TerminalProfile::OpenCode
+        ))
+    );
+    assert_eq!(
+        terminal_command_action(key(KeyCode::Char('p'), KeyModifiers::NONE)),
+        Some(TerminalCommandAction::Split(
+            TerminalSplitAxis::Columns,
+            TerminalProfile::Pi
         ))
     );
     assert_eq!(

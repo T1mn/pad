@@ -1,3 +1,4 @@
+pub(crate) mod codex_sidebar;
 pub mod layout;
 pub mod layout_rules {
     pub const COPY_TOAST_MIN_WIDTH: u16 = 18;
@@ -102,7 +103,9 @@ pub fn terminal_viewport_size(
     app: &mut App,
     area: ratatui::layout::Rect,
 ) -> crate::terminal_runtime::TerminalSize {
-    let preferred_left_width = if app.sidebar.show_tree {
+    let preferred_left_width = if app.sidebar.collapsed {
+        Some(0)
+    } else if app.sidebar.show_tree {
         None
     } else {
         Some(panel_list::preferred_panel_width(app))
@@ -130,7 +133,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .style(Style::default().bg(app.theme.bg));
     f.render_widget(bg_block, f.area());
 
-    let preferred_left_width = if app.sidebar.show_tree {
+    let preferred_left_width = if app.sidebar.collapsed {
+        Some(0)
+    } else if app.sidebar.show_tree {
         None
     } else {
         Some(panel_list::preferred_panel_width(app))
@@ -139,14 +144,16 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         layout::compute_layout(f.area(), app.sidebar.show_tree, preferred_left_width);
 
     let left_started = std::time::Instant::now();
-    if app.sidebar.show_tree {
+    if app.sidebar.show_tree && body_layout[0].width > 0 {
         // Tree mode: left column = file tree + agent status bar, right = file preview
         let left_split = layout::split_tree_left(body_layout[0]);
         panel_list::draw_file_tree(f, app, left_split[0]);
         panel_list::draw_agent_status_bar(f, app, left_split[1]);
     } else {
         // Normal mode: left = agents panel
-        panel_list::draw_panel_list(f, app, body_layout[0]);
+        if body_layout[0].width > 0 {
+            panel_list::draw_panel_list(f, app, body_layout[0]);
+        }
     }
     let left_elapsed = left_started.elapsed();
 

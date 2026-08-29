@@ -13,7 +13,7 @@ pub(crate) fn native_pty_preserves_io_resize_env_and_exit() {
     let command = NativePtyCommand::new("/bin/sh")
             .args([
                 "-c",
-                "stty -echo; printf 'READY\\r\\n'; IFS= read -r value; printf 'INPUT=%s\\r\\n' \"$value\"; printf 'SIZE='; stty size; printf 'ENV=%s\\r\\n' \"$PAD_NATIVE_TEST\"; exit 7",
+                "stty -echo; printf 'READY\\r\\n'; IFS= read -r value; printf 'INPUT=%s\\r\\n' \"$value\"; printf 'SIZE='; stty size; printf 'ENV=%s\\r\\n' \"$PAD_NATIVE_TEST\"; printf 'COLOR=%s,%s,%s,%s,%s\\r\\n' \"$TERM\" \"$COLORTERM\" \"$FORCE_COLOR\" \"$NO_COLOR\" \"$TERM_PROGRAM\"; exit 7",
             ])
             .env("PAD_NATIVE_TEST", "direct-pty");
     let transport = NativePtyTransport::new(
@@ -41,6 +41,10 @@ pub(crate) fn native_pty_preserves_io_resize_env_and_exit() {
     assert!(contains_bytes(&output, b"INPUT=hello-native"), "{output:?}");
     assert!(contains_bytes(&output, b"SIZE=9 31"), "{output:?}");
     assert!(contains_bytes(&output, b"ENV=direct-pty"), "{output:?}");
+    assert!(contains_bytes(
+        &output,
+        b"COLOR=xterm-256color,truecolor,1,,pad"
+    ));
     handle.recv_completion().unwrap();
 }
 

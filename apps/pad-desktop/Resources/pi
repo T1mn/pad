@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -d "$SCRIPT_DIR/../lib" ]; then
+  export DYLD_LIBRARY_PATH="$SCRIPT_DIR/../lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+fi
+if "$SCRIPT_DIR/node" --version >/dev/null 2>&1; then
+  exec "$SCRIPT_DIR/node" "$SCRIPT_DIR/../pi/dist/bundle/cli.js" "$@"
+fi
+
+# A copied Node binary can depend on a machine-specific dynamic library path.
+# If that path is unavailable on another Mac, prefer an installed Pi instead
+# of failing silently from the bundled PATH entry.
+for system_pi in /opt/homebrew/bin/pi /usr/local/bin/pi /usr/bin/pi; do
+  if [ -x "$system_pi" ]; then
+    exec "$system_pi" "$@"
+  fi
+done
+echo "PAD Desktop: bundled Pi runtime is unavailable and no system pi was found" >&2
+exit 127

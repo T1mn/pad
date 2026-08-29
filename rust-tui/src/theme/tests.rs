@@ -5,6 +5,11 @@ pub(crate) mod config {
     pub(crate) fn config_round_trips_opencode_provider_models() {
         with_temp_home("opencode-roundtrip", || {
             let mut config = Config::default();
+            config.profile.name = "desktop-default".into();
+            config
+                .profile
+                .set_permission_mode(ProfileConfig::WORKSPACE_FULL_ACCESS);
+            config.profile.unattended = true;
             config.agent_permissions.codex_auto_full_access = false;
             config.codex.fast_mode = true;
             config.codex.goals = true;
@@ -50,6 +55,13 @@ pub(crate) mod config {
             config.save().expect("save config");
 
             let loaded = Config::load();
+            assert_eq!(loaded.profile.name, "desktop-default");
+            assert_eq!(
+                loaded.profile.default_permission_mode,
+                ProfileConfig::WORKSPACE_FULL_ACCESS
+            );
+            assert!(!loaded.profile.full_access);
+            assert!(loaded.profile.unattended);
             assert!(!loaded.agent_permissions.codex_auto_full_access);
             assert!(loaded.agent_permissions.claude_auto_full_access);
             assert!(loaded.codex.fast_mode);
@@ -145,6 +157,84 @@ pub(crate) mod config {
             assert!(!loaded.sound.approval.enabled);
             assert_eq!(loaded.sound.approval.preset, "ping");
         });
+    }
+
+    pub(crate) fn config_loads_profile_full_access_compatibility_alias() {
+        with_temp_home("profile-full-access-alias", || {
+            let path = Config::config_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create pad parent");
+            }
+            std::fs::write(
+                &path,
+                r#"[profile]
+full_access = true
+unattended = true
+
+[agent_permissions]
+codex_auto_full_access = false
+claude_auto_full_access = false
+"#,
+            )
+            .expect("write profile config");
+
+            let loaded = Config::load();
+            assert!(loaded.profile.full_access);
+            assert_eq!(
+                loaded.profile.default_permission_mode,
+                ProfileConfig::SYSTEM_FULL_ACCESS
+            );
+            assert!(loaded.profile.unattended);
+            // The new profile switch must not change the legacy provider flags.
+            assert!(!loaded.agent_permissions.codex_auto_full_access);
+            assert!(!loaded.agent_permissions.claude_auto_full_access);
+        });
+    }
+
+    pub(crate) fn config_profile_mode_wins_over_compatibility_alias() {
+        with_temp_home("profile-mode-precedence", || {
+            let path = Config::config_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create pad parent");
+            }
+            std::fs::write(
+                &path,
+                r#"[profile]
+default_permission_mode = "guarded"
+full_access = true
+"#,
+            )
+            .expect("write profile config");
+
+            let loaded = Config::load();
+            assert_eq!(
+                loaded.profile.default_permission_mode,
+                ProfileConfig::GUARDED
+            );
+            assert!(!loaded.profile.full_access);
+        });
+    }
+
+    pub(crate) fn profile_config_normalizes_modes_and_keeps_alias_in_sync() {
+        let mut profile = ProfileConfig::default();
+        assert_eq!(
+            ProfileConfig::normalized_permission_mode("workspace-full-access"),
+            ProfileConfig::WORKSPACE_FULL_ACCESS
+        );
+        assert_eq!(
+            ProfileConfig::normalized_permission_mode("unexpected"),
+            ProfileConfig::GUARDED
+        );
+
+        profile.set_permission_mode(ProfileConfig::SYSTEM_FULL_ACCESS);
+        assert!(profile.full_access);
+        assert_eq!(
+            profile.effective_permission_mode(),
+            ProfileConfig::SYSTEM_FULL_ACCESS
+        );
+        profile.set_full_access(false);
+        assert!(!profile.full_access);
+        assert_eq!(profile.default_permission_mode, ProfileConfig::GUARDED);
     }
 
     pub(crate) fn resolved_config_path_prefers_pad_home_over_legacy_path() {

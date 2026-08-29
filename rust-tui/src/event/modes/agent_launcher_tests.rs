@@ -27,6 +27,13 @@ pub(crate) fn native_launcher_opens_selected_agent_in_a_real_terminal_tab() {
         assert_eq!(app.terminal_workspace().tabs.len(), 2);
         assert_eq!(app.terminal_workspace().panes.len(), 2);
         let agent_pane_id = app.focused_terminal_pane_id().unwrap();
+        assert_eq!(
+            app.terminal_workspace()
+                .pane(agent_pane_id)
+                .unwrap()
+                .profile,
+            crate::app::TerminalProfile::OpenCode
+        );
         let pane = app.focused_terminal_pane().unwrap();
         assert_eq!(pane.cwd(), target);
         assert_eq!(pane.label(), "OpenCode · project");

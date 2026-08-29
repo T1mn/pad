@@ -41,6 +41,7 @@ mod matchers {
         match agent_type {
             AgentType::Claude => "claude",
             AgentType::Codex => "codex",
+            AgentType::Pi => "pi",
             AgentType::Grok => "grok",
             AgentType::Kimi => "kimi",
             AgentType::Gemini => "gemini",

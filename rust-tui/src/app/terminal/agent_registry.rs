@@ -197,7 +197,23 @@ pub(super) fn native_profile_agent_type(profile: TerminalProfile) -> Option<Agen
     match profile {
         TerminalProfile::Codex => Some(AgentType::Codex),
         TerminalProfile::Claude => Some(AgentType::Claude),
+        TerminalProfile::Pi => Some(AgentType::Pi),
         TerminalProfile::OpenCode => Some(AgentType::OpenCode),
         TerminalProfile::Shell | TerminalProfile::GithubCli => None,
+    }
+}
+
+pub(super) fn native_agent_terminal_profile(agent_type: &AgentType) -> TerminalProfile {
+    match agent_type {
+        AgentType::Codex => TerminalProfile::Codex,
+        AgentType::Claude => TerminalProfile::Claude,
+        AgentType::Pi => TerminalProfile::Pi,
+        AgentType::OpenCode => TerminalProfile::OpenCode,
+        AgentType::Grok
+        | AgentType::Kimi
+        | AgentType::Gemini
+        | AgentType::Aider
+        | AgentType::Cursor
+        | AgentType::Unknown => TerminalProfile::Shell,
     }
 }

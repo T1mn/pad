@@ -19,6 +19,83 @@ pub struct TelegramConfig {
     pub bot_username: String,
 }
 
+/// Per-profile execution defaults owned by PAD.
+///
+/// This section is intentionally separate from `AgentPermissionsConfig`.
+/// The latter contains the legacy Codex/Claude launch flags and must keep its
+/// existing meaning.  A profile can therefore opt into PAD's execution policy
+/// without changing (or rewriting) either provider's native configuration.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProfileConfig {
+    /// Human-readable profile name used by the desktop/sidebar profile picker.
+    pub name: String,
+    /// Canonical default mode: `guarded`, `workspace_full_access`, or
+    /// `system_full_access`.
+    pub default_permission_mode: String,
+    /// Compatibility/UX switch for clients that expose a single Full Access
+    /// toggle.  When enabled, the effective mode is system full access.
+    pub full_access: bool,
+    /// Allow the profile to continue without foreground confirmation prompts.
+    pub unattended: bool,
+}
+
+impl ProfileConfig {
+    pub const GUARDED: &'static str = "guarded";
+    pub const WORKSPACE_FULL_ACCESS: &'static str = "workspace_full_access";
+    pub const SYSTEM_FULL_ACCESS: &'static str = "system_full_access";
+
+    pub fn normalized_permission_mode(value: &str) -> String {
+        match value.trim().to_ascii_lowercase().as_str() {
+            Self::WORKSPACE_FULL_ACCESS | "workspace" | "workspace-full-access" => {
+                Self::WORKSPACE_FULL_ACCESS.to_string()
+            }
+            Self::SYSTEM_FULL_ACCESS
+            | "system"
+            | "system-full-access"
+            | "full_access"
+            | "full-access" => Self::SYSTEM_FULL_ACCESS.to_string(),
+            _ => Self::GUARDED.to_string(),
+        }
+    }
+
+    /// Returns the mode that should be consumed by a policy/runtime layer.
+    ///
+    /// `full_access` remains an explicit compatibility alias so an older
+    /// profile file can be upgraded without silently disabling access.
+    pub fn effective_permission_mode(&self) -> &str {
+        if self.full_access {
+            Self::SYSTEM_FULL_ACCESS
+        } else {
+            self.default_permission_mode.as_str()
+        }
+    }
+
+    pub fn set_permission_mode(&mut self, mode: &str) {
+        self.default_permission_mode = Self::normalized_permission_mode(mode);
+        self.full_access = self.default_permission_mode == Self::SYSTEM_FULL_ACCESS;
+    }
+
+    pub fn set_full_access(&mut self, enabled: bool) {
+        self.full_access = enabled;
+        if enabled {
+            self.default_permission_mode = Self::SYSTEM_FULL_ACCESS.to_string();
+        } else if self.default_permission_mode == Self::SYSTEM_FULL_ACCESS {
+            self.default_permission_mode = Self::GUARDED.to_string();
+        }
+    }
+}
+
+impl Default for ProfileConfig {
+    fn default() -> Self {
+        Self {
+            name: "default".to_string(),
+            default_permission_mode: Self::GUARDED.to_string(),
+            full_access: false,
+            unattended: false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SoundEventConfig {
     pub enabled: bool,

@@ -24,6 +24,7 @@ pub(super) fn render(config: &Config) -> String {
     push_str_line(&mut content, "bot_token", &config.telegram.bot_token);
     push_str_line(&mut content, "chat_id", &config.telegram.chat_id);
     push_str_line(&mut content, "bot_username", &config.telegram.bot_username);
+    push_profile(&mut content, &config.profile);
     push_codex(&mut content, &config.codex);
     content.push_str("\n[agent_permissions]\n");
     content.push_str(&format!(
@@ -37,6 +38,18 @@ pub(super) fn render(config: &Config) -> String {
     content.push('\n');
     push_agents(&mut content, &config.agents);
     content
+}
+
+fn push_profile(content: &mut String, profile: &ProfileConfig) {
+    content.push_str("\n[profile]\n");
+    push_str_line(content, "name", &profile.name);
+    push_str_line(
+        content,
+        "default_permission_mode",
+        &profile.default_permission_mode,
+    );
+    content.push_str(&format!("full_access = {}\n", profile.full_access));
+    content.push_str(&format!("unattended = {}\n", profile.unattended));
 }
 
 fn push_codex(content: &mut String, codex: &CodexConfig) {

@@ -614,22 +614,60 @@ mod panel_width {
     use super::App;
 
     const AGENT_PANEL_WIDTH_STEP: u16 = 6;
+    const MIN_AGENT_PANEL_WIDTH: u16 = 6;
     const MAX_AGENT_PANEL_WIDTH: u16 = 90;
 
     impl App {
-        pub fn widen_agent_panel_width(&mut self, current_width: u16) {
-            let next = current_width
-                .saturating_add(AGENT_PANEL_WIDTH_STEP)
-                .min(MAX_AGENT_PANEL_WIDTH);
-            self.config.display.agent_panel_width = Some(next);
+        pub fn toggle_sidebar_collapsed(&mut self) {
+            self.sidebar.collapsed = !self.sidebar.collapsed;
+            self.sidebar.panel_resize_dragging = false;
+            if self.sidebar.collapsed {
+                let _ = self.focus_preview();
+            }
+            self.dirty = true;
+        }
+
+        pub fn expand_sidebar(&mut self) {
+            if self.sidebar.collapsed {
+                self.sidebar.collapsed = false;
+                self.dirty = true;
+            }
+        }
+
+        pub fn set_agent_panel_width(&mut self, width: u16) {
+            self.config.display.agent_panel_width =
+                Some(width.clamp(MIN_AGENT_PANEL_WIDTH, MAX_AGENT_PANEL_WIDTH));
             self.sidebar.preferred_panel_width_cache = None;
+            self.dirty = true;
+        }
+
+        pub fn commit_agent_panel_width(&mut self) {
+            let Some(width) = self.config.display.agent_panel_width else {
+                return;
+            };
             if self.save_config() {
                 self.show_action_toast(
                     panel_width_toast_title(self.locale),
-                    &panel_width_toast_body(self.locale, next),
+                    &panel_width_toast_body(self.locale, width),
                 );
             }
-            self.dirty = true;
+        }
+
+        pub fn widen_agent_panel_width(&mut self, current_width: u16) {
+            self.adjust_agent_panel_width(current_width, AGENT_PANEL_WIDTH_STEP as i16);
+        }
+
+        pub fn narrow_agent_panel_width(&mut self, current_width: u16) {
+            self.adjust_agent_panel_width(current_width, -(AGENT_PANEL_WIDTH_STEP as i16));
+        }
+
+        fn adjust_agent_panel_width(&mut self, current_width: u16, delta: i16) {
+            let next = (i32::from(current_width) + i32::from(delta)).clamp(
+                i32::from(MIN_AGENT_PANEL_WIDTH),
+                i32::from(MAX_AGENT_PANEL_WIDTH),
+            ) as u16;
+            self.set_agent_panel_width(next);
+            self.commit_agent_panel_width();
         }
     }
 

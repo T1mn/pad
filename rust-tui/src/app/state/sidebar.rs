@@ -47,12 +47,16 @@ mod state {
     use super::space::PendingSidebarSpaceAction;
     use super::stats::{PreferredPanelWidthCache, VisibleSidebarStats};
     use crate::model::AgentPanel;
-    use crate::sidebar::{SidebarFolder, SidebarItem, SidebarThread, ThreadActivityOverride};
+    use crate::sidebar::{
+        CodexSidebarState, SidebarFolder, SidebarItem, SidebarThread, ThreadActivityOverride,
+    };
     use crate::tree;
     use std::collections::{HashMap, HashSet};
 
     pub struct SidebarState {
         pub show_tree: bool,
+        pub collapsed: bool,
+        pub panel_resize_dragging: bool,
         pub file_tree: Option<tree::FileTree>,
         pub agent_launcher: Option<tree::AgentLauncher>,
         pub delete_target: Option<AgentPanel>,
@@ -72,6 +76,10 @@ mod state {
         pub thread_sort_activity: HashMap<String, i64>,
         pub sidebar_folders_cache: Vec<SidebarFolder>,
         pub visible_sidebar_items_cache: Vec<SidebarItem>,
+        /// Codex-style Desktop navigation projection.  The legacy PAD pane
+        /// list remains above for compatibility while the new Desktop shell
+        /// renders this independent Profile/Project/Task hierarchy.
+        pub codex_sidebar: CodexSidebarState,
         pub visible_sidebar_stats: VisibleSidebarStats,
         pub preferred_panel_width_cache: Option<PreferredPanelWidthCache>,
         pub sidebar_folders_dirty: bool,
@@ -82,6 +90,8 @@ mod state {
         pub fn new(display_session_scope: String) -> Self {
             Self {
                 show_tree: false,
+                collapsed: false,
+                panel_resize_dragging: false,
                 file_tree: None,
                 agent_launcher: None,
                 delete_target: None,
@@ -101,6 +111,7 @@ mod state {
                 thread_sort_activity: HashMap::new(),
                 sidebar_folders_cache: Vec::new(),
                 visible_sidebar_items_cache: Vec::new(),
+                codex_sidebar: CodexSidebarState::default(),
                 visible_sidebar_stats: VisibleSidebarStats::default(),
                 preferred_panel_width_cache: None,
                 sidebar_folders_dirty: true,

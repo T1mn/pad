@@ -263,7 +263,46 @@ pub(crate) mod preview_tab {
 pub(crate) mod sidebar_keys {
     use super::*;
 
+    fn command_shortcuts_toggle_and_resize_sidebar() {
+        crate::test_support::with_temp_home("pad-event", "sidebar-layout-keys", |_| {
+            let mut app = App::new();
+            app.config.display.agent_panel_width = Some(30);
+            let mut terminal = test_terminal();
+
+            handle_normal_mode(&mut terminal, &mut app, key(KeyCode::F(13))).unwrap();
+            assert!(app.sidebar.collapsed);
+            handle_normal_mode(&mut terminal, &mut app, key(KeyCode::F(13))).unwrap();
+            assert!(!app.sidebar.collapsed);
+
+            let command_b = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::SUPER);
+            handle_normal_mode(&mut terminal, &mut app, command_b).unwrap();
+            assert!(app.sidebar.collapsed);
+            handle_normal_mode(&mut terminal, &mut app, command_b).unwrap();
+            assert!(!app.sidebar.collapsed);
+
+            handle_normal_mode(&mut terminal, &mut app, key(KeyCode::F(14))).unwrap();
+            assert_eq!(app.config.display.agent_panel_width, Some(24));
+            handle_normal_mode(&mut terminal, &mut app, key(KeyCode::F(15))).unwrap();
+            assert_eq!(app.config.display.agent_panel_width, Some(30));
+
+            let command_shift_h = KeyEvent::new(
+                KeyCode::Char('h'),
+                KeyModifiers::SUPER | KeyModifiers::SHIFT,
+            );
+            let command_shift_l = KeyEvent::new(
+                KeyCode::Char('l'),
+                KeyModifiers::SUPER | KeyModifiers::SHIFT,
+            );
+            handle_normal_mode(&mut terminal, &mut app, command_shift_h).unwrap();
+            assert_eq!(app.config.display.agent_panel_width, Some(24));
+            handle_normal_mode(&mut terminal, &mut app, command_shift_l).unwrap();
+            assert_eq!(app.config.display.agent_panel_width, Some(30));
+        });
+    }
+
     pub(crate) fn space_on_selected_thread_collapses_parent_folder() {
+        command_shortcuts_toggle_and_resize_sidebar();
+
         let mut app = App::new();
         app.panels.push(sample_panel("%1", "/tmp/alpha"));
         app.panels.push(sample_panel("%2", "/tmp/beta"));

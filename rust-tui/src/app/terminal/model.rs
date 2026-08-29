@@ -41,6 +41,7 @@ pub enum TerminalProfile {
     Shell,
     Codex,
     Claude,
+    Pi,
     OpenCode,
     GithubCli,
 }
@@ -51,6 +52,7 @@ impl TerminalProfile {
             Self::Shell => "Shell",
             Self::Codex => "Codex",
             Self::Claude => "Claude",
+            Self::Pi => "Pi",
             Self::OpenCode => "OpenCode",
             Self::GithubCli => "GitHub CLI",
         }
@@ -61,6 +63,7 @@ impl TerminalProfile {
             Self::Shell => TerminalCommandDefinition::default_shell(),
             Self::Codex => TerminalCommandDefinition::program("codex"),
             Self::Claude => TerminalCommandDefinition::program("claude"),
+            Self::Pi => TerminalCommandDefinition::program("pi").with_args(["--mode", "rpc"]),
             Self::OpenCode => TerminalCommandDefinition::program("opencode"),
             // `gh` is a one-shot CLI and exits immediately without a
             // subcommand. Keep this profile alive as an interactive shell in
@@ -89,6 +92,15 @@ impl TerminalCommandDefinition {
             program: Some(program.into()),
             args: Vec::new(),
         }
+    }
+
+    pub fn with_args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.args = args.into_iter().map(Into::into).collect();
+        self
     }
 }
 

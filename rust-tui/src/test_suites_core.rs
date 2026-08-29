@@ -208,6 +208,7 @@ fn panic_boundary_tests_suite() {
 fn paths_base_suite() {
     run_cases!(
         crate::paths::base::tests::explicit_pad_home_is_used_without_rewriting_process_home,
+        crate::paths::base::tests::desktop_store_uses_a_separate_application_data_suffix,
         crate::paths::base::tests::terminal_workspace_lives_under_pad_home,
     );
 }
@@ -454,8 +455,11 @@ fn theme_save_suite() {
 fn theme_tests_suite() {
     run_cases!(
         crate::theme::tests::config::config_defaults_agent_permissions_to_enabled,
+        crate::theme::tests::config::config_loads_profile_full_access_compatibility_alias,
         crate::theme::tests::config::config_loads_legacy_codex_prompt_file_as_jailbreak_prompt_file,
+        crate::theme::tests::config::config_profile_mode_wins_over_compatibility_alias,
         crate::theme::tests::config::config_round_trips_opencode_provider_models,
+        crate::theme::tests::config::profile_config_normalizes_modes_and_keeps_alias_in_sync,
         crate::theme::tests::config::config_save_omits_wire_api_entries,
         crate::theme::tests::config::load_from_path_reports_invalid_toml,
         crate::theme::tests::config::resolved_config_path_prefers_pad_home_over_legacy_path,

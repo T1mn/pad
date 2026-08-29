@@ -324,6 +324,15 @@ fn handle_settings_detail_mode(app: &mut App, key: KeyCode) -> bool {
         Some(SettingsDetailKind::CodexSettings) => {
             codex::handle_codex_settings_detail_mode(app, key)
         }
+        Some(SettingsDetailKind::ProfilePermissionMode) => {
+            general::handle_profile_permission_mode_detail_mode(app, key)
+        }
+        Some(SettingsDetailKind::ProfileFullAccess) => {
+            general::handle_profile_full_access_detail_mode(app, key)
+        }
+        Some(SettingsDetailKind::ProfileUnattended) => {
+            general::handle_profile_unattended_detail_mode(app, key)
+        }
         Some(SettingsDetailKind::ClaudeFullAccess) => {
             general::handle_claude_full_access_detail_mode(app, key)
         }

@@ -102,10 +102,10 @@ mod gemini {
     }
 }
 mod opencode;
-mod permissions;
+pub(crate) mod permissions;
 
 use crate::theme::CodexConfig;
-use crate::theme::{AgentConfig, AgentPermissionsConfig};
+use crate::theme::{AgentConfig, AgentPermissionsConfig, ProfileConfig};
 use std::path::PathBuf;
 
 pub(crate) fn claude_base_url(raw: &str) -> String {
@@ -136,6 +136,32 @@ pub fn apply_runtime_overlays(
     codex: &CodexConfig,
 ) {
     permissions::apply_runtime_overlays(agents, permissions, codex);
+}
+
+/// Apply runtime overlays using PAD's profile-level permission choice.  The
+/// profile policy is intentionally kept separate from provider-specific relay
+/// settings, while Full Access/Unattended still enables the native provider
+/// bypass compatibility path.
+pub fn apply_runtime_overlays_for_profile(
+    agents: &[AgentConfig],
+    permissions: &AgentPermissionsConfig,
+    codex: &CodexConfig,
+    profile: &ProfileConfig,
+    workspace_roots: impl IntoIterator<Item = PathBuf>,
+) {
+    use permissions::policy::{PermissionMode, RuntimePermissionPolicy};
+
+    let mode = if profile.unattended {
+        PermissionMode::Unattended
+    } else {
+        match profile.effective_permission_mode() {
+            ProfileConfig::WORKSPACE_FULL_ACCESS => PermissionMode::Workspace,
+            ProfileConfig::SYSTEM_FULL_ACCESS => PermissionMode::FullAccess,
+            _ => PermissionMode::Prompt,
+        }
+    };
+    let policy = RuntimePermissionPolicy::new(mode, workspace_roots);
+    permissions::apply_runtime_overlays_with_policy(agents, permissions, codex, &policy);
 }
 
 /// Apply both relay/provider config and PAD-managed runtime permission overlays.

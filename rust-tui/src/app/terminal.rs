@@ -391,9 +391,10 @@ impl App {
         Ok(pane_id)
     }
 
-    /// Opens a shell tab and replaces that shell with a configured agent
-    /// command. The command is runtime-only: workspace restore keeps the
-    /// labelled shell but never auto-runs arbitrary text loaded from disk.
+    /// Opens a tab with a stable built-in profile and replaces its derived
+    /// command for this launch. The command remains runtime-only, while the
+    /// profile lets restore safely relaunch known agents and rebuild sidebar
+    /// entries without trusting arbitrary text loaded from disk.
     pub fn launch_native_agent_terminal_at(
         &mut self,
         label: &str,
@@ -415,15 +416,14 @@ impl App {
         let label = model::normalize_label(label).map_err(TerminalError::new)?;
         self.ensure_terminal_controller()?;
         let mut workspace = self.terminal.workspace.clone();
-        let pane_id = workspace
-            .add_tab(TerminalProfile::Shell, cwd.clone())
-            .ok_or_else(|| {
-                TerminalError::new(format!(
-                    "terminal workspace is limited to {} tabs and {} panes",
-                    model::MAX_TERMINAL_TABS,
-                    model::MAX_TERMINAL_PANES
-                ))
-            })?;
+        let profile = agent_registry::native_agent_terminal_profile(&agent_type);
+        let pane_id = workspace.add_tab(profile, cwd.clone()).ok_or_else(|| {
+            TerminalError::new(format!(
+                "terminal workspace is limited to {} tabs and {} panes",
+                model::MAX_TERMINAL_TABS,
+                model::MAX_TERMINAL_PANES
+            ))
+        })?;
         let definition = workspace
             .panes
             .iter_mut()
@@ -435,11 +435,14 @@ impl App {
             .pane(pane_id)
             .expect("persisted terminal tab has a pane definition")
             .clone();
-        definition.command = native_agent_command(command);
+        let launch_command = if agent_type == AgentType::Pi {
+            crate::pi_runtime::build_pi_rpc_command(command)
+        } else {
+            command.to_string()
+        };
+        definition.command = native_agent_command(&launch_command);
         self.terminal.workspace = workspace;
-        let runtime_definition = self.runtime_terminal_definition(definition.clone());
-        self.terminal
-            .install_pane_runtime(&runtime_definition, size);
+        self.terminal.install_pane_runtime(&definition, size);
         self.terminal.flush_commands();
         self.register_native_agent_panel(pane_id, agent_type, label, cwd);
         self.dirty = true;
@@ -516,6 +519,28 @@ impl App {
             Some(pane_id) => self.close_terminal_pane(pane_id),
             None => Ok(false),
         }
+    }
+
+    pub fn close_terminal_tab(&mut self, index: usize) -> Result<bool, TerminalError> {
+        let mut workspace = self.terminal.workspace.clone();
+        let Some(pane_ids) = workspace.close_tab(index) else {
+            return Ok(false);
+        };
+        self.persist_terminal_workspace(&workspace)?;
+        self.terminal.workspace = workspace;
+        for pane_id in pane_ids {
+            self.terminal.queue_close(pane_id);
+            self.remove_native_agent_panel(pane_id);
+        }
+        self.reindex_native_agent_panels();
+        if let Some(focused) = self.focused_terminal_pane_id() {
+            self.mark_native_agent_panel_active(focused);
+        } else {
+            self.cancel_terminal_command_layer();
+            self.focus_panel();
+        }
+        self.dirty = true;
+        Ok(true)
     }
 
     pub fn rename_terminal_pane(
@@ -602,8 +627,49 @@ impl App {
         &self,
         mut definition: TerminalPaneDefinition,
     ) -> TerminalPaneDefinition {
-        if definition.profile == TerminalProfile::OpenCode {
-            definition.command = native_agent_command(&self.configured_opencode_command());
+        let configured = match definition.profile {
+            TerminalProfile::Codex | TerminalProfile::Claude => {
+                let agent_name = definition.profile.display_name().to_ascii_lowercase();
+                let fallback = definition.profile.default_command();
+                let configured = self
+                    .config
+                    .agents
+                    .iter()
+                    .find(|agent| agent.name == agent_name)
+                    .map(|agent| agent.cmd.trim())
+                    .filter(|command| !command.is_empty())
+                    .or(fallback.program.as_deref());
+                configured.and_then(|command| {
+                    match crate::codex_runtime::prepare_agent_command(&agent_name, command) {
+                        Ok(command) => Some(command),
+                        Err(error) => {
+                            crate::log_debug!(
+                                "terminal restore: could not prepare {} profile: {}",
+                                agent_name,
+                                error
+                            );
+                            None
+                        }
+                    }
+                })
+            }
+            TerminalProfile::Pi => {
+                let fallback = definition.profile.default_command();
+                let configured = self
+                    .config
+                    .agents
+                    .iter()
+                    .find(|agent| agent.name.eq_ignore_ascii_case("pi"))
+                    .map(|agent| agent.cmd.trim())
+                    .filter(|command| !command.is_empty())
+                    .or(fallback.program.as_deref());
+                configured.map(crate::pi_runtime::build_pi_rpc_command)
+            }
+            TerminalProfile::OpenCode => Some(self.configured_opencode_command()),
+            TerminalProfile::Shell | TerminalProfile::GithubCli => None,
+        };
+        if let Some(command) = configured {
+            definition.command = native_agent_command(&command);
         }
         definition
     }

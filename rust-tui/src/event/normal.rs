@@ -214,6 +214,10 @@ pub(super) fn handle_normal_mode<B: Backend>(
         app.panels.len()
     );
 
+    if global_keys::handle_sidebar_layout_key(app, key) {
+        return Ok(());
+    }
+
     if terminal_keys::handle_terminal_key(app, key) {
         return Ok(());
     }

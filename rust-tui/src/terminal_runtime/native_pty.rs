@@ -133,6 +133,12 @@ impl NativePtyCommand {
         // values are applied afterwards and may intentionally override them.
         command.env_remove("TMUX");
         command.env_remove("TMUX_PANE");
+        // The host shell may export NO_COLOR=1 (common in developer dotfiles),
+        // but a PAD pane is an interactive, color-capable terminal. Remove
+        // that inherited opt-out and advertise the explicit override so
+        // OpenCode and other CLI UIs keep their multi-color TUI output.
+        command.env_remove("NO_COLOR");
+        command.env("FORCE_COLOR", "1");
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
         command.env("TERM_PROGRAM", "pad");

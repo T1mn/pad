@@ -198,9 +198,9 @@ pub use base::{
     claude_hook_bridge_path, codex_hook_bridge_path, config_path, hook_events_path,
     legacy_config_path, log_path, logs_dir, notification_inbox_path, notifications_dir,
     opencode_diagnostics_dir, opencode_exports_dir, opencode_stats_dir, pad_codex_wrapper_path,
-    pad_db_path, pad_home_dir, prompts_dir, relay_export_path, scripts_dir,
-    session_continuity_log_path, session_continuity_state_path, sessions_dir, sessions_index_path,
-    telegram_bot_log_path, terminal_workspace_path,
+    pad_db_path, pad_desktop_data_dir, pad_desktop_store_path, pad_home_dir, prompts_dir,
+    relay_export_path, scripts_dir, session_continuity_log_path, session_continuity_state_path,
+    sessions_dir, sessions_index_path, telegram_bot_log_path, terminal_workspace_path,
 };
 
 pub fn ensure_pad_codex_wrapper() -> io::Result<()> {

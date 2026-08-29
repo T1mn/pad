@@ -259,6 +259,7 @@ mod notification_text {
         match agent_type {
             AgentType::Claude => "Claude",
             AgentType::Codex => "Codex",
+            AgentType::Pi => "Pi",
             AgentType::Grok => "Grok",
             AgentType::Gemini => "Gemini",
             AgentType::OpenCode => "OpenCode",

@@ -293,6 +293,14 @@ mod scroll {
         }
     }
 
+    pub(in crate::event) fn mouse_horizontal_scroll_delta(kind: &MouseEventKind) -> Option<i32> {
+        match kind {
+            MouseEventKind::ScrollLeft => Some(-1),
+            MouseEventKind::ScrollRight => Some(1),
+            _ => None,
+        }
+    }
+
     pub(in crate::event) fn coalesce_scroll_burst(
         first: MouseEvent,
         carried_event: &mut Option<Event>,
@@ -316,6 +324,31 @@ mod scroll {
             }
         }
 
+        Ok((column, row, delta))
+    }
+
+    pub(in crate::event) fn coalesce_horizontal_scroll_burst(
+        first: MouseEvent,
+        carried_event: &mut Option<Event>,
+    ) -> io::Result<(u16, u16, i32)> {
+        let mut column = first.column;
+        let mut row = first.row;
+        let mut delta = mouse_horizontal_scroll_delta(&first.kind).unwrap_or_default();
+
+        while event::poll(Duration::from_millis(0))? {
+            let next = event::read()?;
+            match next {
+                Event::Mouse(mouse) if mouse_horizontal_scroll_delta(&mouse.kind).is_some() => {
+                    column = mouse.column;
+                    row = mouse.row;
+                    delta += mouse_horizontal_scroll_delta(&mouse.kind).unwrap_or_default();
+                }
+                other => {
+                    *carried_event = Some(other);
+                    break;
+                }
+            }
+        }
         Ok((column, row, delta))
     }
 
@@ -387,7 +420,8 @@ pub(in crate::event) use regions::normal_mouse_regions;
 #[cfg(test)]
 pub(in crate::event) use scroll::MOUSE_PREVIEW_SCROLL_DELTA;
 pub(in crate::event) use scroll::{
-    coalesce_scroll_burst, drain_pending_scroll_events, handle_normal_scroll, mouse_scroll_delta,
+    coalesce_horizontal_scroll_burst, coalesce_scroll_burst, drain_pending_scroll_events,
+    handle_normal_scroll, mouse_horizontal_scroll_delta, mouse_scroll_delta,
 };
 
 pub(super) fn handle_normal_mouse(app: &mut App, terminal_area: Rect, mouse: MouseEvent) {

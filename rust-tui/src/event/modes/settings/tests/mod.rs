@@ -274,6 +274,74 @@ pub(crate) mod sound {
         });
     }
 }
+
+pub(crate) mod profile {
+    use super::super::handle_settings_mode;
+    use super::support::with_temp_home;
+    use crate::app::state::{Mode, SettingsDetailKind, SettingsFocus};
+    use crate::app::App;
+    use crossterm::event::KeyCode;
+
+    fn profile_settings_app(kind: SettingsDetailKind) -> App {
+        let mut app = App::new();
+        app.mode = Mode::Settings;
+        app.settings_open = true;
+        app.settings_focus = SettingsFocus::Detail;
+        app.active_settings_detail = Some(kind);
+        app
+    }
+
+    pub(crate) fn profile_permission_mode_cycles_and_persists() {
+        with_temp_home("profile-mode", || {
+            let mut app = profile_settings_app(SettingsDetailKind::ProfilePermissionMode);
+            assert_eq!(
+                app.config.profile.default_permission_mode,
+                crate::theme::ProfileConfig::GUARDED
+            );
+
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert_eq!(
+                app.config.profile.default_permission_mode,
+                crate::theme::ProfileConfig::WORKSPACE_FULL_ACCESS
+            );
+            assert!(!app.config.profile.full_access);
+
+            handle_settings_mode(&mut app, KeyCode::Char(' '));
+            assert_eq!(
+                app.config.profile.default_permission_mode,
+                crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS
+            );
+            assert!(app.config.profile.full_access);
+            assert_eq!(
+                crate::theme::Config::load().profile.default_permission_mode,
+                crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS
+            );
+        });
+    }
+
+    pub(crate) fn profile_full_access_and_unattended_toggles_persist() {
+        with_temp_home("profile-toggles", || {
+            let mut app = profile_settings_app(SettingsDetailKind::ProfileFullAccess);
+            handle_settings_mode(&mut app, KeyCode::Enter);
+            assert!(app.config.profile.full_access);
+            assert_eq!(
+                app.config.profile.default_permission_mode,
+                crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS
+            );
+
+            app.active_settings_detail = Some(SettingsDetailKind::ProfileUnattended);
+            handle_settings_mode(&mut app, KeyCode::Char(' '));
+            assert!(app.config.profile.unattended);
+
+            let loaded = crate::theme::Config::load();
+            assert!(loaded.profile.full_access);
+            assert!(loaded.profile.unattended);
+            assert!(loaded.agent_permissions.codex_auto_full_access);
+            assert!(loaded.agent_permissions.claude_auto_full_access);
+        });
+    }
+}
+
 mod support {
     pub(super) fn with_temp_home<T>(name: &str, f: impl FnOnce() -> T) -> T {
         crate::test_support::with_temp_home("pad-settings", name, |_| f())

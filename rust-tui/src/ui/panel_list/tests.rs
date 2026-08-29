@@ -254,10 +254,14 @@ pub(crate) mod width {
         assert!(long > 46);
     }
 
-    pub(crate) fn manual_width_is_used_as_minimum() {
+    pub(crate) fn manual_width_is_used_exactly_and_can_shrink_auto_width() {
         let mut app = App::new();
-        app.config.display.agent_panel_width = Some(70);
+        app.config.display.agent_panel_width = Some(12);
 
-        assert!(preferred_panel_width(&mut app) >= 70);
+        assert_eq!(preferred_panel_width(&mut app), 12);
+
+        app.sidebar.collapsed = true;
+
+        assert_eq!(preferred_panel_width(&mut app), 0);
     }
 }

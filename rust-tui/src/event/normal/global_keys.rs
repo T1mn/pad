@@ -86,6 +86,66 @@ mod opencode {
         }
     }
 }
+mod layout {
+    use crate::app::App;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum SidebarLayoutAction {
+        Toggle,
+        Narrow,
+        Widen,
+    }
+
+    pub(in crate::event::normal) fn handle_sidebar_layout_key(
+        app: &mut App,
+        key: KeyEvent,
+    ) -> bool {
+        let Some(action) = sidebar_layout_action(key) else {
+            return false;
+        };
+        match action {
+            SidebarLayoutAction::Toggle => app.toggle_sidebar_collapsed(),
+            SidebarLayoutAction::Narrow | SidebarLayoutAction::Widen => {
+                app.expand_sidebar();
+                let current_width = crate::ui::panel_list::preferred_panel_width(app);
+                if action == SidebarLayoutAction::Narrow {
+                    app.narrow_agent_panel_width(current_width);
+                } else {
+                    app.widen_agent_panel_width(current_width);
+                }
+            }
+        }
+        true
+    }
+
+    fn sidebar_layout_action(key: KeyEvent) -> Option<SidebarLayoutAction> {
+        match key.code {
+            // F13-F15 are private host-bridge keys used by the conditional
+            // Kitty mappings documented in README. They avoid stealing
+            // Ctrl+B/H/L from shells and terminal applications.
+            KeyCode::F(13) => Some(SidebarLayoutAction::Toggle),
+            KeyCode::F(14) => Some(SidebarLayoutAction::Narrow),
+            KeyCode::F(15) => Some(SidebarLayoutAction::Widen),
+            KeyCode::Char('b' | 'B') if key.modifiers.contains(KeyModifiers::SUPER) => {
+                Some(SidebarLayoutAction::Toggle)
+            }
+            KeyCode::Char('h' | 'H')
+                if key.modifiers.contains(KeyModifiers::SUPER)
+                    && key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                Some(SidebarLayoutAction::Narrow)
+            }
+            KeyCode::Char('l' | 'L')
+                if key.modifiers.contains(KeyModifiers::SUPER)
+                    && key.modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                Some(SidebarLayoutAction::Widen)
+            }
+            _ => None,
+        }
+    }
+}
 pub(crate) mod primary;
 mod special {
     use crate::app::state::Mode;
@@ -132,3 +192,5 @@ pub(super) fn handle_global_key(app: &mut App, key: KeyEvent) -> bool {
         || opencode::handle_opencode_key(app, key)
         || jump::handle_numeric_jump(app, key)
 }
+
+pub(super) use layout::handle_sidebar_layout_key;

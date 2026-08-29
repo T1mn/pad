@@ -3,6 +3,45 @@ mod enter {
     use crate::app::state::RelayView;
 
     impl App {
+        /// Toggle the PAD-owned profile Full Access default.
+        ///
+        /// This deliberately does not touch the legacy Codex/Claude flags;
+        /// desktop and sidebar actions can call it without coupling their
+        /// policy controls to provider-specific launch overlays.
+        pub fn toggle_profile_full_access(&mut self) {
+            let enabled = !self.config.profile.full_access;
+            self.config.profile.set_full_access(enabled);
+            self.save_config();
+            self.apply_profile_runtime_policy();
+            self.dirty = true;
+        }
+
+        /// Toggle PAD profile unattended execution and persist it immediately.
+        pub fn toggle_profile_unattended(&mut self) {
+            self.config.profile.unattended = !self.config.profile.unattended;
+            self.save_config();
+            self.apply_profile_runtime_policy();
+            self.dirty = true;
+        }
+
+        /// Set the PAD profile's default permission mode and persist it.
+        pub fn set_profile_permission_mode(&mut self, mode: &str) {
+            self.config.profile.set_permission_mode(mode);
+            self.save_config();
+            self.apply_profile_runtime_policy();
+            self.dirty = true;
+        }
+
+        fn apply_profile_runtime_policy(&self) {
+            crate::relay::apply_runtime_overlays_for_profile(
+                &self.config.agents,
+                &self.config.agent_permissions,
+                &self.config.codex,
+                &self.config.profile,
+                std::iter::once(std::env::current_dir().unwrap_or_default()),
+            );
+        }
+
         pub fn enter_settings_detail(&mut self) {
             let Some(kind) = self.current_settings_detail_kind() else {
                 self.return_to_settings_list();
@@ -31,6 +70,9 @@ mod enter {
                 SettingsDetailKind::Relay => self.prepare_relay_detail(),
                 SettingsDetailKind::Telegram => self.prepare_telegram_detail(),
                 SettingsDetailKind::CodexSettings => self.reset_codex_settings_detail(),
+                SettingsDetailKind::ProfilePermissionMode
+                | SettingsDetailKind::ProfileFullAccess
+                | SettingsDetailKind::ProfileUnattended => {}
                 SettingsDetailKind::Sound => self.sound_settings_selected = 0,
                 SettingsDetailKind::Trash => {}
                 _ => {}
@@ -98,6 +140,9 @@ mod kind {
                 "theme" => SettingsDetailKind::Theme,
                 "auto_refresh" => SettingsDetailKind::AutoRefresh,
                 "codex_settings" => SettingsDetailKind::CodexSettings,
+                "profile_permission_mode" => SettingsDetailKind::ProfilePermissionMode,
+                "profile_full_access" => SettingsDetailKind::ProfileFullAccess,
+                "profile_unattended" => SettingsDetailKind::ProfileUnattended,
                 "claude_full_access" => SettingsDetailKind::ClaudeFullAccess,
                 "sound" => SettingsDetailKind::Sound,
                 "relay" => SettingsDetailKind::Relay,

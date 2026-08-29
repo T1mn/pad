@@ -148,6 +148,20 @@ impl TerminalWorkspace {
         true
     }
 
+    pub fn close_tab(&mut self, index: usize) -> Option<Vec<TerminalPaneId>> {
+        let pane_ids = self.tabs.get(index)?.pane_ids();
+        self.tabs.remove(index);
+        self.panes.retain(|pane| !pane_ids.contains(&pane.id));
+        if self.tabs.is_empty() {
+            self.active_tab = 0;
+        } else if index < self.active_tab {
+            self.active_tab -= 1;
+        } else if self.active_tab >= self.tabs.len() {
+            self.active_tab = self.tabs.len() - 1;
+        }
+        Some(pane_ids)
+    }
+
     pub fn focus_pane(&mut self, pane_id: TerminalPaneId) -> bool {
         let Some(tab) = self.tabs.get_mut(self.active_tab) else {
             return false;
@@ -208,6 +222,10 @@ impl TerminalWorkspace {
 
     pub fn normalize_after_restore(&mut self) -> Result<(), String> {
         for pane in &mut self.panes {
+            if pane.profile == TerminalProfile::Shell {
+                pane.profile = infer_legacy_agent_profile(&pane.label, &pane.cwd)
+                    .unwrap_or(TerminalProfile::Shell);
+            }
             pane.command = pane.profile.default_command();
         }
         let minimum_next = self
@@ -303,6 +321,27 @@ impl TerminalWorkspace {
     ) -> Option<TerminalPaneDefinition> {
         allocate_pane(&mut self.next_pane_serial, profile, cwd)
     }
+}
+
+fn infer_legacy_agent_profile(label: &str, cwd: &Path) -> Option<TerminalProfile> {
+    let directory = cwd
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty() && !name.chars().any(char::is_control));
+    [
+        TerminalProfile::Codex,
+        TerminalProfile::Claude,
+        TerminalProfile::Pi,
+        TerminalProfile::OpenCode,
+    ]
+    .into_iter()
+    .find(|profile| {
+        let expected = match directory {
+            Some(directory) => format!("{} · {directory}", profile.display_name()),
+            None => profile.display_name().to_string(),
+        };
+        label == expected
+    })
 }
 
 fn allocate_pane(

@@ -84,6 +84,31 @@ pub(in crate::ui::modals::settings) fn simple_value_line(
                 t(locale, "settings.off").to_string()
             }
         }
+        SettingsDetailKind::ProfilePermissionMode => {
+            match app.config.profile.default_permission_mode.as_str() {
+                crate::theme::ProfileConfig::WORKSPACE_FULL_ACCESS => {
+                    t(locale, "settings.profile_mode_workspace_full_access").to_string()
+                }
+                crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS => {
+                    t(locale, "settings.profile_mode_system_full_access").to_string()
+                }
+                _ => t(locale, "settings.profile_mode_guarded").to_string(),
+            }
+        }
+        SettingsDetailKind::ProfileFullAccess => {
+            if app.config.profile.full_access {
+                t(locale, "settings.on").to_string()
+            } else {
+                t(locale, "settings.off").to_string()
+            }
+        }
+        SettingsDetailKind::ProfileUnattended => {
+            if app.config.profile.unattended {
+                t(locale, "settings.on").to_string()
+            } else {
+                t(locale, "settings.off").to_string()
+            }
+        }
         SettingsDetailKind::PreviewMode => t(locale, "settings.preview_mode_session").to_string(),
         SettingsDetailKind::DisplayMode => match app.config.display.session_scope.as_str() {
             "all" => t(locale, "settings.display_mode_all").to_string(),
@@ -106,6 +131,15 @@ pub(in crate::ui::modals::settings) fn detail_body_line(
         (Locale::ZhCN, SettingsDetailKind::ClaudeFullAccess) => {
             "启动时自动植入 bypassPermissions，并关闭 Claude sandbox".to_string()
         }
+        (Locale::ZhCN, SettingsDetailKind::ProfilePermissionMode) => {
+            "Profile 的默认执行权限：受保护、工作区完全访问或系统完全访问".to_string()
+        }
+        (Locale::ZhCN, SettingsDetailKind::ProfileFullAccess) => {
+            "Profile 开启后，执行任务时默认不再逐次请求 PAD 确认".to_string()
+        }
+        (Locale::ZhCN, SettingsDetailKind::ProfileUnattended) => {
+            "允许任务在没有前台交互时继续执行；业务问题仍可能暂停".to_string()
+        }
         (Locale::ZhCN, SettingsDetailKind::PreviewMode) => "预览读取原生会话记录。".to_string(),
         (Locale::ZhCN, SettingsDetailKind::DisplayMode) => {
             "切换只显示 live session 或显示全部 session".to_string()
@@ -119,6 +153,17 @@ pub(in crate::ui::modals::settings) fn detail_body_line(
         }
         (_, SettingsDetailKind::ClaudeFullAccess) => {
             "Apply bypassPermissions and disable Claude sandbox before launch.".to_string()
+        }
+        (_, SettingsDetailKind::ProfilePermissionMode) => {
+            "Choose the profile default: guarded, workspace full access, or system full access."
+                .to_string()
+        }
+        (_, SettingsDetailKind::ProfileFullAccess) => {
+            "Skip repeated PAD confirmations for profile tasks by default.".to_string()
+        }
+        (_, SettingsDetailKind::ProfileUnattended) => {
+            "Allow tasks to continue without foreground interaction; business input may still pause."
+                .to_string()
         }
         (_, SettingsDetailKind::PreviewMode) => "Preview native session transcripts.".to_string(),
         (_, SettingsDetailKind::DisplayMode) => {

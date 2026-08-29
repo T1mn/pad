@@ -25,7 +25,7 @@ mod values {
             "all" => "settings.display_mode_all",
             _ => "settings.display_mode_live",
         };
-        t(locale, key).to_string()
+        crate::i18n::t(locale, key).to_string()
     }
 
     pub(super) fn sound_summary(config: &Config, locale: Locale) -> String {
@@ -62,6 +62,24 @@ mod values {
         )
     }
 
+    pub(super) fn profile_summary(config: &Config, locale: Locale) -> String {
+        let mode = match config.profile.effective_permission_mode() {
+            crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS => {
+                "settings.profile_mode_system_full_access"
+            }
+            crate::theme::ProfileConfig::WORKSPACE_FULL_ACCESS => {
+                "settings.profile_mode_workspace_full_access"
+            }
+            _ => "settings.profile_mode_guarded",
+        };
+        format!(
+            "{}  ·  {} {}",
+            t(locale, mode),
+            t(locale, "settings.profile_unattended"),
+            on_off(locale, config.profile.unattended),
+        )
+    }
+
     fn on_off(locale: Locale, enabled: bool) -> &'static str {
         t(
             locale,
@@ -85,7 +103,10 @@ mod values {
 
 use super::super::helpers::settings_item_matches_search;
 use super::super::*;
-use values::{codex_summary, display_mode_label, preview_mode_label, sound_summary, toggle_label};
+use values::{
+    codex_summary, display_mode_label, preview_mode_label, profile_summary, sound_summary,
+    toggle_label,
+};
 
 type SettingsItem = (&'static str, String, &'static str, &'static str, bool);
 
@@ -113,6 +134,34 @@ impl App {
                 codex_summary(&self.config, l),
                 "settings.codex_settings",
                 "settings.codex_settings",
+                true,
+            ),
+            (
+                "profile",
+                profile_summary(&self.config, l),
+                "settings.profile",
+                "settings.profile_desc",
+                false,
+            ),
+            (
+                "profile_permission_mode",
+                Self::profile_permission_mode_label(&self.config, l),
+                "settings.profile_permission_mode",
+                "settings.profile_permission_mode_desc",
+                true,
+            ),
+            (
+                "profile_full_access",
+                toggle_label(l, self.config.profile.full_access),
+                "settings.profile_full_access",
+                "settings.profile_full_access_desc",
+                true,
+            ),
+            (
+                "profile_unattended",
+                toggle_label(l, self.config.profile.unattended),
+                "settings.profile_unattended",
+                "settings.profile_unattended_desc",
                 true,
             ),
             (
@@ -179,6 +228,22 @@ impl App {
                 false,
             ),
         ]
+    }
+
+    fn profile_permission_mode_label(
+        config: &crate::theme::Config,
+        locale: crate::i18n::Locale,
+    ) -> String {
+        let key = match config.profile.default_permission_mode.as_str() {
+            crate::theme::ProfileConfig::WORKSPACE_FULL_ACCESS => {
+                "settings.profile_mode_workspace_full_access"
+            }
+            crate::theme::ProfileConfig::SYSTEM_FULL_ACCESS => {
+                "settings.profile_mode_system_full_access"
+            }
+            _ => "settings.profile_mode_guarded",
+        };
+        crate::i18n::t(locale, key).to_string()
     }
 
     pub fn filtered_settings_items(&self) -> Vec<SettingsItem> {

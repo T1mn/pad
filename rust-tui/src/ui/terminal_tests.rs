@@ -90,10 +90,12 @@ pub(crate) fn tab_bar_marks_only_the_active_tab() {
         TabLabel {
             label: "Shell".to_string(),
             active: true,
+            closable: true,
         },
         TabLabel {
             label: "Codex".to_string(),
             active: false,
+            closable: true,
         },
     ];
     let area = Rect::new(0, 0, 24, 1);
@@ -106,7 +108,7 @@ pub(crate) fn tab_bar_marks_only_the_active_tab() {
     .render(area, &mut buffer);
 
     let shell_cell = buffer.cell((1, 0)).expect("shell tab cell");
-    let codex_cell = buffer.cell((12, 0)).expect("codex tab cell");
+    let codex_cell = buffer.cell((14, 0)).expect("codex tab cell");
     assert_eq!(shell_cell.bg, theme.highlight_bg);
     assert_ne!(codex_cell.bg, theme.highlight_bg);
 }
@@ -116,23 +118,28 @@ pub(crate) fn tab_hit_rects_match_unicode_width_and_visible_clipping() {
         TabLabel {
             label: "A".to_string(),
             active: true,
+            closable: true,
         },
         TabLabel {
             label: "界".to_string(),
             active: false,
+            closable: true,
         },
         TabLabel {
             label: "hidden".to_string(),
             active: false,
+            closable: true,
         },
     ];
 
-    let placements = place_tabs(Rect::new(4, 7, 8, 1), &tabs);
+    let placements = place_tabs(Rect::new(4, 7, 12, 1), &tabs);
 
-    assert_eq!(placements[0].rect, Rect::new(4, 7, 3, 1));
-    // Separator (3) + padded wide label (4) is clipped to 5 remaining cells.
-    assert_eq!(placements[1].rect, Rect::new(7, 7, 5, 1));
-    assert_eq!(placements[2].rect, Rect::new(12, 7, 0, 1));
+    assert_eq!(placements[0].rect, Rect::new(4, 7, 5, 1));
+    assert_eq!(placements[0].close, Some(Rect::new(7, 7, 2, 1)));
+    // Separator (3) + padded wide label (6) is clipped to 7 remaining cells.
+    assert_eq!(placements[1].rect, Rect::new(9, 7, 7, 1));
+    assert_eq!(placements[1].close, None);
+    assert_eq!(placements[2].rect, Rect::new(16, 7, 0, 1));
 }
 
 pub(crate) fn placeholder_uses_focus_border_and_warning_text() {

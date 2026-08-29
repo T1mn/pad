@@ -15,6 +15,7 @@ mod codex_rollout;
 mod codex_runtime;
 mod codex_state;
 mod codex_turn_diff;
+mod desktop_runtime;
 mod event;
 mod fuzzy;
 mod gemini_history;
@@ -28,8 +29,13 @@ mod notification_inbox;
 mod notify;
 mod opencode_history;
 mod opencode_text;
+mod pad_store;
 mod panic_boundary;
 mod paths;
+mod permission_policy;
+#[cfg(test)]
+mod permission_policy_tests;
+mod pi_runtime;
 mod preview_source;
 mod relay;
 mod runtime_status;
@@ -60,6 +66,15 @@ use app::App;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = std::env::args().collect();
+
+    // The macOS Desktop shell owns this process over stdin/stdout JSONL.
+    // Handle it before native PAD startup so no terminal or logger can write
+    // to stdout and corrupt the bridge protocol.
+    if matches!(args.get(1).map(String::as_str), Some("__internal"))
+        && matches!(args.get(2).map(String::as_str), Some("desktop-server"))
+    {
+        return desktop_runtime::run_server();
+    }
 
     if cli::is_internal_command(&args) {
         paths::ensure_runtime_layout()?;

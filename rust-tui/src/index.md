@@ -14,6 +14,8 @@
 - `theme.rs` / `theme/`：配置模型、加载保存、主题。
 - `i18n.rs` / `i18n/`：多语言文案表、语言枚举与静态 key 完整性测试。
 - `codex_turn_diff/`：Codex hook 驱动的单轮问答工作区快照与 patch 持久化。
+- `pad_store/`：PAD Desktop 私有 SQLite Control Plane（Profile/Project/Task/Section），不触碰 Codex/ChatGPT 数据库。
+- `desktop_runtime.rs` / `desktop_runtime/bridge.rs`：Desktop facade 与 `pad __internal desktop-server` JSONL 控制面；组合 Store、Codex Sidebar snapshot、Profile-scoped Pi supervisor、Full Access 策略和 Task 状态回写。
 - `hook.rs` / `hook/`：agent hook socket 事件模型、监听和 journal 写入。
 - `codex_provider_sync.rs` / `codex_provider_sync/` / `codex_state.rs` / `codex_state/` / `codex_rollout.rs`：同步 PAD 私有 Codex home provider 元数据，解析普通或冷压缩 rollout，并读取/归档 Codex 线程状态。
 - `sound.rs` / `sound/`：提示音 preset、WAV 生成、平台播放命令与测试。
@@ -23,12 +25,14 @@
 - `notify.rs` / `notify/`：桌面通知入口、平台命令选择与通知子进程 helper。
 - `notification_inbox/`：hook/桌面通知的持久化收件箱。
 - `sidebar/`：侧边栏历史、搜索、provider 展示。
+- `ui/codex_sidebar.rs`：Codex 风格 Desktop Sidebar 的 renderer-neutral 显示行适配。
 - `opencode_history/`：读取 OpenCode 官方 SQLite 历史。
 - `opencode_text.rs` / `opencode_text_tests.rs`：OpenCode message/part JSON role 与文本抽取共享工具。
 - `session_cache/`：会话快照缓存与持久化。
 - `thread_meta.rs` / `thread_meta/`：thread 标题、删除状态、标签等本地元数据。
 - `title_summary.rs` / `title_summary/`：Codex 会话自动标题摘要的窗口选择、请求、响应解析与清理。
 - `session_continuity.rs` / `session_continuity/`：agent session continuity ledger、预览 fallback 健康判断与诊断日志。
+- `pi_runtime/`：Pi `--mode rpc` JSONL 编解码、事件/审批归约、按 Profile 隔离的子进程监督器，以及只读 append-only Session 索引；不嵌入 Pi TUI。
 - `runtime_status.rs` / `runtime_status/`：PAD/Telegram 运行状态文件、进程存活探测与 stale pid 描述。
 - `browser_remote/`：浏览器打开与远程 SSH 命令联动。
 - `socket_api/`：本地 Unix socket JSONL API。

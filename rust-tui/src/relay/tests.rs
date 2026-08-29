@@ -68,3 +68,21 @@ pub(crate) mod runtime_overlays {
     use super::*;
     include!("tests/runtime_overlays.rs");
 }
+
+#[test]
+fn pi_runtime_adapter_tests() {
+    crate::pi_runtime::jsonl::tests::split_chunks_preserve_jsonl_messages();
+    crate::pi_runtime::jsonl::tests::reject_crlf_and_oversized_frames();
+    crate::pi_runtime::jsonl::tests::command_and_message_validation_use_type_discriminator();
+    crate::pi_runtime::events::tests::settled_is_the_only_completion_boundary();
+    crate::pi_runtime::events::tests::stale_generations_and_sequences_are_ignored();
+    crate::pi_runtime::events::tests::approval_and_tool_events_update_runtime_status();
+    crate::pi_runtime::approval::tests::full_access_auto_answers_confirm_but_not_unknown_ui();
+    crate::pi_runtime::approval::tests::unattended_uses_input_default_and_select_default();
+    crate::pi_runtime::approval::tests::protected_paths_never_get_auto_answers();
+    crate::pi_runtime::approval::tests::tool_operation_and_target_are_conservative();
+    crate::pi_runtime::tests::pi_agent_detection_accepts_binary_paths();
+    crate::pi_runtime::tests::pi_command_defaults_without_rewriting_explicit_commands();
+    crate::pi_runtime::tests::pi_rpc_command_isolated_from_codex_and_pi_homes();
+    crate::pi_runtime::tests::profile_pi_roots_are_isolated_and_safe_for_empty_records();
+}
