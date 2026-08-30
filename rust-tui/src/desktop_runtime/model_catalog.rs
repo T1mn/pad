@@ -26,6 +26,14 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 const agentDir = process.env.PAD_MODEL_CATALOG_AGENT_DIR;
 const refresh = process.env.PAD_MODEL_CATALOG_REFRESH === "1";
+const authenticatedProviders = (() => {
+  try {
+    const value = JSON.parse(process.env.PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS ?? "[]");
+    return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.length > 0) : [];
+  } catch {
+    return [];
+  }
+})();
 
 const finiteNumber = (value) => Number.isFinite(value) ? value : null;
 const stringValue = (value, fallback = "") => typeof value === "string" ? value : fallback;
@@ -72,7 +80,18 @@ try {
   // request on the Desktop UI path.
   if (refresh) await runtime.refresh({ allowNetwork: false });
   const allModels = uniqueModels(runtime.getModels());
-  const availableModels = uniqueModels(await runtime.getAvailable());
+  // A full getAvailable() pass asks every built-in provider to resolve auth
+  // (including OAuth refreshes) and can take tens of seconds on a cold start.
+  // Rust has already identified the providers stored in this Profile's
+  // private auth.json. Query only those providers, with a short deadline, and
+  // fall back to their Pi-composed model list when an auth check is slow.
+  const availableModels = uniqueModels((await Promise.all(authenticatedProviders.map(async (provider) => {
+    try {
+      return await runtime.getAvailable(provider, { signal: AbortSignal.timeout(1200) });
+    } catch {
+      return runtime.getModels(provider);
+    }
+  }))).flat());
   const availableByProvider = new Map();
   for (const model of availableModels) {
     const models = availableByProvider.get(model.provider) ?? [];
@@ -171,7 +190,14 @@ impl super::DesktopRuntime {
             .ok_or(ModelCatalogError::ProfileNotFound)?;
         let (agent_dir, _) = crate::pi_runtime::profile_pi_roots(&profile);
         let (program, package_root) = self.model_catalog_launcher()?;
-        let mut value = query_model_catalog(&program, &package_root, &agent_dir, refresh)?;
+        let authenticated_providers = self.authenticated_providers(&profile);
+        let mut value = query_model_catalog(
+            &program,
+            &package_root,
+            &agent_dir,
+            &authenticated_providers,
+            refresh,
+        )?;
         enrich_catalog_selection(&mut value, &profile);
         if let Some(object) = value.as_object_mut() {
             object.insert("profile_id".to_string(), Value::String(profile.id.clone()));
@@ -237,6 +263,7 @@ fn query_model_catalog(
     program: &Path,
     package_root: &Path,
     agent_dir: &Path,
+    authenticated_providers: &[String],
     refresh: bool,
 ) -> Result<Value, ModelCatalogError> {
     let mut command = Command::new(program);
@@ -247,6 +274,10 @@ fn query_model_catalog(
         .env("PAD_MODEL_CATALOG_AGENT_DIR", agent_dir)
         .env("PAD_MODEL_CATALOG_REFRESH", if refresh { "1" } else { "0" })
         .env("PI_CODING_AGENT_DIR", agent_dir)
+        .env(
+            "PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS",
+            serde_json::to_string(authenticated_providers).unwrap_or_else(|_| "[]".to_string()),
+        )
         // Bun lazily transpiles Pi provider modules. Keep both of its runtime
         // caches in the Profile-private directory so reading a catalog never
         // mutates the signed app bundle under Contents/Resources.
