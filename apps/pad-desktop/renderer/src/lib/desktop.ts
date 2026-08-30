@@ -88,7 +88,6 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
   let providerStatuses = new Map<string, ProviderStatus>();
   let snapshot = emptySnapshot();
   let remoteStatus: RemoteHostStatus | null = null;
-  const startedTasks = new Set<string>();
   const pollingTasks = new Map<string, ReturnType<typeof setTimeout>>();
   let refreshQueued = false;
   let accountTransitionInProgress = false;
@@ -219,9 +218,8 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         emit({ type: "snapshot", snapshot: next });
         const task = next.tasks.find((candidate) => candidate.id === taskId);
         if (task?.status === "running") scheduleTaskPoll(taskId, 220);
-        else startedTasks.delete(taskId);
       } catch {
-        startedTasks.delete(taskId);
+        // The next server event or explicit send will establish fresh state.
       }
     }, delay);
     pollingTasks.set(taskId, timer);
@@ -419,33 +417,27 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
           },
         };
       }
-      if (!startedTasks.has(input.taskId)) {
-        const runtime = await api.request<"runtime_snapshot", { runtime?: unknown }>("runtime_snapshot", { task_id: input.taskId }).catch(() => ({ runtime: undefined }));
-        if (!runtime.runtime) await api.request("start_task", { task_id: input.taskId });
-        startedTasks.add(input.taskId);
+      await api.request("prompt", {
+        task_id: input.taskId,
+        prompt,
+        ...(provider && model ? { provider, model } : {}),
+        ...(input.thinkingLevel !== "default" ? { thinking_level: input.thinkingLevel } : {}),
+      });
+      if (pendingModelSelection) {
+        providerStatuses = new Map(providerStatuses).set(input.accountId, pendingModelSelection.status);
+        snapshot = snapshotFromRecords(
+          bootstrap.records,
+          selectedProfileId,
+          bootstrap,
+          rawSidebar,
+          providerStatuses,
+          snapshot.turnsByTask,
+          snapshot.interactionsByTask,
+          uiState,
+          remoteStatus,
+        );
+        emit({ type: "snapshot", snapshot });
       }
-      if (provider && model) {
-        await api.request("set_model", { task_id: input.taskId, provider, model });
-        if (pendingModelSelection) {
-          providerStatuses = new Map(providerStatuses).set(input.accountId, pendingModelSelection.status);
-          snapshot = snapshotFromRecords(
-            bootstrap.records,
-            selectedProfileId,
-            bootstrap,
-            rawSidebar,
-            providerStatuses,
-            snapshot.turnsByTask,
-            snapshot.interactionsByTask,
-            uiState,
-            remoteStatus,
-          );
-          emit({ type: "snapshot", snapshot });
-        }
-      }
-      if (input.thinkingLevel !== "default") {
-        await api.request("set_thinking_level", { task_id: input.taskId, thinking_level: input.thinkingLevel });
-      }
-      await api.request("prompt", { task_id: input.taskId, prompt });
       const turn: TurnEntry = { id: `local-${Date.now()}`, kind: "user", body: prompt, meta: "刚刚" };
       emit({ type: "turn-added", taskId: input.taskId, turn });
       scheduleTaskPoll(input.taskId);
@@ -572,8 +564,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       requireStableAccount();
       const task = snapshot.tasks.find((candidate) => candidate.id === taskId);
       if (!task) throw new Error("当前账号无权访问该任务。");
-      await api.request("abort", { task_id: taskId });
-      startedTasks.delete(taskId);
+      await api.request("stop_task", { task_id: taskId });
       const next = await refresh(false);
       emit({ type: "snapshot", snapshot: next });
       return next;
@@ -583,7 +574,6 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       const task = snapshot.tasks.find((candidate) => candidate.id === taskId);
       if (!task) throw new Error("当前账号无权访问该任务。");
       await api.request("retry_task", { task_id: taskId });
-      startedTasks.add(taskId);
       scheduleTaskPoll(taskId);
       const next = await refresh(false);
       emit({ type: "snapshot", snapshot: next });
@@ -610,7 +600,6 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         },
       };
       emit({ type: "snapshot", snapshot });
-      startedTasks.add(taskId);
       scheduleTaskPoll(taskId);
     },
     async updateTask(taskId, patch) {
@@ -1196,23 +1185,28 @@ function mapTask(task: TaskDto): TaskSummary {
 
 async function hydrateVisibleHistory(api: PadDesktopApi, snapshot: DesktopSnapshot) {
   await Promise.all(snapshot.tasks.slice(0, 8).map(async (task) => {
+    const previous = snapshot.turnsByTask[task.id];
     try {
-      snapshot.turnsByTask[task.id] = await loadTaskHistory(api, task.id);
+      const turns = await loadTaskHistory(api, task.id);
+      snapshot.turnsByTask[task.id] = preserveNonEmptyHistory(previous, turns);
     } catch {
       // Absence is intentional: selecting the task will retry and surface a visible error.
-      delete snapshot.turnsByTask[task.id];
+      if (previous === undefined) delete snapshot.turnsByTask[task.id];
+      else snapshot.turnsByTask[task.id] = previous;
     }
   }));
 }
 
 async function hydrateVisibleTaskData(api: PadDesktopApi, snapshot: DesktopSnapshot) {
   await Promise.all(snapshot.tasks.slice(0, 8).map(async (task) => {
+    const previous = snapshot.turnsByTask[task.id];
     try {
       await hydrateTaskData(api, snapshot, task);
     } catch {
       // Preloading must not make the whole desktop unavailable. The selected task
       // retries through loadTaskData(), where the error is user-visible.
-      delete snapshot.turnsByTask[task.id];
+      if (previous === undefined) delete snapshot.turnsByTask[task.id];
+      else snapshot.turnsByTask[task.id] = previous;
     }
   }));
 }
@@ -1220,8 +1214,9 @@ async function hydrateVisibleTaskData(api: PadDesktopApi, snapshot: DesktopSnaps
 async function hydrateTaskData(api: PadDesktopApi, target: DesktopSnapshot, task: TaskSummary, pollSelectedTask = false): Promise<void> {
   const turns = await loadTaskHistory(api, task.id);
   let interactions = target.interactionsByTask[task.id] ?? [];
-  const active = task.status === "running" || task.status === "attention";
-  if (active || pollSelectedTask) {
+  const terminal = ["failed", "error", "disconnected", "completed"].includes(task.rawStatus.toLowerCase());
+  const active = task.status === "running" || ["needs_approval", "needs_input"].includes(task.rawStatus.toLowerCase());
+  if (active || (pollSelectedTask && !terminal)) {
     try {
       const poll = await api.request<"poll", unknown>("poll", { task_id: task.id });
       interactions = mergePendingInteractions(interactions, pendingInteractionsFromPoll(poll));
@@ -1231,7 +1226,7 @@ async function hydrateTaskData(api: PadDesktopApi, target: DesktopSnapshot, task
       if (active) throw error;
     }
   }
-  target.turnsByTask[task.id] = turns;
+  target.turnsByTask[task.id] = preserveNonEmptyHistory(target.turnsByTask[task.id], turns);
   target.interactionsByTask[task.id] = interactions;
 }
 
@@ -1292,7 +1287,14 @@ function validateInteractionResponse(interaction: PendingInteraction, value: Int
 
 async function loadTaskHistory(api: PadDesktopApi, taskId: string): Promise<TurnEntry[]> {
   const result = await api.request<"history", unknown>("history", { task_id: taskId });
+  if (isRecord(result) && result.pending === true) {
+    throw new Error("Pi 会话仍在载入，请稍后重试。");
+  }
   return historyMessages(result).map(mapHistoryMessage);
+}
+
+function preserveNonEmptyHistory(current: TurnEntry[] | undefined, next: TurnEntry[]): TurnEntry[] {
+  return next.length === 0 && current && current.length > 0 ? current : next;
 }
 
 function historyMessages(value: unknown): unknown[] {
@@ -1322,6 +1324,7 @@ export function mapHistoryMessage(value: unknown, index: number): TurnEntry {
 }
 
 function historyTurnKind(value: Record<string, unknown>): TurnKind {
+  if (historyAssistantFailure(value)) return "error";
   const semanticSignals = [value.kind, value.message_type, value.event_type, value.type]
     .map((item) => turnKindFromToken(textValue(item)))
     .filter((item): item is TurnKind => item !== null);
@@ -1365,13 +1368,37 @@ function historyMessageBody(value: Record<string, unknown>, kind: TurnKind): str
   const specialized = kind === "reasoning"
     ? value.reasoning ?? value.summary
     : kind === "error"
-      ? value.error ?? value.detail
+      ? value.errorMessage ?? value.error_message ?? value.error ?? value.detail
       : kind === "status"
         ? value.status_text ?? value.description
         : kind === "final"
           ? value.final ?? value.answer
           : undefined;
-  return messageBody(value.content ?? value.message ?? value.text ?? specialized);
+  const body = messageBody(specialized ?? value.content ?? value.message ?? value.text);
+  return kind === "error" ? localizePiRuntimeError(body) : body;
+}
+
+function historyAssistantFailure(value: Record<string, unknown>): boolean {
+  const role = normalizedToken(textValue(value.role));
+  if (!["assistant", "model", "assistant_message", "model_message"].includes(role)) return false;
+  const stopReason = normalizedToken(textValue(value.stopReason ?? value.stop_reason));
+  const errorMessage = optionalText(value.errorMessage ?? value.error_message);
+  return stopReason === "error" || errorMessage !== null;
+}
+
+function localizePiRuntimeError(message: string): string {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) return "模型请求失败，请重试。";
+  if (
+    normalized.includes("unable to connect")
+    || normalized.includes("fetch failed")
+    || normalized.includes("network error")
+    || normalized.includes("connection reset")
+  ) return "无法连接模型服务。请检查网络或代理后重试。";
+  if (normalized.includes("timed out") || normalized.includes("timeout")) {
+    return "模型请求超时，请重试。";
+  }
+  return message;
 }
 
 function historyArtifacts(value: Record<string, unknown>, turnId: string): TurnArtifact[] {

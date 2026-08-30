@@ -160,6 +160,7 @@ if (!app.requestSingleInstanceLock()) {
     installContentSecurityPolicy(session.defaultSession, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
     installApplicationMenu();
     installIpcHandlers(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    await configureBackendProxyEnvironment();
     backend.on('event', (event) => {
       remotePower.observe(event);
       if (event.type === 'host_status' && event.status !== 'ready' && event.status !== 'starting') {
@@ -173,6 +174,41 @@ if (!app.requestSingleInstanceLock()) {
     backend.start();
     await createWindow();
   });
+}
+
+const PROXY_TARGET_URL = 'https://chatgpt.com/backend-api/codex';
+
+/** Convert Chromium's effective macOS proxy rule to the standard URL Pi uses. */
+export function proxyUrlFromRules(rules: string): string | null {
+  for (const rule of rules.split(';')) {
+    const match = rule.trim().match(/^(?:PROXY|HTTPS?)\s+(\[[0-9a-f:]+\]|[a-z0-9.-]+):(\d{1,5})$/i);
+    if (!match) continue;
+    const port = Number(match[2]);
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) continue;
+    return `http://${match[1]}:${port}`;
+  }
+  return null;
+}
+
+async function configureBackendProxyEnvironment(): Promise<void> {
+  const hasHttpProxy = Boolean(
+    process.env.HTTPS_PROXY
+      || process.env.https_proxy
+      || process.env.HTTP_PROXY
+      || process.env.http_proxy,
+  );
+  if (hasHttpProxy) return;
+  try {
+    const proxyUrl = proxyUrlFromRules(await session.defaultSession.resolveProxy(PROXY_TARGET_URL));
+    if (!proxyUrl) return;
+    process.env.HTTP_PROXY = proxyUrl;
+    process.env.HTTPS_PROXY = proxyUrl;
+    process.env.http_proxy = proxyUrl;
+    process.env.https_proxy = proxyUrl;
+  } catch {
+    // DIRECT and unavailable system proxy resolution are both valid. Pi will
+    // report any provider transport failure through its normal task result.
+  }
 }
 
 export function resolveRendererFilePath(

@@ -182,6 +182,8 @@ describe('PAD Desktop sidecar environment boundary', () => {
       PAD_HOME: '/Users/example/.codex',
       PAD_DESKTOP_DATA_DIR: '/Users/example/Library/Application Support/PAD Desktop Test',
       OPENAI_API_KEY: 'must-not-leak',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      NO_PROXY: 'localhost,127.0.0.1',
     });
 
     expect(environment.HOME).toBe('/Users/example');
@@ -190,5 +192,7 @@ describe('PAD Desktop sidecar environment boundary', () => {
     expect(environment.CODEX_HOME).toBeUndefined();
     expect(environment.PAD_HOME).toBeUndefined();
     expect(environment.OPENAI_API_KEY).toBeUndefined();
+    expect(environment.HTTPS_PROXY).toBe('http://127.0.0.1:7890');
+    expect(environment.NO_PROXY).toBe('localhost,127.0.0.1');
   });
 });

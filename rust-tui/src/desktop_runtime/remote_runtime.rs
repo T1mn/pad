@@ -221,18 +221,6 @@ impl DesktopRuntime {
                 Ok(result)
             }
             "create_task" => self.remote_create_task(profile_id, object),
-            "start_task" => {
-                let task_id = self.remote_task_id(profile_id, object)?;
-                let generation = self.start_task(task_id).map_err(BridgeError::from)?;
-                Ok(json!({"task_id":task_id,"generation":generation,"running":true}))
-            }
-            "retry_task" => {
-                let task_id = self.remote_task_id(profile_id, object)?;
-                let generation = self.retry_task(task_id).map_err(BridgeError::from)?;
-                Ok(
-                    json!({"task_id":task_id,"generation":generation,"running":true,"retrying":true}),
-                )
-            }
             "prompt" => {
                 let task_id = self.remote_task_id(profile_id, object)?;
                 let prompt = required_string(object, "prompt")?;
@@ -511,8 +499,7 @@ impl DesktopRuntime {
 fn validate_remote_fields(action: &str, object: &Map<String, Value>) -> Result<(), BridgeError> {
     let allowed: &[&str] = match action {
         "hello" | "bootstrap" | "list_sidebar" => &[],
-        "history" | "start_task" | "retry_task" | "abort" | "stop" | "stop_task"
-        | "runtime_snapshot" => &["task_id"],
+        "history" | "abort" | "stop" | "stop_task" | "runtime_snapshot" => &["task_id"],
         "prompt" => &["task_id", "prompt"],
         "create_task" => &["task_id", "project_id", "title", "summary"],
         "respond_ui" => &[

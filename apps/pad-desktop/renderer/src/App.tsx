@@ -399,20 +399,6 @@ export default function App() {
     }
   }
 
-  async function handleRetryTask() {
-    if (accountSwitchLockRef.current || !selectedTaskId) return;
-    const operationEpoch = accountEpochRef.current;
-    try {
-      const next = await desktop.retryTask(selectedTaskId);
-      if (operationEpoch !== accountEpochRef.current) return;
-      tasksRef.current = next.tasks;
-      setSnapshot(next);
-      applyPersistedUiState(next.uiState, next.tasks);
-    } catch (error) {
-      setNotice(toUserFacingError(error, "重试任务失败，请稍后重试。"));
-    }
-  }
-
   async function handleUpdateTask(patch: { pinned?: boolean; archived?: boolean; unread?: boolean }) {
     if (accountSwitchLockRef.current || !selectedTaskId) return;
     const operationEpoch = accountEpochRef.current;
@@ -800,7 +786,6 @@ export default function App() {
                   onChooseAttachments={desktop.chooseAttachments}
                   onSend={handleSend}
                   onStop={handleStopTask}
-                  onRetry={handleRetryTask}
                   onRespondInteraction={async (taskId, requestId, response) => {
                     if (accountSwitchLockRef.current) return;
                     await desktop.respondInteraction(taskId, requestId, response);

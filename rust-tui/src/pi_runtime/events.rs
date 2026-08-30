@@ -180,21 +180,41 @@ impl PiEventReducer {
             PiEventKind::AgentEnd => {
                 // Deliberately keep the active state. `agent_settled` is the
                 // only event that proves retries/compaction/queued work ended.
-                if !self.snapshot.status.is_busy() {
+                // A failed assistant turn is terminal too, and must remain
+                // visible after Pi emits its normal agent_end/agent_settled
+                // epilogue.
+                if self.snapshot.status != PiRuntimeStatus::Failed
+                    && !self.snapshot.status.is_busy()
+                {
                     self.snapshot.status = PiRuntimeStatus::Running;
                 }
             }
             PiEventKind::AgentSettled => {
-                self.snapshot.status = PiRuntimeStatus::Idle;
+                if self.snapshot.status != PiRuntimeStatus::Failed {
+                    self.snapshot.status = PiRuntimeStatus::Idle;
+                }
                 self.snapshot.active_tool_call_id = None;
             }
-            PiEventKind::TurnStart | PiEventKind::TurnEnd => {
+            PiEventKind::TurnStart => {
                 self.snapshot.status = PiRuntimeStatus::Running;
+            }
+            PiEventKind::TurnEnd => {
+                self.snapshot.status = if event_reports_assistant_failure(&event.value) {
+                    PiRuntimeStatus::Failed
+                } else {
+                    PiRuntimeStatus::Running
+                };
             }
             PiEventKind::MessageStart | PiEventKind::MessageUpdate => {
                 self.snapshot.status = PiRuntimeStatus::Streaming;
             }
-            PiEventKind::MessageEnd => self.snapshot.status = PiRuntimeStatus::Running,
+            PiEventKind::MessageEnd => {
+                self.snapshot.status = if event_reports_assistant_failure(&event.value) {
+                    PiRuntimeStatus::Failed
+                } else {
+                    PiRuntimeStatus::Running
+                };
+            }
             PiEventKind::ToolExecutionStart => {
                 self.snapshot.status = PiRuntimeStatus::ToolRunning;
                 self.snapshot.active_tool_call_id = event
@@ -269,6 +289,21 @@ impl PiEventReducer {
     }
 }
 
+fn event_reports_assistant_failure(value: &Value) -> bool {
+    let message = value.get("message").unwrap_or(value);
+    let role = message.get("role").and_then(Value::as_str);
+    let stop_reason = message
+        .get("stopReason")
+        .or_else(|| message.get("stop_reason"))
+        .and_then(Value::as_str);
+    let error_message = message
+        .get("errorMessage")
+        .or_else(|| message.get("error_message"))
+        .and_then(Value::as_str)
+        .is_some_and(|error| !error.trim().is_empty());
+    matches!(role, Some("assistant" | "model")) && (stop_reason == Some("error") || error_message)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -326,5 +361,22 @@ pub(crate) mod tests {
         assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Running);
         assert!(reducer.apply(PiEvent::parse(json!({"type":"extension_error"})).unwrap()));
         assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Failed);
+    }
+
+    pub(crate) fn assistant_error_remains_failed_after_agent_settles() {
+        let mut reducer = PiEventReducer::new(1);
+        for value in [
+            json!({"type":"agent_start"}),
+            json!({"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"network failed"}}),
+            json!({"type":"turn_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"network failed"}}),
+            json!({"type":"agent_end"}),
+            json!({"type":"agent_settled"}),
+        ] {
+            assert!(reducer.apply(PiEvent::parse(value).unwrap()));
+        }
+        assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Failed);
+
+        assert!(reducer.apply(PiEvent::parse(json!({"type":"agent_start"})).unwrap()));
+        assert_eq!(reducer.snapshot().status, PiRuntimeStatus::Running);
     }
 }

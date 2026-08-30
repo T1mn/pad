@@ -4,37 +4,37 @@ use serde_json::json;
 
 impl DesktopRuntime {
     pub(crate) fn set_model(
-        &self,
+        &mut self,
         task_id: &str,
         provider: &str,
         model_id: &str,
     ) -> Result<(), DesktopRuntimeError> {
-        let active = self
-            .active_tasks
-            .get(task_id)
-            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-        active.supervisor.send(json!({
-            "type": "set_model",
-            "provider": provider,
-            "modelId": model_id,
-        }))?;
-        Ok(())
+        let response = self.request_pi(
+            task_id,
+            json!({
+                "type": "set_model",
+                "provider": provider,
+                "modelId": model_id,
+            }),
+            "set_model",
+        )?;
+        super::require_pi_command_accepted("set_model", response)
     }
 
     pub(crate) fn set_thinking_level(
-        &self,
+        &mut self,
         task_id: &str,
         level: &str,
     ) -> Result<(), DesktopRuntimeError> {
-        let active = self
-            .active_tasks
-            .get(task_id)
-            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
-        active.supervisor.send(json!({
-            "type": "set_thinking_level",
-            "level": level,
-        }))?;
-        Ok(())
+        let response = self.request_pi(
+            task_id,
+            json!({
+                "type": "set_thinking_level",
+                "level": level,
+            }),
+            "set_thinking_level",
+        )?;
+        super::require_pi_command_accepted("set_thinking_level", response)
     }
 
     pub(crate) fn remote_history_response(

@@ -99,6 +99,104 @@ pub(crate) fn create_task_start_poll_and_stop_round_trip() {
     assert!(Path::new(".").exists());
 }
 
+#[cfg(unix)]
+pub(crate) fn prompt_atomically_starts_configures_and_submits_to_pi() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = crate::test_support::temp_path("pad-desktop", "atomic-prompt");
+    fs::create_dir_all(&root).unwrap();
+    let commands_file = root.join("commands.jsonl");
+    let arguments_file = root.join("arguments.txt");
+    let program = root.join("pi");
+    let script = format!(
+        r#"#!/bin/sh
+set -eu
+printf '%s\n' "$@" > {}
+while IFS= read -r line; do
+  printf '%s\n' "$line" >> {}
+  case "$line" in
+    *'"type":"get_state"'*) printf '%s\n' '{{"type":"response","command":"get_state","success":true,"data":{{}}}}' ;;
+    *'"type":"prompt"'*) printf '%s\n' '{{"type":"response","command":"prompt","success":true}}' ;;
+  esac
+done
+"#,
+        crate::shell_quote::single_quote(&arguments_file.to_string_lossy()),
+        crate::shell_quote::single_quote(&commands_file.to_string_lossy())
+    );
+    fs::write(&program, script).unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    runtime.set_pi_program_for_test(program);
+    let profile = Profile {
+        id: "profile-bridge".to_string(),
+        name: "Bridge profile".to_string(),
+        agent_dir: root.join("agent"),
+        session_dir: root.join("sessions"),
+        ..Profile::default()
+    };
+    runtime.store_mut().insert_profile(&profile).unwrap();
+    runtime
+        .store_mut()
+        .insert_task(&crate::permission_policy::Task {
+            id: "task-atomic".to_string(),
+            profile_id: profile.id,
+            cwd: root.clone(),
+            ..Default::default()
+        })
+        .unwrap();
+    let request: DesktopRequest = serde_json::from_value(json!({
+        "action": "prompt",
+        "task_id": "task-atomic",
+        "prompt": "hello",
+        "provider": "openai-codex",
+        "model": "gpt-test",
+        "thinking_level": "high"
+    }))
+    .unwrap();
+
+    assert_eq!(
+        handle_request(&mut runtime, &request).unwrap()["accepted"],
+        true
+    );
+    for _ in 0..40 {
+        if fs::read_to_string(&commands_file).is_ok_and(|commands| commands.lines().count() >= 2) {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    let commands = fs::read_to_string(&commands_file).unwrap();
+    let command_types = commands
+        .lines()
+        .map(|line| {
+            serde_json::from_str::<Value>(line).unwrap()["type"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(command_types, vec!["get_state", "prompt"]);
+    assert_eq!(
+        fs::read_to_string(&arguments_file)
+            .unwrap()
+            .lines()
+            .collect::<Vec<_>>(),
+        vec![
+            "--mode",
+            "rpc",
+            "--provider",
+            "openai-codex",
+            "--model",
+            "gpt-test",
+            "--thinking",
+            "high",
+        ]
+    );
+    runtime.stop_task("task-atomic").unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
 pub(crate) fn create_project_persists_the_selected_workspace_root() {
     let mut runtime = runtime();
     let root = std::env::temp_dir().join("pad-selected-project");

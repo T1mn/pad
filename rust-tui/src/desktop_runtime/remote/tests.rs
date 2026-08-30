@@ -23,6 +23,8 @@ pub(crate) fn remote_action_allowlist_denies_privileged_and_poll_routes() {
         "set_ui_state",
         "terminal_open",
         "provider_status",
+        "start_task",
+        "retry_task",
     ] {
         assert!(
             !remote_action_allowed(action),

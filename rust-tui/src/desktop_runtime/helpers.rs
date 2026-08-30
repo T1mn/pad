@@ -25,6 +25,32 @@ pub(super) fn read_session_messages(path: &Path) -> Vec<Value> {
         .collect()
 }
 
+pub(super) fn session_last_assistant_error(path: &Path) -> Option<String> {
+    read_session_messages(path)
+        .into_iter()
+        .last()
+        .filter(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
+        .and_then(|message| assistant_error_message(&message))
+}
+
+fn assistant_error_message(message: &Value) -> Option<String> {
+    let stop_reason = message
+        .get("stopReason")
+        .or_else(|| message.get("stop_reason"))
+        .and_then(Value::as_str);
+    let error = message
+        .get("errorMessage")
+        .or_else(|| message.get("error_message"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if stop_reason == Some("error") || error.is_some() {
+        Some(error.unwrap_or("Pi model request failed").to_string())
+    } else {
+        None
+    }
+}
+
 pub(super) fn automatic_ui_response(
     value: &Value,
     policy: &EffectivePolicy,
@@ -91,6 +117,18 @@ pub(super) fn update_task_metadata_from_poll(
             let session_file = PathBuf::from(session_file);
             if let Some(profile) = store.get_profile(&task.profile_id)? {
                 let root = crate::pi_runtime::profile_pi_roots(&profile).1;
+                let existing = task.session_file.as_ref().map(|path| {
+                    if path.is_absolute() {
+                        path.clone()
+                    } else {
+                        root.join(path)
+                    }
+                });
+                // A Task owns one durable Pi journal. A late/stale get_state
+                // from a newly spawned default session must never replace it.
+                if existing.as_ref().is_some_and(|path| path != &session_file) {
+                    continue;
+                }
                 if path_within_root(&session_file, &root)
                     && task.session_file.as_ref() != Some(&session_file)
                 {

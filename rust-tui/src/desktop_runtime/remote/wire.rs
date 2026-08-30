@@ -39,12 +39,10 @@ pub(crate) fn remote_action_allowed(action: &str) -> bool {
             | "list_sidebar"
             | "history"
             | "create_task"
-            | "start_task"
             | "prompt"
             | "abort"
             | "stop"
             | "stop_task"
-            | "retry_task"
             | "respond_ui"
             | "set_task"
             | "runtime_snapshot"
@@ -54,15 +52,7 @@ pub(crate) fn remote_action_allowed(action: &str) -> bool {
 pub(crate) fn remote_action_mutates(action: &str) -> bool {
     matches!(
         action,
-        "create_task"
-            | "start_task"
-            | "retry_task"
-            | "prompt"
-            | "abort"
-            | "stop"
-            | "stop_task"
-            | "respond_ui"
-            | "set_task"
+        "create_task" | "prompt" | "abort" | "stop" | "stop_task" | "respond_ui" | "set_task"
     )
 }
 

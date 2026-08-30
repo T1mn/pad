@@ -216,11 +216,33 @@ impl PiSupervisor {
         cwd: impl AsRef<Path>,
         generation: u64,
         profile: &crate::permission_policy::Profile,
+        session_file: Option<&Path>,
+        provider: Option<&str>,
+        model: Option<&str>,
+        thinking_level: Option<&str>,
     ) -> Result<Self, PiSupervisorError> {
-        let command = format!(
+        let mut command = format!(
             "{} --mode rpc",
             crate::shell_quote::single_quote(&program.to_string_lossy())
         );
+        if let Some(session_file) = session_file {
+            command.push_str(" --session ");
+            command.push_str(&crate::shell_quote::single_quote(
+                &session_file.to_string_lossy(),
+            ));
+        }
+        if let Some(provider) = provider {
+            command.push_str(" --provider ");
+            command.push_str(&crate::shell_quote::single_quote(provider));
+        }
+        if let Some(model) = model {
+            command.push_str(" --model ");
+            command.push_str(&crate::shell_quote::single_quote(model));
+        }
+        if let Some(thinking_level) = thinking_level {
+            command.push_str(" --thinking ");
+            command.push_str(&crate::shell_quote::single_quote(thinking_level));
+        }
         let (agent_dir, session_dir) = super::profile_pi_roots(profile);
         Self::spawn_with_roots(&command, cwd, generation, agent_dir, session_dir, false)
     }

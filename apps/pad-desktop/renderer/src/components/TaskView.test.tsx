@@ -104,7 +104,7 @@ describe("TaskView", () => {
     expect(screen.queryByRole("button", { name: /反馈/ })).not.toBeInTheDocument();
   });
 
-  it("idle 发送、running 停止、failed 重试使用不同真实动作", async () => {
+  it("idle 和 failed 都像原生 Pi 一样直接发送，只有 running 才停止", async () => {
     const user = userEvent.setup();
     const onSend = vi.fn().mockResolvedValue(undefined);
     const idle = renderTaskView({ onSend });
@@ -126,22 +126,21 @@ describe("TaskView", () => {
     expect(onStop).toHaveBeenCalledOnce();
     running.unmount();
 
-    const onRetry = vi.fn().mockResolvedValue(undefined);
+    const failedSend = vi.fn().mockResolvedValue(undefined);
     const failedTask = { ...snapshot().tasks[0]!, status: "attention" as const, rawStatus: "failed" };
-    renderTaskView({ task: failedTask, onRetry });
-    await user.click(screen.getByRole("button", { name: "重试任务" }));
-    expect(onRetry).toHaveBeenCalledOnce();
+    renderTaskView({ task: failedTask, onSend: failedSend });
+    await user.type(screen.getByLabelText("任务输入"), "继续");
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(failedSend).toHaveBeenCalledWith(expect.objectContaining({ text: "继续" }));
   });
 
-  it("error 状态显示中文任务状态并提供重试", async () => {
-    const onRetry = vi.fn().mockResolvedValue(undefined);
+  it("error 状态显示中文任务状态并保持原生 Pi 输入框可用", async () => {
     const errorTask = { ...snapshot().tasks[0]!, status: "attention" as const, rawStatus: "error" };
-    renderTaskView({ task: errorTask, onRetry });
-    const user = userEvent.setup();
+    renderTaskView({ task: errorTask });
 
     expect(screen.getByText("需要处理", { selector: ".task-status" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "重试任务" }));
-    expect(onRetry).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("任务输入")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "发送" })).toBeInTheDocument();
   });
 
   it("发送失败时保留完整草稿且不产生未处理 rejection", async () => {
@@ -669,7 +668,6 @@ function renderTaskView(overrides: {
   onChooseAttachments?: () => Promise<string[]>;
   onSend?: (input: ComposerMessageInput) => Promise<void>;
   onStop?: () => Promise<void>;
-  onRetry?: () => Promise<void>;
   onRespondInteraction?: (taskId: string, interactionId: string, value: boolean | number | string) => Promise<void>;
   onUpdateTask?: (patch: { pinned?: boolean; archived?: boolean; unread?: boolean }) => Promise<void>;
 } = {}) {
@@ -690,7 +688,6 @@ function renderTaskView(overrides: {
       onChooseAttachments={overrides.onChooseAttachments ?? vi.fn().mockResolvedValue([])}
       onSend={overrides.onSend ?? vi.fn().mockResolvedValue(undefined)}
       onStop={overrides.onStop ?? vi.fn().mockResolvedValue(undefined)}
-      onRetry={overrides.onRetry ?? vi.fn().mockResolvedValue(undefined)}
       onRespondInteraction={overrides.onRespondInteraction ?? vi.fn().mockResolvedValue(undefined)}
       onUpdateTask={overrides.onUpdateTask ?? vi.fn().mockResolvedValue(undefined)}
       onOpenSettings={vi.fn()}

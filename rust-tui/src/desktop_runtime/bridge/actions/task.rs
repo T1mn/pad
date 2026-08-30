@@ -47,14 +47,55 @@ pub(super) fn retry_task(
 }
 
 pub(super) fn prompt(
-    runtime: &DesktopRuntime,
+    runtime: &mut DesktopRuntime,
     request: &DesktopRequest,
 ) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;
     let prompt = required(request.prompt.as_deref(), "prompt")?;
-    runtime
-        .send_prompt(task_id, prompt)
-        .map_err(BridgeError::from)?;
+    let provider = request
+        .default_provider
+        .as_deref()
+        .or(request.provider.as_deref());
+    let model = request
+        .model_id
+        .as_deref()
+        .or(request.default_model.as_deref())
+        .or(request.model.as_deref());
+    if provider.is_some() != model.is_some() {
+        return Err(BridgeError::new(
+            "invalid_model_selection",
+            "provider and model must be supplied together",
+        ));
+    }
+    let thinking_level = request
+        .thinking_level
+        .as_deref()
+        .filter(|level| *level != "default");
+    let started_here = match runtime.start_task_configured(task_id, provider, model, thinking_level)
+    {
+        Ok(_) => true,
+        Err(DesktopRuntimeError::TaskAlreadyRunning(_)) => false,
+        Err(error) => return Err(BridgeError::from(error)),
+    };
+    let result = (|| {
+        // A freshly started Pi received these as native CLI options. Only an
+        // already-live session needs an in-band model/thinking change.
+        if !started_here {
+            if let (Some(provider), Some(model)) = (provider, model) {
+                runtime.set_model(task_id, provider, model)?;
+            }
+            if let Some(level) = thinking_level {
+                runtime.set_thinking_level(task_id, level)?;
+            }
+        }
+        runtime.send_prompt(task_id, prompt)
+    })();
+    if let Err(error) = result {
+        if started_here {
+            let _ = runtime.stop_task(task_id);
+        }
+        return Err(BridgeError::from(error));
+    }
     Ok(json!({ "task_id": task_id, "accepted": true }))
 }
 
@@ -73,6 +114,10 @@ pub(super) fn history(
 ) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;
     let response = runtime.history(task_id).map_err(BridgeError::from)?;
+    let pending = response
+        .get("pending")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let messages = response
         .get("data")
         .and_then(|data| data.get("messages"))
@@ -81,6 +126,7 @@ pub(super) fn history(
     let mut result = native_response(runtime, task_id, "history", Some(response))?;
     if let Some(object) = result.as_object_mut() {
         object.insert("messages".to_string(), messages);
+        object.insert("pending".to_string(), Value::Bool(pending));
     }
     Ok(result)
 }
@@ -131,7 +177,7 @@ fn native_response(
 }
 
 pub(super) fn set_model(
-    runtime: &DesktopRuntime,
+    runtime: &mut DesktopRuntime,
     request: &DesktopRequest,
 ) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;
@@ -162,7 +208,7 @@ pub(super) fn set_model(
 }
 
 pub(super) fn set_thinking_level(
-    runtime: &DesktopRuntime,
+    runtime: &mut DesktopRuntime,
     request: &DesktopRequest,
 ) -> Result<Value, BridgeError> {
     let task_id = required(request.task_id.as_deref(), "task_id")?;

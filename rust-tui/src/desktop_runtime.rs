@@ -36,8 +36,8 @@ mod helpers;
 mod interactions;
 use helpers::{
     automatic_ui_response, default_desktop_workspace_root, is_unsafe_generated_project_root,
-    path_within_root, profile_storage_segment, read_session_messages, task_status, unique_suffix,
-    unix_timestamp,
+    path_within_root, profile_storage_segment, read_session_messages, session_last_assistant_error,
+    task_status, unique_suffix, unix_timestamp,
 };
 mod terminal;
 use terminal::DesktopTerminalRuntime;
@@ -148,6 +148,7 @@ impl DesktopRuntime {
         )?);
         runtime.data_root = root;
         runtime._data_root_lock = Some(data_root_lock);
+        runtime.recover_stale_task_statuses()?;
         Ok(runtime)
     }
 
@@ -190,6 +191,59 @@ impl DesktopRuntime {
             #[cfg(test)]
             model_catalog_launcher: None,
         }
+    }
+
+    fn recover_stale_task_statuses(&mut self) -> Result<(), DesktopRuntimeError> {
+        for mut task in self.store.list_tasks(None, true)? {
+            let failed_session = self
+                .validated_task_session_file(&task)?
+                .as_deref()
+                .and_then(session_last_assistant_error)
+                .is_some();
+            let recovered_status = if matches!(
+                task.status,
+                TaskStatus::Starting
+                    | TaskStatus::Running
+                    | TaskStatus::Streaming
+                    | TaskStatus::ToolRunning
+                    | TaskStatus::NeedsApproval
+                    | TaskStatus::NeedsInput
+                    | TaskStatus::Compacting
+                    | TaskStatus::Retrying
+            ) {
+                Some(TaskStatus::Disconnected)
+            } else if task.status == TaskStatus::Idle && failed_session {
+                Some(TaskStatus::Failed)
+            } else {
+                None
+            };
+            if let Some(status) = recovered_status {
+                task.status = status;
+                // Keep the prior timestamp so crash recovery does not reorder
+                // the user's sidebar.
+                self.store.update_task(&task)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn validated_task_session_file(
+        &self,
+        task: &Task,
+    ) -> Result<Option<PathBuf>, DesktopRuntimeError> {
+        let Some(session_file) = task.session_file.as_ref() else {
+            return Ok(None);
+        };
+        let Some(profile) = self.store.get_profile(&task.profile_id)? else {
+            return Ok(None);
+        };
+        let session_root = crate::pi_runtime::profile_pi_roots(&profile).1;
+        let session_file = if session_file.is_absolute() {
+            session_file.clone()
+        } else {
+            session_root.join(session_file)
+        };
+        Ok(path_within_root(&session_file, &session_root).then_some(session_file))
     }
 
     #[cfg(test)]
@@ -286,6 +340,19 @@ impl DesktopRuntime {
     /// Start one Pi process for an existing PAD Task.  The Profile roots are
     /// selected from the Store, never from renderer-supplied environment data.
     pub(crate) fn start_task(&mut self, task_id: &str) -> Result<u64, DesktopRuntimeError> {
+        self.start_task_configured(task_id, None, None, None)
+    }
+
+    /// Start Pi with its native CLI model/session options.  This is the direct
+    /// path used for the first prompt: Pi owns initialization and PAD does not
+    /// start a default model only to reconfigure it over concurrent RPC calls.
+    pub(crate) fn start_task_configured(
+        &mut self,
+        task_id: &str,
+        provider: Option<&str>,
+        model: Option<&str>,
+        thinking_level: Option<&str>,
+    ) -> Result<u64, DesktopRuntimeError> {
         if let Some(active) = self.active_tasks.get(task_id) {
             if active.supervisor.has_exited()? {
                 self.active_tasks.remove(task_id);
@@ -301,13 +368,16 @@ impl DesktopRuntime {
             .store
             .get_profile(&task.profile_id)?
             .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(task.profile_id.clone()))?;
-        self.start_task_with_profile(&task, &profile)
+        self.start_task_with_profile(&task, &profile, provider, model, thinking_level)
     }
 
     fn start_task_with_profile(
         &mut self,
         task: &Task,
         profile: &Profile,
+        provider: Option<&str>,
+        model: Option<&str>,
+        thinking_level: Option<&str>,
     ) -> Result<u64, DesktopRuntimeError> {
         if task.profile_id != profile.id {
             return Err(DesktopRuntimeError::ProfileMismatch {
@@ -317,35 +387,35 @@ impl DesktopRuntime {
         }
         let generation = self.next_generation;
         self.next_generation = self.next_generation.saturating_add(1).max(1);
+        let session_root = crate::pi_runtime::profile_pi_roots(profile).1;
+        let session_file = task.session_file.as_ref().map(|session_file| {
+            if session_file.is_absolute() {
+                session_file.clone()
+            } else {
+                session_root.join(session_file)
+            }
+        });
+        if let Some(session_file) = session_file.as_ref() {
+            if !path_within_root(session_file, &session_root) {
+                return Err(DesktopRuntimeError::InvalidSessionPath {
+                    task_id: task.id.clone(),
+                    path: session_file.clone(),
+                });
+            }
+        }
         let supervisor = PiRpcSupervisor::spawn_desktop_for_profile(
             &self.pi_program,
             &task.cwd,
             generation,
             profile,
+            session_file.as_deref(),
+            provider,
+            model,
+            thinking_level,
         )?;
-        // A Task's Pi session is durable metadata, not a command-line option
-        // supplied by the renderer. Restore it only after the Profile-scoped
-        // supervisor has validated and created its private roots. The startup
-        // state request also gives us the canonical session path/id for a new
-        // task without parsing Pi's on-disk JSONL journal ourselves.
-        if let Some(session_file) = task.session_file.as_ref() {
-            let session_root = crate::pi_runtime::profile_pi_roots(profile).1;
-            let session_file = if session_file.is_absolute() {
-                session_file.clone()
-            } else {
-                session_root.join(session_file)
-            };
-            if !path_within_root(&session_file, &session_root) {
-                return Err(DesktopRuntimeError::InvalidSessionPath {
-                    task_id: task.id.clone(),
-                    path: session_file,
-                });
-            }
-            supervisor.send(json!({
-                "type": "switch_session",
-                "sessionPath": session_file,
-            }))?;
-        }
+        // Resume through Pi's native --session launch path. Starting a fresh
+        // RPC session and switching afterward briefly exposes the new session
+        // to get_state, which can overwrite the Task's durable journal link.
         supervisor.send(json!({ "type": "get_state" }))?;
         let mut task = task.clone();
         task.status = TaskStatus::Starting;
@@ -363,7 +433,7 @@ impl DesktopRuntime {
     }
 
     pub(crate) fn send_prompt(
-        &self,
+        &mut self,
         task_id: &str,
         prompt: &str,
     ) -> Result<(), DesktopRuntimeError> {
@@ -617,15 +687,32 @@ impl DesktopRuntime {
         &mut self,
         task_id: &str,
     ) -> Result<serde_json::Value, DesktopRuntimeError> {
+        let exited = self
+            .active_tasks
+            .get(task_id)
+            .map(|active| active.supervisor.has_exited())
+            .transpose()?
+            .unwrap_or(false);
+        if exited {
+            self.active_tasks.remove(task_id);
+        }
+
+        let mut live_pending = false;
         if self.active_tasks.contains_key(task_id) {
-            return Ok(self.get_messages(task_id)?.unwrap_or_else(|| {
-                json!({
-                    "type": "response",
-                    "command": "get_messages",
-                    "success": true,
-                    "data": { "messages": [] }
-                })
-            }));
+            if let Some(response) = self.get_messages(task_id)? {
+                let has_messages = response
+                    .get("data")
+                    .and_then(|data| data.get("messages"))
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|messages| !messages.is_empty());
+                if has_messages {
+                    return Ok(response);
+                }
+            }
+            // Pi may still be loading an existing journal. Fall through to
+            // the same read-only journal path instead of reporting a false
+            // successful empty conversation.
+            live_pending = true;
         }
 
         let task = self
@@ -658,6 +745,7 @@ impl DesktopRuntime {
             "type": "response",
             "command": "get_messages",
             "success": true,
+            "pending": live_pending && messages.is_empty(),
             "data": { "messages": messages }
         }))
     }
@@ -769,6 +857,31 @@ impl DesktopRuntime {
     pub(crate) fn is_running(&self, task_id: &str) -> bool {
         self.active_tasks.contains_key(task_id)
     }
+}
+
+fn require_pi_command_accepted(
+    command: &str,
+    response: Option<serde_json::Value>,
+) -> Result<(), DesktopRuntimeError> {
+    let Some(response) = response else {
+        return Err(
+            PiSupervisorError::InvalidCommand(format!("Pi {command} response timed out")).into(),
+        );
+    };
+    if response.get("success").and_then(serde_json::Value::as_bool) == Some(false) {
+        let message = response
+            .get("error")
+            .and_then(|error| {
+                error
+                    .as_str()
+                    .or_else(|| error.get("message").and_then(serde_json::Value::as_str))
+            })
+            .unwrap_or("request rejected");
+        return Err(
+            PiSupervisorError::InvalidCommand(format!("Pi {command} failed: {message}")).into(),
+        );
+    }
+    Ok(())
 }
 
 fn collapse_record_ids(

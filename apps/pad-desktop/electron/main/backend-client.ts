@@ -357,6 +357,17 @@ export function hostEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS
     'PAD_DESKTOP_DATA_DIR',
     'RUST_BACKTRACE',
     'RUST_LOG',
+    // Pi's HTTP and WebSocket transports intentionally read the standard
+    // proxy environment. Keep this host-only: the values reach Rust/Pi but
+    // are never returned through the renderer protocol.
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'ALL_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'all_proxy',
+    'no_proxy',
   ]) {
     const value = source[key];
     if (value) environment[key] = value;

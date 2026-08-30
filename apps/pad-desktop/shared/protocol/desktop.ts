@@ -282,7 +282,13 @@ export interface DesktopRequestParams {
   };
   start_task: { task_id: string };
   retry_task: { task_id: string };
-  prompt: { task_id: string; prompt: string };
+  prompt: {
+    task_id: string;
+    prompt: string;
+    provider?: string;
+    model?: string;
+    thinking_level?: string;
+  };
   poll: { task_id: string };
   history: { task_id: string };
   get_messages: { task_id: string };

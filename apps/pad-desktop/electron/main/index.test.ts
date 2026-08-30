@@ -42,6 +42,7 @@ import {
   installIpcHandlers,
   isAllowedRendererUrl,
   loadWindowState,
+  proxyUrlFromRules,
   resolveRendererFilePath,
   sanitizeWindowState,
   saveWindowState,
@@ -81,6 +82,14 @@ describe('packaged renderer protocol', () => {
     expect(isAllowedRendererUrl('http://127.0.0.1:5174/', development)).toBe(false);
     expect(isAllowedRendererUrl('https://127.0.0.1:5173/', development)).toBe(false);
     expect(isAllowedRendererUrl('http://user@127.0.0.1:5173/', development)).toBe(false);
+  });
+
+  it('converts only a safe effective HTTP proxy rule for the Pi sidecar', () => {
+    expect(proxyUrlFromRules('PROXY 127.0.0.1:7890; DIRECT')).toBe('http://127.0.0.1:7890');
+    expect(proxyUrlFromRules('HTTPS proxy.example.test:8443')).toBe('http://proxy.example.test:8443');
+    expect(proxyUrlFromRules('SOCKS5 127.0.0.1:7891; DIRECT')).toBeNull();
+    expect(proxyUrlFromRules('PROXY user:secret@127.0.0.1:7890')).toBeNull();
+    expect(proxyUrlFromRules('DIRECT')).toBeNull();
   });
 
   it('requires both IPC URLs to be trusted and the sender to be the main frame', () => {

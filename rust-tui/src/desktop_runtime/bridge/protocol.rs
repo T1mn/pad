@@ -123,7 +123,14 @@ fn action_fields(action: &str) -> &'static [&'static str] {
         ],
         "start_task" | "retry_task" | "poll" | "history" | "get_messages" | "get_state"
         | "abort" | "runtime_snapshot" | "stop" | "stop_task" => &["task_id"],
-        "prompt" => &["task_id", "prompt"],
+        "prompt" => &[
+            "task_id",
+            "prompt",
+            "provider",
+            "model",
+            "model_id",
+            "thinking_level",
+        ],
         "get_entries" => &["task_id", "since"],
         "set_model" => &["task_id", "provider", "model", "model_id"],
         "set_thinking_level" => &["task_id", "thinking_level"],

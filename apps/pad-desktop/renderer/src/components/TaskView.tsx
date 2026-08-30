@@ -57,7 +57,6 @@ interface TaskViewProps {
   onChooseAttachments(): Promise<string[]>;
   onSend(input: ComposerMessageInput): Promise<void>;
   onStop(): Promise<void>;
-  onRetry(): Promise<void>;
   onRespondInteraction(taskId: string, interactionId: string, value: InteractionResponse): Promise<void>;
   onUpdateTask(patch: { pinned?: boolean; archived?: boolean; unread?: boolean }): Promise<void>;
   onOpenSettings(): void;
@@ -327,9 +326,8 @@ function Composer({
   onChooseAttachments,
   onSend,
   onStop,
-  onRetry,
   interactionPending,
-}: Pick<TaskViewProps, "task" | "activeAccount" | "fullAccess" | "onFullAccessChange" | "onChooseAttachments" | "onSend" | "onStop" | "onRetry"> & {
+}: Pick<TaskViewProps, "task" | "activeAccount" | "fullAccess" | "onFullAccessChange" | "onChooseAttachments" | "onSend" | "onStop"> & {
   text: string;
   onTextChange(value: string): void;
   interactionPending: boolean;
@@ -390,12 +388,10 @@ function Composer({
     };
   }, [modelPickerOpen]);
 
-  const rawStatus = task?.rawStatus.toLowerCase() ?? "";
-  const action = task?.status === "running"
-    ? "stop"
-    : ["failed", "error", "disconnected"].includes(rawStatus)
-      ? "retry"
-      : "send";
+  // Match native Pi: after an error the editor remains available and the next
+  // prompt is sent directly through the same session. PAD does not invent a
+  // separate retry workflow or replay the user's previous prompt.
+  const action = task?.status === "running" ? "stop" : "send";
   const sendBlockedByInteraction = action === "send" && interactionPending;
 
   async function chooseAttachments() {
@@ -421,11 +417,6 @@ function Composer({
     if (action === "stop") {
       setSending(true);
       try { await onStop(); } finally { setSending(false); }
-      return;
-    }
-    if (action === "retry") {
-      setSending(true);
-      try { await onRetry(); } finally { setSending(false); }
       return;
     }
     const value = text.trim();
@@ -546,9 +537,9 @@ function Composer({
               className={`send-button action-${action}`}
               disabled={sendBlockedByInteraction || (action === "send" && !text.trim()) || sending}
               onClick={() => void submit()}
-              aria-label={action === "stop" ? "停止任务" : action === "retry" ? "重试任务" : "发送"}
+              aria-label={action === "stop" ? "停止任务" : "发送"}
             >
-              <Icon name={action === "stop" ? "x" : action === "retry" ? "sparkles" : "send"} />
+              <Icon name={action === "stop" ? "x" : "send"} />
             </button>
           </div>
         </div>
@@ -674,7 +665,6 @@ export function TaskView({
   onChooseAttachments,
   onSend,
   onStop,
-  onRetry,
   onRespondInteraction,
   onUpdateTask,
 }: TaskViewProps) {
@@ -742,7 +732,7 @@ export function TaskView({
             ))}
           </>}
         </main>
-        <Composer task={task} activeAccount={activeAccount} text={draft} onTextChange={setDraft} fullAccess={fullAccess} onFullAccessChange={onFullAccessChange} onChooseAttachments={onChooseAttachments} onSend={onSend} onStop={onStop} onRetry={onRetry} interactionPending={interactions.some((interaction) => interaction.requiresResponse)} />
+        <Composer task={task} activeAccount={activeAccount} text={draft} onTextChange={setDraft} fullAccess={fullAccess} onFullAccessChange={onFullAccessChange} onChooseAttachments={onChooseAttachments} onSend={onSend} onStop={onStop} interactionPending={interactions.some((interaction) => interaction.requiresResponse)} />
       </div>
     </section>
   );

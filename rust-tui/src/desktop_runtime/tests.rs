@@ -124,6 +124,52 @@ pub(crate) fn empty_owner_pump_does_not_rewrite_task_metadata() {
     runtime.stop_task("task-runtime").unwrap();
 }
 
+#[cfg(unix)]
+pub(crate) fn existing_task_session_is_passed_to_native_pi_at_startup() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = crate::test_support::temp_path("pad-desktop", "native-session-resume");
+    let session_dir = root.join("sessions with spaces");
+    let agent_dir = root.join("agent");
+    fs::create_dir_all(&session_dir).unwrap();
+    let session_file = session_dir.join("existing session.jsonl");
+    fs::write(&session_file, "{\"type\":\"session\",\"version\":3}\n").unwrap();
+    let arguments_file = root.join("arguments.txt");
+    let program = root.join("pi");
+    let script = format!(
+        "#!/bin/sh\nset -eu\nprintf '%s\\n' \"$@\" > {}\nwhile IFS= read -r _pad_line; do :; done\n",
+        crate::shell_quote::single_quote(&arguments_file.to_string_lossy())
+    );
+    fs::write(&program, script).unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    runtime.set_pi_program_for_test(program);
+    let mut stored_profile = profile();
+    stored_profile.agent_dir = agent_dir;
+    stored_profile.session_dir = session_dir;
+    let mut stored_task = task();
+    stored_task.session_file = Some(session_file.clone());
+    runtime.store_mut().insert_profile(&stored_profile).unwrap();
+    runtime.store_mut().insert_task(&stored_task).unwrap();
+
+    runtime.start_task(&stored_task.id).unwrap();
+    for _ in 0..40 {
+        if arguments_file.exists() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    let arguments = fs::read_to_string(&arguments_file).unwrap();
+    assert_eq!(
+        arguments.lines().collect::<Vec<_>>(),
+        vec!["--mode", "rpc", "--session", session_file.to_str().unwrap()]
+    );
+    runtime.stop_task(&stored_task.id).unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
 pub(crate) fn request_pi_defers_same_batch_interaction_for_single_owner_fanout() {
     let mut runtime = DesktopRuntime::in_memory().unwrap();
     configure_fake_pi(
@@ -518,6 +564,40 @@ pub(crate) fn existing_task_session_is_restored_and_state_metadata_is_persisted(
     panic!("get_state response did not persist Pi session metadata");
 }
 
+pub(crate) fn stale_get_state_cannot_replace_an_existing_task_session() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    let profile = profile();
+    std::fs::create_dir_all(&profile.session_dir).unwrap();
+    runtime.store_mut().insert_profile(&profile).unwrap();
+    let session_file = profile.session_dir.join("durable.jsonl");
+    let stale_session_file = profile.session_dir.join("stale-new.jsonl");
+    std::fs::write(&session_file, "{\"type\":\"session\",\"version\":3}\n").unwrap();
+    let mut stored_task = task();
+    stored_task.session_file = Some(session_file.clone());
+    stored_task.pi_session_id = Some("durable-session".to_string());
+    runtime.store_mut().insert_task(&stored_task).unwrap();
+
+    configure_fake_pi(
+        &mut runtime,
+        &[serde_json::json!({
+            "type": "response", "command": "get_state", "success": true,
+            "data": {"sessionFile": stale_session_file, "sessionId": "stale-session"}
+        })],
+    );
+    runtime.start_task("task-runtime").unwrap();
+    for _ in 0..20 {
+        let _ = runtime.poll_task("task-runtime").unwrap();
+        thread::sleep(Duration::from_millis(5));
+    }
+    let current = runtime.store().get_task("task-runtime").unwrap().unwrap();
+    assert_eq!(
+        current.session_file.as_deref(),
+        Some(session_file.as_path())
+    );
+    assert_eq!(current.pi_session_id.as_deref(), Some("durable-session"));
+    runtime.stop_task("task-runtime").unwrap();
+}
+
 pub(crate) fn existing_task_session_outside_profile_root_is_rejected() {
     let mut runtime = DesktopRuntime::in_memory().unwrap();
     configure_fake_pi(&mut runtime, &[]);
@@ -557,4 +637,70 @@ pub(crate) fn history_falls_back_to_read_only_profile_session_journal() {
     assert_eq!(response["success"], true);
     assert_eq!(response["data"]["messages"].as_array().unwrap().len(), 2);
     assert_eq!(response["data"]["messages"][0]["content"], "hello");
+}
+
+pub(crate) fn active_history_timeout_falls_back_to_the_existing_journal() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    configure_fake_pi(&mut runtime, &[]);
+    let profile = profile();
+    std::fs::create_dir_all(&profile.session_dir).unwrap();
+    runtime.store_mut().insert_profile(&profile).unwrap();
+    let session_file = profile.session_dir.join("active-history.jsonl");
+    let journal = [
+        serde_json::json!({"type":"session", "id":"active-history"}),
+        serde_json::json!({"type":"message", "message":{"role":"user", "content":"still here"}}),
+        serde_json::json!({"type":"message", "message":{"role":"assistant", "content":"not empty"}}),
+    ]
+    .into_iter()
+    .map(|entry| serde_json::to_string(&entry).unwrap())
+    .collect::<Vec<_>>()
+    .join("\n");
+    std::fs::write(&session_file, format!("{journal}\n")).unwrap();
+    let mut stored_task = task();
+    stored_task.session_file = Some(session_file);
+    runtime.store_mut().insert_task(&stored_task).unwrap();
+
+    runtime.start_task("task-runtime").unwrap();
+    let response = runtime.history("task-runtime").unwrap();
+    assert_eq!(response["pending"], false);
+    assert_eq!(response["data"]["messages"].as_array().unwrap().len(), 2);
+    runtime.stop_task("task-runtime").unwrap();
+}
+
+pub(crate) fn startup_recovery_clears_ghost_running_and_restores_failed_error() {
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    let profile = profile();
+    std::fs::create_dir_all(&profile.session_dir).unwrap();
+    runtime.store_mut().insert_profile(&profile).unwrap();
+
+    let mut ghost = task();
+    ghost.id = "ghost-running".to_string();
+    ghost.status = TaskStatus::Running;
+    ghost.updated_at = 41;
+    runtime.store_mut().insert_task(&ghost).unwrap();
+
+    let error_session = profile.session_dir.join("failed-network.jsonl");
+    let journal = [
+        serde_json::json!({"type":"session", "id":"failed-session"}),
+        serde_json::json!({"type":"message", "message":{"role":"user", "content":[{"type":"text","text":"你好呀"}]}}),
+        serde_json::json!({"type":"message", "message":{"role":"assistant", "content":[], "stopReason":"error", "errorMessage":"Unable to connect. Is the computer able to access the url?"}}),
+    ]
+    .into_iter()
+    .map(|entry| serde_json::to_string(&entry).unwrap())
+    .collect::<Vec<_>>()
+    .join("\n");
+    std::fs::write(&error_session, format!("{journal}\n")).unwrap();
+    let mut failed = task();
+    failed.id = "failed-network".to_string();
+    failed.session_file = Some(error_session.clone());
+    failed.updated_at = 42;
+    runtime.store_mut().insert_task(&failed).unwrap();
+
+    runtime.recover_stale_task_statuses().unwrap();
+    let ghost = runtime.store().get_task("ghost-running").unwrap().unwrap();
+    let failed = runtime.store().get_task("failed-network").unwrap().unwrap();
+    assert_eq!(ghost.status, TaskStatus::Disconnected);
+    assert_eq!(ghost.updated_at, 41);
+    assert_eq!(failed.status, TaskStatus::Failed);
+    assert_eq!(failed.updated_at, 42);
 }

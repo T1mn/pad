@@ -163,6 +163,21 @@ describe("结构化 history 时间线", () => {
     expect(turn.title).toBe(expectedTitle);
     expect(turn.state).toBe(expectedState);
   });
+
+  it("把 Pi 的空正文 assistant 网络错误显示成中文失败卡片", () => {
+    const turn = mapHistoryMessage({
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      errorMessage: "Unable to connect. Is the computer able to access the url?",
+    }, 0);
+    expect(turn).toMatchObject({
+      kind: "error",
+      title: "执行错误",
+      body: "无法连接模型服务。请检查网络或代理后重试。",
+      state: "failed",
+    });
+  });
 });
 
 describe("buildSidebarHierarchy", () => {
@@ -486,6 +501,70 @@ describe("Pi v2 pending interactions", () => {
 });
 
 describe("任务按需加载与账号切换事务", () => {
+  it("停止按钮真正关闭 Pi runtime，而不是只发送无效 abort", async () => {
+    const fixture = bridgeFixture(1);
+    fixture.records.tasks[0] = { ...fixture.records.tasks[0]!, status: "starting" };
+    fixture.bootstrap.records = fixture.records;
+    const request = vi.fn(async (action: string) => {
+      if (action === "hello") return { capabilities: ["history"] };
+      if (action === "provider_status") return { provider_authentication: "authenticated" };
+      if (action === "history") return { messages: [] };
+      if (action === "stop_task") {
+        fixture.records.tasks[0] = { ...fixture.records.tasks[0]!, status: "disconnected" };
+        return { stopped: true };
+      }
+      if (action === "list_sidebar") return { records: fixture.records, sidebar: fixture.bootstrap.sidebar };
+      throw new Error(`unexpected action ${action}`);
+    });
+    const adapter = createBridgeAdapter({
+      bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+      request: request as unknown as PadDesktopApi["request"],
+      chooseProjectDirectory: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    });
+
+    await adapter.loadSnapshot();
+    const stopped = await adapter.abortTask("personal-task-1");
+    expect(request).toHaveBeenCalledWith("stop_task", { task_id: "personal-task-1" });
+    expect(request.mock.calls.some(([action]) => action === "abort")).toBe(false);
+    expect(stopped.tasks[0]?.rawStatus).toBe("disconnected");
+  });
+
+  it("失败任务只读 Pi 历史，不对已经结束的 runtime 继续 poll", async () => {
+    const fixture = bridgeFixture(1);
+    fixture.records.tasks[0] = { ...fixture.records.tasks[0]!, status: "failed" };
+    fixture.bootstrap.records = fixture.records;
+    const request = vi.fn(async (action: string) => {
+      if (action === "hello") return { capabilities: ["history", "poll"] };
+      if (action === "provider_status") return { provider_authentication: "authenticated", authenticated_providers: ["openai"], selected_provider: "openai" };
+      if (action === "history") return {
+        messages: [{
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "Unable to connect. Is the computer able to access the url?",
+        }],
+      };
+      if (action === "poll") throw new Error("failed runtime no longer exists");
+      throw new Error(`unexpected action ${action}`);
+    });
+    const adapter = createBridgeAdapter({
+      bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+      request: request as unknown as PadDesktopApi["request"],
+      chooseProjectDirectory: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    });
+
+    await adapter.loadSnapshot();
+    const loaded = await adapter.loadTaskData("personal-task-1");
+
+    expect(request.mock.calls.some(([action]) => action === "poll")).toBe(false);
+    expect(loaded.turnsByTask["personal-task-1"]?.[0]).toMatchObject({
+      kind: "error",
+      body: "无法连接模型服务。请检查网络或代理后重试。",
+    });
+  });
+
   it("第九个任务只在选中时加载真实 history/poll，失败会抛出并允许原任务重试", async () => {
     const fixture = bridgeFixture(9);
     fixture.records.tasks[8] = { ...fixture.records.tasks[8]!, status: "needs_input" };
@@ -686,7 +765,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
     expect(promptWithAttachments("   ", ["/tmp/spec.md"])).toBe("");
   });
 
-  it("新 runtime 严格按持久化、启动、模型、推理、prompt 顺序执行，成功后才追加本地用户 turn", async () => {
+  it("一次原子 prompt 携带模型与推理配置，成功后才追加本地用户 turn", async () => {
     vi.useFakeTimers();
     try {
       const fixture = bridgeFixture(1);
@@ -695,8 +774,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         if (action === "provider_status") return { provider_authentication: "authenticated", authenticated_providers: ["openai"], selected_provider: "openai" };
         if (action === "history") return { messages: [] };
         if (action === "set_profile") return { records: fixture.records, sidebar: fixture.bootstrap.sidebar };
-        if (action === "runtime_snapshot") return { runtime: undefined };
-        if (["start_task", "set_model", "set_thinking_level", "prompt"].includes(action)) return { accepted: true };
+        if (action === "prompt") return { accepted: true };
         throw new Error(`unexpected action ${action}`);
       });
       const adapter = createBridgeAdapter({
@@ -725,10 +803,6 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
 
       expect(request.mock.calls.map(([action]) => action)).toEqual([
         "set_profile",
-        "runtime_snapshot",
-        "start_task",
-        "set_model",
-        "set_thinking_level",
         "prompt",
       ]);
       expect(request).toHaveBeenCalledWith("set_profile", {
@@ -736,15 +810,12 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         default_provider: "custom-provider",
         default_model: "custom-model",
       });
-      expect(request).toHaveBeenCalledWith("set_model", {
-        task_id: "personal-task-1",
-        provider: "custom-provider",
-        model: "custom-model",
-      });
-      expect(request).toHaveBeenCalledWith("set_thinking_level", { task_id: "personal-task-1", thinking_level: "xhigh" });
       expect(request).toHaveBeenCalledWith("prompt", {
         task_id: "personal-task-1",
         prompt: "分析附件\n\n附件路径（用户明确选择）：\n- /tmp/spec.md\n- /tmp/design.png",
+        provider: "custom-provider",
+        model: "custom-model",
+        thinking_level: "xhigh",
       });
       expect(userTurns).toEqual(["分析附件\n\n附件路径（用户明确选择）：\n- /tmp/spec.md\n- /tmp/design.png"]);
       unsubscribe();
@@ -753,7 +824,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
     }
   });
 
-  it("已有 runtime 直接设模型再 prompt，默认推理不发送 set_thinking_level", async () => {
+  it("默认推理只通过原子 prompt 发送且不携带 thinking_level", async () => {
     vi.useFakeTimers();
     try {
       const fixture = bridgeFixture(1);
@@ -762,8 +833,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         if (action === "provider_status") return { provider_authentication: "authenticated", authenticated_providers: ["openai"], selected_provider: "openai" };
         if (action === "history") return { messages: [] };
         if (action === "set_profile") return { records: fixture.records, sidebar: fixture.bootstrap.sidebar };
-        if (action === "runtime_snapshot") return { runtime: { task_id: "personal-task-1", status: "idle" } };
-        if (["set_model", "prompt"].includes(action)) return { accepted: true };
+        if (action === "prompt") return { accepted: true };
         throw new Error(`unexpected action ${action}`);
       });
       const adapter = createBridgeAdapter({
@@ -786,22 +856,26 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         thinkingLevel: "default",
       });
 
-      expect(request.mock.calls.map(([action]) => action)).toEqual(["set_profile", "runtime_snapshot", "set_model", "prompt"]);
-      expect(request.mock.calls.some(([action]) => action === "start_task" || action === "set_thinking_level")).toBe(false);
+      expect(request.mock.calls.map(([action]) => action)).toEqual(["set_profile", "prompt"]);
+      expect(request).toHaveBeenCalledWith("prompt", {
+        task_id: "personal-task-1",
+        prompt: "继续",
+        provider: "openai",
+        model: "gpt-5.4",
+      });
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("模型配置失败时不发送 prompt，也不伪造本地用户 turn", async () => {
+  it("原子 prompt 配置失败时不伪造本地用户 turn", async () => {
     const fixture = bridgeFixture(1);
     const request = vi.fn(async (action: string) => {
       if (action === "hello") return { capabilities: ["history"] };
       if (action === "provider_status") return { provider_authentication: "authenticated", authenticated_providers: ["openai"], selected_provider: "openai" };
       if (action === "history") return { messages: [] };
       if (action === "set_profile") return { records: fixture.records, sidebar: fixture.bootstrap.sidebar };
-      if (action === "runtime_snapshot") return { runtime: { task_id: "personal-task-1" } };
-      if (action === "set_model") throw new Error("model unavailable");
+      if (action === "prompt") throw new Error("model unavailable");
       throw new Error(`unexpected action ${action}`);
     });
     const adapter = createBridgeAdapter({
@@ -826,7 +900,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
       thinkingLevel: "high",
     })).rejects.toThrow("model unavailable");
 
-    expect(request.mock.calls.some(([action]) => action === "prompt")).toBe(false);
+    expect(request.mock.calls.filter(([action]) => action === "prompt")).toHaveLength(1);
     expect(events).toEqual([]);
   });
 
@@ -853,8 +927,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
           fixture.records.tasks.push(created);
           return { task: created, records: fixture.records, sidebar: allSidebar() };
         }
-        if (action === "runtime_snapshot") return { runtime: undefined };
-        if (["start_task", "prompt"].includes(action)) return { accepted: true };
+        if (action === "prompt") return { accepted: true };
         throw new Error(`unexpected action ${action}`);
       });
       const adapter = createBridgeAdapter({
@@ -882,8 +955,6 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
       expect(request.mock.calls.map(([action]) => action)).toEqual([
         "set_ui_state",
         "create_task",
-        "runtime_snapshot",
-        "start_task",
         "prompt",
       ]);
       expect(request.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
@@ -893,6 +964,33 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("临时空 history 不覆盖已经显示的 Pi 会话", async () => {
+    const fixture = bridgeFixture(1);
+    let historyReads = 0;
+    const request = vi.fn(async (action: string) => {
+      if (action === "hello") return { capabilities: ["history"] };
+      if (action === "provider_status") return { provider_authentication: "authenticated" };
+      if (action === "history") {
+        historyReads += 1;
+        return historyReads === 1
+          ? { messages: [{ id: "kept", role: "assistant", content: "保留这条回复" }] }
+          : { messages: [] };
+      }
+      throw new Error(`unexpected action ${action}`);
+    });
+    const adapter = createBridgeAdapter({
+      bootstrap: vi.fn().mockResolvedValue(fixture.bootstrap),
+      request: request as unknown as PadDesktopApi["request"],
+      chooseProjectDirectory: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    });
+
+    const initial = await adapter.loadSnapshot();
+    expect(initial.turnsByTask["personal-task-1"]?.[0]?.body).toBe("保留这条回复");
+    const refreshed = await adapter.loadTaskData("personal-task-1");
+    expect(refreshed.turnsByTask["personal-task-1"]?.[0]?.body).toBe("保留这条回复");
   });
 });
 

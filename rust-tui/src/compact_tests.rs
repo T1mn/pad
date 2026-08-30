@@ -55,6 +55,8 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::data_root_lock::same_root_has_exactly_one_owner();
     crate::desktop_runtime::tests::profile_scoped_process_events_update_the_private_task_record();
     crate::desktop_runtime::tests::empty_owner_pump_does_not_rewrite_task_metadata();
+    #[cfg(unix)]
+    crate::desktop_runtime::tests::existing_task_session_is_passed_to_native_pi_at_startup();
     crate::desktop_runtime::tests::request_pi_defers_same_batch_interaction_for_single_owner_fanout(
     );
     crate::desktop_runtime::tests::rpc_responses_do_not_mark_the_task_failed();
@@ -64,14 +66,20 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::tests::explicit_permission_gate_is_the_only_full_access_ui_auto_response();
     crate::desktop_runtime::tests::cross_profile_project_cannot_supply_automatic_approval_policy();
     crate::desktop_runtime::tests::existing_task_session_is_restored_and_state_metadata_is_persisted();
+    crate::desktop_runtime::tests::stale_get_state_cannot_replace_an_existing_task_session();
     crate::desktop_runtime::tests::existing_task_session_outside_profile_root_is_rejected();
     crate::desktop_runtime::tests::history_falls_back_to_read_only_profile_session_journal();
+    crate::desktop_runtime::tests::active_history_timeout_falls_back_to_the_existing_journal();
+    crate::desktop_runtime::tests::startup_recovery_clears_ghost_running_and_restores_failed_error(
+    );
     crate::desktop_runtime::model_catalog::tests::enriches_selected_model_without_exposing_private_fields();
     crate::desktop_runtime::model_catalog::tests::falls_back_to_first_available_model();
     crate::desktop_runtime::model_catalog::tests::model_catalog_error_messages_are_path_free();
 
     crate::desktop_runtime::bridge::tests::protocol_returns_codex_sidebar_for_bootstrap();
     crate::desktop_runtime::bridge::tests::create_task_start_poll_and_stop_round_trip();
+    #[cfg(unix)]
+    crate::desktop_runtime::bridge::tests::prompt_atomically_starts_configures_and_submits_to_pi();
     crate::desktop_runtime::bridge::tests::create_project_persists_the_selected_workspace_root();
     crate::desktop_runtime::bridge::tests::malformed_input_is_one_error_response_and_does_not_write_stdout();
     crate::desktop_runtime::bridge::tests::full_access_fields_are_persisted_on_profile_and_task_requests();
@@ -152,6 +160,7 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_path_outside_profile_root();
     crate::pi_runtime::supervisor::tests::profile_spawn_rejects_session_symlink_escape();
     crate::pi_runtime::events::tests::rpc_responses_and_unknown_controls_do_not_fail_the_runtime();
+    crate::pi_runtime::events::tests::assistant_error_remains_failed_after_agent_settles();
     #[cfg(unix)]
     crate::pi_runtime::tests::desktop_pi_program_prefers_the_host_bundle();
 }
