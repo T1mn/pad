@@ -385,7 +385,16 @@ import pathlib
 import sys
 
 targets = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-pages = [item for item in targets if item.get("type") == "page" and item.get("webSocketDebuggerUrl")]
+# Electron exposes the page target before its first navigation.  Attaching to
+# that transient about:blank target makes Runtime.evaluate lose its context
+# and can look like a renderer startup timeout. Wait for PAD's stable custom
+# protocol URL instead.
+pages = [
+    item for item in targets
+    if item.get("type") == "page"
+    and item.get("webSocketDebuggerUrl")
+    and str(item.get("url", "")).startswith("pad-app://renderer/")
+]
 if not pages:
     raise SystemExit(1)
 pathlib.Path(sys.argv[2]).write_text(str(pages[0]["webSocketDebuggerUrl"]), encoding="utf-8")
