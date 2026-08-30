@@ -275,6 +275,7 @@ export interface ComposerMessageInput {
   provider: string;
   model: string;
   thinkingLevel: ThinkingLevel;
+  fastMode: boolean;
 }
 
 export interface SendMessageInput extends ComposerMessageInput {

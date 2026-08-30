@@ -116,6 +116,7 @@ describe("TaskView", () => {
       provider: "openai",
       model: "gpt-5.4",
       thinkingLevel: "default",
+      fastMode: true,
     }));
     idle.unmount();
 
@@ -178,6 +179,7 @@ describe("TaskView", () => {
       provider: "",
       model: "",
       thinkingLevel: "default",
+      fastMode: true,
     })));
     expect(screen.queryByText("请同时填写模型提供商和模型名称。")).not.toBeInTheDocument();
   });
@@ -221,12 +223,26 @@ describe("TaskView", () => {
       provider: "custom-provider",
       model: "custom-model",
       thinkingLevel: "xhigh",
+      fastMode: true,
     }));
     expect(input).toHaveValue("");
     expect(screen.queryByText("spec.md")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /custom-provider \/ custom-model/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "推理强度" })).toHaveValue("xhigh");
+    expect(screen.getByRole("checkbox", { name: "快速模式" })).toBeChecked();
     expect(screen.queryByText(/尚未开放/)).not.toBeInTheDocument();
+  });
+
+  it("快速模式默认开启并可在发送前关闭", async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    renderTaskView({ onSend });
+    const user = userEvent.setup();
+    const toggle = screen.getByRole("checkbox", { name: "快速模式" });
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    await user.type(screen.getByLabelText("任务输入"), "普通服务等级");
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(onSend).toHaveBeenCalledWith(expect.objectContaining({ fastMode: false }));
   });
 
   it("模型选择弹层支持 Escape、焦点归还与外部点击关闭", async () => {

@@ -221,10 +221,20 @@ impl PiSupervisor {
         model: Option<&str>,
         thinking_level: Option<&str>,
     ) -> Result<Self, PiSupervisorError> {
+        let (agent_dir, session_dir) = super::profile_pi_roots(profile);
+        validate_runtime_root(&agent_dir, "agent")?;
+        validate_runtime_root(&session_dir, "session")?;
+        crate::paths::base::ensure_private_dir(&agent_dir)?;
+        let extension_path = agent_dir.join("pad-fast-mode.ts");
+        crate::atomic_file::write_private(&extension_path, super::PAD_FAST_MODE_EXTENSION)?;
         let mut command = format!(
             "{} --mode rpc",
             crate::shell_quote::single_quote(&program.to_string_lossy())
         );
+        command.push_str(" --extension ");
+        command.push_str(&crate::shell_quote::single_quote(
+            &extension_path.to_string_lossy(),
+        ));
         if let Some(session_file) = session_file {
             command.push_str(" --session ");
             command.push_str(&crate::shell_quote::single_quote(
@@ -243,7 +253,6 @@ impl PiSupervisor {
             command.push_str(" --thinking ");
             command.push_str(&crate::shell_quote::single_quote(thinking_level));
         }
-        let (agent_dir, session_dir) = super::profile_pi_roots(profile);
         Self::spawn_with_roots(&command, cwd, generation, agent_dir, session_dir, false)
     }
 
@@ -337,6 +346,10 @@ impl PiSupervisor {
         process
             .env("PI_CODING_AGENT_DIR", &root)
             .env("PI_CODING_AGENT_SESSION_DIR", &session_dir)
+            .env(
+                "PAD_PI_FAST_MODE_FILE",
+                root.join(super::PAD_FAST_MODE_FILE),
+            )
             // Pi's bundled Bun runtime may transpile provider modules on the
             // first request. Keep those caches Profile-private; writing below
             // Contents/Resources would invalidate the app signature.

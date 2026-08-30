@@ -26,7 +26,7 @@ const allowedFields: Record<DesktopAction, readonly string[]> = {
   ],
   start_task: ['task_id'],
   retry_task: ['task_id'],
-  prompt: ['task_id', 'prompt', 'provider', 'model', 'thinking_level'],
+  prompt: ['task_id', 'prompt', 'provider', 'model', 'thinking_level', 'fast_mode'],
   poll: ['task_id'],
   history: ['task_id'],
   get_messages: ['task_id'],

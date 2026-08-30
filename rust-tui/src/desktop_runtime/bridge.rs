@@ -85,6 +85,8 @@ pub(crate) struct DesktopRequest {
     #[serde(default)]
     pub thinking_level: Option<String>,
     #[serde(default)]
+    pub fast_mode: Option<bool>,
+    #[serde(default)]
     pub request_id: Option<String>,
     #[serde(default)]
     pub interaction_id: Option<String>,

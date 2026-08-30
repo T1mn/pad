@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { isDesktopAction, sanitizeDesktopParams } from './request-policy';
 
 describe('remote request policy', () => {
+  it('allows only the explicit Pi fast-mode flag on prompt requests', () => {
+    expect(sanitizeDesktopParams('prompt', {
+      task_id: 'task-1',
+      prompt: 'hello',
+      fast_mode: true,
+    })).toEqual({ task_id: 'task-1', prompt: 'hello', fast_mode: true });
+    expect(() => sanitizeDesktopParams('prompt', {
+      task_id: 'task-1',
+      prompt: 'hello',
+      service_tier: 'fast',
+    })).toThrow('Unsupported prompt parameters');
+  });
+
   it('recognizes every remote action and admits only its exact public fields', () => {
     expect(isDesktopAction('remote_status')).toBe(true);
     expect(isDesktopAction('remote_set_enabled')).toBe(true);

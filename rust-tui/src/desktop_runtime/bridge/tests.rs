@@ -152,7 +152,8 @@ done
         "prompt": "hello",
         "provider": "openai-codex",
         "model": "gpt-test",
-        "thinking_level": "high"
+        "thinking_level": "high",
+        "fast_mode": false
     }))
     .unwrap();
 
@@ -177,14 +178,14 @@ done
         })
         .collect::<Vec<_>>();
     assert_eq!(command_types, vec!["get_state", "prompt"]);
+    let arguments = fs::read_to_string(&arguments_file).unwrap();
+    let arguments = arguments.lines().collect::<Vec<_>>();
+    assert_eq!(&arguments[..2], &["--mode", "rpc"]);
+    assert_eq!(arguments[2], "--extension");
+    assert!(arguments[3].ends_with("/pad-fast-mode.ts"));
     assert_eq!(
-        fs::read_to_string(&arguments_file)
-            .unwrap()
-            .lines()
-            .collect::<Vec<_>>(),
-        vec![
-            "--mode",
-            "rpc",
+        &arguments[4..],
+        &[
             "--provider",
             "openai-codex",
             "--model",
@@ -192,6 +193,10 @@ done
             "--thinking",
             "high",
         ]
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("agent").join("pad-fast-mode")).unwrap(),
+        "off\n"
     );
     runtime.stop_task("task-atomic").unwrap();
     let _ = fs::remove_dir_all(root);

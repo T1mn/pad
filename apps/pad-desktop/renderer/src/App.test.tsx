@@ -330,6 +330,7 @@ describe("App account isolation and compact layout", () => {
       provider: "openai",
       model: "gpt-5.4",
       thinkingLevel: "high",
+      fastMode: true,
     }));
     expect(input).toHaveValue("");
     expect(screen.queryByText("spec.md")).not.toBeInTheDocument();

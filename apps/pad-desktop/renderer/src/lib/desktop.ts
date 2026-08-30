@@ -422,6 +422,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         prompt,
         ...(provider && model ? { provider, model } : {}),
         ...(input.thinkingLevel !== "default" ? { thinking_level: input.thinkingLevel } : {}),
+        fast_mode: input.fastMode,
       });
       if (pendingModelSelection) {
         providerStatuses = new Map(providerStatuses).set(input.accountId, pendingModelSelection.status);

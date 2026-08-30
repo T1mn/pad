@@ -12,8 +12,8 @@ use crate::permission_policy::{
 };
 use crate::pi_runtime::events::PiEventKind;
 use crate::pi_runtime::{
-    PiApprovalRequest, PiEventReducer, PiPoll, PiRpcSupervisor, PiRuntimeSnapshot,
-    PiSupervisorError,
+    set_profile_fast_mode, PiApprovalRequest, PiEventReducer, PiPoll, PiRpcSupervisor,
+    PiRuntimeSnapshot, PiSupervisorError,
 };
 use crate::ui::codex_sidebar::{snapshot as sidebar_snapshot, CodexSidebarSnapshot};
 use serde_json::json;
@@ -445,6 +445,23 @@ impl DesktopRuntime {
             .supervisor
             .send(json!({ "type": "prompt", "message": prompt }))?;
         Ok(())
+    }
+
+    pub(crate) fn set_fast_mode(
+        &self,
+        task_id: &str,
+        enabled: bool,
+    ) -> Result<(), DesktopRuntimeError> {
+        let task = self
+            .store
+            .get_task(task_id)?
+            .ok_or_else(|| DesktopRuntimeError::TaskNotFound(task_id.to_string()))?;
+        let profile = self
+            .store
+            .get_profile(&task.profile_id)?
+            .ok_or_else(|| DesktopRuntimeError::ProfileNotFound(task.profile_id.clone()))?;
+        set_profile_fast_mode(&profile, enabled)
+            .map_err(|error| DesktopRuntimeError::Store(StoreError::Io(error)))
     }
 
     /// Drain a task's process without waiting.  Pi events are reduced first;

@@ -29,6 +29,7 @@ pub(crate) const V2_CAPABILITIES: &[&str] = &[
     "remote_pairing",
     "remote_device_management",
     "model_catalog",
+    "pi_fast_mode",
 ];
 
 pub(crate) fn request_version(request: &DesktopRequest) -> u32 {
@@ -130,6 +131,7 @@ fn action_fields(action: &str) -> &'static [&'static str] {
             "model",
             "model_id",
             "thinking_level",
+            "fast_mode",
         ],
         "get_entries" => &["task_id", "since"],
         "set_model" => &["task_id", "provider", "model", "model_id"],

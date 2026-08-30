@@ -205,6 +205,11 @@ async function configureBackendProxyEnvironment(): Promise<void> {
     process.env.HTTPS_PROXY = proxyUrl;
     process.env.http_proxy = proxyUrl;
     process.env.https_proxy = proxyUrl;
+    if (!process.env.NO_PROXY && !process.env.no_proxy) {
+      const localBypass = 'localhost,127.0.0.1,::1';
+      process.env.NO_PROXY = localBypass;
+      process.env.no_proxy = localBypass;
+    }
   } catch {
     // DIRECT and unavailable system proxy resolution are both valid. Pi will
     // report any provider transport failure through its normal task result.

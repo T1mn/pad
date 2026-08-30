@@ -71,6 +71,9 @@ pub(super) fn prompt(
         .thinking_level
         .as_deref()
         .filter(|level| *level != "default");
+    runtime
+        .set_fast_mode(task_id, request.fast_mode.unwrap_or(true))
+        .map_err(BridgeError::from)?;
     let started_here = match runtime.start_task_configured(task_id, provider, model, thinking_level)
     {
         Ok(_) => true,

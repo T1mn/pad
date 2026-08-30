@@ -288,6 +288,7 @@ export interface DesktopRequestParams {
     provider?: string;
     model?: string;
     thinking_level?: string;
+    fast_mode?: boolean;
   };
   poll: { task_id: string };
   history: { task_id: string };

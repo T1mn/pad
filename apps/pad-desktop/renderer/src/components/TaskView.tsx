@@ -340,6 +340,7 @@ function Composer({
   const [provider, setProvider] = useState(() => accountProvider(activeAccount));
   const [model, setModel] = useState(() => accountModel(activeAccount));
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("default");
+  const [fastMode, setFastMode] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelPickerButtonRef = useRef<HTMLButtonElement>(null);
   const modelPickerRef = useRef<HTMLDivElement>(null);
@@ -435,6 +436,7 @@ function Composer({
         provider: provider.trim(),
         model: model.trim(),
         thinkingLevel,
+        fastMode,
       });
       onTextChange("");
       setAttachmentPaths([]);
@@ -529,6 +531,10 @@ function Composer({
             </label>
           </div>
           <div className="composer-actions">
+            <label className="full-access-toggle" title="使用同一模型与推理强度，请求 OpenAI Codex Fast 服务等级">
+              <input type="checkbox" checked={fastMode} onChange={(event) => setFastMode(event.target.checked)} />
+              <span>快速模式</span>
+            </label>
             <label className="full-access-toggle" title="普通操作可自动执行；PAD、Pi、Codex、ChatGPT 私有区域、系统保护区域及 macOS 隐私权限（TCC）仍不会自动放行">
               <input type="checkbox" checked={fullAccess} onChange={(event) => onFullAccessChange(event.target.checked)} />
               <span>完全访问</span>

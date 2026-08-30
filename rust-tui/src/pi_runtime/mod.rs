@@ -21,6 +21,21 @@ pub(crate) use events::{PiEvent, PiEventReducer, PiRuntimeSnapshot, PiRuntimeSta
 pub(crate) use jsonl::{encode_command, JsonlCodec, JsonlError, PiMessage};
 pub(crate) use supervisor::{PiPoll, PiRpcSupervisor, PiSupervisorError};
 
+pub(crate) const PAD_FAST_MODE_EXTENSION: &str = include_str!("pad-fast-mode.ts");
+pub(crate) const PAD_FAST_MODE_FILE: &str = "pad-fast-mode";
+
+pub(crate) fn set_profile_fast_mode(
+    profile: &crate::permission_policy::Profile,
+    enabled: bool,
+) -> std::io::Result<()> {
+    let (agent_dir, _) = profile_pi_roots(profile);
+    crate::paths::base::ensure_private_dir(&agent_dir)?;
+    crate::atomic_file::write_private(
+        &agent_dir.join(PAD_FAST_MODE_FILE),
+        if enabled { "on\n" } else { "off\n" },
+    )
+}
+
 /// Resolve the Pi executable owned by the Desktop host.
 ///
 /// Packaged builds place the Rust host at `Contents/Resources/pad` and the Pi

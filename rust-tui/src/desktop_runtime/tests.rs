@@ -162,9 +162,13 @@ pub(crate) fn existing_task_session_is_passed_to_native_pi_at_startup() {
         thread::sleep(Duration::from_millis(5));
     }
     let arguments = fs::read_to_string(&arguments_file).unwrap();
+    let arguments = arguments.lines().collect::<Vec<_>>();
+    assert_eq!(&arguments[..2], &["--mode", "rpc"]);
+    assert_eq!(arguments[2], "--extension");
+    assert!(arguments[3].ends_with("/pad-fast-mode.ts"));
     assert_eq!(
-        arguments.lines().collect::<Vec<_>>(),
-        vec!["--mode", "rpc", "--session", session_file.to_str().unwrap()]
+        &arguments[4..],
+        &["--session", session_file.to_str().unwrap()]
     );
     runtime.stop_task(&stored_task.id).unwrap();
     let _ = fs::remove_dir_all(root);

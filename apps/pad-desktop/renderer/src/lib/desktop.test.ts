@@ -799,6 +799,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         provider: "custom-provider",
         model: "custom-model",
         thinkingLevel: "xhigh",
+        fastMode: true,
       });
 
       expect(request.mock.calls.map(([action]) => action)).toEqual([
@@ -816,6 +817,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         provider: "custom-provider",
         model: "custom-model",
         thinking_level: "xhigh",
+        fast_mode: true,
       });
       expect(userTurns).toEqual(["分析附件\n\n附件路径（用户明确选择）：\n- /tmp/spec.md\n- /tmp/design.png"]);
       unsubscribe();
@@ -854,6 +856,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         provider: "openai",
         model: "gpt-5.4",
         thinkingLevel: "default",
+        fastMode: true,
       });
 
       expect(request.mock.calls.map(([action]) => action)).toEqual(["set_profile", "prompt"]);
@@ -862,6 +865,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         prompt: "继续",
         provider: "openai",
         model: "gpt-5.4",
+        fast_mode: true,
       });
     } finally {
       vi.useRealTimers();
@@ -898,6 +902,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
       provider: "openai",
       model: "missing-model",
       thinkingLevel: "high",
+      fastMode: true,
     })).rejects.toThrow("model unavailable");
 
     expect(request.mock.calls.filter(([action]) => action === "prompt")).toHaveLength(1);
@@ -950,6 +955,7 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
         provider: "",
         model: "",
         thinkingLevel: "default",
+        fastMode: true,
       });
 
       expect(request.mock.calls.map(([action]) => action)).toEqual([
@@ -960,7 +966,11 @@ describe("Composer 到 Pi 的结构化发送事务", () => {
       expect(request.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
         state: expect.objectContaining({ sidebar_view: "all" }),
       }));
-      expect(request).toHaveBeenCalledWith("prompt", { task_id: "created-from-pinned", prompt: "从空视图发送" });
+      expect(request).toHaveBeenCalledWith("prompt", {
+        task_id: "created-from-pinned",
+        prompt: "从空视图发送",
+        fast_mode: true,
+      });
     } finally {
       vi.useRealTimers();
     }
