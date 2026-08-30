@@ -435,7 +435,10 @@ socket.addEventListener("open", async () => {
     const expression = `(async () => {
       const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
       let shell = null;
-      for (let attempt = 0; attempt < 200; attempt += 1) {
+      // The first Pi ModelRuntime catalog read may trigger Bun's lazy
+      // provider transpilation on a cold machine. Give the signed bundle a
+      // generous window so install verification does not race that startup.
+      for (let attempt = 0; attempt < 600; attempt += 1) {
         shell = document.querySelector(".app-shell");
         if (document.readyState === "complete"
           && shell
