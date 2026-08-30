@@ -147,6 +147,11 @@ final class PiLoginCoordinator: NSObject, ObservableObject {
         environment["PAD_LOGIN_TYPE"] = authType
         environment["PAD_LOGIN_AGENT_DIR"] = agentDirectory
         environment["PI_CODING_AGENT_DIR"] = agentDirectory
+        // Bun lazily transpiles Pi provider modules during login. Redirect
+        // both runtime caches into this Profile so the signed app bundle is
+        // never modified after installation.
+        environment["BUN_INSTALL_CACHE_DIR"] = (agentDirectory as NSString).appendingPathComponent("bun-cache")
+        environment["BUN_RUNTIME_TRANSPILER_CACHE_PATH"] = (agentDirectory as NSString).appendingPathComponent("bun-transpiler-cache")
         if let bundledLibraries = Bundle.main.resourceURL?.appendingPathComponent("lib").path,
            FileManager.default.fileExists(atPath: bundledLibraries) {
             let inheritedLibraries = environment["DYLD_LIBRARY_PATH"]

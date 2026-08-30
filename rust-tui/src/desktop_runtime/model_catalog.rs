@@ -247,6 +247,14 @@ fn query_model_catalog(
         .env("PAD_MODEL_CATALOG_AGENT_DIR", agent_dir)
         .env("PAD_MODEL_CATALOG_REFRESH", if refresh { "1" } else { "0" })
         .env("PI_CODING_AGENT_DIR", agent_dir)
+        // Bun lazily transpiles Pi provider modules. Keep both of its runtime
+        // caches in the Profile-private directory so reading a catalog never
+        // mutates the signed app bundle under Contents/Resources.
+        .env("BUN_INSTALL_CACHE_DIR", agent_dir.join("bun-cache"))
+        .env(
+            "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
+            agent_dir.join("bun-transpiler-cache"),
+        )
         .env("PATH", trusted_child_path(program));
     let output = command
         .output()

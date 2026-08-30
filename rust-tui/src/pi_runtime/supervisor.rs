@@ -314,7 +314,15 @@ impl PiSupervisor {
         // ~/.codex or to a standalone ~/.pi directory.
         process
             .env("PI_CODING_AGENT_DIR", &root)
-            .env("PI_CODING_AGENT_SESSION_DIR", &session_dir);
+            .env("PI_CODING_AGENT_SESSION_DIR", &session_dir)
+            // Pi's bundled Bun runtime may transpile provider modules on the
+            // first request. Keep those caches Profile-private; writing below
+            // Contents/Resources would invalidate the app signature.
+            .env("BUN_INSTALL_CACHE_DIR", root.join("bun-cache"))
+            .env(
+                "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
+                root.join("bun-transpiler-cache"),
+            );
 
         let mut child = process.spawn()?;
         let stdin = child.stdin.take();

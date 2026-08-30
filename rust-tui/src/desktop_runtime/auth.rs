@@ -273,6 +273,13 @@ impl PiAuthCoordinator {
             .env("PAD_AUTH_TYPE", auth_type)
             .env("PAD_AUTH_AGENT_DIR", &profile.agent_dir)
             .env("PI_CODING_AGENT_DIR", &profile.agent_dir)
+            // Keep Bun's lazy Pi transpilation cache outside the signed app
+            // bundle. Each Profile receives an isolated private cache.
+            .env("BUN_INSTALL_CACHE_DIR", profile.agent_dir.join("bun-cache"))
+            .env(
+                "BUN_RUNTIME_TRANSPILER_CACHE_PATH",
+                profile.agent_dir.join("bun-transpiler-cache"),
+            )
             .env("PATH", trusted_child_path(&program));
         copy_safe_network_environment(&mut command);
         let mut child = command.spawn().map_err(|error| {
