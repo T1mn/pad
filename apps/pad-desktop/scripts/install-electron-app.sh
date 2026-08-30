@@ -413,10 +413,13 @@ const pending = new Map();
 function call(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = ++sequence;
+    // A cold packaged Bun/Pi runtime can still be compiling its first
+    // provider module while the renderer is already reachable. Keep the
+    // protocol probe alive for the same bounded window as the readiness loop.
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error(`CDP timeout: ${method}`));
-    }, 20000);
+    }, 60000);
     pending.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
@@ -489,7 +492,7 @@ socket.addEventListener("open", async () => {
 setTimeout(() => {
   console.error("health evaluation timed out");
   process.exit(1);
-}, 30000).unref();
+}, 90000).unref();
 JAVASCRIPT
 )"
   PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/bun" -e "${probe_script}" >"${result_file}"
