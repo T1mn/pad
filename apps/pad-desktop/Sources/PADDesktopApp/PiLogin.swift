@@ -90,6 +90,7 @@ final class PiLoginCoordinator: NSObject, ObservableObject {
       const runtime = await ModelRuntime.create({
         authPath: path.join(agentDir, "auth.json"),
         modelsPath: path.join(agentDir, "models.json"),
+        modelsStorePath: path.join(agentDir, "models-store.json"),
         refreshOnCreate: false,
       });
       await runtime.login(process.env.PAD_LOGIN_PROVIDER, process.env.PAD_LOGIN_TYPE, interaction);

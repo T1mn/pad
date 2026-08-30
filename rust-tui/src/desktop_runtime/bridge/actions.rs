@@ -21,6 +21,13 @@ use task::{
     runtime_snapshot, set_model, set_thinking_level, start_task, stop,
 };
 
+fn model_catalog(runtime: &DesktopRuntime, request: &DesktopRequest) -> Result<Value, BridgeError> {
+    let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
+    runtime
+        .model_catalog(profile_id, request.refresh.unwrap_or(false))
+        .map_err(|error| BridgeError::new(error.code(), error.message()))
+}
+
 pub(crate) fn handle_request(
     runtime: &mut DesktopRuntime,
     request: &DesktopRequest,
@@ -53,6 +60,7 @@ pub(crate) fn handle_request(
         Some("respond_ui") => respond_ui(runtime, request),
         Some("extension_ui_response") => respond_ui(runtime, request),
         Some("provider_status") => provider_status(runtime, request),
+        Some("model_catalog") => model_catalog(runtime, request),
         Some("abort") => abort(runtime, request),
         Some("runtime_snapshot") => runtime_snapshot(runtime, request),
         Some("stop") => stop(runtime, request),
@@ -151,6 +159,10 @@ fn authorize_v2_request(
             } else {
                 active_profile_id(runtime)?;
             }
+        }
+        "model_catalog" => {
+            let profile_id = required(request.profile_id.as_deref(), "profile_id")?;
+            require_active_profile(runtime, profile_id)?;
         }
         "create_task" => authorize_v2_task_creation(runtime, request)?,
         "auth_status" | "auth_respond" | "auth_cancel" => {

@@ -37,7 +37,7 @@ pub(super) fn bootstrap(runtime: &mut DesktopRuntime) -> Result<Value, BridgeErr
         "capabilities": [
             "profiles", "projects", "tasks", "codex_sidebar",
             "pi_rpc", "full_access_policy", "private_store",
-            "history", "provider_status", "extension_ui_response",
+            "history", "provider_status", "model_catalog", "extension_ui_response",
             "set_model", "set_thinking_level", "create_project", "stop"
         ],
         "sidebar": sidebar,

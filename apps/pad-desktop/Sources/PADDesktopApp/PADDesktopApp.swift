@@ -86,6 +86,20 @@ struct Profile: Identifiable, Hashable {
     var defaultModel: String? = nil
 }
 
+/// A model returned by Pi's model catalog. Keep the stable provider/model ID
+/// separate from the human-readable name because `set_model` must send the
+/// former while the menu should display the latter when Pi provides it.
+struct PADModelOption: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let provider: String
+    let reasoning: String?
+
+    var displayName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? id : name
+    }
+}
+
 struct Project: Identifiable, Hashable {
     let id: String
     var name: String
@@ -185,6 +199,15 @@ final class PiRPCClient: NSObject, ObservableObject {
 
     func bootstrap(completion: @escaping ([String: Any]?, Error?) -> Void) {
         request(action: "bootstrap", fields: [:], completion: completion)
+    }
+
+    /// Read the Pi-backed model catalog for one isolated PAD Profile. The
+    /// bridge may return either the normalized `models` list or provider
+    /// groups; DesktopModel intentionally accepts both shapes for rolling
+    /// upgrades where the Rust sidecar and Swift shell are not upgraded in
+    /// the same process.
+    func modelCatalog(profileID: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
+        request(action: "model_catalog", fields: ["profile_id": profileID], completion: completion)
     }
 
     func createTask(profileID: String, projectID: String?, title: String, cwd: String, completion: @escaping ([String: Any]?, Error?) -> Void) {
@@ -430,6 +453,9 @@ final class DesktopModel: ObservableObject {
     @Published var selectedProvider = "openai-codex"
     @Published var selectedModel = "auto"
     @Published var availableModels = ["auto"]
+    @Published private(set) var modelOptions: [PADModelOption] = []
+    @Published private(set) var isLoadingModels = false
+    @Published private(set) var modelCatalogError: String?
     @Published var selectedThinkingLevel = "medium"
     @Published var attachedPaths: [String] = []
     @Published private(set) var backendCapabilities: Set<String> = []
@@ -468,6 +494,7 @@ final class DesktopModel: ObservableObject {
             }
             self.applyRecords(result["records"] as? [String: Any])
             self.prepareDraftIfNeeded()
+            self.refreshModelCatalog()
         }
     }
 
@@ -664,6 +691,8 @@ final class DesktopModel: ObservableObject {
             if let error { self.notice = error.localizedDescription; return }
             guard let result else { return }
             self.applyRecords(result["records"] as? [String: Any])
+            self.prepareDraftIfNeeded()
+            self.refreshModelCatalog()
         }
     }
 
@@ -673,11 +702,187 @@ final class DesktopModel: ObservableObject {
         fullAccess = profileFullAccess[profileID] ?? false
         selectedProvider = providerForProfile(profileID)
         selectedModel = profiles.first(where: { $0.id == profileID })?.defaultModel ?? "auto"
+        resetModelCatalogForProfile()
         draftProjectID = visibleProjects.first?.id
         draftWorkingDirectory = visibleProjects.first?.path ?? FileManager.default.currentDirectoryPath
         if backendCapabilities.contains("history"), let taskID = selectedTaskID {
             loadHistoryIfNeeded(taskID: taskID)
         }
+        refreshModelCatalog()
+    }
+
+    /// Refresh the catalog from Pi for the active Profile. A failed refresh
+    /// never makes sending impossible: the safe `auto` choice remains
+    /// available and the localized status is shown inside the model menu.
+    func refreshModelCatalog(showError: Bool = false) {
+        let profileID = selectedProfileID
+        guard !profileID.isEmpty else {
+            resetModelCatalogForProfile()
+            return
+        }
+        isLoadingModels = true
+        modelCatalogError = nil
+        pi.modelCatalog(profileID: profileID) { [weak self] result, error in
+            guard let self else { return }
+            // A profile switch can race an earlier catalog request. Never let
+            // the old account's models leak into the newly selected account.
+            guard self.selectedProfileID == profileID else { return }
+            self.isLoadingModels = false
+            if let error {
+                self.resetModelCatalogForProfile()
+                let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.modelCatalogError = message.isEmpty
+                    ? "模型列表读取失败，将使用自动选择。"
+                    : "模型列表读取失败：\(message)"
+                if showError { self.notice = self.modelCatalogError }
+                return
+            }
+            guard let result else {
+                self.resetModelCatalogForProfile()
+                self.modelCatalogError = "模型列表为空，将使用自动选择。"
+                if showError { self.notice = self.modelCatalogError }
+                return
+            }
+            self.applyModelCatalog(result, profileID: profileID)
+        }
+    }
+
+    private func resetModelCatalogForProfile() {
+        modelOptions = []
+        availableModels = ["auto"]
+        let profileModel = profiles.first(where: { $0.id == selectedProfileID })?.defaultModel
+        selectedModel = profileModel.flatMap { model in
+            let clean = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            return clean.isEmpty ? nil : clean
+        } ?? "auto"
+        isLoadingModels = false
+    }
+
+    private func applyModelCatalog(_ result: [String: Any], profileID: String) {
+        guard selectedProfileID == profileID else { return }
+        let payload = (result["catalog"] as? [String: Any]) ?? result
+        let provider = nonEmptyString(payload["selected_provider"])
+            ?? nonEmptyString(payload["provider"])
+            ?? providerForProfile(profileID)
+        if !provider.isEmpty { selectedProvider = provider }
+
+        var parsed = modelOptionsFromCatalog(payload, provider: provider)
+        let selectedFromCatalog = nonEmptyString(payload["selected_model"])
+        let profileDefault = profiles.first(where: { $0.id == profileID })?.defaultModel
+        let preferred = selectedFromCatalog ?? profileDefault ?? "auto"
+
+        // Keep a backend-selected model visible even when a partially stale
+        // catalog omitted it; this avoids silently changing the user's choice.
+        if preferred != "auto", !parsed.contains(where: { $0.id == preferred }) {
+            parsed.insert(PADModelOption(id: preferred, name: preferred, provider: provider, reasoning: nil), at: 0)
+        }
+
+        modelOptions = deduplicatedModelOptions(parsed)
+        availableModels = ["auto"] + modelOptions.map(\.id)
+        if preferred == "auto" || availableModels.contains(preferred) {
+            selectedModel = preferred
+        } else {
+            selectedModel = "auto"
+        }
+        modelCatalogError = modelOptions.isEmpty ? "未读取到可用模型，将使用自动选择。" : nil
+        if modelOptions.isEmpty {
+            availableModels = ["auto"]
+        }
+    }
+
+    func modelDisplayName(for modelID: String) -> String {
+        modelOptions.first(where: { $0.id == modelID })?.displayName ?? modelID
+    }
+
+    private func modelOptionsFromCatalog(_ payload: [String: Any], provider: String) -> [PADModelOption] {
+        var options: [PADModelOption] = []
+
+        // Preferred normalized shape: models/available_models at the top
+        // level. Entries can be strings or model objects.
+        if let models = payload["models"] {
+            options.append(contentsOf: parseModelValues(models, fallbackProvider: provider))
+        }
+        if options.isEmpty, let models = payload["available_models"] {
+            options.append(contentsOf: parseModelValues(models, fallbackProvider: provider))
+        }
+
+        // Compatibility shape: providers[].models, as emitted by the Pi
+        // runtime adapter. Prefer the selected provider, then authenticated
+        // providers if the response has no matching group.
+        if let providers = payload["providers"] as? [Any] {
+            var matching: [PADModelOption] = []
+            var authenticated: [PADModelOption] = []
+            for rawProvider in providers {
+                guard let item = rawProvider as? [String: Any] else { continue }
+                let providerID = nonEmptyString(item["id"])
+                    ?? nonEmptyString(item["provider"])
+                    ?? nonEmptyString(item["name"])
+                    ?? provider
+                let isAuthenticated = (item["authenticated"] as? Bool) ?? true
+                guard isAuthenticated, let rawModels = item["models"] else { continue }
+                let values = parseModelValues(rawModels, fallbackProvider: providerID)
+                if providerID == provider {
+                    matching.append(contentsOf: values)
+                }
+                authenticated.append(contentsOf: values)
+            }
+            if options.isEmpty {
+                options = matching.isEmpty ? authenticated : matching
+            }
+        }
+        return options
+    }
+
+    private func parseModelValues(_ value: Any, fallbackProvider: String) -> [PADModelOption] {
+        if let values = value as? [Any] {
+            return values.compactMap { parseModelValue($0, fallbackProvider: fallbackProvider) }
+        }
+        if let values = value as? [String: Any] {
+            // A map keyed by model ID is also accepted for old Pi stores.
+            return values.flatMap { key, item -> [PADModelOption] in
+                if let option = parseModelValue(item, fallbackProvider: fallbackProvider) {
+                    return [option]
+                }
+                return [PADModelOption(id: key, name: key, provider: fallbackProvider, reasoning: nil)]
+            }
+        }
+        return parseModelValue(value, fallbackProvider: fallbackProvider).map { [$0] } ?? []
+    }
+
+    private func parseModelValue(_ value: Any, fallbackProvider: String) -> PADModelOption? {
+        if let id = value as? String {
+            let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { return nil }
+            return PADModelOption(id: clean, name: clean, provider: fallbackProvider, reasoning: nil)
+        }
+        guard let item = value as? [String: Any] else { return nil }
+        guard let id = nonEmptyString(item["id"])
+            ?? nonEmptyString(item["model"])
+            ?? nonEmptyString(item["model_id"])
+            ?? nonEmptyString(item["value"]) else { return nil }
+        let name = nonEmptyString(item["name"])
+            ?? nonEmptyString(item["label"])
+            ?? nonEmptyString(item["display_name"])
+            ?? id
+        let itemProvider = nonEmptyString(item["provider"]) ?? fallbackProvider
+        let reasoning = nonEmptyString(item["reasoning"])
+            ?? nonEmptyString(item["reasoning_level"])
+            ?? nonEmptyString(item["thinking_level"])
+        return PADModelOption(id: id, name: name, provider: itemProvider, reasoning: reasoning)
+    }
+
+    private func deduplicatedModelOptions(_ options: [PADModelOption]) -> [PADModelOption] {
+        var seen = Set<String>()
+        return options.filter { option in
+            guard !option.id.isEmpty else { return false }
+            return seen.insert(option.id).inserted
+        }
+    }
+
+    private func nonEmptyString(_ value: Any?) -> String? {
+        guard let string = value as? String else { return nil }
+        let clean = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty ? nil : clean
     }
 
     func send() {
@@ -1196,6 +1401,7 @@ struct PADDesktopApp: App {
 
 struct DesktopShell: View {
     @ObservedObject var model: DesktopModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isSidebarVisible = true
     @State private var sidebarWidth = CodexMetrics.sidebarIdealWidth
     @State private var sidebarDragStartWidth: CGFloat?
@@ -1257,6 +1463,11 @@ struct DesktopShell: View {
                 onCancel: { model.isShowingProfileWizard = false },
                 onCreate: { model.createProfile(name: model.profileWizardName, provider: model.profileWizardProvider) }
             )
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                model.refreshFromBackend()
+            }
         }
     }
 }
@@ -2181,12 +2392,31 @@ struct ModelPicker: View {
                 Label(model.selectedProvider, systemImage: "server.rack")
             }
             Section("模型") {
-                ForEach(model.availableModels, id: \.self) { item in
+                if model.isLoadingModels {
+                    Label("正在读取模型…", systemImage: "arrow.triangle.2.circlepath")
+                }
+                Button {
+                    model.chooseModel("auto")
+                } label: {
+                    Label("自动选择", systemImage: model.selectedModel == "auto" ? "checkmark" : "cpu")
+                }
+                ForEach(model.modelOptions) { option in
                     Button {
-                        model.chooseModel(item)
+                        model.chooseModel(option.id)
                     } label: {
-                        Label(item == "auto" ? "自动选择" : item, systemImage: item == model.selectedModel ? "checkmark" : "cpu")
+                        Label(option.displayName, systemImage: option.id == model.selectedModel ? "checkmark" : "cpu")
                     }
+                    .help(option.reasoning.map { "思考等级：\($0)" } ?? option.id)
+                }
+                if let error = model.modelCatalogError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    model.refreshModelCatalog(showError: true)
+                } label: {
+                    Label("刷新模型列表", systemImage: "arrow.clockwise")
                 }
             }
             Section("思考强度") {
@@ -2199,7 +2429,7 @@ struct ModelPicker: View {
                 }
             }
         } label: {
-            Label(model.selectedModel == "auto" ? "自动 · \(thinkingLevelLabel(model.selectedThinkingLevel))" : "\(model.selectedModel) · \(thinkingLevelLabel(model.selectedThinkingLevel))", systemImage: "cpu")
+            Label(model.selectedModel == "auto" ? "自动 · \(thinkingLevelLabel(model.selectedThinkingLevel))" : "\(model.modelDisplayName(for: model.selectedModel)) · \(thinkingLevelLabel(model.selectedThinkingLevel))", systemImage: "cpu")
                 .font(.caption)
         }
         .menuStyle(.borderlessButton)

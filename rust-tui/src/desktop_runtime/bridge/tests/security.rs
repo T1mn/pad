@@ -375,6 +375,7 @@ pub(crate) fn protocol_v2_enforces_active_profile_for_records_and_task_controls(
         json!({"id":"task-b-create-denied","action":"create_task","protocol_version":2,"profile_id":"profile-b","title":"denied","cwd":root}),
         json!({"id":"profile-b-set-denied","action":"set_profile","protocol_version":2,"profile_id":"profile-b","unattended":true}),
         json!({"id":"profile-b-status-denied","action":"provider_status","protocol_version":2,"profile_id":"profile-b"}),
+        json!({"id":"profile-b-models-denied","action":"model_catalog","protocol_version":2,"profile_id":"profile-b"}),
         json!({"id":"profile-b-auth-denied","action":"auth_begin","protocol_version":2,"profile_id":"profile-b","provider":"test","auth_type":"oauth"}),
         json!({"id":"profile-b-auth-status-denied","action":"auth_status","protocol_version":2,"profile_id":"profile-b"}),
         json!({"id":"profile-b-logout-denied","action":"logout","protocol_version":2,"profile_id":"profile-b","provider":"test"}),

@@ -28,6 +28,7 @@ pub(crate) const V2_CAPABILITIES: &[&str] = &[
     "remote_gateway_v1",
     "remote_pairing",
     "remote_device_management",
+    "model_catalog",
 ];
 
 pub(crate) fn request_version(request: &DesktopRequest) -> u32 {
@@ -135,6 +136,7 @@ fn action_fields(action: &str) -> &'static [&'static str] {
             "cancelled",
         ],
         "provider_status" => &["profile_id"],
+        "model_catalog" => &["profile_id", "refresh"],
         "set_task" => &["task_id", "pinned", "archived", "unread"],
         "set_profile" => &[
             "profile_id",

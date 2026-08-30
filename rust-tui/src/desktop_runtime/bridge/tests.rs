@@ -247,6 +247,93 @@ pub(crate) fn provider_status_reports_profile_scoped_authentication_shape() {
     assert!(result.get("provider_authentication").is_some());
 }
 
+#[cfg(unix)]
+pub(crate) fn model_catalog_reads_pi_metadata_and_returns_safe_selection() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut runtime = DesktopRuntime::in_memory().unwrap();
+    let root = std::env::temp_dir().join(format!(
+        "pad-model-catalog-{}-{}",
+        std::process::id(),
+        crate::time::unix_now_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let program = root.join("node");
+    let payload = json!({
+        "status": "ready",
+        "source": "pi_model_runtime",
+        "models": [{
+            "provider": "openai-codex",
+            "id": "gpt-5.4",
+            "name": "GPT-5.4",
+            "reasoning": true,
+            "reasoning_levels": ["minimal", "xhigh"],
+            "input": ["text", "image"]
+        }],
+        "available_models": [{
+            "provider": "openai-codex",
+            "id": "gpt-5.4",
+            "name": "GPT-5.4",
+            "reasoning": true,
+            "reasoning_levels": ["minimal", "xhigh"],
+            "input": ["text", "image"]
+        }],
+        "all_models": [{
+            "provider": "openai-codex",
+            "id": "gpt-5.4",
+            "name": "GPT-5.4",
+            "reasoning": true,
+            "reasoning_levels": ["minimal", "xhigh"],
+            "input": ["text", "image"]
+        }],
+        "providers": [{
+            "id": "openai-codex",
+            "authenticated": true,
+            "models": [{"provider": "openai-codex", "id": "gpt-5.4", "name": "GPT-5.4"}]
+        }],
+        "counts": {"all": 1, "available": 1},
+        "auth_path": "/private/should-never-cross-bridge"
+    });
+    let script = format!(
+        "#!/bin/sh\nprintf '%s' {}\n",
+        crate::shell_quote::single_quote(&serde_json::to_string(&payload).unwrap())
+    );
+    fs::write(&program, script).unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
+
+    let profile = Profile {
+        id: "profile-catalog".to_string(),
+        name: "Catalog profile".to_string(),
+        agent_dir: root.join("agent"),
+        session_dir: root.join("sessions"),
+        default_provider: Some("openai-codex".to_string()),
+        default_model: Some("gpt-5.4".to_string()),
+        ..Profile::default()
+    };
+    runtime.store_mut().insert_profile(&profile).unwrap();
+    runtime.set_model_catalog_launcher_for_test(program, root.clone());
+
+    let request: DesktopRequest = serde_json::from_value(json!({
+        "action": "model_catalog",
+        "protocol_version": 2,
+        "profile_id": "profile-catalog"
+    }))
+    .unwrap();
+    let value = handle_request(&mut runtime, &request).unwrap();
+    assert_eq!(value["status"], "ready");
+    assert_eq!(value["source"], "pi_model_runtime");
+    assert_eq!(value["models"][0]["id"], "gpt-5.4");
+    assert_eq!(value["all_models"][0]["reasoning"], true);
+    assert_eq!(value["selected_provider"], "openai-codex");
+    assert_eq!(value["selected_model"], "gpt-5.4");
+    let serialized = serde_json::to_string(&value).unwrap();
+    assert!(!serialized.contains("auth_path"));
+    assert!(!serialized.contains(root.to_string_lossy().as_ref()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
 pub(crate) fn poll_exposes_structured_ui_requests_without_answering_them() {
     let poll = PiPoll {
         messages: vec![crate::pi_runtime::PiMessage {

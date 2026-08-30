@@ -66,6 +66,9 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::tests::existing_task_session_is_restored_and_state_metadata_is_persisted();
     crate::desktop_runtime::tests::existing_task_session_outside_profile_root_is_rejected();
     crate::desktop_runtime::tests::history_falls_back_to_read_only_profile_session_journal();
+    crate::desktop_runtime::model_catalog::tests::enriches_selected_model_without_exposing_private_fields();
+    crate::desktop_runtime::model_catalog::tests::falls_back_to_first_available_model();
+    crate::desktop_runtime::model_catalog::tests::model_catalog_error_messages_are_path_free();
 
     crate::desktop_runtime::bridge::tests::protocol_returns_codex_sidebar_for_bootstrap();
     crate::desktop_runtime::bridge::tests::create_task_start_poll_and_stop_round_trip();
@@ -77,6 +80,8 @@ pub(crate) fn desktop_runtime_and_supervisor_cases() {
     crate::desktop_runtime::bridge::tests::response_shape_is_id_ok_result_or_error();
     crate::desktop_runtime::bridge::tests::renderer_alias_fields_deserialize_for_model_and_ui_response();
     crate::desktop_runtime::bridge::tests::provider_status_reports_profile_scoped_authentication_shape();
+    #[cfg(unix)]
+    crate::desktop_runtime::bridge::tests::model_catalog_reads_pi_metadata_and_returns_safe_selection();
     crate::desktop_runtime::bridge::tests::poll_exposes_structured_ui_requests_without_answering_them();
     crate::desktop_runtime::bridge::tests::provider_auth_errors_are_distinguished_from_transport_errors();
     crate::desktop_runtime::bridge::tests::protocol_v2_hello_is_versioned_and_v1_ping_is_unchanged(

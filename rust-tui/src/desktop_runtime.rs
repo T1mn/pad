@@ -30,6 +30,7 @@ mod remote_runtime;
 use auth::{AuthError, AuthSnapshot, PiAuthCoordinator};
 mod catalog;
 pub(crate) mod data_root_lock;
+pub(crate) mod model_catalog;
 use data_root_lock::DesktopDataRootLock;
 mod helpers;
 mod interactions;
@@ -124,6 +125,8 @@ pub(crate) struct DesktopRuntime {
     remote_gateway: Option<remote::RemoteGateway>,
     remote_start_error: Option<String>,
     _data_root_lock: Option<DesktopDataRootLock>,
+    #[cfg(test)]
+    model_catalog_launcher: Option<(PathBuf, PathBuf)>,
 }
 
 impl DesktopRuntime {
@@ -184,6 +187,8 @@ impl DesktopRuntime {
             remote_gateway: None,
             remote_start_error: None,
             _data_root_lock: None,
+            #[cfg(test)]
+            model_catalog_launcher: None,
         }
     }
 

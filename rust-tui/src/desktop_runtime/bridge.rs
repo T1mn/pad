@@ -117,6 +117,8 @@ pub(crate) struct DesktopRequest {
     #[serde(default)]
     pub enabled: Option<bool>,
     #[serde(default)]
+    pub refresh: Option<bool>,
+    #[serde(default)]
     pub pairing_id: Option<String>,
     #[serde(default)]
     pub device_id: Option<String>,
