@@ -47,6 +47,11 @@ import type {
   TurnKind,
 } from "../types";
 import { localizePiAuthOption, localizePiAuthPrompt } from "./labels";
+import {
+  modelCatalogWithFallback,
+  parseModelCatalog,
+  type ModelCatalog,
+} from "./model-catalog";
 
 declare global {
   interface Window {
@@ -59,6 +64,7 @@ interface ProviderStatus {
   authenticatedProviders: string[];
   selectedProvider: string | null;
   selectedModel: string | null;
+  modelCatalog: ModelCatalog;
 }
 
 type AuthAction = "auth_begin" | "auth_status" | "auth_respond" | "auth_cancel" | "logout";
@@ -144,7 +150,9 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
     if (result.ui_state) uiState = mapUiState(result.ui_state);
     bootstrap = { ...bootstrap, records, sidebar: rawSidebar, ui_state: result.ui_state ?? bootstrap.ui_state };
     selectedProfileId = uiState.activeProfileId ?? selectedProfileId ?? bootstrap.profile.id;
-    if (refreshAuthentication || providerStatuses.size === 0) providerStatuses = await loadProviderStatuses(api, records, bootstrap);
+    if (refreshAuthentication || providerStatuses.size === 0) {
+      providerStatuses = await loadProviderStatuses(api, records, bootstrap, refreshAuthentication, providerStatuses);
+    }
 
     const next = snapshotFromRecords(
       records,
@@ -263,7 +271,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       uiState = mapUiState(bootstrap.ui_state);
       selectedProfileId = uiState.activeProfileId ?? bootstrap.profile.id;
       rawSidebar = bootstrap.sidebar;
-      providerStatuses = await loadProviderStatuses(api, bootstrap.records, bootstrap);
+      providerStatuses = await loadProviderStatuses(api, bootstrap.records, bootstrap, false, new Map());
       snapshot = snapshotFromRecords(bootstrap.records, selectedProfileId, bootstrap, rawSidebar, providerStatuses, {}, {}, uiState, null);
       await tryRefreshRemoteStatus();
       await hydrateVisibleTaskData(api, snapshot);
@@ -360,7 +368,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
         bootstrap = { ...bootstrap, records: result.records };
         rawSidebar = result.sidebar ?? rawSidebar;
         selectedProfileId = result.profile.id;
-        providerStatuses = await loadProviderStatuses(api, result.records, bootstrap);
+        providerStatuses = await loadProviderStatuses(api, result.records, bootstrap, true, providerStatuses);
         remoteStatus = null;
         snapshot = { ...snapshot, remote: null };
         await persistUiState({ activeProfileId: selectedProfileId, selectedTaskId: null });
@@ -384,6 +392,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       const prompt = promptWithAttachments(input.text, attachmentPaths);
       if (!prompt) throw new Error("请输入任务内容。");
 
+      let pendingModelSelection: { status: ProviderStatus } | null = null;
       if (provider && model) {
         const result = await api.request<"set_profile", { sidebar?: unknown; records?: DesktopRecords }>("set_profile", {
           profile_id: input.accountId,
@@ -396,18 +405,43 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
           bootstrap.records.profiles.find((profile) => profile.id === input.accountId) ?? bootstrap.profile,
           bootstrap,
         );
-        providerStatuses = new Map(providerStatuses).set(input.accountId, {
-          ...currentStatus,
+        const selectedCatalog: ModelCatalog = {
+          ...currentStatus.modelCatalog,
           selectedProvider: provider,
           selectedModel: model,
-        });
+        };
+        pendingModelSelection = {
+          status: {
+            ...currentStatus,
+            selectedProvider: provider,
+            selectedModel: model,
+            modelCatalog: selectedCatalog,
+          },
+        };
       }
       if (!startedTasks.has(input.taskId)) {
         const runtime = await api.request<"runtime_snapshot", { runtime?: unknown }>("runtime_snapshot", { task_id: input.taskId }).catch(() => ({ runtime: undefined }));
         if (!runtime.runtime) await api.request("start_task", { task_id: input.taskId });
         startedTasks.add(input.taskId);
       }
-      if (provider && model) await api.request("set_model", { task_id: input.taskId, provider, model });
+      if (provider && model) {
+        await api.request("set_model", { task_id: input.taskId, provider, model });
+        if (pendingModelSelection) {
+          providerStatuses = new Map(providerStatuses).set(input.accountId, pendingModelSelection.status);
+          snapshot = snapshotFromRecords(
+            bootstrap.records,
+            selectedProfileId,
+            bootstrap,
+            rawSidebar,
+            providerStatuses,
+            snapshot.turnsByTask,
+            snapshot.interactionsByTask,
+            uiState,
+            remoteStatus,
+          );
+          emit({ type: "snapshot", snapshot });
+        }
+      }
       if (input.thinkingLevel !== "default") {
         await api.request("set_thinking_level", { task_id: input.taskId, thinking_level: input.thinkingLevel });
       }
@@ -792,14 +826,40 @@ async function loadProviderStatuses(
   api: PadDesktopApi,
   records: DesktopRecords,
   bootstrap: DesktopBootstrapResult,
+  refresh = false,
+  previous = new Map<string, ProviderStatus>(),
 ): Promise<Map<string, ProviderStatus>> {
   const pairs = await Promise.all(records.profiles.map(async (profile) => {
+    let status: ProviderStatus;
     try {
       const result = await api.request<"provider_status", unknown>("provider_status", { profile_id: profile.id });
-      return [profile.id, parseProviderStatus(result)] as const;
+      status = parseProviderStatus(result);
     } catch {
-      return [profile.id, fallbackProviderStatus(profile, bootstrap)] as const;
+      status = fallbackProviderStatus(profile, bootstrap);
     }
+    const previousCatalog = previous.get(profile.id)?.modelCatalog;
+    const defaults = {
+      selectedProvider: status.selectedProvider ?? profile.default_provider ?? null,
+      selectedModel: status.selectedModel ?? profile.default_model ?? null,
+    };
+    let rawCatalog: unknown;
+    try {
+      rawCatalog = await api.request<"model_catalog", unknown>("model_catalog", {
+        profile_id: profile.id,
+        ...(refresh ? { refresh: true } : {}),
+      });
+    } catch {
+      // The model catalog is additive. Older sidecars or a temporary Pi
+      // failure must not make the account/sidebar unavailable.
+      rawCatalog = { error: "模型列表读取失败" };
+    }
+    const modelCatalog = modelCatalogWithFallback(rawCatalog, previousCatalog, defaults);
+    return [profile.id, {
+      ...status,
+      selectedProvider: status.selectedProvider ?? modelCatalog.selectedProvider,
+      selectedModel: status.selectedModel ?? modelCatalog.selectedModel,
+      modelCatalog,
+    }] as const;
   }));
   return new Map(pairs);
 }
@@ -811,6 +871,10 @@ function fallbackProviderStatus(profile: ProfileDto, bootstrap: DesktopBootstrap
     authenticatedProviders: active ? bootstrap.backend.authenticated_providers : [],
     selectedProvider: profile.default_provider ?? null,
     selectedModel: profile.default_model ?? null,
+    modelCatalog: emptyModelCatalog({
+      selectedProvider: profile.default_provider ?? null,
+      selectedModel: profile.default_model ?? null,
+    }),
   };
 }
 
@@ -821,7 +885,15 @@ function parseProviderStatus(value: unknown): ProviderStatus {
     authenticatedProviders: stringArray(object.authenticated_providers),
     selectedProvider: optionalText(object.selected_provider),
     selectedModel: optionalText(object.selected_model),
+    modelCatalog: emptyModelCatalog({
+      selectedProvider: optionalText(object.selected_provider),
+      selectedModel: optionalText(object.selected_model),
+    }),
   };
+}
+
+function emptyModelCatalog(defaults: Partial<Pick<ModelCatalog, "selectedProvider" | "selectedModel">> = {}): ModelCatalog {
+  return { ...parseModelCatalog(null, defaults), source: "fallback" };
 }
 
 function snapshotFromRecords(
@@ -849,8 +921,10 @@ function snapshotFromRecords(
   const turnsByTask = Object.fromEntries(Object.entries(previousTurns).filter(([taskId]) => visibleTaskIds.has(taskId)));
   const interactionsByTask = Object.fromEntries(Object.entries(previousInteractions).filter(([taskId]) => visibleTaskIds.has(taskId)));
   const activeStatus = selectedProfileId ? providerStatuses.get(selectedProfileId) : undefined;
+  const accounts = records.profiles.map((profile) => mapProfile(profile, profile.id === selectedProfileId, providerStatuses.get(profile.id)));
   return {
-    accounts: records.profiles.map((profile) => mapProfile(profile, profile.id === selectedProfileId, providerStatuses.get(profile.id))),
+    accounts,
+    modelCatalogByProfile: Object.fromEntries(accounts.map((account) => [account.id, account.modelCatalog])),
     projects,
     tasks,
     sidebar: buildSidebarHierarchy(rawSidebar, selectedProfileId, projects, tasks),
@@ -1053,8 +1127,12 @@ function syntheticRow(
 }
 
 function mapProfile(profile: ProfileDto, active: boolean, status?: ProviderStatus): AccountSummary {
-  const selectedProvider = status?.selectedProvider ?? profile.default_provider ?? null;
-  const selectedModel = status?.selectedModel ?? profile.default_model ?? null;
+  const modelCatalog = status?.modelCatalog ?? emptyModelCatalog({
+    selectedProvider: profile.default_provider ?? null,
+    selectedModel: profile.default_model ?? null,
+  });
+  const selectedProvider = status?.selectedProvider ?? modelCatalog.selectedProvider ?? profile.default_provider ?? null;
+  const selectedModel = status?.selectedModel ?? modelCatalog.selectedModel ?? profile.default_model ?? null;
   const policy = profile.policy;
   const protectedNamespaces = Array.isArray(policy.protected_namespaces) ? policy.protected_namespaces : [];
   const name = profile.id === "default" && profile.name.trim() === "Default" ? "默认账号" : profile.name;
@@ -1064,6 +1142,11 @@ function mapProfile(profile: ProfileDto, active: boolean, status?: ProviderStatu
     provider: selectedProvider ? `Pi · ${selectedProvider}` : "Pi · 未登录",
     selectedProvider,
     selectedModel,
+    modelCatalog: {
+      ...modelCatalog,
+      selectedProvider,
+      selectedModel,
+    },
     authenticatedProviders: status?.authenticatedProviders ?? [],
     authentication: status?.providerAuthentication ?? "unknown",
     initials: Array.from(name.trim())[0] ?? "P",
@@ -1446,7 +1529,7 @@ function idleAuth(profileId: string): AuthSession {
 
 function emptySnapshot(): DesktopSnapshot {
   return {
-    accounts: [], projects: [], tasks: [], turnsByTask: {}, interactionsByTask: {},
+    accounts: [], modelCatalogByProfile: {}, projects: [], tasks: [], turnsByTask: {}, interactionsByTask: {},
     sidebar: { view: "all", query: "", activeProfileId: null, selectedKey: null, rows: [] },
     backend: { status: "unavailable", capabilities: [], providerAuthentication: "unknown" },
     uiState: defaultUiState(),

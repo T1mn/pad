@@ -37,6 +37,7 @@ const allowedFields: Record<DesktopAction, readonly string[]> = {
   respond_ui: ['task_id', 'request_id', 'interaction_id', 'response_kind', 'value'],
   extension_ui_response: ['task_id', 'request_id', 'interaction_id', 'response_kind', 'value'],
   provider_status: ['profile_id'],
+  model_catalog: ['profile_id', 'refresh'],
   abort: ['task_id'],
   runtime_snapshot: ['task_id'],
   stop: ['task_id'],

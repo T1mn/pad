@@ -18,6 +18,7 @@ import type {
   TurnKind,
   ThinkingLevel,
 } from "../types";
+import type { ModelCatalogModel } from "../lib/model-catalog";
 import { taskStatusLabel, toolStateLabel } from "../lib/labels";
 import { toUserFacingError, type UserFacingError } from "../lib/errors";
 import { Icon, type IconName } from "./Icons";
@@ -344,6 +345,7 @@ function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelPickerButtonRef = useRef<HTMLButtonElement>(null);
   const modelPickerRef = useRef<HTMLDivElement>(null);
+  const modelCatalog = activeAccount?.modelCatalog;
 
   useEffect(() => {
     setAttachmentPaths([]);
@@ -508,6 +510,10 @@ function Composer({
                 onClick={() => setModelPickerOpen((value) => !value)}
               ><span>{modelDisplayLabel(provider, model, activeAccount)}</span><Icon name="chevron-down" /></button>
               {modelPickerOpen && <div ref={modelPickerRef} id="composer-model-picker" className="composer-model-picker" role="dialog" aria-label="选择 Pi 模型">
+                <ModelCatalogOptions catalogModels={modelCatalog?.models ?? []} provider={provider} model={model} onSelect={(nextProvider, nextModel) => {
+                  setProvider(nextProvider);
+                  setModel(nextModel);
+                }} />
                 <label><span>模型提供商</span><input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="例如 openai" /></label>
                 <label><span>模型名称</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="例如 gpt-5.4" /></label>
                 <button type="button" onClick={() => {
@@ -560,8 +566,59 @@ function accountModel(account: AccountSummary | null): string {
   return account?.selectedProvider && account.selectedModel ? account.selectedModel : "";
 }
 
+function ModelCatalogOptions({
+  catalogModels,
+  provider,
+  model,
+  onSelect,
+}: {
+  catalogModels: ModelCatalogModel[];
+  provider: string;
+  model: string;
+  onSelect(nextProvider: string, nextModel: string): void;
+}) {
+  if (catalogModels.length === 0) {
+    return <p className="model-catalog-empty" role="status">未读取到可用模型，将使用自动选择。</p>;
+  }
+
+  const groups = new Map<string, ModelCatalogModel[]>();
+  catalogModels.forEach((item) => {
+    const group = groups.get(item.provider) ?? [];
+    group.push(item);
+    groups.set(item.provider, group);
+  });
+  return (
+    <div className="model-catalog-options" role="listbox" aria-label="可用模型">
+      {[...groups.entries()].map(([groupProvider, models]) => (
+        <div className="model-catalog-group" key={groupProvider}>
+          <span className="model-catalog-provider">{groupProvider}</span>
+          {models.map((item) => {
+            const selected = provider === item.provider && model === item.id;
+            return (
+              <button
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={selected ? "is-selected" : ""}
+                key={`${item.provider}/${item.id}`}
+                onClick={() => onSelect(item.provider, item.id)}
+              >
+                <span>{item.name || item.id}</span>
+                {item.name !== item.id && <small>{item.id}</small>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function modelDisplayLabel(provider: string, model: string, account: AccountSummary | null): string {
-  if (provider.trim() && model.trim()) return `${provider.trim()} / ${model.trim()}`;
+  if (provider.trim() && model.trim()) {
+    const displayName = account?.modelCatalog.models.find((item) => item.provider === provider.trim() && item.id === model.trim())?.name;
+    return `${provider.trim()} / ${displayName || model.trim()}`;
+  }
   if (provider.trim()) return `${provider.trim()} / 默认模型`;
   const accountDefaultProvider = account?.selectedProvider ?? account?.authenticatedProviders[0];
   if (accountDefaultProvider) return `${accountDefaultProvider} / Pi 默认模型`;

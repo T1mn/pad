@@ -1,13 +1,22 @@
 import type { AccountSummary, DesktopSnapshot } from "../types";
+import { parseModelCatalog } from "../lib/model-catalog";
 
 export function account(id: string, name: string, active: boolean): AccountSummary {
+  const selectedProvider = id === "personal" ? "openai" : "anthropic";
+  const selectedModel = id === "personal" ? "gpt-5.4" : "claude-sonnet";
   return {
     id,
     name,
-    provider: id === "personal" ? "Pi · openai" : "Pi · anthropic",
-    selectedProvider: id === "personal" ? "openai" : "anthropic",
-    selectedModel: id === "personal" ? "gpt-5.4" : "claude-sonnet",
-    authenticatedProviders: [id === "personal" ? "openai" : "anthropic"],
+    provider: `Pi · ${selectedProvider}`,
+    selectedProvider,
+    selectedModel,
+    modelCatalog: parseModelCatalog({
+      models: [{ provider: selectedProvider, id: selectedModel, name: selectedModel }],
+      selected_provider: selectedProvider,
+      selected_model: selectedModel,
+      source: "live",
+    }),
+    authenticatedProviders: [selectedProvider],
     authentication: "authenticated",
     initials: name[0] ?? "P",
     active,
@@ -22,6 +31,10 @@ export function snapshot(profileId = "personal"): DesktopSnapshot {
   const projectId = personal ? "personal-project" : "team-project";
   return {
     accounts: [account("personal", "个人账号", personal), account("team", "团队账号", !personal)],
+    modelCatalogByProfile: {
+      personal: account("personal", "个人账号", personal).modelCatalog,
+      team: account("team", "团队账号", !personal).modelCatalog,
+    },
     projects: [{ id: projectId, profileId, name: personal ? "PAD" : "团队项目", path: `/work/${projectId}`, accent: "#6d5dfc", expanded: true, pinned: false }],
     tasks: [{ id: taskId, projectId, profileId, title: personal ? "个人任务" : "团队机密任务", updatedAt: "刚刚", status: "idle", rawStatus: "idle" }],
     sidebar: {

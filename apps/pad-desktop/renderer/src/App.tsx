@@ -13,6 +13,7 @@ type Route = "task" | "settings";
 
 const emptySnapshot: DesktopSnapshot = {
   accounts: [],
+  modelCatalogByProfile: {},
   projects: [],
   tasks: [],
   turnsByTask: {},

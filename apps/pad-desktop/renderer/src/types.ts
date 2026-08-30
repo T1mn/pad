@@ -1,3 +1,5 @@
+import type { ModelCatalog } from "./lib/model-catalog";
+
 export type TaskStatus = "idle" | "running" | "attention" | "complete";
 export type PermissionMode = "guarded" | "workspace_full" | "system_full";
 export type SidebarView = "all" | "pinned" | "archive";
@@ -17,6 +19,8 @@ export interface AccountSummary {
   provider: string;
   selectedProvider: string | null;
   selectedModel: string | null;
+  /** Pi-backed public catalog for this isolated PAD Profile. */
+  modelCatalog: ModelCatalog;
   authenticatedProviders: string[];
   authentication: ProviderAuthentication;
   initials: string;
@@ -163,6 +167,7 @@ export type InteractionResponse = boolean | number | string;
 
 export interface DesktopSnapshot {
   accounts: AccountSummary[];
+  modelCatalogByProfile: Record<string, ModelCatalog>;
   projects: ProjectSummary[];
   tasks: TaskSummary[];
   sidebar: SidebarHierarchy;

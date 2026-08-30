@@ -1887,6 +1887,64 @@ kbd {
   gap: 8px;
 }
 
+.model-catalog-options {
+  display: flex;
+  max-height: 190px;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 7px;
+  padding-bottom: 2px;
+}
+
+.model-catalog-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-catalog-provider {
+  padding: 2px 6px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.model-catalog-group button {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 7px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  text-align: left;
+}
+
+.model-catalog-group button:hover,
+.model-catalog-group button.is-selected {
+  background: var(--surface-hover);
+}
+
+.model-catalog-group button.is-selected {
+  box-shadow: inset 2px 0 var(--focus);
+}
+
+.model-catalog-group button small {
+  margin-left: 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.model-catalog-empty {
+  margin: 0;
+  padding: 3px 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
 .composer-model-picker label {
   display: flex;
   flex-direction: column;

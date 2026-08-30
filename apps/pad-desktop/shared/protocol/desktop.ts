@@ -299,6 +299,8 @@ export interface DesktopRequestParams {
   };
   extension_ui_response: DesktopRequestParams['respond_ui'];
   provider_status: { profile_id?: string };
+  /** Pi ModelRuntime-backed public catalog; credentials never cross this DTO. */
+  model_catalog: { profile_id: string; refresh?: boolean };
   abort: { task_id: string };
   runtime_snapshot: { task_id: string };
   stop: { task_id: string };
