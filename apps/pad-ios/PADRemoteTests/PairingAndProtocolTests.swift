@@ -6,7 +6,7 @@ final class PairingAndProtocolTests: XCTestCase {
     private let secret = String(repeating: "A", count: 43)
     private let fingerprint = String(repeating: "a", count: 64)
 
-    func testParsesRustV1PairingURI() throws {
+    func testParsesDesktopV1PairingURI() throws {
         let uri = makeURI(endpoint: "wss://192.168.1.24:47321")
         let invitation = try PairingInvitation(uri: uri)
         XCTAssertEqual(invitation.endpoint.absoluteString, "wss://192.168.1.24:47321")

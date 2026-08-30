@@ -11,6 +11,21 @@ than listed one by one.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the Desktop Rust sidecar with an in-process TypeScript backend for SQLite, Pi RPC,
+  authentication, model discovery, Fast mode, Full Access, terminal control, and remote access.
+- Removed the legacy Rust TUI, SwiftUI fallback shell, sidecar compatibility client, CLI installer,
+  and the CI/test suites that only protected those retired implementations.
+- Reduced the repository to the macOS Desktop product and its native iOS remote companion.
+
+### Fixed
+
+- The packaged app now reads the authenticated Pi model catalog directly and inherits the effective
+  macOS system proxy before starting Pi.
+- The TypeScript remote gateway now speaks the existing `pad.remote.v1` WSS pairing and command
+  protocol used by the iPhone app.
+
 ## [0.7.6] - 2026-08-30
 
 ### Added

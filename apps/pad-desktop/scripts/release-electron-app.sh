@@ -126,7 +126,6 @@ fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}"
 for required in \
   "${RESOURCES}/app.asar" \
-  "${RESOURCES}/pad" \
   "${RESOURCES}/bin/bun" \
   "${RESOURCES}/bin/pi" \
   "${RESOURCES}/pi/package.json" \
@@ -193,7 +192,6 @@ fi
 mkdir -p "${ZIP_VERIFY}"
 /usr/bin/ditto -x -k "${ZIP_PATH}" "${ZIP_VERIFY}"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${ZIP_VERIFY}/PAD Desktop.app"
-[[ -x "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/pad" ]] || fail "ZIP lost the PAD host executable bit"
 [[ -x "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/bin/bun" ]] || fail "ZIP lost the Bun executable bit"
 
 mkdir -p "${DMG_STAGE}"
@@ -216,7 +214,6 @@ mkdir -p "${DMG_MOUNT}"
 /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "${DMG_MOUNT}" "${DMG_PATH}" >/dev/null
 DMG_ATTACHED=1
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${DMG_MOUNT}/PAD Desktop.app"
-[[ -x "${DMG_MOUNT}/PAD Desktop.app/Contents/Resources/pad" ]] || fail "DMG lost the PAD host executable bit"
 /usr/bin/hdiutil detach "${DMG_MOUNT}" >/dev/null
 DMG_ATTACHED=0
 

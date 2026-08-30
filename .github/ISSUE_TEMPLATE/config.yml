@@ -2,10 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
     url: https://github.com/T1mn/pad/security/advisories/new
-    about: Do not open a public issue. Use a private security advisory; see SECURITY.md.
+    about: Use a private security advisory; do not open a public issue.
   - name: Installation and setup
-    url: https://github.com/T1mn/pad#install
-    about: Installer, native terminal, WSL2, and platform notes are covered in the README.
-  - name: Agent compatibility
-    url: https://github.com/T1mn/pad/blob/master/docs/agent-compatibility.md
-    about: What each agent CLI supports in PAD, before filing a missing-feature issue.
+    url: https://github.com/T1mn/pad/blob/master/README_ZH.md
+    about: macOS development, packaging, installation, and iPhone remote setup.

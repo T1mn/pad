@@ -181,7 +181,7 @@ describe("结构化 history 时间线", () => {
 });
 
 describe("buildSidebarHierarchy", () => {
-  it("严格保留 Rust snapshot 的 Section、Project、Task 顺序与层级", () => {
+  it("严格保留 canonical snapshot 的 Section、Project、Task 顺序与层级", () => {
     const projects: ProjectSummary[] = [
       { id: "pinned-project", profileId: "p", name: "固定项目", path: "/work/pinned", accent: "#000", expanded: true, pinned: true },
       { id: "normal-project", profileId: "p", name: "普通项目", path: "/work/normal", accent: "#000", expanded: true, pinned: false },
@@ -221,7 +221,7 @@ describe("buildSidebarHierarchy", () => {
     ]);
   });
 
-  it("不从 flat records 补造 Rust snapshot 中不存在的第二套树", () => {
+  it("不从 flat records 补造 canonical snapshot 中不存在的第二套树", () => {
     const projects: ProjectSummary[] = [
       { id: "p1", profileId: "p", name: "不应补造", path: "/work/p1", accent: "#000", expanded: true, pinned: false },
     ];
@@ -418,7 +418,7 @@ describe("登录文本本地化", () => {
 });
 
 describe("Pi v2 pending interactions", () => {
-  it("只映射 Rust poll 暴露的真实 respond_ui 请求", () => {
+  it("只映射本地后端 poll 暴露的真实 respond_ui 请求", () => {
     const interactions = pendingInteractionsFromPoll({
       poll: {
         pending_ui_requests: [
@@ -638,7 +638,7 @@ describe("任务按需加载与账号切换事务", () => {
     expect(request.mock.calls.filter(([action]) => action === "set_ui_state")).toHaveLength(1);
   });
 
-  it("目标账号 refresh 失败时把 Rust UI state 写回旧账号并恢复 adapter", async () => {
+  it("目标账号 refresh 失败时把 UI state 写回旧账号并恢复 adapter", async () => {
     const fixture = bridgeFixture(1, true);
     let persisted = structuredClone(fixture.bootstrap.ui_state);
     const persistedDocuments: DesktopUiStateDto[] = [];
@@ -1112,8 +1112,8 @@ describe("terminal adapter", () => {
   });
 });
 
-describe("Rust UI state adapter", () => {
-  it("启动读取 Rust 状态，并串行合并完整文档避免并发覆盖", async () => {
+describe("local UI state adapter", () => {
+  it("启动读取本地状态，并串行合并完整文档避免并发覆盖", async () => {
     let persisted: DesktopUiStateDto = {
       active_profile_id: "personal",
       selected_task_id: "personal-task",

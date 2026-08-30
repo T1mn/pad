@@ -28,7 +28,7 @@ describe("Pi model_catalog renderer contract", () => {
     expect(availableModelIds(catalog)).toEqual(["auto", "gpt-5.4", "gpt-5.5"]);
   });
 
-  it("识别 Rust/Pi 当前实现的 pi_model_runtime 来源", () => {
+  it("识别 Pi ModelRuntime 的 pi_model_runtime 来源", () => {
     const catalog = parseModelCatalog({
       source: "pi_model_runtime",
       available_models: [{ provider: "openai-codex", id: "gpt-5.4", name: "GPT-5.4" }],

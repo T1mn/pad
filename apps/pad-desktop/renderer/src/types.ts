@@ -151,7 +151,7 @@ export interface TurnEntry {
 
 export type PendingInteractionKind = "confirm" | "select" | "input" | "editor" | "unknown";
 
-/** Renderer-safe shape exposed by the Rust v2 poll `pending_ui_requests` contract. */
+/** Renderer-safe shape exposed by the local backend `pending_ui_requests` contract. */
 export interface PendingInteraction {
   id: string;
   kind: PendingInteractionKind;

@@ -498,7 +498,7 @@ final class ReducerAndPersistenceTests: XCTestCase {
         XCTAssertLessThan(try JSONEncoder().encode(trimmed).count, CachedStateBudget.maximumEnvelopeBytes)
     }
 
-    func testTransientRustErrorsRetainTheOutboxCommandForReconnect() {
+    func testTransientDesktopErrorsRetainTheOutboxCommandForReconnect() {
         XCTAssertTrue(RemoteCommandErrorPolicy.shouldRetainOutbox(code: "server_busy"))
         XCTAssertTrue(RemoteCommandErrorPolicy.shouldRetainOutbox(code: "server_unavailable"))
         XCTAssertTrue(RemoteCommandErrorPolicy.shouldRetainOutbox(code: "command_timeout"))

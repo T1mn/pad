@@ -51,7 +51,7 @@ describe("Sidebar", () => {
     expect(screen.getByLabelText("任务侧边栏")).toHaveAttribute("data-sidebar-layout", "tiled");
   });
 
-  it("按 Rust canonical view 显示中性层级标题", () => {
+  it("按 canonical view 显示中性层级标题", () => {
     const data = snapshot();
     data.sidebar.view = "archive";
     renderSidebar(data);
@@ -254,7 +254,7 @@ describe("Sidebar", () => {
     expect(screen.getByText(/状态未知/)).toBeInTheDocument();
   });
 
-  it("通过 Rust UI state 回调持久化项目折叠状态并提供稳定选择器", async () => {
+  it("通过本地 UI state 回调持久化项目折叠状态并提供稳定选择器", async () => {
     const data = snapshot();
     const onCollapsedChange = vi.fn();
     const first = renderSidebar(data, vi.fn(), [], onCollapsedChange);

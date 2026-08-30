@@ -23,7 +23,7 @@ import {
   shell,
   type Rectangle,
 } from 'electron';
-import { PadBackendClient } from './backend-client';
+import { LocalBackend } from './local-backend';
 import { isDesktopAction, sanitizeDesktopParams } from './request-policy';
 import {
   DESKTOP_IPC,
@@ -140,7 +140,12 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-const backend = new PadBackendClient();
+const desktopDataRoot = process.env.PAD_DESKTOP_DATA_DIR
+  || path.join(process.env.HOME || process.cwd(), 'Library', 'Application Support', 'PAD Desktop');
+const localResourcesPath = typeof process.resourcesPath === 'string' && process.resourcesPath.length > 0
+  ? process.resourcesPath
+  : path.resolve(process.cwd(), 'out', 'PAD Desktop-darwin-arm64', 'PAD Desktop.app', 'Contents', 'Resources');
+const backend = new LocalBackend({ dataRoot: desktopDataRoot, resourcesPath: localResourcesPath });
 const remotePower = new RemotePowerSaveCoordinator(powerSaveBlocker);
 let mainWindow: BrowserWindow | null = null;
 let quitAfterBackendStops = false;
@@ -496,6 +501,12 @@ app.on('activate', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// Package verification and launchd may terminate the main process without a
+// menu action. Route those signals through Electron's normal async shutdown so
+// Pi sessions, terminals, the local store, and the remote listener all close.
+process.once('SIGTERM', () => app.quit());
+process.once('SIGINT', () => app.quit());
 
 app.on('before-quit', (event) => {
   remotePower.dispose();

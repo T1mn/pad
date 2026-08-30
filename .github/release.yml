@@ -1,5 +1,5 @@
 # GitHub automatically generated release notes config.
-# Used by `.github/workflows/release.yml` with `generate_release_notes: true`.
+# Used when maintainers generate GitHub release notes.
 changelog:
   exclude:
     labels:

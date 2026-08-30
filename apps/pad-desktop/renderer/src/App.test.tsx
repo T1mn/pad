@@ -490,7 +490,7 @@ describe("App account isolation and compact layout", () => {
     expect(desktopMock.createAccount).toHaveBeenCalledWith("第二账号", "anthropic");
   });
 
-  it("启动从 Rust UI state 恢复活动账号与最后选择的任务", async () => {
+  it("启动从本地 UI state 恢复活动账号与最后选择的任务", async () => {
     const persisted = snapshot("team");
     persisted.uiState = { ...persisted.uiState, activeProfileId: "team", selectedTaskId: "team-task", sidebarWidth: 318, theme: "dark" };
     desktopMock.loadSnapshot.mockResolvedValue(persisted);

@@ -3208,7 +3208,7 @@ kbd {
   }
 }
 
-/* Product sidebar hierarchy: one Rust-projected row list, without duplicate task groups. */
+/* Product sidebar hierarchy: one canonical row list, without duplicate task groups. */
 .sidebar[data-sidebar-layout="tiled"] {
   flex: 0 0 auto;
 }

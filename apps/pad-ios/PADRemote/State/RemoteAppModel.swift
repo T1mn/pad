@@ -1201,7 +1201,7 @@ enum RemoteCommandErrorPolicy {
         "server_busy",
         "server_unavailable",
         "command_timeout",
-        // Kept for forward/backward-compatible servers; the Rust v1 names are above.
+        // Kept for forward/backward-compatible servers; the Desktop v1 names are above.
         "unavailable",
         "temporarily_unavailable",
         "timeout",

@@ -1,5 +1,12 @@
 # PAD Desktop 更新记录
 
+## Unreleased
+
+- Desktop 后端全部迁移到 Electron 主进程的 TypeScript，实现 SQLite、Pi RPC、登录、模型、Fast、完全访问、终端和远程连接。
+- 删除 Rust sidecar、旧 TUI、SwiftUI 回滚壳、兼容 client 以及不再进入产品的旧测试和打包入口。
+- 打包产物不再包含 `Contents/Resources/pad`，只包含 Electron、Pi、Bun 和应用资源。
+- 远程网关改为与现有 iPhone App 一致的 WSS、证书指纹、一次性配对和 device token 协议。
+
 ## 0.7.6
 
 - 新增“设置 → 远程连接”，支持启停 Mac 端远程网关、显示实时在线数和管理已配对设备。

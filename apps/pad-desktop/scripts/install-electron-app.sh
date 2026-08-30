@@ -127,7 +127,6 @@ def version(value: str) -> tuple[int, ...]:
 maximum = version(maximum_text)
 required = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/pad",
     "Contents/Resources/bin/bun",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
@@ -255,7 +254,6 @@ verify_bundle() {
 
   for required in \
     "${resources}/app.asar" \
-    "${resources}/pad" \
     "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi" \
@@ -269,7 +267,6 @@ verify_bundle() {
   done
   for executable in \
     "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/pad" \
     "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi"; do
@@ -277,7 +274,6 @@ verify_bundle() {
   done
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/pad"
   assert_arm64_only "${resources}/bin/bun"
   assert_internal_symlinks "${resources}"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
@@ -322,8 +318,7 @@ running_target_pids() {
 health_related_pids() {
   /bin/ps -axo pid=,command= | /usr/bin/awk \
     -v app="${HEALTH_APP}/Contents/MacOS/PADDesktop" \
-    -v pad="${HEALTH_APP}/Contents/Resources/pad" \
-    '(index($0, app) || index($0, pad)) && !index($0, "/usr/bin/awk") { print $1 }'
+    'index($0, app) && !index($0, "/usr/bin/awk") { print $1 }'
 }
 
 process_group_alive() {
@@ -600,6 +595,7 @@ PY
   fi
 
   close_health_app_over_cdp "${websocket_url}"
+  /bin/kill -TERM "${HEALTH_PID}" >/dev/null 2>&1 || true
   for _attempt in {1..120}; do
     /bin/kill -0 "${HEALTH_PID}" >/dev/null 2>&1 || break
     /bin/sleep 0.1
@@ -622,7 +618,7 @@ PY
   HEALTH_COMPLETE=1
   HEALTH_PID=""
   HEALTH_PROCESS_GROUP=""
-  echo "INSTALL_HEALTH_OK: renderer ready, backend ready, protocol v2, no fatal alerts, clean shutdown"
+  echo "INSTALL_HEALTH_OK: renderer ready, Electron local backend ready, protocol v2, no fatal alerts, clean shutdown"
 }
 
 verify_bundle "${SOURCE_APP}"

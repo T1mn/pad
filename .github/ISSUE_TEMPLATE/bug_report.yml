@@ -1,24 +1,17 @@
 name: Bug report
-description: Something in PAD does not behave the way it should.
-labels:
-  - bug
+description: PAD Desktop does not behave as expected.
+labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: |
-        Do not use this form for security problems. Report those privately, see
-        [SECURITY.md](https://github.com/T1mn/pad/blob/master/SECURITY.md).
-
+      value: Do not publish credentials or session data. Report security problems privately.
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: What you did, what you expected, and what PAD did instead.
-      placeholder: |
-        Pressed Enter on a Codex thread, expected to focus its pane, PAD stayed on the list.
+      description: What you did, expected, and saw.
     validations:
       required: true
-
   - type: textarea
     id: repro
     attributes:
@@ -29,60 +22,27 @@ body:
         3.
     validations:
       required: true
-
   - type: input
     id: version
     attributes:
-      label: PAD version
-      description: Output of `pad --version`.
-      placeholder: pad 0.7.3
+      label: PAD Desktop version
+      placeholder: 0.7.6
     validations:
       required: true
-
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - macOS
-        - Linux
-        - WSL2
-        - Other
-    validations:
-      required: true
-
   - type: input
-    id: env
+    id: macos
     attributes:
-      label: OS and shell
-      description: Distribution or macOS version, shell, and terminal environment.
-      placeholder: Ubuntu 24.04, zsh, TERM=xterm-256color
+      label: macOS and Mac model
+      placeholder: macOS 15, MacBook Pro M3
     validations:
       required: true
-
-  - type: dropdown
-    id: install-method
-    attributes:
-      label: How did you install PAD
-      options:
-        - One-line installer (curl | bash)
-        - Installer from a local clone
-        - Source build (cargo build --profile dist)
-        - Other
-    validations:
-      required: true
-
   - type: input
-    id: agent
+    id: provider
     attributes:
-      label: Agent involved
-      description: Which agent CLI the affected session belongs to, if any.
-      placeholder: Codex, Claude Code, Grok Build, OpenCode, Gemini, none
-
+      label: Pi provider and model
+      placeholder: openai-codex / gpt-5.6-sol
   - type: textarea
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: |
-        Relevant output and logs from `~/.pad/logs/`. Redact tokens and API keys.
-      render: shell
+      description: Redact tokens, account names, paths, and private conversation content.

@@ -1,15 +1,15 @@
 /**
  * Renderer-side model catalog contract.
  *
- * The Rust bridge owns Pi's ModelRuntime and credentials.  The renderer only
+ * The Electron main process owns Pi's ModelRuntime and credentials. The renderer only
  * receives this public projection:
  *
  *   { models: [{ provider, id, name, ... }], selected_provider,
  *     selected_model, source, stale }
  *
- * During rolling upgrades a bridge may wrap the projection in `catalog`, use
- * `available_models`, or return provider groups.  Keep those compatibility
- * rules in one pure function so the UI never reads Pi's private JSON files.
+ * ModelRuntime may wrap the projection in `catalog`, use `available_models`,
+ * or return provider groups. Keep normalization in one pure function so the
+ * UI never reads Pi's private JSON files.
  */
 
 export const MODEL_CATALOG_ACTION = "model_catalog" as const;

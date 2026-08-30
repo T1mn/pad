@@ -1,299 +1,44 @@
-<div align="center">
-  <h1>PAD</h1>
-  <p><strong>One workspace with a PAD-owned native terminal for AI agents.</strong></p>
-  <p><code>pad</code> = Panel for Agent Development.</p>
-  <p>English | <a href="README_ZH.md">中文</a></p>
-</div>
+# PAD
 
-PAD gives you one place to manage Codex, Claude Code, Grok Build, OpenCode, Gemini, and other terminal agents.
-You can see which session moved, read recent conversation history, and only then jump into the right pane.
+PAD is a macOS desktop client powered directly by [Pi](https://github.com/badlogic/pi-mono). It combines a Codex-style task sidebar, Pi conversations, multiple account profiles, model selection, Fast mode, Full Access, a local terminal, and iPhone remote access in one app.
 
-## TL;DR
+中文说明见 [README_ZH.md](README_ZH.md).
 
-- Manage multiple AI agent sessions from one workspace.
-- Read recent conversation history before you attach to a pane.
-- Pure Rust, with a PAD-owned native PTY terminal.
-- Current macOS dist build: ~3.7 MB. Idle runtime: ~12 MB RSS.
+## Architecture
 
-## Install
+- Electron main process: TypeScript local backend, SQLite storage, Pi process lifecycle, authentication, proxy inheritance, terminal, and remote gateway.
+- React renderer: macOS/Codex-style interface. It receives renderer-safe DTOs only.
+- Pi: the only agent runtime. PAD launches bundled Pi in RPC mode and keeps each PAD profile and session in PAD-owned directories.
+- No Rust sidecar, CLI TUI, or SwiftUI fallback is part of the product.
 
-PAD includes its own native terminal runtime; no external terminal multiplexer is required.
+PAD data lives under `~/Library/Application Support/PAD Desktop`. It does not read or overwrite the Codex or ChatGPT sidebar/session store.
 
-Supported runtime environments:
+## Develop
 
-- macOS
-- Linux
-- WSL2
+Requirements: Apple Silicon Mac, Node.js/npm, Bun, and `@earendil-works/pi-coding-agent` 0.84.4 installed locally for packaging.
 
 ```bash
-# One-line installer
-curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash
-
-# Or from a local clone
-git clone https://github.com/T1mn/pad.git
-cd pad
-./install.sh
+cd apps/pad-desktop
+npm ci
+npm run dev
 ```
 
-The installer tries a pre-built release first, detects the local Linux runtime when needed, and prefers a matching glibc or musl package. It validates that the downloaded binary can run on the current machine, and falls back to a local source build only when no compatible release asset works. Source builds bootstrap Rust and common build tools as needed.
-
-Installer source is split under `install/`. After editing those modules, regenerate the checked-in single-file `install.sh` with:
+## Verify and package
 
 ```bash
-bash scripts/build_installer.sh
+cd apps/pad-desktop
+npm run typecheck
+npm run test:ui -- --run
+./scripts/package-electron-app.sh
+./scripts/install-electron-app.sh --check-only
+./scripts/install-electron-app.sh --launch
 ```
 
-Manual source build:
+The final app is generated at `apps/pad-desktop/out/PAD Desktop-darwin-arm64/PAD Desktop.app` and installed to `/Applications/PAD Desktop.app`.
 
-```bash
-cd pad/rust-tui
-cargo build --profile dist
-cp target/dist/pad ~/.local/bin/
-```
+## iPhone remote
 
-### macOS Desktop and iPhone Remote
-
-The repository also contains [PAD Desktop](apps/pad-desktop/README.md) and the native
-[PAD Remote for iOS](apps/pad-ios/README.md). Desktop combines a tiled Codex-style sidebar with
-the Pi runtime. From **Settings → Remote**, enable the gateway and scan its 120-second one-time QR
-code on an iPhone to continue tasks, conversations, and controlled interactions over a direct WSS
-connection to the Mac.
-
-Remote v1 prioritizes low-latency same-LAN transport with leaf-certificate SHA-256 pinning,
-Keychain device tokens, UUID command receipts, revision/ACK replay, and fast foreground resume.
-iOS persists state and closes an ordinary WebSocket in the background instead of claiming fake
-permanent background execution. Account login, terminals, directory selection, Full Access, and
-PAD/Pi private data remain on the Mac.
-
-`pad` directly owns the shell PTY and terminal grid. On WSL2, run PAD and the agent CLIs inside the same WSL environment.
-
-### Native Terminal Workspace
-
-- Press `Tab` to focus the terminal and `F12` to return to the sidebar.
-- `C` still opens PAD's global directory index; it is not used for terminal focus.
-- Choosing a directory and agent from that index opens a native terminal tab in the selected directory and runs the configured agent command there.
-- The selected directory is the child shell's real working directory. For OpenCode this follows the documented `cd /path/to/project && opencode` form (equivalent to `opencode /path/to/project`).
-- The left sidebar is the agent workspace/session navigator: a launched native agent appears there immediately beside discovered history. Press `Enter` on a live native entry to focus its tab/pane; closing that pane removes the live entry.
-- `Command+B` collapses or restores the sidebar. Drag the divider between the sidebar and the right pane to resize it; `Command+Shift+H/L` narrows or widens it in six-column steps. In Kitty, add the PAD-scoped mappings shown below so these shortcuts never replace normal Kitty behavior outside PAD.
-- After changing `kitty.conf`, reload Kitty with `Ctrl+Command+,`, then restart PAD so it republishes its `pad` focus marker.
-- Terminal tabs are mouse-native: click or drag across labels to switch, click `×` (or middle-click a label) to close the whole tab, and use a two-finger horizontal swipe over the right workspace to move between tabs.
-- Press `F11` for PAD Terminal commands; it also focuses a visible terminal workspace when the sidebar is focused. Use `Ctrl+G` as the portable fallback when macOS or the desktop environment captures the function key. `Ctrl+Space` remains accepted when it is not reserved for input-method switching.
-- `Ctrl+W` closes the active PAD pane immediately. PAD also accepts `Command+W` when the host forwards it. `Command+Q` exits PAD without quitting Kitty; from the sidebar, plain `q` remains the fallback.
-- Native panes advertise `xterm-256color`/truecolor and force color-capable output even when the parent shell exports `NO_COLOR=1`, so OpenCode keeps its multi-color TUI.
-- Kitty PAD mappings: `map --when-focus-on var:pad cmd+w send_key ctrl+w`, `map --when-focus-on var:pad cmd+b send_key f13`, `map --when-focus-on var:pad cmd+shift+h send_key f14`, `map --when-focus-on var:pad cmd+shift+l send_key f15`, and `map --when-focus-on var:pad cmd+q send_key f16`.
-- In the command layer: `1`–`6` create Shell / Codex / Claude / GitHub CLI / OpenCode / Pi RPC tabs; `v`/`s` split a shell right/below, while `c`/`a`/`g`/`o`/`p` split an agent pane. `h/j/k/l` move between panes, `[`/`]` switch tabs, `r` renames, and `x` closes. The GitHub profile opens a labelled interactive shell (run `gh` commands inside it) instead of launching bare `gh`, which would immediately exit.
-- `Shift+PgUp/PgDn/Home/End` controls scrollback. The mouse wheel is routed exclusively to either child mouse reporting or PAD history.
-- Tabs, splits, labels, profiles, and launch directories persist in `~/.pad/terminal-workspace.json`. Restarting launches fresh PTYs and rebuilds known Codex/Claude/OpenCode live entries in the sidebar; it does not pretend to restore old processes. Corrupt or newer-schema files are preserved as `terminal-workspace.invalid*.json` before PAD creates a clean workspace.
-- Commands selected from the global agent launcher are runtime-only: after a PAD restart, their labelled tabs restore as safe interactive shells instead of silently re-running configuration text.
-
-## Demo
-
-<video src="https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8" controls muted loop playsinline width="960"></video>
-
-What this looks like in practice:
-
-- Manage multiple agents in one workspace instead of hunting across terminal windows
-- Read the latest preview and recent turns on the right before you attach
-- Hit `Tab` to open the latest detail view and `Shift+J` / `Shift+K` to move across Q&A turns
-- Press `F2` to rename a thread, or `T` to edit tags without leaving PAD
-- Create a fresh session with `c`, send work, then jump back to PAD with `F12`
-- Use the activity indicator to see which session is still running in the background
-
-If your Markdown viewer does not render inline video, open the [demo video](https://github.com/user-attachments/assets/773baf57-c25f-41d4-a30a-3c38e702d2d8) directly.
-
-## Why PAD
-
-The usual multi-terminal agent workflow breaks down in a very boring way:
-
-- I have Codex, Claude Code, and Gemini open. Which one actually moved?
-- Which pane moved last?
-- Which session is still working?
-- Do I need to attach, or is the answer already visible in recent history?
-- If I archive this thread, am I hiding it or actually deleting something?
-
-PAD gives you one workspace to scan, preview, attach, archive, and jump back out without losing your place.
-
-## 30-Second Workflow
-
-1. Run `pad`.
-2. Scan the left sidebar for the session that moved.
-3. Press `t` when you want the built-in project tree and file preview.
-4. Read the latest turns in preview before you attach.
-5. Hit `Enter` to jump in, then `F12` to come back.
-
-## Core Features
-
-- One workspace view for live Codex, Claude Code, Grok Build, OpenCode, Gemini, and other agent sessions
-- See recent session history and latest turns without entering the pane
-- Pure Rust TUI with a small footprint and quick session-aware previews
-- Current macOS measurement: ~3.7 MB dist binary, ~12 MB idle RSS
-- Session-level monitoring so activity tracking stays focused and cheap
-- `Tab` focuses the terminal, `F12` returns, and `Enter` on a live sidebar entry jumps to its PAD-owned pane
-- Built-in project tree and file preview without leaving the workspace
-- Archive or restore with agent-specific adapters, without deleting upstream history
-- Relay / proxy settings for supported agents
-- Completion notifications when an agent finishes, on supported desktop backends
-- Telegram bot daemon for remote updates and quick session access
-- Keyboard-first search, settings, tree, and session creation
-
-## What PAD Does Not Do
-
-- PAD does not preserve running child processes across application restarts or provide multi-client terminal sharing.
-- Native tabs and splits are real PAD-owned PTYs.
-- It does not delete upstream agent history when you archive a thread in PAD; some adapters update upstream archive metadata.
-- It does not take over the agent runtime. It helps you see and jump faster.
-
-## Screen Tour
-
-### Overview
-
-<img src="docs/media/first-annotated.png" alt="PAD home screen overview" width="960">
-
-Open PAD here first. This is the fast scan view.
-
-1. `LIVE 6`: the top-level live inbox and current online session count.
-2. Highlighted session row: the current target in the sidebar, ready for preview or attach.
-3. Preview header: agent, state, PID, branch, path, and SID at a glance.
-4. Preview turns: read the latest Q/A before you decide to attach.
-
-### Settings
-
-<img src="docs/media/settings-annotated.png" alt="PAD settings overview" width="960">
-
-Settings stays in flow. Open it with `/`, change what you need, leave with `Esc`.
-
-1. `/` prompt: settings comes from the same slash-driven flow as other terminal-first tools.
-2. Settings list: move through config areas without leaving the keyboard.
-3. Inline current values: scan current state directly from the list.
-4. Footer hints: the active keys are always visible at the bottom, including Codex CLI check and update actions where available.
-
-### Archive
-
-<img src="docs/media/archive-annotated.png" alt="PAD archive confirmation overview" width="960">
-
-Archive in PAD is reversible and never means delete. The exact metadata change depends on the agent.
-
-1. Confirmation dialog: archive is explicit and reversible. It is not delete.
-2. Target thread: the dialog shows exactly which thread is being archived before you confirm.
-3. Live pane warning: if the thread still has a live pane, PAD shows the target and effect before changing archive state.
-4. Agent-specific semantics: Codex moves the rollout between its active/archive directories and updates its state DB; OpenCode updates `time_archived`; Claude uses PAD's local index. None of these paths deletes the original conversation.
-
-### Tree
-
-<img src="docs/media/tree-annotated.png" alt="PAD tree view overview" width="960">
-
-Use tree mode when you want to browse code, preview a file, or create a session from a directory without leaving PAD.
-
-1. Root path: the current workspace is always visible at the top.
-2. File tree: expand, collapse, and move through directories quickly.
-3. File preview: inspect code immediately on the right.
-4. Tree footer: tree-mode keys stay visible, including nav, expand, attach, create, and help.
-
-### Help
-
-<img src="docs/media/help-annotated.png" alt="PAD help overview" width="960">
-
-Help keeps the keyboard model discoverable inside the UI, so you do not have to context-switch to docs.
-
-1. Help header: you are looking at PAD's built-in keyboard guide, not an external doc.
-2. Navigation section: movement, jump, and search keys are grouped together.
-3. Actions section: attach, create, delete, refresh, focus switching, and preview controls live in one place.
-4. Close hint: the footer shows the shortest way back out.
-
-## Also Included
-
-- Git context in the preview header: branch, commit, and changed files
-- Busy / waiting state indicators for live agent panes
-- File tree browsing with file preview
-- Theme switching
-- Agent launcher from the tree view
-- Per-session thread title overrides and editable tags
-
-## Thread Metadata
-
-- Press `F2` to edit the current thread title.
-- Press `T` to edit tags for the current thread.
-- While editing a title, `Shift+Delete` clears the full input quickly.
-- Custom titles are stored per session in PAD. Clearing a custom title falls back to the generated or upstream title.
-- These edits only change PAD's local metadata layer and do not modify upstream session history.
-
-## Usage
-
-```bash
-pad              # Launch TUI
-pad --help       # Show help
-pad --version    # Show version
-pad telegram-bot # Launch Telegram bot daemon
-```
-
-Release and platform notes:
-
-- [Platform Support](docs/platform-support.md)
-- [Release Checklist](docs/release-checklist.md)
-
-Linux release assets are published in separate families:
-
-- `pad-*-linux-x86_64-glibc-2.35.tar.gz`
-- `pad-*-linux-aarch64-glibc-2.35.tar.gz`
-- `pad-*-linux-x86_64-musl.tar.gz`
-- `pad-*-linux-aarch64-musl.tar.gz`
-
-## Key Bindings
-
-| Key | Action |
-|-----|--------|
-| `j/k` or `↑/↓` | Navigate panels |
-| `J/K` or `Shift+J/K` | Move between preview turns / jump faster in preview |
-| `1-9` | Jump to panel |
-| `Enter` | Attach to panel |
-| `F12` | Detach back to pad |
-| `Tab` | Toggle panel focus and preview focus |
-| `Tab` twice | Open the latest preview detail, or return detail back to the turns list |
-| `?` | Help |
-| `t` | Toggle file tree |
-| `Ctrl+T` | Open tree at ~/ |
-| `F2` | Edit thread title |
-| `T` | Edit thread tags |
-| `Shift+Delete` | Clear title input while editing |
-| `Space` | Expand/collapse directory |
-| `Space` twice | Expand/collapse all session folders |
-| `c` | Create new session |
-| `d` | Delete pane and hide thread in PAD |
-| `A` / `U` | Archive / restore selected session |
-| `Z` | Toggle archived session view |
-| `E` / `S` / `I` / `H` / `M` / `G` / `X` / `B` / `O` / `P` / `Y` / `W` | Export/import OpenCode JSON, install GitHub agent/plugin, open PR, run clipboard prompt, start local server, stats, diagnostics, attach server URL, or open OpenCode Web |
-| `r` | Refresh |
-| `Ctrl+F` | Search panels |
-| `/` | Open settings |
-| `F1` | Settings |
-| `q` | Quit |
-
-## Agent Support
-
-Full session workflows:
-
-- 🟣 Claude (`claude`)
-- 🔵 Codex (`codex`)
-- 🔷 Gemini (`gemini-cli`)
-
-Extended session / history support:
-
-- 🔴 Grok Build (`grok`): process detection, launcher and pane attach, `--resume`, history, and preview from official session files; hooks, relay, archive, and export/import are not supported
-- 🟠 OpenCode (`opencode`): launcher and pane attach, relay/model config, SQLite history, session preview, usage/share metadata, archive/unarchive, `opencode export` / `--sanitize`, `opencode import`, `opencode github install`, `opencode plugin`, `opencode pr`, `opencode run`, local `opencode serve`, project `opencode stats`, debug/provider/model diagnostics, `opencode attach`, `opencode web`, and `opencode --session` resume
-
-Basic launcher / pane workflows:
-
-- 🟢 Kimi (`kimi-cli`)
-
-PAD can still detect and attach to other terminal agents. Hook-driven live events remain deeper for Claude, Codex, and Gemini. See the [compatibility matrix](docs/agent-compatibility.md), [Grok notes](docs/grok-support.md), and [OpenCode notes](docs/opencode-support.md).
-
-## Acknowledgements
-
-Thanks to the broader terminal tooling community for early feedback and testing. I also learned a lot of practical, project-helpful ideas from [linux.do](https://linux.do) along the way.
-
-Special thanks to [linux.do 慕鸢](https://linux.do/u/user792/summary) for token support.
-
-Special thanks to [linux.do 百倍佬 labs100x](https://linux.do/u/labs100x) for token support.
+`apps/pad-ios` contains the native iOS companion. Enable Remote in PAD Desktop, scan the one-time QR code, then continue a task from the same LAN.
 
 ## License
 

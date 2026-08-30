@@ -1,55 +1,10 @@
-# Release Checklist
+# Release checklist
 
-## Version policy
-
-1. Prefer a normal patch bump for accumulated fixes, for example `0.6.16` -> `0.6.17`.
-2. Use `hotfix` only for one urgent, narrow fix immediately after a release.
-3. After more than 2 consecutive hotfix tags on the same version, stop adding `hotfixN` and bump the next patch version.
-4. If the change includes mixed CI, release, performance, or user-visible behavior, bump the patch version instead of adding another hotfix tag.
-5. Do not keep repairing an already pushed failed tag; fix `master`, bump version, and create a new release tag.
-
-## Pre-release
-
-1. Ensure the worktree is in the expected state.
-2. Update `rust-tui/Cargo.toml` version.
-3. Review release notes and user-visible changes.
-4. Run `bash scripts/build_installer.sh` and confirm `install.sh` is up to date.
-5. Confirm `install.sh` still matches the published artifacts.
-
-## Local verification
-
-1. Run `cargo fmt --check` in `rust-tui/`.
-2. Run `cargo clippy --all-targets --all-features -- -D warnings` in `rust-tui/`.
-3. Run `cargo test` in `rust-tui/`.
-4. Run `cargo build --profile dist` in `rust-tui/`.
-5. Run `bash scripts/build_installer.sh`.
-6. Launch `pad` locally at least once.
-7. Run `python3 scripts/ci/native_terminal_smoke.py rust-tui/target/dist/pad` and verify shell input, focus return, and clean exit.
-8. Run `PAD_INSTALL_FORCE_SOURCE=1 PAD_INSTALL_ASSUME_YES=1 INSTALL_DIR="$(mktemp -d)" ./install.sh`.
-
-## Automated checks
-
-1. Confirm `CI` workflow is green.
-2. Confirm the `Native Terminal Smoke` workflow is green on macOS and Linux.
-3. Confirm the release tag matches `rust-tui/Cargo.toml`.
-4. Confirm the installer smoke job is green.
-
-## Manual smoke before publishing
-
-1. Run inside WSL2, not on the Windows host shell.
-2. Launch `pad` and verify native shell input, resize, focus return, and exit.
-3. Start at least one real AI agent in a PAD terminal tab.
-4. Verify launch, preview, pane focus, input, and close behavior.
-
-## Publish
-
-1. Create and push a tag like `v0.6.0`.
-2. Wait for the `Release` workflow to finish.
-3. Download one release artifact and verify `pad --help`.
-4. Verify `curl -fsSL https://raw.githubusercontent.com/T1mn/pad/master/install.sh | bash` still works.
-
-## Rollback
-
-1. If release artifacts are broken, delete the GitHub Release.
-2. Delete the bad tag locally and remotely.
-3. Fix the issue, retag, and rerun the release workflow.
+1. `apps/pad-desktop/package.json` version matches the tag.
+2. Run `npm ci`, `npm run typecheck`, and `npm run test:ui -- --run`.
+3. Run `./scripts/package-electron-app.sh`.
+4. Confirm the bundle contains `app.asar`, Pi and Bun, but no `Contents/Resources/pad`.
+5. Run `./scripts/install-electron-app.sh --check-only`.
+6. Install with `./scripts/install-electron-app.sh --launch` and verify account, model list, one conversation, sidebar restore, system proxy, and remote pairing.
+7. Confirm no Rust sidecar process exists while the app is running.
+8. For public distribution, use Developer ID signing/notarization with `release-electron-app.sh`.

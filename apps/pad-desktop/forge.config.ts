@@ -64,7 +64,6 @@ function resolveReleaseResources(): string[] {
 
   const root = path.resolve(resourceRoot);
   requirePath(root, 'directory');
-  requirePath(path.join(root, 'pad'), 'file', true);
   requirePath(path.join(root, 'bin'), 'directory');
   for (const name of ['bun', 'node', 'pi']) {
     requirePath(path.join(root, 'bin', name), 'file', true);
@@ -82,7 +81,7 @@ function resolveReleaseResources(): string[] {
     requirePath(path.join(root, 'release-evidence', name), 'file');
   }
 
-  return ['pad', 'bin', 'pi', 'lib', 'release-evidence']
+  return ['bin', 'pi', 'lib', 'release-evidence']
     .map((name) => path.join(root, name))
     .filter((candidate) => fs.existsSync(candidate));
 }
@@ -117,7 +116,6 @@ function prepareUnsignedMacBundle(appPath: string): void {
   const infoPath = path.join(appPath, 'Contents', 'Info.plist');
   const resourcesPath = path.join(appPath, 'Contents', 'Resources');
   requirePath(infoPath, 'file');
-  requirePath(path.join(resourcesPath, 'pad'), 'file', true);
   requirePath(path.join(resourcesPath, 'bin', 'bun'), 'file', true);
   requirePath(path.join(resourcesPath, 'bin', 'node'), 'file', true);
   requirePath(path.join(resourcesPath, 'bin', 'pi'), 'file', true);

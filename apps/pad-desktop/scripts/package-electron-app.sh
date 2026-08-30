@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 APP_DIR="${SCRIPT_DIR:h}"
-PAD_REPO_DIR="${APP_DIR}/../.."
 PACKAGE_STAGE="$(mktemp -d /tmp/pad-electron-package.XXXXXX)"
 RESOURCE_STAGE="${PACKAGE_STAGE}/resources"
 ELECTRON_ZIP_STAGE="${PACKAGE_STAGE}/electron-zip"
@@ -103,7 +102,6 @@ maximum = version(maximum_text)
 checked: list[tuple[str, str]] = []
 required_suffixes = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/pad",
     "Contents/Resources/bin/bun",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
@@ -222,12 +220,12 @@ verify_auth_import_contract() {
   local resources="$1"
   local marker
 
-  # Keep this import exactly aligned with LOGIN_HELPER_SCRIPT in
-  # rust-tui/src/desktop_runtime/auth.rs.  This deliberately stops before
+  # Keep this import exactly aligned with the Electron authentication helper.
+  # This deliberately stops before
   # ModelRuntime.create(): no provider is contacted and no auth files or
   # credentials are created.  Running from the packaged Pi root also proves
   # that Bun's bare-package resolution works through the bundled `bin/node`
-  # compatibility shim used by the Rust coordinator.
+  # compatibility shim used by the TypeScript authentication helper.
   marker="$(
     cd "${resources}/pi"
     /usr/bin/env -i \
@@ -253,9 +251,8 @@ verify_auth_import_contract() {
 
 generate_runtime_evidence() {
   local app_version="$1"
-  local pad_version="$2"
-  local electron_version="$3"
-  local electron_zip_sha="$4"
+  local electron_version="$2"
+  local electron_zip_sha="$3"
   local created_at
   local checksum_sha
 
@@ -320,7 +317,6 @@ PY
   (
     cd "${RESOURCE_STAGE}"
     /usr/bin/shasum -a 256 \
-      pad \
       bin/bun \
       bin/node \
       bin/pi \
@@ -335,7 +331,6 @@ PY
   /usr/bin/python3 - \
     "${EVIDENCE_STAGE}/runtime-manifest.json" \
     "${app_version}" \
-    "${pad_version}" \
     "${EXPECTED_PI_VERSION}" \
     "${EXPECTED_BUN_VERSION}" \
     "${electron_version}" \
@@ -350,7 +345,6 @@ import sys
 (
     destination,
     app_version,
-    pad_version,
     pi_version,
     bun_version,
     electron_version,
@@ -366,8 +360,7 @@ manifest = {
     "minimum_macos": "13.0",
     "signing_mode": signing_mode,
     "components": [
-        {"name": "PAD Desktop", "version": app_version, "runtime_path": "pad"},
-        {"name": "PAD Rust control plane", "version": pad_version, "runtime_path": "pad"},
+        {"name": "PAD Desktop Electron control plane", "version": app_version, "runtime_path": "app.asar"},
         {"name": "Pi coding agent", "version": pi_version, "runtime_path": "pi/package.json"},
         {"name": "Bun", "version": bun_version, "runtime_path": "bin/bun"},
         {
@@ -442,7 +435,6 @@ refresh_packaged_runtime_evidence() {
   (
     cd "${resources}"
     /usr/bin/shasum -a 256 \
-      pad \
       bin/bun \
       bin/node \
       bin/pi \
@@ -525,7 +517,6 @@ verify_app_bundle() {
   done
   for executable in \
     "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/pad" \
     "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi"; do
@@ -533,9 +524,7 @@ verify_app_bundle() {
   done
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/pad"
   assert_arm64_only "${resources}/bin/bun"
-  assert_system_linkage "${resources}/pad"
   assert_system_linkage "${resources}/bin/bun"
   assert_internal_symlinks "${resources}"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
@@ -616,22 +605,8 @@ verify_app_bundle() {
   fi
 }
 
-PAD_RUST_BINARY_OVERRIDE="${PAD_RUST_BINARY:-}"
-if [[ -n "${PAD_RUST_BINARY_OVERRIDE}" ]]; then
-  PAD_RUST_BINARY="$(real_path "${PAD_RUST_BINARY_OVERRIDE}")"
-else
-  cargo build --release --locked --manifest-path "${PAD_REPO_DIR}/rust-tui/Cargo.toml"
-  PAD_RUST_BINARY="${PAD_REPO_DIR}/rust-tui/target/release/pad"
-fi
-[[ -x "${PAD_RUST_BINARY}" ]] || fail "PAD Rust host binary not found: ${PAD_RUST_BINARY}"
-assert_arm64_only "${PAD_RUST_BINARY}"
-assert_system_linkage "${PAD_RUST_BINARY}"
-/bin/cp -p "${PAD_RUST_BINARY}" "${RESOURCE_STAGE}/pad"
-chmod 755 "${RESOURCE_STAGE}/pad"
 APP_VERSION="$("${PACKAGE_NODE}" -p "require('${APP_DIR}/package.json').version")"
 [[ "${APP_VERSION}" == <->.<->.<->* ]] || fail "invalid PAD Desktop package version: ${APP_VERSION}"
-PAD_RUNTIME_VERSION="$(extract_semver "$("${RESOURCE_STAGE}/pad" --version)")" || fail "PAD control plane did not report a semantic version"
-[[ "${PAD_RUNTIME_VERSION}" == "${APP_VERSION}" ]] || fail "PAD control plane ${PAD_RUNTIME_VERSION} does not match app ${APP_VERSION}"
 
 PI_PACKAGE_SOURCE="$(real_path "${PAD_PI_PACKAGE:-/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent}")"
 BUN_SOURCE="$(real_path "${PAD_BUN_BIN:-/opt/homebrew/bin/bun}")"
@@ -656,7 +631,6 @@ chmod 755 "${RESOURCE_STAGE}/bin/bun" "${RESOURCE_STAGE}/bin/node" "${RESOURCE_S
 /usr/bin/xattr -cr "${RESOURCE_STAGE}" 2>/dev/null || true
 assert_internal_symlinks "${RESOURCE_STAGE}"
 
-[[ "$(extract_semver "$("${RESOURCE_STAGE}/pad" --version)")" == "${APP_VERSION}" ]] || fail "bundled PAD host smoke test failed"
 STAGED_PI_VERSION="$(extract_semver "$(/usr/bin/env -i HOME="${SMOKE_HOME}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${RESOURCE_STAGE}/bin/pi" --version)")" || fail "bundled Pi smoke test failed"
 [[ "${STAGED_PI_VERSION}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${STAGED_PI_VERSION}"
 STAGED_BUN_VERSION="$(extract_semver "$("${RESOURCE_STAGE}/bin/bun" --version)")" || fail "bundled Bun smoke test failed"
@@ -689,7 +663,6 @@ fi
 
 generate_runtime_evidence \
   "${APP_VERSION}" \
-  "${PAD_RUNTIME_VERSION}" \
   "${ELECTRON_VERSION}" \
   "${ACTUAL_ELECTRON_SHA}"
 verify_runtime_evidence "${RESOURCE_STAGE}"
@@ -708,4 +681,4 @@ verify_app_bundle "${APP_BUNDLE}"
 
 echo "Created and verified PAD Desktop app: ${APP_BUNDLE}"
 echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Bun ${EXPECTED_BUN_VERSION}, ${SIGNING_MODE}"
-echo "SwiftUI fallback and scripts/package-app.sh were left unchanged."
+echo "Desktop backend: Electron/TypeScript (no Rust sidecar)."

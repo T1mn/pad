@@ -2,7 +2,7 @@
 
 - `PADRemote.xcodeproj/`：共享 `PADRemote` scheme；应用与 XCTest target，iOS 17+，无第三方依赖。
 - `PADRemote/App/`：SwiftUI 应用入口与 scene 生命周期。
-- `PADRemote/Models/`：Rust Remote v1 配对 URI、帧 codec、动作白名单与 1 MiB 上限。
+- `PADRemote/Models/`：Desktop Remote v1 配对 URI、帧 codec、动作白名单与 1 MiB 上限。
 - `PADRemote/Networking/`：`pad.remote.v1` WebSocket、叶证书 DER SHA-256 钉扎和 connection generation 隔离。
 - `PADRemote/Persistence/`：仅设备且仅解锁可读的钥匙串、有界离线快照和原子命令发件箱；不存配对 secret。
 - `PADRemote/State/`：断线重连、实时 Pi token 流、串行 outbox/ACK、epoch/revision、gap/resync 与 Desktop 快照兼容层。

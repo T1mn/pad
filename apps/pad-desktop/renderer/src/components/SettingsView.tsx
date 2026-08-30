@@ -521,7 +521,7 @@ export function SettingsView({
             <section className="about-card">
               <div className="about-logo"><Icon name="sparkles" /></div>
               <h2>PAD Desktop</h2>
-              <p>Electron + React · Rust PAD 本地服务 · Pi 运行内核</p>
+              <p>Electron + React · TypeScript 本地服务 · Pi 运行内核</p>
               <span>0.7.6</span>
             </section>
           </>}

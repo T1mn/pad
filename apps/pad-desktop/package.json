@@ -2,7 +2,7 @@
   "name": "pad-desktop-electron",
   "productName": "PAD Desktop",
   "version": "0.7.6",
-  "description": "Electron renderer shell for the Pi-powered PAD Desktop control plane",
+  "description": "Native-feeling macOS desktop app powered directly by Pi and a TypeScript local backend",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -18,7 +18,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@electron-forge/cli": "7.11.2",
@@ -34,6 +35,7 @@
     "@types/qrcode": "1.5.6",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
+    "@types/ws": "8.18.1",
     "@vitejs/plugin-react": "6.1.1",
     "electron": "42.10.1",
     "jsdom": "28.0.0",

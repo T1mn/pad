@@ -12,4 +12,4 @@
 - `hotfix` 只用于同一正式版本刚发布后的紧急小修，且应是单点修复。
 - 同一正式版本连续 hotfix 超过 2 个，或同时包含 CI、release、性能、用户可见行为等多类变化时，停止继续叠 `hotfixN`，改升下一个 patch 版本。
 - 已推送的失败 tag 不要反复修补旧 tag；应修到 `master`，升版本，再打新 tag 触发 release。
-- 发布前按 `docs/release-checklist.md` 验证，确认 `rust-tui/Cargo.toml` 版本与 tag 匹配。
+- 发布前按 `docs/release-checklist.md` 验证，确认 `apps/pad-desktop/package.json` 版本与 tag 匹配。
