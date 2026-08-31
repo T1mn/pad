@@ -11,6 +11,15 @@ than listed one by one.
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-08-31
+
+### Added
+
+- Added cross-session search, history reads, queued or immediate messages, and conversational
+  session renaming through Pi-native tools.
+- Added persistent Codex-style child agents backed by independent Pi sessions, with spawn,
+  follow-up, wait, interrupt, list, and sidebar-tree support.
+
 ### Changed
 
 - Replaced the Desktop Rust sidecar with an in-process TypeScript backend for SQLite, Pi RPC,
@@ -185,7 +194,8 @@ pad-sider (file tree, project index map, split preview, line numbers, Codex turn
 multi-provider relay and proxy settings, the Telegram bot daemon, completion notifications, six-language
 i18n, the native fuzzy picker, agent workflow automation, and the installer plus release pipeline.
 
-[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.6...HEAD
+[Unreleased]: https://github.com/T1mn/pad/compare/v0.7.7...HEAD
+[0.7.7]: https://github.com/T1mn/pad/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/T1mn/pad/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/T1mn/pad/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/T1mn/pad/compare/v0.7.3...v0.7.4

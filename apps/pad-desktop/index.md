@@ -1,6 +1,6 @@
 # pad-desktop
 
-- `electron/main/`：TypeScript 本地后端、SQLite、Pi RPC、登录、模型、代理、终端和远程网关。
+- `electron/main/`：TypeScript 本地后端、SQLite、Pi RPC、跨 Session/子 Agent 协作、登录、模型、代理、终端和远程网关。
 - `electron/preload/`：受限 IPC bridge。
 - `renderer/src/`：React 的 macOS/Codex 风格界面。
 - `shared/protocol/`：主进程与 renderer 的 protocol v2 类型。

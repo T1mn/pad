@@ -33,6 +33,8 @@ export interface TaskSummary {
   id: string;
   projectId: string | null;
   profileId: string;
+  parentTaskId?: string | null;
+  agentName?: string | null;
   title: string;
   updatedAt: string;
   status: TaskStatus;
@@ -65,6 +67,8 @@ export interface SidebarRow {
   pinned: boolean;
   archived: boolean;
   missingReference: boolean;
+  agent?: boolean;
+  hasChildren?: boolean;
 }
 
 export interface SidebarHierarchy {
@@ -305,7 +309,7 @@ export interface DesktopAdapter {
   abortTask(taskId: string): Promise<DesktopSnapshot>;
   retryTask(taskId: string): Promise<DesktopSnapshot>;
   respondInteraction(taskId: string, interactionId: string, value: InteractionResponse): Promise<void>;
-  updateTask(taskId: string, patch: { pinned?: boolean; archived?: boolean; unread?: boolean }): Promise<DesktopSnapshot>;
+  updateTask(taskId: string, patch: { title?: string; pinned?: boolean; archived?: boolean; unread?: boolean }): Promise<DesktopSnapshot>;
   openTerminal(taskId: string, size: TerminalSize): Promise<TerminalPane>;
   writeTerminal(paneId: string, data: string): Promise<void>;
   resizeTerminal(paneId: string, size: TerminalSize): Promise<void>;

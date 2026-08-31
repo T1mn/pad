@@ -1,7 +1,7 @@
 {
   "name": "pad-desktop-electron",
   "productName": "PAD Desktop",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "description": "Native-feeling macOS desktop app powered directly by Pi and a TypeScript local backend",
   "main": ".vite/build/main.js",
   "private": true,

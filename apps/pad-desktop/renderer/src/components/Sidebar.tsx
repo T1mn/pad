@@ -293,7 +293,7 @@ export function Sidebar({
                   }}
                   className={`hierarchy-row${active ? " is-active" : ""}${row.missingReference ? " is-missing" : ""}`}
                   role="treeitem"
-                  aria-label={row.kind === "project" ? `${row.title} 项目` : row.title}
+                  aria-label={row.kind === "project" ? `${row.title} 项目` : row.agent ? `${row.title} 子 Agent` : row.title}
                   aria-level={row.depth + 1}
                   aria-selected={active}
                   aria-expanded={isExpandable ? !isCollapsed : undefined}
@@ -314,7 +314,8 @@ export function Sidebar({
                     {row.kind === "profile" && <span className="avatar avatar-small">{activeAccount?.initials ?? "P"}</span>}
                     {row.kind === "section" && <Icon name="layout" />}
                     {row.kind === "project" && <span className="project-glyph" style={{ background: project?.accent }}><Icon name="folder" /></span>}
-                    {row.kind === "task" && <StatusDot status={row.status} unread={row.unread} />}
+                    {row.kind === "task" && row.agent && <span className="agent-glyph"><Icon name="sparkles" /></span>}
+                    {row.kind === "task" && !row.agent && <StatusDot status={row.status} unread={row.unread} />}
                   </span>
                   <span className="hierarchy-copy">
                     <strong>{row.title}</strong>

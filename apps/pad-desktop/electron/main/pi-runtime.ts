@@ -3,24 +3,47 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { StoredProfile, StoredTask } from './local-store';
 
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
 
-const FAST_EXTENSION = `
+const PAD_EXTENSION = `
+import { Type } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
 const modeFile = process.env.PAD_PI_FAST_MODE_FILE;
+const collaborationEndpoint = process.env.PAD_COLLABORATION_ENDPOINT || "";
+const collaborationToken = process.env.PAD_COLLABORATION_TOKEN || "";
+const currentTaskId = process.env.PAD_TASK_ID || "";
 const enabled = () => {
   if (!modeFile) return true;
   try { return readFileSync(modeFile, "utf8").trim().toLowerCase() !== "off"; }
   catch { return true; }
 };
-export default function padFastMode(pi) {
+
+async function callPad(action, params, signal) {
+  if (!collaborationEndpoint || !collaborationToken || !currentTaskId) throw new Error("PAD collaboration bridge is unavailable");
+  const response = await fetch(collaborationEndpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + collaborationToken },
+    body: JSON.stringify({ action, source_task_id: currentTaskId, params }),
+    signal,
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "PAD collaboration request failed");
+  return payload.result;
+}
+
+function result(value) {
+  return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], details: { result: value } };
+}
+
+export default function padRuntime(pi) {
   pi.on("before_agent_start", (event, ctx) => {
     if (!ctx.model) return;
-    const identity = \`PAD runtime identity: the active provider is "\${ctx.model.provider}" and the active model id is "\${ctx.model.id}". If the user asks which model is active, report this model id exactly and do not infer it from earlier conversation messages.\`;
-    return { systemPrompt: \`\${event.systemPrompt}\\n\\n\${identity}\` };
+    const identity = "PAD runtime identity: current task id is " + currentTaskId + ", the active provider is " + ctx.model.provider + " and the active model id is " + ctx.model.id + ". Report this model id exactly when asked. PAD sessions may collaborate: use list_sessions/read_session to inspect another session; use rename_session whenever the user asks to rename this or another session; use spawn_agent for delegated work; use followup_task for an immediate message to another session or child agent; use send_message only when the message should wait until that session's next turn.";
+    return { systemPrompt: event.systemPrompt + "\\n\\n" + identity };
   });
   pi.on("before_provider_request", (event, ctx) => {
     if (!enabled() || ctx.model?.provider !== "openai-codex") return;
@@ -28,6 +51,62 @@ export default function padFastMode(pi) {
     // Codex exposes this as the "Fast" UI tier, but the Responses API value is
     // "priority". Sending the UI label ("fast") is rejected by Codex.
     return { ...event.payload, service_tier: "priority" };
+  });
+
+  pi.registerTool({
+    name: "list_sessions", label: "查询 Session", description: "List and search all local PAD sessions across accounts.",
+    promptSnippet: "List or search PAD sessions",
+    parameters: Type.Object({ query: Type.Optional(Type.String()), limit: Type.Optional(Type.Number({ minimum: 1, maximum: 50 })) }),
+    async execute(_id, params, signal) { return result(await callPad("list_sessions", params, signal)); },
+  });
+  pi.registerTool({
+    name: "read_session", label: "读取 Session", description: "Read recent messages from any local PAD session by task id.",
+    promptSnippet: "Read another PAD session",
+    parameters: Type.Object({ task_id: Type.String(), limit: Type.Optional(Type.Number({ minimum: 1, maximum: 50 })) }),
+    async execute(_id, params, signal) { return result(await callPad("read_session", params, signal)); },
+  });
+  pi.registerTool({
+    name: "rename_session", label: "重命名 Session", description: "Rename the current or another PAD session. Omit task_id to rename the current session.",
+    promptSnippet: "Rename a PAD session",
+    promptGuidelines: ["Use rename_session when the user asks to change a conversation, task, or session name."],
+    parameters: Type.Object({ task_id: Type.Optional(Type.String()), name: Type.String({ minLength: 1, maxLength: 100 }) }),
+    async execute(_id, params, signal) { return result(await callPad("rename_session", params, signal)); },
+  });
+  pi.registerTool({
+    name: "spawn_agent", label: "创建子 Agent", description: "Create a persistent child Agent backed by its own Pi session and start its task.",
+    promptSnippet: "Create a persistent child Agent",
+    parameters: Type.Object({ task: Type.String({ minLength: 1 }), name: Type.Optional(Type.String({ maxLength: 100 })) }),
+    async execute(_id, params, signal) { return result(await callPad("spawn_agent", params, signal)); },
+  });
+  pi.registerTool({
+    name: "send_message", label: "发送 Session 消息", description: "Queue a message for another PAD session without starting a new turn.",
+    promptSnippet: "Queue a message to another session",
+    parameters: Type.Object({ task_id: Type.String(), message: Type.String({ minLength: 1 }) }),
+    async execute(_id, params, signal) { return result(await callPad("send_message", params, signal)); },
+  });
+  pi.registerTool({
+    name: "followup_task", label: "继续 Agent", description: "Send a message to another session or child Agent and immediately start or resume it.",
+    promptSnippet: "Immediately continue another session or Agent",
+    parameters: Type.Object({ task_id: Type.String(), message: Type.String({ minLength: 1 }) }),
+    async execute(_id, params, signal) { return result(await callPad("followup_task", params, signal)); },
+  });
+  pi.registerTool({
+    name: "wait_agent", label: "等待 Agent", description: "Wait briefly for a child Agent and return its latest state and messages.",
+    promptSnippet: "Wait for a child Agent",
+    parameters: Type.Object({ task_id: Type.String(), timeout_seconds: Type.Optional(Type.Number({ minimum: 0, maximum: 30 })) }),
+    async execute(_id, params, signal) { return result(await callPad("wait_agent", params, signal)); },
+  });
+  pi.registerTool({
+    name: "interrupt_agent", label: "中断 Agent", description: "Interrupt a running child Agent or PAD session.",
+    promptSnippet: "Interrupt a child Agent",
+    parameters: Type.Object({ task_id: Type.String() }),
+    async execute(_id, params, signal) { return result(await callPad("interrupt_agent", params, signal)); },
+  });
+  pi.registerTool({
+    name: "list_agents", label: "查看 Agent 树", description: "List the persistent child-Agent tree for the current or selected PAD session.",
+    promptSnippet: "Inspect the child-Agent tree",
+    parameters: Type.Object({ task_id: Type.Optional(Type.String()) }),
+    async execute(_id, params, signal) { return result(await callPad("list_agents", params, signal)); },
   });
 }
 `;
@@ -37,6 +116,7 @@ export interface PiRuntimeOptions {
   environment?: NodeJS.ProcessEnv;
   onTaskChanged(taskId: string, patch: Partial<StoredTask>): void;
   onEvent(taskId: string): void;
+  onCollaborationAction(sourceTaskId: string, action: string, params: Record<string, unknown>): Promise<unknown>;
 }
 
 interface PendingCommand {
@@ -64,13 +144,21 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function childEnvironment(profile: StoredProfile, source: NodeJS.ProcessEnv, fastModeFile: string): NodeJS.ProcessEnv {
+function childEnvironment(
+  profile: StoredProfile,
+  source: NodeJS.ProcessEnv,
+  fastModeFile: string,
+  collaboration: { endpoint: string; token: string; taskId: string },
+): NodeJS.ProcessEnv {
   const inheritedPath = source.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin';
   const environment: NodeJS.ProcessEnv = {
     PATH: inheritedPath,
     PI_CODING_AGENT_DIR: profile.agent_dir,
     PI_CODING_AGENT_SESSION_DIR: profile.session_dir,
     PAD_PI_FAST_MODE_FILE: fastModeFile,
+    PAD_COLLABORATION_ENDPOINT: collaboration.endpoint,
+    PAD_COLLABORATION_TOKEN: collaboration.token,
+    PAD_TASK_ID: collaboration.taskId,
   };
   for (const key of [
     'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM',
@@ -116,7 +204,7 @@ function writeFastMode(filePath: string, enabled: boolean): void {
 function writeExtension(profile: StoredProfile): string {
   mkdirSync(profile.agent_dir, { recursive: true, mode: 0o700 });
   const extension = path.join(profile.agent_dir, 'pad-fast-mode.ts');
-  writeFileSync(extension, FAST_EXTENSION, { encoding: 'utf8', mode: 0o600 });
+  writeFileSync(extension, PAD_EXTENSION, { encoding: 'utf8', mode: 0o600 });
   return extension;
 }
 
@@ -153,6 +241,7 @@ class PiProcess extends EventEmitter {
     readonly profile: StoredProfile,
     options: PiRuntimeOptions,
     launch: { provider?: string; model?: string; thinkingLevel?: string; fastMode: boolean },
+    collaboration: { endpoint: string; token: string; taskId: string },
   ) {
     super();
     const fastModeFile = taskStatePath(profile, task.id);
@@ -165,7 +254,7 @@ class PiProcess extends EventEmitter {
     this.child = spawn(runtime.program, [...runtime.prefix, ...args], {
       cwd: task.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: childEnvironment(profile, options.environment ?? process.env, fastModeFile),
+      env: childEnvironment(profile, options.environment ?? process.env, fastModeFile, collaboration),
     });
     this.child.stdout.on('data', (chunk: Buffer) => this.consume(chunk, options));
     this.child.stderr.on('data', () => undefined);
@@ -359,8 +448,27 @@ function statusFromEvent(message: Record<string, unknown>, current: string): str
 
 export class PiRuntime {
   private readonly processes = new Map<string, PiProcess>();
+  private readonly collaborationToken = randomUUID();
+  private readonly collaborationServer = createServer((request, response) => {
+    void this.handleCollaborationRequest(request, response);
+  });
+  private readonly collaborationEndpoint: Promise<string>;
 
-  constructor(private readonly options: PiRuntimeOptions) {}
+  constructor(private readonly options: PiRuntimeOptions) {
+    this.collaborationEndpoint = new Promise((resolve, reject) => {
+      const onError = (error: Error) => reject(error);
+      this.collaborationServer.once('error', onError);
+      this.collaborationServer.listen(0, '127.0.0.1', () => {
+        this.collaborationServer.off('error', onError);
+        const address = this.collaborationServer.address();
+        if (!address || typeof address === 'string') {
+          reject(new Error('PAD collaboration bridge failed to bind'));
+          return;
+        }
+        resolve(`http://127.0.0.1:${address.port}/collaboration`);
+      });
+    });
+  }
 
   isRunning(taskId: string): boolean {
     return this.processes.has(taskId);
@@ -374,7 +482,12 @@ export class PiRuntime {
   }): Promise<PiProcess> {
     const existing = this.processes.get(task.id);
     if (existing) return existing;
-    const process = new PiProcess(task, profile, this.options, launch);
+    const endpoint = await this.collaborationEndpoint;
+    const process = new PiProcess(task, profile, this.options, launch, {
+      endpoint,
+      token: this.collaborationToken,
+      taskId: task.id,
+    });
     this.processes.set(task.id, process);
     process.once('exit', () => this.processes.delete(task.id));
     this.options.onTaskChanged(task.id, { status: 'starting' });
@@ -395,9 +508,47 @@ export class PiRuntime {
 
   async stopAll(): Promise<void> {
     await Promise.all([...this.processes.keys()].map((taskId) => this.stop(taskId)));
+    await this.collaborationEndpoint.catch(() => undefined);
+    if (this.collaborationServer.listening) {
+      await new Promise<void>((resolve) => this.collaborationServer.close(() => resolve()));
+    }
   }
 
   history(task: StoredTask): unknown[] {
     return readSessionMessages(task.session_file);
+  }
+
+  private async handleCollaborationRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const send = (status: number, value: Record<string, unknown>) => {
+      response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify(value));
+    };
+    try {
+      if (request.method !== 'POST' || request.url !== '/collaboration') {
+        send(404, { ok: false, error: 'Not found' });
+        return;
+      }
+      if (request.headers.authorization !== `Bearer ${this.collaborationToken}`) {
+        send(401, { ok: false, error: 'Unauthorized' });
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      for await (const chunk of request) {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bytes += buffer.length;
+        if (bytes > 1024 * 1024) throw new Error('Collaboration request is too large');
+        chunks.push(buffer);
+      }
+      const payload = record(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      const sourceTaskId = typeof payload?.source_task_id === 'string' ? payload.source_task_id : '';
+      const action = typeof payload?.action === 'string' ? payload.action : '';
+      const params = record(payload?.params) ?? {};
+      if (!sourceTaskId || !action) throw new Error('Invalid collaboration request');
+      const result = await this.options.onCollaborationAction(sourceTaskId, action, params);
+      send(200, { ok: true, result });
+    } catch (error) {
+      send(400, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
   }
 }

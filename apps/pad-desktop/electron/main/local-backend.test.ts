@@ -61,9 +61,26 @@ done
       .toContain('service_tier: "priority"');
     expect(readFileSync(path.join(root, 'data', 'v1', 'profiles', 'default', 'pi-agent', 'pad-fast-mode.ts'), 'utf8'))
       .toContain('active model id');
+    expect(readFileSync(path.join(root, 'data', 'v1', 'profiles', 'default', 'pi-agent', 'pad-fast-mode.ts'), 'utf8'))
+      .toContain('name: "spawn_agent"');
     await expect(backend.request('history', { task_id: created.task.id })).resolves.toMatchObject({
       messages: [{ role: 'user', content: '你好' }, { role: 'assistant', content: '你好呀' }],
     });
+    await expect(backend.request('rename_session', { task_id: created.task.id, name: '主会话' }))
+      .resolves.toMatchObject({ renamed: true, session: { title: '主会话' } });
+    const spawned = await backend.request<{ agent: TaskDto }>('spawn_agent', {
+      source_task_id: created.task.id,
+      task: '检查跨 Session 协作',
+      name: '协作 Agent',
+    });
+    expect(spawned.agent).toMatchObject({ title: '协作 Agent', parent_task_id: created.task.id });
+    await expect(backend.request('followup_task', {
+      source_task_id: created.task.id,
+      task_id: spawned.agent.id,
+      message: '继续检查',
+    })).resolves.toMatchObject({ accepted: true });
+    await expect(backend.request('list_agents', { source_task_id: created.task.id }))
+      .resolves.toMatchObject({ root: { title: '主会话' }, agents: [{ id: spawned.agent.id }] });
 
     const remote = await backend.request<{ remote: { enabled: boolean; state: string } }>('remote_set_enabled', { enabled: true });
     expect(remote.remote).toMatchObject({ enabled: true, state: 'ready' });

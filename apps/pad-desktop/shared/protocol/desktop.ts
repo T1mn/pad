@@ -54,6 +54,8 @@ export interface TaskDto {
   id: string;
   project_id: string | null;
   profile_id: string;
+  parent_task_id?: string | null;
+  agent_name?: string | null;
   title: string;
   summary: string;
   cwd: string;
@@ -279,7 +281,18 @@ export interface DesktopRequestParams {
     environment?: TaskEnvironment;
     permission_mode?: PermissionMode;
     unattended?: boolean;
+    parent_task_id?: string;
+    agent_name?: string;
   };
+  list_sessions: { query?: string; limit?: number };
+  read_session: { task_id: string; limit?: number };
+  rename_session: { task_id: string; name: string };
+  spawn_agent: { source_task_id: string; task: string; name?: string };
+  send_message: { source_task_id: string; task_id: string; message: string };
+  followup_task: { source_task_id: string; task_id: string; message: string };
+  wait_agent: { source_task_id: string; task_id: string; timeout_seconds?: number };
+  interrupt_agent: { source_task_id: string; task_id: string };
+  list_agents: { source_task_id: string; task_id?: string };
   start_task: { task_id: string };
   retry_task: { task_id: string };
   prompt: {
@@ -314,6 +327,7 @@ export interface DesktopRequestParams {
   stop_task: { task_id: string };
   set_task: {
     task_id: string;
+    title?: string;
     pinned?: boolean;
     archived?: boolean;
     unread?: boolean;

@@ -3295,6 +3295,19 @@ kbd {
   min-width: 14px;
 }
 
+.agent-glyph {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  color: var(--accent);
+}
+
+.agent-glyph svg {
+  width: 12px;
+  height: 12px;
+}
+
 .hierarchy-copy {
   display: flex;
   min-width: 0;

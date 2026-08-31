@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY NOT NULL,
   project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
   profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  agent_name TEXT,
   pi_session_id TEXT,
   session_file TEXT,
   title TEXT NOT NULL DEFAULT '',
@@ -113,6 +115,15 @@ CREATE TABLE IF NOT EXISTS desktop_ui_state (
 );
 CREATE INDEX IF NOT EXISTS idx_projects_profile ON projects(profile_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_profile ON tasks(profile_id, archived, updated_at DESC);
+CREATE TABLE IF NOT EXISTS session_messages (
+  id TEXT PRIMARY KEY NOT NULL,
+  source_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  target_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  delivered_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_session_messages_target ON session_messages(target_task_id, delivered_at, created_at);
 `;
 
 function now(): number {
@@ -188,6 +199,8 @@ function mapTask(row: Record<string, unknown>): StoredTask {
     id: text(row.id),
     project_id: optionalText(row.project_id),
     profile_id: text(row.profile_id),
+    parent_task_id: optionalText(row.parent_task_id),
+    agent_name: optionalText(row.agent_name),
     pi_session_id: optionalText(row.pi_session_id),
     session_file: optionalText(row.session_file),
     leaf_id: optionalText(row.leaf_id),
@@ -225,11 +238,21 @@ export class LocalStore {
     this.database = new DatabaseSync(path.join(storeDirectory, 'pad.sqlite'));
     this.database.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
     this.database.exec(SCHEMA);
-    this.database.exec('PRAGMA user_version = 2;');
+    this.ensureTaskCollaborationColumns();
+    this.database.exec('PRAGMA user_version = 3;');
     this.migrateLegacyDefaultWorkspaces();
     this.database.prepare(
       "UPDATE tasks SET status = 'disconnected' WHERE status IN ('starting','running','streaming','tool_running','compacting','retrying')",
     ).run();
+  }
+
+  private ensureTaskCollaborationColumns(): void {
+    const columns = new Set(
+      (this.database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>).map((column) => column.name),
+    );
+    if (!columns.has('parent_task_id')) this.database.exec('ALTER TABLE tasks ADD COLUMN parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL');
+    if (!columns.has('agent_name')) this.database.exec('ALTER TABLE tasks ADD COLUMN agent_name TEXT');
+    this.database.exec('CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id, updated_at DESC)');
   }
 
   private migrateLegacyDefaultWorkspaces(): void {
@@ -429,6 +452,8 @@ export class LocalStore {
     environment?: TaskEnvironment;
     permissionMode?: PermissionMode;
     unattended?: boolean;
+    parentTaskId?: string;
+    agentName?: string;
   }): StoredTask {
     if (!this.getStoredProfile(input.profileId)) throw new Error(`Profile not found: ${input.profileId}`);
     const project = input.projectId
@@ -439,6 +464,8 @@ export class LocalStore {
       id: input.id?.trim() || `task-${randomUUID()}`,
       project_id: input.projectId ?? project?.id ?? null,
       profile_id: input.profileId,
+      parent_task_id: input.parentTaskId?.trim() || null,
+      agent_name: input.agentName?.trim() || null,
       pi_session_id: null,
       session_file: null,
       leaf_id: null,
@@ -455,10 +482,10 @@ export class LocalStore {
       updated_at: timestamp,
     };
     this.database.prepare(`INSERT INTO tasks
-      (id,project_id,profile_id,pi_session_id,session_file,title,summary,cwd,environment,status,leaf_id,
+      (id,project_id,profile_id,parent_task_id,agent_name,pi_session_id,session_file,title,summary,cwd,environment,status,leaf_id,
        unread,pinned,archived,policy_json,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      task.id, task.project_id, task.profile_id, null, null, task.title, task.summary, task.cwd,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      task.id, task.project_id, task.profile_id, task.parent_task_id ?? null, task.agent_name ?? null, null, null, task.title, task.summary, task.cwd,
       task.environment, task.status, null, 0, 0, 0, JSON.stringify(task.policy), timestamp, timestamp,
     );
     return task;
@@ -476,6 +503,33 @@ export class LocalStore {
       Number(task.unread), Number(task.pinned), Number(task.archived), task.updated_at, id,
     );
     return task;
+  }
+
+  enqueueMessage(sourceTaskId: string, targetTaskId: string, message: string): string {
+    if (!this.getStoredTask(sourceTaskId)) throw new Error(`Task not found: ${sourceTaskId}`);
+    if (!this.getStoredTask(targetTaskId)) throw new Error(`Task not found: ${targetTaskId}`);
+    const id = `message-${randomUUID()}`;
+    this.database.prepare(`INSERT INTO session_messages
+      (id,source_task_id,target_task_id,message,created_at,delivered_at) VALUES (?,?,?,?,?,NULL)`).run(
+      id, sourceTaskId, targetTaskId, message, now(),
+    );
+    return id;
+  }
+
+  consumeMessages(targetTaskId: string): Array<{ id: string; sourceTaskId: string; sourceTitle: string; message: string }> {
+    const rows = this.database.prepare(`SELECT m.id,m.source_task_id,m.message,t.title AS source_title
+      FROM session_messages m JOIN tasks t ON t.id=m.source_task_id
+      WHERE m.target_task_id=? AND m.delivered_at IS NULL ORDER BY m.created_at,m.id`).all(targetTaskId) as Array<Record<string, unknown>>;
+    if (!rows.length) return [];
+    const deliveredAt = now();
+    const mark = this.database.prepare('UPDATE session_messages SET delivered_at=? WHERE id=?');
+    for (const row of rows) mark.run(deliveredAt, text(row.id));
+    return rows.map((row) => ({
+      id: text(row.id),
+      sourceTaskId: text(row.source_task_id),
+      sourceTitle: text(row.source_title),
+      message: text(row.message),
+    }));
   }
 
   records(): DesktopRecords {
@@ -532,26 +586,32 @@ export class LocalStore {
     const rows: Array<Record<string, unknown>> = [
       { key: 'new-task', kind: 'new_task', depth: 0, title: '新任务', status: 'none' },
     ];
-    for (const project of projects) {
-      const children = tasks.filter((task) => task.project_id === project.id && visibleTask(task));
-      if (!children.length && (project.archived !== (state.sidebar_view === 'archive'))) continue;
-      rows.push({ key: `project:${project.id}`, node: { kind: 'project', id: project.id }, depth: 0, title: project.name, pinned: project.pinned, archived: project.archived });
-      for (const task of children) {
-        rows.push({
+    const appendTaskRow = (target: Array<Record<string, unknown>>, task: StoredTask, candidates: StoredTask[], depth: number): void => {
+      const children = candidates.filter((candidate) => candidate.parent_task_id === task.id);
+      target.push({
           key: `task:${task.id}`,
           node: { kind: 'task', id: task.id },
-          depth: 1,
+          depth,
           title: task.title,
           status: task.status,
           unread: task.unread,
           pinned: task.pinned,
           archived: task.archived,
-        });
-      }
+          agent: Boolean(task.parent_task_id),
+          has_children: children.length > 0,
+      });
+      for (const child of children) appendTaskRow(target, child, candidates, depth + 1);
+    };
+    for (const project of projects) {
+      const children = tasks.filter((task) => task.project_id === project.id && visibleTask(task));
+      if (!children.length && (project.archived !== (state.sidebar_view === 'archive'))) continue;
+      rows.push({ key: `project:${project.id}`, node: { kind: 'project', id: project.id }, depth: 0, title: project.name, pinned: project.pinned, archived: project.archived });
+      const roots = children.filter((task) => !task.parent_task_id || !children.some((candidate) => candidate.id === task.parent_task_id));
+      for (const root of roots) appendTaskRow(rows, root, children, 1);
     }
-    for (const task of tasks.filter((candidate) => !candidate.project_id && visibleTask(candidate))) {
-      rows.push({ key: `task:${task.id}`, node: { kind: 'task', id: task.id }, depth: 0, title: task.title, status: task.status, unread: task.unread, pinned: task.pinned, archived: task.archived });
-    }
+    const ungrouped = tasks.filter((candidate) => !candidate.project_id && visibleTask(candidate));
+    const ungroupedRoots = ungrouped.filter((task) => !task.parent_task_id || !ungrouped.some((candidate) => candidate.id === task.parent_task_id));
+    for (const root of ungroupedRoots) appendTaskRow(rows, root, ungrouped, 0);
     return {
       view: state.sidebar_view,
       query: '',

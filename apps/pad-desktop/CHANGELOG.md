@@ -2,10 +2,14 @@
 
 ## Unreleased
 
+## 0.7.7
+
 - Desktop 后端全部迁移到 Electron 主进程的 TypeScript，实现 SQLite、Pi RPC、登录、模型、Fast、完全访问、终端和远程连接。
 - 删除 Rust sidecar、旧 TUI、SwiftUI 回滚壳、兼容 client 以及不再进入产品的旧测试和打包入口。
 - 打包产物不再包含 `Contents/Resources/pad`，只包含 Electron、Pi、Bun 和应用资源。
 - 远程网关改为与现有 iPhone App 一致的 WSS、证书指纹、一次性配对和 device token 协议。
+- 新增任意 PAD Session 的查询、历史读取、消息投递和对话重命名。
+- 新增 Codex 风格的持久化子 Agent：创建、继续、等待、中断和 Agent 树查询；子 Agent 在侧边栏显示为父任务的子项。
 
 ## 0.7.6
 

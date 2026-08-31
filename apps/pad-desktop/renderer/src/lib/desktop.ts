@@ -609,6 +609,7 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       if (!task) throw new Error("当前账号无权访问该任务。");
       const result = await api.request<"set_task", { sidebar?: unknown; records?: DesktopRecords }>("set_task", {
         task_id: taskId,
+        title: patch.title,
         pinned: patch.pinned,
         archived: patch.archived,
         unread: patch.unread,
@@ -1060,6 +1061,8 @@ function parseSidebarRow(value: unknown): SidebarRow | null {
     pinned: booleanValue(value.pinned),
     archived: booleanValue(value.archived),
     missingReference: booleanValue(value.missing_reference),
+    agent: booleanValue(value.agent),
+    hasChildren: booleanValue(value.has_children),
   };
 }
 
@@ -1113,7 +1116,7 @@ function syntheticRow(
   pinned = false,
   unread = false,
 ): SidebarRow {
-  return { key, kind, id, depth, title, status, unread, pinned, archived: false, missingReference: false };
+  return { key, kind, id, depth, title, status, unread, pinned, archived: false, missingReference: false, agent: false, hasChildren: false };
 }
 
 function mapProfile(profile: ProfileDto, active: boolean, status?: ProviderStatus): AccountSummary {
@@ -1174,6 +1177,8 @@ function mapTask(task: TaskDto): TaskSummary {
     id: task.id,
     projectId: task.project_id,
     profileId: task.profile_id,
+    parentTaskId: task.parent_task_id ?? null,
+    agentName: task.agent_name ?? null,
     title,
     updatedAt: relativeTime(task.updated_at),
     status: mapStatus(task.status),

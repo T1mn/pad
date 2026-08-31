@@ -50,6 +50,7 @@ const CAPABILITIES = [
   'extension_ui_response', 'set_model', 'set_thinking_level', 'create_project', 'stop',
   'desktop_ui_state_v1', 'terminal_v1', 'auth_control_plane_v1',
   'remote_gateway_v1', 'remote_pairing', 'remote_device_management',
+  'cross_session_v1', 'session_rename', 'subagents_v1',
 ];
 
 function record(value: unknown): Record<string, unknown> {
@@ -69,6 +70,27 @@ function optionalString(fields: Record<string, unknown>, key: string): string | 
 
 function optionalBoolean(fields: Record<string, unknown>, key: string): boolean | undefined {
   return typeof fields[key] === 'boolean' ? fields[key] : undefined;
+}
+
+function optionalNumber(fields: Record<string, unknown>, key: string): number | undefined {
+  const value = fields[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function messageText(value: unknown): { role: string; text: string } | null {
+  const message = record(value);
+  const role = typeof message.role === 'string' ? message.role : 'unknown';
+  const content = message.content;
+  if (typeof content === 'string') return { role, text: content.slice(0, 8_000) };
+  if (!Array.isArray(content)) return null;
+  const text = content.map((part) => {
+    const item = record(part);
+    if (typeof item.text === 'string') return item.text;
+    if (typeof item.content === 'string') return item.content;
+    if (typeof item.name === 'string') return `[工具：${item.name}]`;
+    return '';
+  }).filter(Boolean).join('\n');
+  return text ? { role, text: text.slice(0, 8_000) } : null;
 }
 
 function terminalText(chunk: Buffer): string {
@@ -107,6 +129,7 @@ export class LocalBackend extends EventEmitter {
         try { this.requireStore().updateTask(taskId, patch); } catch { /* task may have been removed */ }
       },
       onEvent: (taskId) => this.emitServer('task_changed', { task_id: taskId }),
+      onCollaborationAction: (sourceTaskId, action, params) => this.handleCollaborationAction(sourceTaskId, action, params),
     });
     this.auth = new AuthCoordinator(
       this.options.resourcesPath,
@@ -198,6 +221,8 @@ export class LocalBackend extends EventEmitter {
           environment: optionalString(fields, 'environment') as TaskEnvironment | undefined,
           permissionMode: optionalString(fields, 'permission_mode') as PermissionMode | undefined,
           unattended: optionalBoolean(fields, 'unattended'),
+          parentTaskId: optionalString(fields, 'parent_task_id'),
+          agentName: optionalString(fields, 'agent_name'),
         });
         this.emitServer('task_changed', { task_id: task.id });
         return { task: publicTask(task), sidebar: store.sidebar(), records: store.records() };
@@ -205,6 +230,7 @@ export class LocalBackend extends EventEmitter {
       case 'set_task': {
         const taskId = requiredString(fields, 'task_id');
         const patch: Partial<StoredTask> = {};
+        if (typeof fields.title === 'string') patch.title = fields.title.trim().slice(0, 100) || '未命名任务';
         if (typeof fields.pinned === 'boolean') patch.pinned = fields.pinned;
         if (typeof fields.archived === 'boolean') patch.archived = fields.archived;
         if (typeof fields.unread === 'boolean') patch.unread = fields.unread;
@@ -213,6 +239,15 @@ export class LocalBackend extends EventEmitter {
         return { task: publicTask(task), sidebar: store.sidebar(), records: store.records() };
       }
       case 'provider_status': return this.providerStatus(optionalString(fields, 'profile_id'));
+      case 'list_sessions': return this.listSessions(fields);
+      case 'read_session': return this.readSession(fields);
+      case 'rename_session': return this.renameSession(fields);
+      case 'spawn_agent': return this.spawnAgent(fields);
+      case 'send_message': return this.sendSessionMessage(fields);
+      case 'followup_task': return this.followupTask(fields);
+      case 'wait_agent': return this.waitAgent(fields);
+      case 'interrupt_agent': return this.interruptAgent(fields);
+      case 'list_agents': return this.listAgents(fields);
       case 'model_catalog': {
         const profile = this.profile(requiredString(fields, 'profile_id'));
         return modelCatalog(this.options.resourcesPath, profile, fields.refresh === true, this.options.environment);
@@ -256,7 +291,7 @@ export class LocalBackend extends EventEmitter {
   private hello(): DesktopHelloResult {
     return {
       protocol: { current: DESKTOP_PROTOCOL_VERSION, supported: [1, 2], minimum_compatible: 1 },
-      server: { name: 'pad-electron-local', version: '0.7.6' },
+      server: { name: 'pad-electron-local', version: '0.7.7' },
       capabilities: CAPABILITIES,
       limits: { max_frame_bytes: DESKTOP_MAX_FRAME_BYTES, max_request_id_bytes: 128 },
     };
@@ -309,6 +344,159 @@ export class LocalBackend extends EventEmitter {
     };
   }
 
+  private async handleCollaborationAction(
+    sourceTaskId: string,
+    action: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
+    this.task(sourceTaskId);
+    const supported = new Set([
+      'list_sessions', 'read_session', 'rename_session', 'spawn_agent', 'send_message',
+      'followup_task', 'wait_agent', 'interrupt_agent', 'list_agents',
+    ]);
+    if (!supported.has(action)) throw new Error(`Unsupported collaboration action: ${action}`);
+    const fields: Record<string, unknown> = { ...params, source_task_id: sourceTaskId };
+    if (action === 'rename_session' && typeof fields.task_id !== 'string') fields.task_id = sourceTaskId;
+    return this.handle(action, fields);
+  }
+
+  private listSessions(fields: Record<string, unknown>): Record<string, unknown> {
+    const query = (optionalString(fields, 'query') ?? '').trim().toLocaleLowerCase('zh-CN');
+    const limit = Math.max(1, Math.min(50, Math.round(optionalNumber(fields, 'limit') ?? 20)));
+    const sessions = this.requireStore().listStoredTasks(true)
+      .filter((task) => !query || [task.title, task.summary, task.id, task.agent_name ?? '']
+        .some((value) => value.toLocaleLowerCase('zh-CN').includes(query)))
+      .slice(0, limit)
+      .map((task) => this.sessionSummary(task));
+    return { sessions };
+  }
+
+  private async readSession(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const task = this.task(requiredString(fields, 'task_id'));
+    const limit = Math.max(1, Math.min(50, Math.round(optionalNumber(fields, 'limit') ?? 20)));
+    const transcript = (await this.sessionMessages(task.id)).map(messageText).filter((entry): entry is { role: string; text: string } => entry !== null).slice(-limit);
+    return { session: this.sessionSummary(this.task(task.id)), transcript };
+  }
+
+  private renameSession(fields: Record<string, unknown>): Record<string, unknown> {
+    const taskId = requiredString(fields, 'task_id');
+    const name = requiredString(fields, 'name').trim().replace(/\s+/g, ' ').slice(0, 100);
+    const task = this.requireStore().updateTask(taskId, { title: name });
+    this.emitServer('task_changed', { task_id: task.id });
+    return { renamed: true, session: this.sessionSummary(task) };
+  }
+
+  private async spawnAgent(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const source = this.task(requiredString(fields, 'source_task_id'));
+    const delegatedTask = requiredString(fields, 'task').trim();
+    const requestedName = optionalString(fields, 'name')?.trim();
+    const title = (requestedName || delegatedTask.split('\n')[0] || '子 Agent').slice(0, 100);
+    const child = this.requireStore().createTask({
+      profileId: source.profile_id,
+      projectId: source.project_id ?? undefined,
+      parentTaskId: source.id,
+      agentName: requestedName || title,
+      title,
+      summary: `由“${source.title}”创建的子 Agent`,
+      cwd: source.cwd,
+      environment: source.environment,
+      permissionMode: source.policy?.mode ?? undefined,
+      unattended: source.policy?.unattended ?? undefined,
+    });
+    this.emitServer('task_changed', { task_id: child.id, parent_task_id: source.id });
+    const profile = this.profile(child.profile_id);
+    await this.prompt({
+      task_id: child.id,
+      prompt: `你是 PAD 中由 Session “${source.title}” (${source.id}) 创建的持久化子 Agent。\n\n任务：${delegatedTask}`,
+      ...(profile.default_provider && profile.default_model
+        ? { provider: profile.default_provider, model: profile.default_model }
+        : {}),
+    });
+    return { spawned: true, agent: this.sessionSummary(this.task(child.id)) };
+  }
+
+  private sendSessionMessage(fields: Record<string, unknown>): Record<string, unknown> {
+    const source = this.task(requiredString(fields, 'source_task_id'));
+    const target = this.task(requiredString(fields, 'task_id'));
+    const message = requiredString(fields, 'message');
+    const messageId = this.requireStore().enqueueMessage(source.id, target.id, message);
+    this.requireStore().updateTask(target.id, { unread: true });
+    this.emitServer('task_changed', { task_id: target.id });
+    return { queued: true, message_id: messageId, target: this.sessionSummary(this.task(target.id)) };
+  }
+
+  private async followupTask(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const source = this.task(requiredString(fields, 'source_task_id'));
+    const target = this.task(requiredString(fields, 'task_id'));
+    const message = requiredString(fields, 'message');
+    const profile = this.profile(target.profile_id);
+    await this.prompt({
+      task_id: target.id,
+      prompt: `[来自 Session “${source.title}” (${source.id}) 的即时消息]\n${message}`,
+      ...(profile.default_provider && profile.default_model
+        ? { provider: profile.default_provider, model: profile.default_model }
+        : {}),
+    });
+    this.requireStore().updateTask(target.id, { unread: true });
+    this.emitServer('task_changed', { task_id: target.id });
+    return { accepted: true, target: this.sessionSummary(this.task(target.id)) };
+  }
+
+  private async waitAgent(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const sourceTaskId = requiredString(fields, 'source_task_id');
+    const targetId = requiredString(fields, 'task_id');
+    if (sourceTaskId === targetId) throw new Error('A session cannot wait for itself');
+    const timeoutSeconds = Math.max(0, Math.min(30, optionalNumber(fields, 'timeout_seconds') ?? 20));
+    const deadline = Date.now() + timeoutSeconds * 1_000;
+    const active = new Set(['starting', 'running', 'streaming', 'tool_running', 'compacting', 'retrying']);
+    while (active.has(this.task(targetId).status) && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    }
+    const target = this.task(targetId);
+    const transcript = (await this.sessionMessages(target.id)).map(messageText).filter((entry): entry is { role: string; text: string } => entry !== null).slice(-6);
+    return { timed_out: active.has(target.status), agent: this.sessionSummary(target), transcript };
+  }
+
+  private async interruptAgent(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const sourceTaskId = requiredString(fields, 'source_task_id');
+    const targetId = requiredString(fields, 'task_id');
+    if (sourceTaskId === targetId) throw new Error('A session cannot interrupt itself through this tool');
+    await this.abort(targetId);
+    return { interrupted: true, agent: this.sessionSummary(this.task(targetId)) };
+  }
+
+  private listAgents(fields: Record<string, unknown>): Record<string, unknown> {
+    const rootId = optionalString(fields, 'task_id') ?? requiredString(fields, 'source_task_id');
+    const tasks = this.requireStore().listStoredTasks(true);
+    const root = tasks.find((task) => task.id === rootId);
+    if (!root) throw new Error(`Task not found: ${rootId}`);
+    const included = new Set([root.id]);
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const task of tasks) {
+        if (!task.parent_task_id || !included.has(task.parent_task_id) || included.has(task.id)) continue;
+        included.add(task.id);
+        changed = true;
+      }
+    }
+    return { root: this.sessionSummary(root), agents: tasks.filter((task) => task.id !== root.id && included.has(task.id)).map((task) => this.sessionSummary(task)) };
+  }
+
+  private sessionSummary(task: StoredTask): Record<string, unknown> {
+    return {
+      id: task.id,
+      title: task.title,
+      summary: task.summary,
+      status: task.status,
+      profile_id: task.profile_id,
+      project_id: task.project_id,
+      parent_task_id: task.parent_task_id ?? null,
+      agent_name: task.agent_name ?? null,
+      unread: task.unread,
+      updated_at: task.updated_at,
+    };
+  }
+
   private async startTask(taskId: string, launch: { provider?: string; model?: string; thinkingLevel?: string; fastMode?: boolean }): Promise<Record<string, unknown>> {
     const task = this.task(taskId);
     const profile = this.profile(task.profile_id);
@@ -318,7 +506,12 @@ export class LocalBackend extends EventEmitter {
 
   private async prompt(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
     const taskId = requiredString(fields, 'task_id');
-    const message = requiredString(fields, 'prompt');
+    const directMessage = requiredString(fields, 'prompt');
+    const queuedMessages = this.requireStore().consumeMessages(taskId);
+    const queuedContext = queuedMessages.map((queued) =>
+      `[来自 Session “${queued.sourceTitle}” (${queued.sourceTaskId}) 的消息]\n${queued.message}`,
+    ).join('\n\n');
+    const message = queuedContext ? `${queuedContext}\n\n${directMessage}` : directMessage;
     const provider = optionalString(fields, 'provider');
     const model = optionalString(fields, 'model');
     if (Boolean(provider) !== Boolean(model)) throw new Error('Provider and model must be selected together');
@@ -349,6 +542,11 @@ export class LocalBackend extends EventEmitter {
   }
 
   private async history(taskId: string): Promise<Record<string, unknown>> {
+    const messages = await this.sessionMessages(taskId);
+    return { task_id: taskId, command: 'history', response: { success: true, data: { messages } }, messages, pending: false, task: publicTask(this.task(taskId)), sidebar: this.requireStore().sidebar() };
+  }
+
+  private async sessionMessages(taskId: string): Promise<unknown[]> {
     const task = this.task(taskId);
     const process = this.requirePi().get(taskId);
     let messages = this.requirePi().history(task);
@@ -359,7 +557,7 @@ export class LocalBackend extends EventEmitter {
         if (Array.isArray(data.messages)) messages = data.messages;
       } catch { /* persisted journal remains usable */ }
     }
-    return { task_id: taskId, command: 'history', response: { success: true, data: { messages } }, messages, pending: false, task: publicTask(this.task(taskId)), sidebar: this.requireStore().sidebar() };
+    return messages;
   }
 
   private async piCommand(taskId: string, command: Record<string, unknown>): Promise<Record<string, unknown>> {
