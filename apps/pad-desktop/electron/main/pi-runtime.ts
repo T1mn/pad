@@ -10,18 +10,19 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 const FAST_EXTENSION = `
 import { readFileSync } from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const modeFile = process.env.PAD_PI_FAST_MODE_FILE;
 const enabled = () => {
   if (!modeFile) return true;
   try { return readFileSync(modeFile, "utf8").trim().toLowerCase() !== "off"; }
   catch { return true; }
 };
-export default function padFastMode(pi: ExtensionAPI) {
+export default function padFastMode(pi) {
   pi.on("before_provider_request", (event, ctx) => {
     if (!enabled() || ctx.model?.provider !== "openai-codex") return;
     if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) return;
-    return { ...event.payload, service_tier: "fast" };
+    // Codex exposes this as the "Fast" UI tier, but the Responses API value is
+    // "priority". Sending the UI label ("fast") is rejected by Codex.
+    return { ...event.payload, service_tier: "priority" };
   });
 }
 `;
@@ -65,8 +66,6 @@ function childEnvironment(profile: StoredProfile, source: NodeJS.ProcessEnv, fas
     PI_CODING_AGENT_DIR: profile.agent_dir,
     PI_CODING_AGENT_SESSION_DIR: profile.session_dir,
     PAD_PI_FAST_MODE_FILE: fastModeFile,
-    BUN_INSTALL_CACHE_DIR: path.join(profile.agent_dir, 'bun-cache'),
-    BUN_RUNTIME_TRANSPILER_CACHE_PATH: path.join(profile.agent_dir, 'bun-transpiler-cache'),
   };
   for (const key of [
     'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM',
@@ -78,15 +77,24 @@ function childEnvironment(profile: StoredProfile, source: NodeJS.ProcessEnv, fas
   return environment;
 }
 
-function piProgram(resourcesPath: string): string {
-  const candidates = [
+function piCommand(resourcesPath: string): { program: string; prefix: string[] } {
+  const bundledNode = path.join(resourcesPath, 'bin', 'node');
+  const bundledNodePi = path.join(resourcesPath, 'pi', 'dist', 'bundle', 'cli.js');
+  if (existsSync(bundledNode) && existsSync(bundledNodePi)) {
+    return { program: bundledNode, prefix: [bundledNodePi] };
+  }
+  const bundledBun = path.join(resourcesPath, 'bin', 'bun');
+  const bundledPi = path.join(resourcesPath, 'pi', 'dist', 'bun', 'cli.js');
+  if (existsSync(bundledBun) && existsSync(bundledPi)) {
+    return { program: bundledBun, prefix: [bundledPi] };
+  }
+  const selected = [
     path.join(resourcesPath, 'bin', 'pi'),
     '/opt/homebrew/bin/pi',
     '/usr/local/bin/pi',
-  ];
-  const selected = candidates.find(existsSync);
+  ].find(existsSync);
   if (!selected) throw new Error('Pi runtime is unavailable');
-  return selected;
+  return { program: selected, prefix: [] };
 }
 
 function taskStatePath(profile: StoredProfile, taskId: string): string {
@@ -148,7 +156,8 @@ class PiProcess extends EventEmitter {
     if (task.session_file) args.push('--session', task.session_file);
     if (launch.provider && launch.model) args.push('--provider', launch.provider, '--model', launch.model);
     if (launch.thinkingLevel && launch.thinkingLevel !== 'default') args.push('--thinking', launch.thinkingLevel);
-    this.child = spawn(piProgram(options.resourcesPath), args, {
+    const runtime = piCommand(options.resourcesPath);
+    this.child = spawn(runtime.program, [...runtime.prefix, ...args], {
       cwd: task.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: childEnvironment(profile, options.environment ?? process.env, fastModeFile),
@@ -274,8 +283,8 @@ class PiProcess extends EventEmitter {
     if (type === 'extension_ui_request') {
       const method = typeof message.method === 'string' ? message.method : 'unknown';
       const id = typeof message.id === 'string' ? message.id : randomUUID();
-      const permissionMode = this.task.policy.mode ?? this.profile.policy.mode;
-      const unattended = this.task.policy.unattended ?? this.profile.policy.unattended;
+      const permissionMode = this.task.policy?.mode ?? this.profile.policy?.mode;
+      const unattended = this.task.policy?.unattended ?? this.profile.policy?.unattended;
       const fullAccess = permissionMode === 'system_full' && unattended === true;
       if (method === 'confirm' && fullAccess) {
         this.child.stdin.write(`${JSON.stringify({ type: 'extension_ui_response', id, confirmed: true })}\n`);

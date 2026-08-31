@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,6 +57,8 @@ done
       prompt: '你好',
       fast_mode: true,
     })).resolves.toMatchObject({ accepted: true });
+    expect(readFileSync(path.join(root, 'data', 'v1', 'profiles', 'default', 'pi-agent', 'pad-fast-mode.ts'), 'utf8'))
+      .toContain('service_tier: "priority"');
     await expect(backend.request('history', { task_id: created.task.id })).resolves.toMatchObject({
       messages: [{ role: 'user', content: '你好' }, { role: 'assistant', content: '你好呀' }],
     });

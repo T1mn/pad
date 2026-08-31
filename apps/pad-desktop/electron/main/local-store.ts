@@ -226,9 +226,24 @@ export class LocalStore {
     this.database.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
     this.database.exec(SCHEMA);
     this.database.exec('PRAGMA user_version = 2;');
+    this.migrateLegacyDefaultWorkspaces();
     this.database.prepare(
       "UPDATE tasks SET status = 'disconnected' WHERE status IN ('starting','running','streaming','tool_running','compacting','retrying')",
     ).run();
+  }
+
+  private migrateLegacyDefaultWorkspaces(): void {
+    const legacyRoot = path.join(os.homedir(), 'Documents');
+    const profiles = this.database.prepare('SELECT id FROM profiles').all() as Array<{ id: string }>;
+    for (const profile of profiles) {
+      const projectId = `project-${safeSegment(profile.id)}`;
+      const project = this.database.prepare('SELECT primary_root FROM projects WHERE id = ?').get(projectId) as { primary_root?: string } | undefined;
+      if (project?.primary_root !== legacyRoot) continue;
+      const workspace = path.join(this.dataRoot, 'v1', 'profiles', safeSegment(profile.id), 'workspace');
+      mkdirSync(workspace, { recursive: true, mode: 0o700 });
+      this.database.prepare('UPDATE tasks SET cwd = ? WHERE project_id = ? AND cwd = ?').run(workspace, projectId, legacyRoot);
+      this.database.prepare('UPDATE projects SET primary_root = ?, updated_at = ? WHERE id = ?').run(workspace, now(), projectId);
+    }
   }
 
   close(): void {
@@ -271,11 +286,12 @@ export class LocalStore {
     const existing = this.listProjects(true).find((project) => project.profile_id === profileId);
     if (existing) return existing;
     const timestamp = now();
-    const documents = path.join(os.homedir(), 'Documents');
+    const workspace = path.join(this.dataRoot, 'v1', 'profiles', safeSegment(profileId), 'workspace');
+    mkdirSync(workspace, { recursive: true, mode: 0o700 });
     const project: ProjectDto = {
       id: `project-${safeSegment(profileId)}`,
       name: 'Workspace',
-      primary_root: documents,
+      primary_root: workspace,
       additional_roots: [],
       profile_id: profileId,
       pinned: false,

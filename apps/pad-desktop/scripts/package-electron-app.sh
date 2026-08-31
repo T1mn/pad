@@ -11,6 +11,7 @@ EVIDENCE_STAGE="${RESOURCE_STAGE}/release-evidence"
 EXPECTED_PI_VERSION="0.84.4"
 EXPECTED_BUN_VERSION="1.3.14"
 EXPECTED_NODE_VERSION="24.20.0"
+EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
 MINIMUM_MACOS_VERSION="13.0"
 SIGN_IDENTITY="${PAD_DESKTOP_SIGN_IDENTITY:-}"
 SIGNING_MODE="ad-hoc-local-only"
@@ -38,6 +39,11 @@ trap cleanup_package_stage EXIT
 PACKAGE_NODE="$("${SCRIPT_DIR}/run-electron-forge.sh" --print-node)" || fail "pinned Node ${EXPECTED_NODE_VERSION} is unavailable"
 [[ -x "${PACKAGE_NODE}" ]] || fail "pinned Node executable is invalid: ${PACKAGE_NODE}"
 [[ "$("${PACKAGE_NODE}" -p 'process.versions.node')" == "${EXPECTED_NODE_VERSION}" ]] || fail "package Node must be ${EXPECTED_NODE_VERSION}"
+RUNTIME_NODE="$(npx --offline --yes "node@${EXPECTED_RUNTIME_NODE_VERSION}" -p 'process.execPath' 2>/dev/null)" \
+  || fail "cached runtime Node ${EXPECTED_RUNTIME_NODE_VERSION} is unavailable"
+[[ -x "${RUNTIME_NODE}" ]] || fail "runtime Node executable is invalid: ${RUNTIME_NODE}"
+[[ "$("${RUNTIME_NODE}" -p 'process.versions.node')" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] \
+  || fail "runtime Node must be ${EXPECTED_RUNTIME_NODE_VERSION}"
 export PAD_FORGE_NODE_BIN="${PACKAGE_NODE}"
 
 mkdir -p \
@@ -103,6 +109,7 @@ checked: list[tuple[str, str]] = []
 required_suffixes = {
     "Contents/MacOS/PADDesktop",
     "Contents/Resources/bin/bun",
+    "Contents/Resources/bin/node",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
     "Contents/Frameworks/PAD Desktop Helper (GPU).app/Contents/MacOS/PAD Desktop Helper (GPU)",
@@ -224,8 +231,8 @@ verify_auth_import_contract() {
   # This deliberately stops before
   # ModelRuntime.create(): no provider is contacted and no auth files or
   # credentials are created.  Running from the packaged Pi root also proves
-  # that Bun's bare-package resolution works through the bundled `bin/node`
-  # compatibility shim used by the TypeScript authentication helper.
+  # that bare-package resolution works through the bundled Node runtime used
+  # by the TypeScript authentication helper.
   marker="$(
     cd "${resources}/pi"
     /usr/bin/env -i \
@@ -262,6 +269,7 @@ generate_runtime_evidence() {
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
     "${EXPECTED_BUN_VERSION}" \
+    "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${electron_version}" \
     "${created_at}" <<'PY'
 import hashlib
@@ -270,13 +278,14 @@ import pathlib
 import sys
 
 destination = pathlib.Path(sys.argv[1])
-app_version, pi_version, bun_version, electron_version, created_at = sys.argv[2:]
-seed = "|".join((app_version, pi_version, bun_version, electron_version))
+app_version, pi_version, bun_version, node_version, electron_version, created_at = sys.argv[2:]
+seed = "|".join((app_version, pi_version, bun_version, node_version, electron_version))
 namespace = "https://ghostcloud.cn/spdx/pad-desktop/runtime/" + hashlib.sha256(seed.encode()).hexdigest()
 packages = [
     ("SPDXRef-Package-PAD", "PAD Desktop control plane", app_version),
     ("SPDXRef-Package-Pi", "@earendil-works/pi-coding-agent", pi_version),
     ("SPDXRef-Package-Bun", "Bun", bun_version),
+    ("SPDXRef-Package-Node", "Node.js", node_version),
     ("SPDXRef-Package-Electron", "Electron", electron_version),
 ]
 document = {
@@ -333,6 +342,7 @@ PY
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
     "${EXPECTED_BUN_VERSION}" \
+    "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${electron_version}" \
     "${electron_zip_sha}" \
     "${checksum_sha}" \
@@ -347,6 +357,7 @@ import sys
     app_version,
     pi_version,
     bun_version,
+    node_version,
     electron_version,
     electron_zip_sha,
     checksum_sha,
@@ -363,6 +374,7 @@ manifest = {
         {"name": "PAD Desktop Electron control plane", "version": app_version, "runtime_path": "app.asar"},
         {"name": "Pi coding agent", "version": pi_version, "runtime_path": "pi/package.json"},
         {"name": "Bun", "version": bun_version, "runtime_path": "bin/bun"},
+        {"name": "Node.js", "version": node_version, "runtime_path": "bin/node"},
         {
             "name": "Electron",
             "version": electron_version,
@@ -394,6 +406,7 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
     "${EXPECTED_BUN_VERSION}" \
+    "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${SIGNING_MODE}" <<'PY'
 import json
 import pathlib
@@ -401,7 +414,7 @@ import sys
 
 manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 sbom = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-pi_version, bun_version, signing_mode = sys.argv[3:]
+pi_version, bun_version, node_version, signing_mode = sys.argv[3:]
 if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime evidence schema")
 if manifest.get("minimum_macos") != "13.0" or manifest.get("target") != "darwin-arm64":
@@ -409,7 +422,7 @@ if manifest.get("minimum_macos") != "13.0" or manifest.get("target") != "darwin-
 if manifest.get("signing_mode") != signing_mode:
     raise SystemExit("runtime signing evidence does not match build mode")
 versions = {item.get("name"): item.get("version") for item in manifest.get("components", [])}
-if versions.get("Pi coding agent") != pi_version or versions.get("Bun") != bun_version:
+if versions.get("Pi coding agent") != pi_version or versions.get("Bun") != bun_version or versions.get("Node.js") != node_version:
     raise SystemExit("runtime version evidence does not match pinned versions")
 if sbom.get("spdxVersion") != "SPDX-2.3" or sbom.get("SPDXID") != "SPDXRef-DOCUMENT":
     raise SystemExit("invalid SPDX runtime SBOM")
@@ -418,6 +431,8 @@ if package_versions.get("@earendil-works/pi-coding-agent") != pi_version:
     raise SystemExit("Pi is missing or unpinned in runtime SBOM")
 if package_versions.get("Bun") != bun_version:
     raise SystemExit("Bun is missing or unpinned in runtime SBOM")
+if package_versions.get("Node.js") != node_version:
+    raise SystemExit("Node.js is missing or unpinned in runtime SBOM")
 PY
 }
 
@@ -428,7 +443,7 @@ refresh_packaged_runtime_evidence() {
   local entitlements="${PACKAGE_STAGE}/final-app-entitlements.plist"
   local checksum_sha
 
-  # electron-osx-sign signs the copied PAD and Bun Mach-O files.  Their final
+  # electron-osx-sign signs the copied PAD, Node and Bun Mach-O files. Their final
   # CodeDirectory bytes therefore differ from the unsigned staging copies.
   # Recompute evidence from the signed bundle, update the manifest, and then
   # re-seal only the top-level app; all nested signatures remain unchanged.
@@ -483,6 +498,7 @@ verify_app_bundle() {
   local info_plist="${app_bundle}/Contents/Info.plist"
   local entitlements_plist="${PACKAGE_STAGE}/app-entitlements.plist"
   local bun_version
+  local node_version
   local pi_version
   local signature_details
 
@@ -526,6 +542,8 @@ verify_app_bundle() {
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
   assert_arm64_only "${resources}/bin/bun"
   assert_system_linkage "${resources}/bin/bun"
+  assert_arm64_only "${resources}/bin/node"
+  assert_system_linkage "${resources}/bin/node"
   assert_internal_symlinks "${resources}"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
 
@@ -547,6 +565,8 @@ verify_app_bundle() {
   [[ "${pi_version}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${pi_version}"
   bun_version="$(extract_semver "$("${resources}/bin/bun" --version)")" || fail "bundled Bun did not report a semantic version"
   [[ "${bun_version}" == "${EXPECTED_BUN_VERSION}" ]] || fail "bundled Bun must be ${EXPECTED_BUN_VERSION}, got ${bun_version}"
+  node_version="$("${resources}/bin/node" -p 'process.versions.node')" || fail "bundled Node did not report a version"
+  [[ "${node_version}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${node_version}"
   verify_auth_import_contract "${resources}"
   verify_runtime_evidence "${resources}"
 
@@ -625,7 +645,7 @@ BUN_SOURCE_VERSION="$(extract_semver "$("${BUN_SOURCE}" --version)")" || fail "B
 
 /usr/bin/ditto --noqtn "${PI_PACKAGE_SOURCE}" "${RESOURCE_STAGE}/pi"
 /bin/cp -p "${BUN_SOURCE}" "${RESOURCE_STAGE}/bin/bun"
-/bin/cp -p "${APP_DIR}/Resources/node-bun-shim.sh" "${RESOURCE_STAGE}/bin/node"
+/bin/cp -p "${RUNTIME_NODE}" "${RESOURCE_STAGE}/bin/node"
 /bin/cp -p "${APP_DIR}/Resources/pi" "${RESOURCE_STAGE}/bin/pi"
 chmod 755 "${RESOURCE_STAGE}/bin/bun" "${RESOURCE_STAGE}/bin/node" "${RESOURCE_STAGE}/bin/pi"
 /usr/bin/xattr -cr "${RESOURCE_STAGE}" 2>/dev/null || true
@@ -635,6 +655,8 @@ STAGED_PI_VERSION="$(extract_semver "$(/usr/bin/env -i HOME="${SMOKE_HOME}" PATH
 [[ "${STAGED_PI_VERSION}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${STAGED_PI_VERSION}"
 STAGED_BUN_VERSION="$(extract_semver "$("${RESOURCE_STAGE}/bin/bun" --version)")" || fail "bundled Bun smoke test failed"
 [[ "${STAGED_BUN_VERSION}" == "${EXPECTED_BUN_VERSION}" ]] || fail "bundled Bun must be ${EXPECTED_BUN_VERSION}, got ${STAGED_BUN_VERSION}"
+STAGED_NODE_VERSION="$("${RESOURCE_STAGE}/bin/node" -p 'process.versions.node')" || fail "bundled Node smoke test failed"
+[[ "${STAGED_NODE_VERSION}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${STAGED_NODE_VERSION}"
 
 ELECTRON_VERSION="$("${PACKAGE_NODE}" -p "require('${APP_DIR}/node_modules/electron/package.json').version")"
 ELECTRON_ZIP_NAME="electron-v${ELECTRON_VERSION}-darwin-arm64.zip"
@@ -680,5 +702,5 @@ refresh_packaged_runtime_evidence "${APP_BUNDLE}"
 verify_app_bundle "${APP_BUNDLE}"
 
 echo "Created and verified PAD Desktop app: ${APP_BUNDLE}"
-echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Bun ${EXPECTED_BUN_VERSION}, ${SIGNING_MODE}"
+echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Node ${EXPECTED_RUNTIME_NODE_VERSION}, Bun ${EXPECTED_BUN_VERSION}, ${SIGNING_MODE}"
 echo "Desktop backend: Electron/TypeScript (no Rust sidecar)."
