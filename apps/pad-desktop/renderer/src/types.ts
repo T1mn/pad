@@ -145,6 +145,8 @@ export interface TurnEntry {
   title?: string;
   body: string;
   meta?: string;
+  provider?: string;
+  model?: string;
   state?: "running" | "complete" | "failed";
   artifacts?: TurnArtifact[];
 }

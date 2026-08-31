@@ -178,6 +178,20 @@ describe("结构化 history 时间线", () => {
       state: "failed",
     });
   });
+
+  it("保留 Pi 实际执行回复时记录的模型", () => {
+    const turn = mapHistoryMessage({
+      role: "assistant",
+      provider: "openai-codex",
+      model: "gpt-5.6-terra",
+      content: "我是 GPT-5.5。",
+    }, 0);
+    expect(turn).toMatchObject({
+      kind: "assistant",
+      provider: "openai-codex",
+      model: "gpt-5.6-terra",
+    });
+  });
 });
 
 describe("buildSidebarHierarchy", () => {

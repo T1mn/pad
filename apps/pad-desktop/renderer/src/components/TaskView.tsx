@@ -125,14 +125,25 @@ function Turn({ turn, last }: { turn: TurnEntry; last: boolean }) {
       <div className="assistant-copy">
         {(turn.title || turn.kind === "final") && <h2>{turn.title ?? "最终答复"}</h2>}
         <MarkdownBody body={turn.body} />
+        {(turn.model || turn.meta) && (
+          <div className="turn-runtime-meta">
+            {turn.model && <span>{formatModelLabel(turn.model)}</span>}
+            {turn.meta && <span>{turn.meta}</span>}
+          </div>
+        )}
         <div className="turn-actions">
           <button onClick={() => void copyBody()}>{copyState === "copied" ? "已复制" : "复制"}</button>
           {copyState === "failed" && <span role="status">复制失败，请手动选择文本。</span>}
-          <span>{turn.meta}</span>
         </div>
       </div>
     </article>
   );
+}
+
+export function formatModelLabel(model: string): string {
+  const match = /^gpt-(\d+(?:\.\d+)?)-(sol|terra|luna)$/i.exec(model.trim());
+  if (!match) return model;
+  return `GPT-${match[1]} ${match[2][0].toUpperCase()}${match[2].slice(1).toLowerCase()}`;
 }
 
 function turnKindLabel(kind: TurnKind): string {

@@ -17,6 +17,11 @@ const enabled = () => {
   catch { return true; }
 };
 export default function padFastMode(pi) {
+  pi.on("before_agent_start", (event, ctx) => {
+    if (!ctx.model) return;
+    const identity = \`PAD runtime identity: the active provider is "\${ctx.model.provider}" and the active model id is "\${ctx.model.id}". If the user asks which model is active, report this model id exactly and do not infer it from earlier conversation messages.\`;
+    return { systemPrompt: \`\${event.systemPrompt}\\n\\n\${identity}\` };
+  });
   pi.on("before_provider_request", (event, ctx) => {
     if (!enabled() || ctx.model?.provider !== "openai-codex") return;
     if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) return;

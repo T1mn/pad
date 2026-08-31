@@ -1313,12 +1313,16 @@ export function mapHistoryMessage(value: unknown, index: number): TurnEntry {
   const artifacts = historyArtifacts(value, id);
   const title = historyTurnTitle(value, kind);
   const state = mapTurnState(textValue(value.status ?? value.state), kind);
+  const provider = optionalText(value.provider);
+  const model = optionalText(value.model ?? value.modelId ?? value.model_id);
   return {
     id,
     kind,
     ...(title ? { title } : {}),
     body: historyMessageBody(value, kind),
     meta: displayTimestamp(value.timestamp ?? value.created_at),
+    ...(provider ? { provider } : {}),
+    ...(model ? { model } : {}),
     ...(state ? { state } : {}),
     ...(artifacts.length > 0 ? { artifacts } : {}),
   };
