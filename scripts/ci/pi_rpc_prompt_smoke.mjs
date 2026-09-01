@@ -114,4 +114,3 @@ child.on("close", (code, signal) => {
 timeout = setTimeout(() => finish(2, `timed out after ${timeoutMs}ms`), timeoutMs);
 child.stdin.write(`${JSON.stringify({ id: "prompt-1", type: "prompt", message: prompt })}\n`);
 child.stdin.flush?.();
-
