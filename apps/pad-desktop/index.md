@@ -6,7 +6,7 @@
 - `shared/protocol/`：主进程与 renderer 的 protocol v2 类型。
 - `Resources/`：图标、Pi 启动器和 Bun/Node shim。
 - `scripts/package-electron-app.sh`：打包 arm64 macOS App，并固定 Pi/Bun 运行时证据。
-- `scripts/install-electron-app.sh`：隔离健康检查、可恢复替换 `/Applications/PAD Desktop.app`。
+- `scripts/install-electron-app.sh`：隔离健康检查、可恢复替换 `/Applications/PAD Desktop.app`，默认保留最近 3 份旧 App。
 - `scripts/release-electron-app.sh`：生成 ZIP/DMG 发布物。
 
 Desktop 不再包含 Rust、TUI、SwiftUI 回滚壳或 sidecar 兼容层。

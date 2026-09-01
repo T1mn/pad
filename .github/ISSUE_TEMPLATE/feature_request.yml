@@ -6,9 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        PAD is deliberately narrow: it owns a native PTY workspace for agent sessions, while each
-        agent CLI remains responsible for its own runtime and history. Requests that stay inside
-        that scope are much easier to accept.
+        PAD is a macOS desktop client powered directly by Pi. It owns account profiles, task and
+        session history, the local terminal, model controls, and the iPhone remote connection.
+        Requests that fit this product scope are much easier to evaluate.
 
   - type: textarea
     id: problem
@@ -32,28 +32,28 @@ body:
       label: Area
       options:
         - Sidebar / session list
-        - Preview and session history
-        - File tree and preview
-        - Native terminal / tabs / splits
-        - Relay and provider settings
-        - Notifications / Telegram daemon
+        - Conversation and session history
+        - Pi login / providers / models
+        - Local terminal
+        - Permissions and Full Access
+        - iPhone remote connection
         - Installer and release
         - Other
     validations:
       required: true
 
   - type: input
-    id: agent
+    id: provider
     attributes:
-      label: Agent involved
-      description: If this is agent-specific, which agent CLI.
-      placeholder: Codex, Claude Code, Grok Build, OpenCode, Gemini, none
+      label: Pi provider and model
+      description: If this is model-specific, include the provider and model shown in PAD.
+      placeholder: openai-codex / gpt-5.6-sol, or none
 
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives you considered
-      description: Existing keys, shell configuration, or scripts you already tried.
+      description: Existing PAD settings, keyboard shortcuts, or workflows you already tried.
 
   - type: checkboxes
     id: contribution

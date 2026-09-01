@@ -19,4 +19,4 @@
 - 远程 DTO 严格丢弃 token、路径、监听端点与原始错误；renderer 不直接联网。
 - 已连接设备在线时使用 `prevent-app-suspension`，连接归零或退出应用后立即释放。
 - 保活信号覆盖所有 Profile 的真实在线连接；切换账号不会误释放，同时全局在线信号不会传入 renderer。
-- App 包声明本地网络用途和 `_pad-remote._tcp` Bonjour 服务。
+- App 包声明本地网络用途，通过二维码中的地址进行 WSS 直连。

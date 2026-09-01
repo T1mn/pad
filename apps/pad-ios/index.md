@@ -8,5 +8,5 @@
 - `PADRemote/State/`：断线重连、实时 Pi token 流、串行 outbox/ACK、epoch/revision、gap/resync 与 Desktop 快照兼容层。
 - `PADRemote/Views/`：中文配对、二维码扫描、任务侧边栏、实时对话、Pi 交互卡片和 Composer。
 - `PADRemoteTests/`：配对、codec、revision、jitter、钥匙串替身、持久化/跨配对隔离、流式 reducer 和交互 XCTest。
-- `Info.plist`：相机、本地网络与 `_pad-remote._tcp` Bonjour 权限声明。
+- `Info.plist`：二维码扫描和局域网直连所需的相机、本地网络权限声明。
 - `README.md`：连接、构建、测试、安全模型和 iOS 后台边界。

@@ -53,10 +53,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_pad-remote._tcp</string>
-	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>扫描 PAD Desktop 显示的一次性安全配对二维码。</string>
 	<key>NSLocalNetworkUsageDescription</key>

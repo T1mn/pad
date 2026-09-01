@@ -19,6 +19,7 @@ HEALTH_COMPLETE=0
 EXPECTED_PI_VERSION="0.84.4"
 EXPECTED_BUN_VERSION="1.3.14"
 MINIMUM_MACOS_VERSION="13.0"
+BACKUP_KEEP="${PAD_DESKTOP_BACKUP_KEEP:-3}"
 
 usage() {
   cat <<'EOF'
@@ -26,6 +27,7 @@ Usage: install-electron-app.sh [--source /path/to/PAD Desktop.app] [--check-only
 
 The destination is fixed to /Applications/PAD Desktop.app and cannot be overridden.
 An existing app is moved to a timestamped, recoverable backup before installation.
+The newest 3 backups are retained by default; set PAD_DESKTOP_BACKUP_KEEP to override.
 `--check-only` performs the same isolated health probe without writing to /Applications.
 The new app is committed only after that renderer + protocol-v2 probe exits cleanly.
 EOF
@@ -34,6 +36,24 @@ EOF
 fail() {
   echo "PAD Desktop install error: $*" >&2
   exit 1
+}
+
+prune_old_backups() {
+  local -a backups
+  local remove_count index candidate
+  backups=("${BACKUP_DIR}"/PAD\ Desktop-before-*.app(N))
+  remove_count=$(( ${#backups} - BACKUP_KEEP ))
+  (( remove_count > 0 )) || return 0
+  for (( index = 1; index <= remove_count; index++ )); do
+    candidate="${backups[index]}"
+    case "${candidate}" in
+      "${BACKUP_DIR}"/PAD\ Desktop-before-*.app)
+        if [[ -d "${candidate}" && ! -L "${candidate}" ]]; then
+          /bin/rm -rf -- "${candidate}" || echo "Warning: could not remove old backup: ${candidate}" >&2
+        fi
+        ;;
+    esac
+  done
 }
 
 cleanup_install() {
@@ -86,6 +106,8 @@ while (( $# )); do
       ;;
   esac
 done
+
+[[ "${BACKUP_KEEP}" == <-> ]] && (( BACKUP_KEEP >= 1 )) || fail "PAD_DESKTOP_BACKUP_KEEP must be a positive integer"
 
 SOURCE_APP="$(/usr/bin/python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "${SOURCE_APP}")"
 [[ "${SOURCE_APP}" != "${TARGET_APP}" ]] || fail "source and destination must be different"
@@ -679,6 +701,7 @@ INSTALL_STARTED=1
 HEALTH_APP="${TARGET_APP}"
 verify_bundle "${TARGET_APP}"
 run_isolated_health_probe
+prune_old_backups
 
 echo "Installed PAD Desktop at: ${TARGET_APP}"
 if [[ -n "${BACKUP_APP}" ]]; then

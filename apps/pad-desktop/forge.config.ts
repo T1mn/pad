@@ -213,7 +213,6 @@ const config: ForgeConfig = {
       CFBundleIconFile: 'PADDesktop.icns',
       LSMinimumSystemVersion: '13.0',
       NSLocalNetworkUsageDescription: 'PAD Desktop 使用本地网络，让已配对的 iPhone 实时连接这台 Mac。',
-      NSBonjourServices: ['_pad-remote._tcp'],
     },
     asar: true,
     derefSymlinks: false,
