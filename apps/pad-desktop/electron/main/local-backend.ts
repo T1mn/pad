@@ -24,11 +24,13 @@ import { PiRuntime } from './pi-runtime';
 import { AuthCoordinator, authenticatedProviders, modelCatalog } from './pi-sdk';
 import { RemoteGateway } from './remote-gateway';
 import packageMetadata from '../../package.json';
+import type { RuntimeProcessLauncher } from './runtime-process';
 
 export interface LocalBackendOptions {
   dataRoot: string;
   resourcesPath: string;
   environment?: NodeJS.ProcessEnv;
+  runtimeLauncher?: RuntimeProcessLauncher;
 }
 
 interface TerminalPane {
@@ -125,6 +127,7 @@ export class LocalBackend extends EventEmitter {
       this.pi = new PiRuntime({
         resourcesPath: this.options.resourcesPath,
         environment: this.options.environment,
+        runtimeLauncher: this.options.runtimeLauncher,
         onTaskChanged: (taskId, patch) => {
           try { this.requireStore().updateTask(taskId, patch); } catch { /* task may have been removed */ }
         },
@@ -135,6 +138,7 @@ export class LocalBackend extends EventEmitter {
         this.options.resourcesPath,
         this.options.environment ?? process.env,
         () => this.emitServer('auth_changed', this.auth?.status() ?? {}),
+        this.options.runtimeLauncher,
       );
       this.remote = new RemoteGateway(
         this.options.dataRoot,
@@ -268,7 +272,13 @@ export class LocalBackend extends EventEmitter {
       case 'list_agents': return this.listAgents(fields);
       case 'model_catalog': {
         const profile = this.profile(requiredString(fields, 'profile_id'));
-        return modelCatalog(this.options.resourcesPath, profile, fields.refresh === true, this.options.environment);
+        return await modelCatalog(
+          this.options.resourcesPath,
+          profile,
+          fields.refresh === true,
+          this.options.environment,
+          this.options.runtimeLauncher,
+        );
       }
       case 'start_task': return this.startTask(requiredString(fields, 'task_id'), {});
       case 'prompt': return this.prompt(fields);

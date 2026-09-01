@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -33,6 +34,7 @@ import {
 import { installContentSecurityPolicy } from './security';
 import { installApplicationMenu } from './menu';
 import { redactRemotePowerSignal, RemotePowerSaveCoordinator } from './remote-power-blocker';
+import { createElectronRuntimeLauncher } from './electron-runtime-process';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -145,7 +147,16 @@ const desktopDataRoot = process.env.PAD_DESKTOP_DATA_DIR
 const localResourcesPath = typeof process.resourcesPath === 'string' && process.resourcesPath.length > 0
   ? process.resourcesPath
   : path.resolve(process.cwd(), 'out', 'PAD Desktop-darwin-arm64', 'PAD Desktop.app', 'Contents', 'Resources');
-const backend = new LocalBackend({ dataRoot: desktopDataRoot, resourcesPath: localResourcesPath });
+const utilityHostPath = [
+  path.join(localResourcesPath, 'bin', 'pi-utility-host.cjs'),
+  path.resolve(process.cwd(), 'Resources', 'pi-utility-host.cjs'),
+].find((candidate) => existsSync(candidate));
+if (!utilityHostPath) throw new Error('PAD Pi utility host is unavailable');
+const backend = new LocalBackend({
+  dataRoot: desktopDataRoot,
+  resourcesPath: localResourcesPath,
+  runtimeLauncher: createElectronRuntimeLauncher(utilityHostPath),
+});
 const remotePower = new RemotePowerSaveCoordinator(powerSaveBlocker);
 let mainWindow: BrowserWindow | null = null;
 let quitAfterBackendStops = false;

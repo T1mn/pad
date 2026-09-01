@@ -15,7 +15,7 @@ PAD data lives under `~/Library/Application Support/PAD Desktop`. It does not re
 
 ## Develop
 
-Requirements: Apple Silicon Mac, Node.js/npm, and `@earendil-works/pi-coding-agent` 0.84.4 installed locally for packaging. The app bundles a pinned Node.js runtime; Bun is not shipped.
+Requirements: Apple Silicon Mac, Node.js/npm, and `@earendil-works/pi-coding-agent` 0.84.4 installed locally for packaging. The app runs Pi in an isolated Electron utility process; standalone Node.js and Bun runtimes are not shipped.
 
 ```bash
 cd apps/pad-desktop

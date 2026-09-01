@@ -16,8 +16,9 @@ INSTALL_COMPLETE=0
 HEALTH_PID=""
 HEALTH_PROCESS_GROUP=""
 HEALTH_COMPLETE=0
+HEALTH_NODE=""
 EXPECTED_PI_VERSION="0.84.4"
-EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
+EXPECTED_EMBEDDED_NODE_VERSION="24.18.1"
 MINIMUM_MACOS_VERSION="13.0"
 BACKUP_KEEP="${PAD_DESKTOP_BACKUP_KEEP:-3}"
 
@@ -149,7 +150,6 @@ def version(value: str) -> tuple[int, ...]:
 maximum = version(maximum_text)
 required = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/bin/node",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
     "Contents/Frameworks/PAD Desktop Helper (GPU).app/Contents/MacOS/PAD Desktop Helper (GPU)",
@@ -204,6 +204,7 @@ PY
 
 assert_internal_symlinks() {
   /usr/bin/python3 - "$1" <<'PY'
+import json
 import os
 import sys
 
@@ -235,7 +236,7 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_RUNTIME_NODE_VERSION}" <<'PY'
+    "${EXPECTED_EMBEDDED_NODE_VERSION}" <<'PY'
 import json
 import pathlib
 import sys
@@ -249,12 +250,12 @@ if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime evidence schema")
 if manifest.get("target") != "darwin-arm64" or manifest.get("minimum_macos") != "13.0":
     raise SystemExit("runtime evidence target does not match the install target")
-if components.get("Pi coding agent") != pi_version or components.get("Node.js") != node_version:
-    raise SystemExit("runtime evidence does not contain the pinned Pi/Node.js versions")
+if components.get("Pi coding agent") != pi_version or components.get("Electron embedded Node.js") != node_version:
+    raise SystemExit("runtime evidence does not contain the pinned Pi/Electron Node.js versions")
 if "Bun" in components:
     raise SystemExit("runtime evidence still claims an unbundled Bun runtime")
-if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js") != node_version:
-    raise SystemExit("runtime SPDX SBOM does not contain the pinned Pi/Node.js versions")
+if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js embedded in Electron") != node_version:
+    raise SystemExit("runtime SPDX SBOM does not contain the pinned Pi/Electron Node.js versions")
 if "Bun" in packages:
     raise SystemExit("runtime SPDX SBOM still claims an unbundled Bun runtime")
 PY
@@ -290,6 +291,7 @@ PY
 
 verify_pruned_pi() {
   /usr/bin/python3 - "$1" <<'PY'
+import json
 import os
 import pathlib
 import sys
@@ -298,8 +300,14 @@ pi_root = pathlib.Path(sys.argv[1])
 for required in ("README.md", "CHANGELOG.md", "docs", "examples"):
     if not (pi_root / required).exists():
         raise SystemExit(f"Pi self-documentation is missing: {required}")
-if (pi_root / "dist" / "bun").exists():
-    raise SystemExit("Pi Bun entrypoint remains in the Node-only bundle")
+for removed in ("bun", "bundle"):
+    if (pi_root / "dist" / removed).exists():
+        raise SystemExit(f"Pi {removed} entrypoint remains in the utility-process bundle")
+metadata = json.loads((pi_root / "package.json").read_text(encoding="utf-8"))
+if metadata.get("bin") != {"pi": "dist/cli.js"}:
+    raise SystemExit("Pi CLI metadata does not point at the retained entrypoint")
+if metadata.get("exports", {}).get("./rpc-entry", {}).get("import") != "./dist/rpc-entry.js":
+    raise SystemExit("Pi RPC metadata does not point at the retained entrypoint")
 for directory, directories, files in os.walk(pi_root, followlinks=False):
     for name in files:
         if name.endswith((".map", ".d.ts", ".tsbuildinfo")):
@@ -316,12 +324,12 @@ verify_bundle() {
   local info="${app_bundle}/Contents/Info.plist"
   local resources="${app_bundle}/Contents/Resources"
   local entitlements
-  local pi_version
-  local node_version
   local signature_details
 
   [[ -d "${app_bundle}" && ! -L "${app_bundle}" ]] || fail "app bundle is missing or is a symlink: ${app_bundle}"
-  [[ ! -e "${resources}/bin/bun" ]] || fail "unbundled Bun executable is present"
+  for standalone in bun node pi; do
+    [[ ! -e "${resources}/bin/${standalone}" ]] || fail "standalone runtime is present: ${standalone}"
+  done
   /usr/bin/plutil -lint "${info}" >/dev/null
   [[ "$(plist_value "${info}" CFBundleIdentifier)" == cn.ghostcloud.pad.desktop ]] || fail "unexpected bundle identifier"
   [[ "$(plist_value "${info}" CFBundleExecutable)" == PADDesktop ]] || fail "unexpected bundle executable"
@@ -332,32 +340,22 @@ verify_bundle() {
 
   for required in \
     "${resources}/app.asar" \
-    "${resources}/bin/node" \
-    "${resources}/bin/pi" \
+    "${resources}/bin/pi-utility-host.cjs" \
     "${resources}/pi/package.json" \
-    "${resources}/pi/dist/bundle/cli.js" \
+    "${resources}/pi/dist/cli.js" \
+    "${resources}/pi/dist/rpc-entry.js" \
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${resources}/release-evidence/runtime-SHA256SUMS.txt"; do
     [[ -f "${required}" ]] || fail "bundle resource is missing: ${required}"
   done
-  for executable in \
-    "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/bin/node" \
-    "${resources}/bin/pi"; do
-    [[ -x "${executable}" ]] || fail "bundle executable bit is missing: ${executable}"
-  done
+  [[ -x "${app_bundle}/Contents/MacOS/PADDesktop" ]] || fail "bundle executable bit is missing"
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/bin/node"
   assert_internal_symlinks "${resources}"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
   verify_retained_locales "${app_bundle}"
   verify_pruned_pi "${resources}/pi"
-  pi_version="$(extract_semver "$(/usr/bin/env -i HOME="${TMPDIR:-/tmp}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${resources}/bin/pi" --version)")" || fail "Pi runtime did not report a semantic version"
-  node_version="$("${resources}/bin/node" -p 'process.versions.node')" || fail "Node.js runtime did not report a version"
-  [[ "${pi_version}" == "${EXPECTED_PI_VERSION}" ]] || fail "Pi must be ${EXPECTED_PI_VERSION}, got ${pi_version}"
-  [[ "${node_version}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "Node.js must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${node_version}"
   /usr/bin/python3 - "${resources}/pi/package.json" "${EXPECTED_PI_VERSION}" <<'PY'
 import json
 import pathlib
@@ -441,6 +439,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
 PY
 }
 
+resolve_health_node() {
+  [[ -n "${HEALTH_NODE}" ]] && return
+  HEALTH_NODE="$("${SCRIPT_DIR}/run-electron-forge.sh" --print-node)" \
+    || fail "workspace Node.js is unavailable for the install health probe"
+  [[ -x "${HEALTH_NODE}" ]] || fail "install health Node.js is not executable"
+  "${HEALTH_NODE}" -e 'if (typeof WebSocket !== "function") process.exit(1)' \
+    || fail "install health Node.js does not provide WebSocket"
+}
+
 wait_for_cdp_target() {
   local port="$1"
   local target_file="$2"
@@ -494,7 +501,7 @@ const pending = new Map();
 function call(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = ++sequence;
-    // A cold packaged Node/Pi runtime can still be loading its first
+    // A cold Electron/Pi utility process can still be loading its first
     // provider module while the renderer is already reachable. Keep the
     // protocol probe alive for the same bounded window as the readiness loop.
     const timer = setTimeout(() => {
@@ -536,6 +543,29 @@ socket.addEventListener("open", async () => {
       }
       const bootstrap = await window.padDesktop.bootstrap();
       const ping = await window.padDesktop.request("ping", {});
+      const catalog = await window.padDesktop.request("model_catalog", {
+        profile_id: bootstrap.profile.id,
+        refresh: false,
+      });
+      const created = await window.padDesktop.request("create_task", {
+        profile_id: bootstrap.profile.id,
+        title: "Install health probe",
+        cwd: "/tmp",
+      });
+      const started = await window.padDesktop.request("start_task", { task_id: created.task.id });
+      const state = await window.padDesktop.request("get_state", { task_id: created.task.id });
+      const stopped = await window.padDesktop.request("stop_task", { task_id: created.task.id });
+      let authentication = await window.padDesktop.request("logout", {
+        profile_id: bootstrap.profile.id,
+        provider: "openai-codex",
+      });
+      for (let attempt = 0; attempt < 100 && authentication?.auth?.phase === "running"; attempt += 1) {
+        await delay(50);
+        authentication = await window.padDesktop.request("auth_status", {
+          attempt_id: authentication.auth.attempt_id,
+          profile_id: bootstrap.profile.id,
+        });
+      }
       const visible = (element) => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
@@ -552,6 +582,13 @@ socket.addEventListener("open", async () => {
         protocolVersion: bootstrap?.protocol_version ?? null,
         pingProtocolVersion: ping?.protocol_version ?? null,
         backendStatus: bootstrap?.backend?.status ?? null,
+        modelCatalogStatus: catalog?.status ?? null,
+        piStarted: started?.running === true,
+        piState: state?.response?.success === true,
+        piStopped: stopped?.stopped === true,
+        authUtilityReady: authentication?.auth?.phase === "succeeded",
+        authPhase: authentication?.auth?.phase ?? null,
+        authError: authentication?.auth?.error ?? null,
         alerts,
       };
     })()`;
@@ -576,7 +613,7 @@ setTimeout(() => {
 }, 90000).unref();
 JAVASCRIPT
 )"
-  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/node" -e "${probe_script}" >"${result_file}"
+  PAD_CDP_WS="${websocket_url}" "${HEALTH_NODE}" -e "${probe_script}" >"${result_file}"
   /usr/bin/python3 - "${result_file}" <<'PY'
 import json
 import pathlib
@@ -591,6 +628,10 @@ if result.get("protocolVersion") != 2 or result.get("pingProtocolVersion") != 2:
     raise SystemExit("renderer/backend did not negotiate protocol v2")
 if result.get("backendStatus") != "ready":
     raise SystemExit(f"backend is not ready: {result.get('backendStatus')}")
+if result.get("modelCatalogStatus") != "ready":
+    raise SystemExit(f"Pi model catalog is not ready: {result.get('modelCatalogStatus')}")
+if not all(result.get(key) is True for key in ("piStarted", "piState", "piStopped", "authUtilityReady")):
+    raise SystemExit(f"Electron utility Pi RPC failed: {result}")
 if result.get("alerts"):
     raise SystemExit(f"renderer exposed fatal alerts: {result.get('alerts')}")
 PY
@@ -600,7 +641,7 @@ close_health_app_over_cdp() {
   local websocket_url="$1"
   local close_script
   close_script='const url=process.env.PAD_CDP_WS; const socket=new WebSocket(url); socket.addEventListener("open",()=>socket.send(JSON.stringify({id:1,method:"Browser.close"}))); socket.addEventListener("message",()=>{socket.close();process.exit(0)}); setTimeout(()=>process.exit(0),1500);'
-  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/node" -e "${close_script}" >/dev/null 2>&1 || true
+  PAD_CDP_WS="${websocket_url}" "${HEALTH_NODE}" -e "${close_script}" >/dev/null 2>&1 || true
 }
 
 run_isolated_health_probe() {
@@ -614,6 +655,7 @@ run_isolated_health_probe() {
   local related
   local exit_status=0
 
+  resolve_health_node
   related="$(health_related_pids)"
   [[ -z "${related}" ]] || fail "refusing an ambiguous health probe while this app bundle is already running: ${(j:,:)${(f)related}}"
   mkdir -p "${health_home}" "${health_data}" "${health_user_data}"

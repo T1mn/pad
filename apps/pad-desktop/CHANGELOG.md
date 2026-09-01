@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 打包运行时改为 Node.js 单链路，不再携带 Bun；签名前仅保留英文、简体中文和繁体中文 locale。
+- Pi RPC、模型目录和登录改为隔离的 Electron Utility Process，删除重复的独立 Node.js 与 Bun 运行时；签名前仅保留英文、简体中文和繁体中文 locale。
 
 ## 0.7.7
 

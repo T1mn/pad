@@ -1,112 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { AuthSnapshotDto, AuthType } from '../../shared/protocol';
 import type { StoredProfile } from './local-store';
-
-const AUTH_SCRIPT = String.raw`
-import { createInterface } from "node:readline";
-import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-const send = (value) => process.stdout.write(JSON.stringify(value) + "\n");
-const pending = new Map();
-const input = createInterface({ input: process.stdin });
-input.on("line", (line) => {
-  try {
-    const value = JSON.parse(line);
-    if (value.type === "response" && pending.has(value.id)) {
-      pending.get(value.id)(value);
-      pending.delete(value.id);
-    }
-  } catch {}
-});
-const waitForResponse = (id) => new Promise((resolve) => pending.set(id, resolve));
-const interaction = {
-  prompt: async (value) => {
-    const id = randomUUID();
-    send({ type: "prompt", id, kind: value.type, message: value.message,
-      placeholder: value.placeholder, options: value.options ?? [] });
-    const response = await waitForResponse(id);
-    if (response.cancelled) throw new Error("Authentication cancelled");
-    return String(response.value ?? "");
-  },
-  notify: (event) => send({ type: "event", event }),
-};
-try {
-  const agentDir = process.env.PAD_AUTH_AGENT_DIR;
-  const runtime = await ModelRuntime.create({
-    authPath: path.join(agentDir, "auth.json"),
-    modelsPath: path.join(agentDir, "models.json"),
-    refreshOnCreate: false,
-  });
-  const provider = process.env.PAD_AUTH_PROVIDER;
-  if (process.env.PAD_AUTH_OPERATION === "logout") await runtime.logout(provider);
-  else await runtime.login(provider, process.env.PAD_AUTH_TYPE, interaction);
-  send({ type: "success", provider });
-} catch (error) {
-  send({ type: "error", message: error instanceof Error ? error.message : String(error) });
-  process.exitCode = 1;
-} finally { input.close(); }
-`;
-
-const MODEL_CATALOG_SCRIPT = String.raw`
-import path from "node:path";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-const agentDir = process.env.PAD_MODEL_CATALOG_AGENT_DIR;
-const providers = JSON.parse(process.env.PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS ?? "[]");
-const modelValue = (model) => ({
-  provider: typeof model.provider === "string" ? model.provider : "",
-  id: typeof model.id === "string" ? model.id : "",
-  name: typeof model.name === "string" ? model.name : model.id,
-  api: typeof model.api === "string" ? model.api : "",
-  reasoning: model.reasoning === true,
-  reasoning_levels: model.thinkingLevelMap && typeof model.thinkingLevelMap === "object" ? Object.keys(model.thinkingLevelMap) : [],
-  input: Array.isArray(model.input) ? model.input.filter((item) => typeof item === "string") : [],
-  context_window: Number.isFinite(model.contextWindow) ? model.contextWindow : null,
-  max_tokens: Number.isFinite(model.maxTokens) ? model.maxTokens : null,
-});
-const unique = (models) => {
-  const seen = new Set();
-  return models.map(modelValue).filter((model) => {
-    const key = model.provider + "\0" + model.id;
-    if (!model.provider || !model.id || seen.has(key)) return false;
-    seen.add(key); return true;
-  });
-};
-try {
-  const runtime = await ModelRuntime.create({
-    authPath: path.join(agentDir, "auth.json"),
-    modelsPath: path.join(agentDir, "models.json"),
-    modelsStorePath: path.join(agentDir, "models-store.json"),
-    refreshOnCreate: false,
-    allowModelNetwork: false,
-  });
-  if (process.env.PAD_MODEL_CATALOG_REFRESH === "1") await runtime.refresh({ allowNetwork: false });
-  const allModels = unique(runtime.getModels());
-  const availableModels = unique((await Promise.all(providers.map(async (provider) => {
-    try { return await runtime.getAvailable(provider, { signal: AbortSignal.timeout(1200) }); }
-    catch { return runtime.getModels(provider); }
-  }))).flat());
-  const grouped = new Map();
-  for (const model of availableModels) grouped.set(model.provider, [...(grouped.get(model.provider) ?? []), model]);
-  process.stdout.write(JSON.stringify({
-    status: "ready", source: "pi_model_runtime", models: availableModels,
-    available_models: availableModels, all_models: allModels,
-    providers: [...grouped.entries()].map(([id, models]) => ({ id, name: runtime.getProvider(id)?.name ?? id, authenticated: true, models })),
-    counts: { all: allModels.length, available: availableModels.length }, checked_at: Date.now(),
-  }));
-} catch {
-  process.stdout.write(JSON.stringify({ status: "unavailable", source: "pi_model_runtime", models: [], available_models: [], all_models: [], providers: [] }));
-  process.exitCode = 1;
-}
-`;
-
-function nodeProgram(resourcesPath: string): string {
-  const candidates = [path.join(resourcesPath, 'bin', 'node'), '/opt/homebrew/bin/node', '/usr/local/bin/node', process.execPath];
-  return candidates.find(existsSync) ?? process.execPath;
-}
+import {
+  type RuntimeProcess,
+  type RuntimeProcessLauncher,
+} from './runtime-process';
 
 function piPackage(resourcesPath: string): string {
   const candidates = [
@@ -139,28 +39,61 @@ export function authenticatedProviders(profile: StoredProfile): string[] {
   }
 }
 
-export function modelCatalog(
+async function collectOutput(child: RuntimeProcess, timeoutMs: number): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    let output = '';
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else if (!output) reject(new Error('Pi helper returned no output'));
+      else resolve(output);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(new Error('Pi helper timed out'));
+    }, timeoutMs);
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      output += chunk.toString();
+      if (Buffer.byteLength(output) > 8 * 1024 * 1024) {
+        child.kill('SIGKILL');
+        finish(new Error('Pi helper output is too large'));
+      } else if (output.endsWith('\n')) {
+        finish();
+      }
+    });
+    child.once('error', (error) => finish(error));
+    child.once('exit', () => finish());
+  });
+}
+
+export async function modelCatalog(
   resourcesPath: string,
   profile: StoredProfile,
   refresh: boolean,
   source: NodeJS.ProcessEnv = process.env,
-): Record<string, unknown> {
+  runtimeLauncher?: RuntimeProcessLauncher,
+): Promise<Record<string, unknown>> {
   const providers = authenticatedProviders(profile);
-  const output = spawnSync(nodeProgram(resourcesPath), ['--input-type=module', '-e', MODEL_CATALOG_SCRIPT], {
-    cwd: piPackage(resourcesPath),
-    encoding: 'utf8',
-    timeout: 8_000,
-    maxBuffer: 8 * 1024 * 1024,
-    env: {
-      ...sdkEnvironment(source),
-      PAD_MODEL_CATALOG_AGENT_DIR: profile.agent_dir,
-      PAD_MODEL_CATALOG_REFRESH: refresh ? '1' : '0',
-      PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS: JSON.stringify(providers),
-      PI_CODING_AGENT_DIR: profile.agent_dir,
-    },
-  });
-  if (output.error || !output.stdout) throw new Error('Pi model catalog is unavailable');
-  const value = JSON.parse(output.stdout) as Record<string, unknown>;
+  const packagePath = piPackage(resourcesPath);
+  const environment = {
+    ...sdkEnvironment(source),
+    PAD_MODEL_CATALOG_AGENT_DIR: profile.agent_dir,
+    PAD_MODEL_CATALOG_REFRESH: refresh ? '1' : '0',
+    PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS: JSON.stringify(providers),
+    PI_CODING_AGENT_DIR: profile.agent_dir,
+  };
+  if (!runtimeLauncher) throw new Error('Pi utility runtime is unavailable');
+  const output = await collectOutput(runtimeLauncher({
+    mode: 'model-catalog',
+    piPackage: packagePath,
+    cwd: packagePath,
+    env: environment,
+    serviceName: 'PAD Pi Model Catalog',
+  }), 8_000);
+  const value = JSON.parse(output) as Record<string, unknown>;
   const available = Array.isArray(value.available_models) ? value.available_models : [];
   const first = available.find((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item));
   return {
@@ -173,7 +106,7 @@ export function modelCatalog(
 }
 
 interface AuthAttempt {
-  child: ChildProcessWithoutNullStreams;
+  child: RuntimeProcess;
   buffer: Buffer;
 }
 
@@ -185,22 +118,28 @@ export class AuthCoordinator {
     private readonly resourcesPath: string,
     private readonly environment: NodeJS.ProcessEnv,
     private readonly changed: () => void,
+    private readonly runtimeLauncher?: RuntimeProcessLauncher,
   ) {}
 
   begin(profile: StoredProfile, provider: string, authType: AuthType, operation: 'login' | 'logout' = 'login'): AuthSnapshotDto {
     this.cancelCurrent(false);
     const attemptId = randomUUID();
-    const child = spawn(nodeProgram(this.resourcesPath), ['--input-type=module', '-e', AUTH_SCRIPT], {
-      cwd: piPackage(this.resourcesPath),
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...sdkEnvironment(this.environment),
-        PAD_AUTH_AGENT_DIR: profile.agent_dir,
-        PAD_AUTH_PROVIDER: provider,
-        PAD_AUTH_TYPE: authType,
-        PAD_AUTH_OPERATION: operation,
-        PI_CODING_AGENT_DIR: profile.agent_dir,
-      },
+    const packagePath = piPackage(this.resourcesPath);
+    const environment = {
+      ...sdkEnvironment(this.environment),
+      PAD_AUTH_AGENT_DIR: profile.agent_dir,
+      PAD_AUTH_PROVIDER: provider,
+      PAD_AUTH_TYPE: authType,
+      PAD_AUTH_OPERATION: operation,
+      PI_CODING_AGENT_DIR: profile.agent_dir,
+    };
+    if (!this.runtimeLauncher) throw new Error('Pi utility runtime is unavailable');
+    const child = this.runtimeLauncher({
+      mode: 'auth',
+      piPackage: packagePath,
+      cwd: packagePath,
+      env: environment,
+      serviceName: `PAD Pi Auth ${provider}`,
     });
     this.snapshot = {
       attempt_id: attemptId,
@@ -229,7 +168,7 @@ export class AuthCoordinator {
 
   respond(attemptId: string, promptId: string, value: unknown, cancelled: boolean): AuthSnapshotDto {
     if (this.snapshot.attempt_id !== attemptId || !this.attempt) throw new Error('Authentication attempt is no longer active');
-    this.attempt.child.stdin.write(`${JSON.stringify({ type: 'response', id: promptId, value, cancelled })}\n`);
+    this.attempt.child.write(`${JSON.stringify({ type: 'response', id: promptId, value, cancelled })}\n`);
     this.snapshot = { ...this.snapshot, prompt: undefined, updated_at: Date.now() };
     return this.status();
   }

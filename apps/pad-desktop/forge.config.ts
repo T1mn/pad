@@ -31,11 +31,6 @@ const DEVELOPER_ID_PLUGIN_ENTITLEMENTS = [
 ] as const;
 
 function signingEntitlements(filePath: string): string[] | undefined {
-  if (filePath.endsWith(`${path.sep}Contents${path.sep}Resources${path.sep}bin${path.sep}node`)) {
-    return isDeveloperIdSigning
-      ? ['com.apple.security.cs.allow-jit']
-      : ['com.apple.security.cs.allow-jit', 'com.apple.security.cs.disable-library-validation'];
-  }
   if (!filePath.endsWith('.app')) return undefined;
   const plugin = filePath.includes('(Plugin).app');
   if (isDeveloperIdSigning) {
@@ -70,12 +65,10 @@ function resolveReleaseResources(): string[] {
   const root = path.resolve(resourceRoot);
   requirePath(root, 'directory');
   requirePath(path.join(root, 'bin'), 'directory');
-  for (const name of ['node', 'pi']) {
-    requirePath(path.join(root, 'bin', name), 'file', true);
-  }
+  requirePath(path.join(root, 'bin', 'pi-utility-host.cjs'), 'file');
   requirePath(path.join(root, 'pi'), 'directory');
   requirePath(path.join(root, 'release-evidence'), 'directory');
-  for (const relative of ['package.json', 'dist/bundle/cli.js']) {
+  for (const relative of ['package.json', 'dist/cli.js', 'dist/rpc-entry.js', 'dist/main.js']) {
     requirePath(path.join(root, 'pi', relative), 'file');
   }
   for (const name of [
@@ -121,15 +114,20 @@ function prepareUnsignedMacBundle(appPath: string): void {
   const infoPath = path.join(appPath, 'Contents', 'Info.plist');
   const resourcesPath = path.join(appPath, 'Contents', 'Resources');
   requirePath(infoPath, 'file');
-  requirePath(path.join(resourcesPath, 'bin', 'node'), 'file', true);
-  requirePath(path.join(resourcesPath, 'bin', 'pi'), 'file', true);
-  if (fs.existsSync(path.join(resourcesPath, 'bin', 'bun'))) {
-    throw new Error('Release bundle unexpectedly contains Bun');
+  requirePath(path.join(resourcesPath, 'bin', 'pi-utility-host.cjs'), 'file');
+  for (const name of ['bun', 'node', 'pi']) {
+    if (fs.existsSync(path.join(resourcesPath, 'bin', name))) {
+      throw new Error(`Release bundle unexpectedly contains standalone ${name}`);
+    }
   }
   requirePath(path.join(resourcesPath, 'pi', 'package.json'), 'file');
-  requirePath(path.join(resourcesPath, 'pi', 'dist', 'bundle', 'cli.js'), 'file');
-  if (fs.existsSync(path.join(resourcesPath, 'pi', 'dist', 'bun'))) {
-    throw new Error('Release bundle unexpectedly contains the Pi Bun entrypoint');
+  for (const relative of ['dist/cli.js', 'dist/rpc-entry.js', 'dist/main.js']) {
+    requirePath(path.join(resourcesPath, 'pi', relative), 'file');
+  }
+  for (const removed of ['bun', 'bundle']) {
+    if (fs.existsSync(path.join(resourcesPath, 'pi', 'dist', removed))) {
+      throw new Error(`Release bundle unexpectedly contains the Pi ${removed} entrypoint`);
+    }
   }
 
   const retainedLocale = /^(?:en|zh_CN|zh_TW)[^/]*\.lproj$/;

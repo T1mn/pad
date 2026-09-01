@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { StoredProfile, StoredTask } from './local-store';
+import {
+  nodeRuntimeProcess,
+  type RuntimeProcess,
+  type RuntimeProcessLauncher,
+} from './runtime-process';
 
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -114,6 +119,7 @@ export default function padRuntime(pi) {
 export interface PiRuntimeOptions {
   resourcesPath: string;
   environment?: NodeJS.ProcessEnv;
+  runtimeLauncher?: RuntimeProcessLauncher;
   onTaskChanged(taskId: string, patch: Partial<StoredTask>): void;
   onEvent(taskId: string): void;
   onCollaborationAction(sourceTaskId: string, action: string, params: Record<string, unknown>): Promise<unknown>;
@@ -179,11 +185,6 @@ function childEnvironment(
 }
 
 function piCommand(resourcesPath: string): { program: string; prefix: string[] } {
-  const bundledNode = path.join(resourcesPath, 'bin', 'node');
-  const bundledNodePi = path.join(resourcesPath, 'pi', 'dist', 'bundle', 'cli.js');
-  if (existsSync(bundledNode) && existsSync(bundledNodePi)) {
-    return { program: bundledNode, prefix: [bundledNodePi] };
-  }
   const selected = [
     path.join(resourcesPath, 'bin', 'pi'),
     '/opt/homebrew/bin/pi',
@@ -191,6 +192,16 @@ function piCommand(resourcesPath: string): { program: string; prefix: string[] }
   ].find(existsSync);
   if (!selected) throw new Error('Pi runtime is unavailable');
   return { program: selected, prefix: [] };
+}
+
+function piPackagePath(resourcesPath: string): string {
+  const selected = [
+    path.join(resourcesPath, 'pi'),
+    '/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent',
+    '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent',
+  ].find((candidate) => existsSync(path.join(candidate, 'package.json')));
+  if (!selected) throw new Error('Pi runtime package is unavailable');
+  return selected;
 }
 
 function taskStatePath(profile: StoredProfile, taskId: string): string {
@@ -230,7 +241,7 @@ function readSessionMessages(sessionFile: string | null): unknown[] {
 }
 
 class PiProcess extends EventEmitter {
-  private readonly child: ChildProcessWithoutNullStreams;
+  private readonly child: RuntimeProcess;
   private buffer = Buffer.alloc(0);
   private readonly pending = new Map<string, PendingCommand>();
   private readonly pendingOrder: string[] = [];
@@ -253,12 +264,29 @@ class PiProcess extends EventEmitter {
     if (task.session_file) args.push('--session', task.session_file);
     if (launch.provider && launch.model) args.push('--provider', launch.provider, '--model', launch.model);
     if (launch.thinkingLevel && launch.thinkingLevel !== 'default') args.push('--thinking', launch.thinkingLevel);
-    const runtime = piCommand(options.resourcesPath);
-    this.child = spawn(runtime.program, [...runtime.prefix, ...args], {
-      cwd: task.cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: childEnvironment(profile, options.environment ?? process.env, fastModeFile, collaboration),
-    });
+    const environment = childEnvironment(
+      profile,
+      options.environment ?? process.env,
+      fastModeFile,
+      collaboration,
+    );
+    if (options.runtimeLauncher) {
+      this.child = options.runtimeLauncher({
+        mode: 'pi-rpc',
+        piPackage: piPackagePath(options.resourcesPath),
+        args,
+        cwd: task.cwd,
+        env: environment,
+        serviceName: `PAD Pi ${task.id.slice(0, 32)}`,
+      });
+    } else {
+      const runtime = piCommand(options.resourcesPath);
+      this.child = nodeRuntimeProcess(spawn(runtime.program, [...runtime.prefix, ...args], {
+        cwd: task.cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: environment,
+      }));
+    }
     this.child.stdout.on('data', (chunk: Buffer) => this.consume(chunk, options));
     this.child.stderr.on('data', () => undefined);
     this.child.once('error', (error) => this.fail(error, options));
@@ -281,7 +309,7 @@ class PiProcess extends EventEmitter {
   }
 
   request(command: Record<string, unknown>, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Record<string, unknown>> {
-    if (this.closed || !this.child.stdin.writable) return Promise.reject(new Error('Pi task is not running'));
+    if (this.closed || !this.child.writable) return Promise.reject(new Error('Pi task is not running'));
     const id = typeof command.id === 'string' ? command.id : `pad-${randomUUID()}`;
     const message = { ...command, id };
     return new Promise((resolve, reject) => {
@@ -293,12 +321,13 @@ class PiProcess extends EventEmitter {
       }, timeoutMs);
       this.pending.set(id, { command: String(command.type ?? ''), resolve, reject, timer });
       this.pendingOrder.push(id);
-      this.child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
-        if (!error) return;
+      try {
+        this.child.write(`${JSON.stringify(message)}\n`);
+      } catch (error) {
         clearTimeout(timer);
         this.pending.delete(id);
-        reject(error);
-      });
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
@@ -316,7 +345,7 @@ class PiProcess extends EventEmitter {
     else if ((kind ?? request.kind) === 'select' && typeof value === 'number') response.value = request.options[value];
     else response.value = value;
     this.pendingUi.delete(id);
-    this.child.stdin.write(`${JSON.stringify(response)}\n`);
+    this.child.write(`${JSON.stringify(response)}\n`);
   }
 
   async stop(): Promise<void> {
@@ -384,7 +413,7 @@ class PiProcess extends EventEmitter {
       const unattended = this.task.policy?.unattended ?? this.profile.policy?.unattended;
       const fullAccess = permissionMode === 'system_full' && unattended === true;
       if (method === 'confirm' && fullAccess && shouldAutoConfirmExtensionRequest(message)) {
-        this.child.stdin.write(`${JSON.stringify({ type: 'extension_ui_response', id, confirmed: true })}\n`);
+        this.child.write(`${JSON.stringify({ type: 'extension_ui_response', id, confirmed: true })}\n`);
       } else if (['confirm', 'select', 'input', 'editor'].includes(method)) {
         const optionsValue = Array.isArray(message.options)
           ? message.options.filter((item): item is string => typeof item === 'string')

@@ -10,7 +10,7 @@ SMOKE_HOME="${PACKAGE_STAGE}/smoke-home"
 EVIDENCE_STAGE="${RESOURCE_STAGE}/release-evidence"
 EXPECTED_PI_VERSION="0.84.4"
 EXPECTED_NODE_VERSION="24.20.0"
-EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
+EXPECTED_EMBEDDED_NODE_VERSION="24.18.1"
 MINIMUM_MACOS_VERSION="13.0"
 SIGN_IDENTITY="${PAD_DESKTOP_SIGN_IDENTITY:-}"
 SIGNING_MODE="ad-hoc-local-only"
@@ -38,11 +38,6 @@ trap cleanup_package_stage EXIT
 PACKAGE_NODE="$("${SCRIPT_DIR}/run-electron-forge.sh" --print-node)" || fail "pinned Node ${EXPECTED_NODE_VERSION} is unavailable"
 [[ -x "${PACKAGE_NODE}" ]] || fail "pinned Node executable is invalid: ${PACKAGE_NODE}"
 [[ "$("${PACKAGE_NODE}" -p 'process.versions.node')" == "${EXPECTED_NODE_VERSION}" ]] || fail "package Node must be ${EXPECTED_NODE_VERSION}"
-RUNTIME_NODE="$(npx --offline --yes "node@${EXPECTED_RUNTIME_NODE_VERSION}" -p 'process.execPath' 2>/dev/null)" \
-  || fail "cached runtime Node ${EXPECTED_RUNTIME_NODE_VERSION} is unavailable"
-[[ -x "${RUNTIME_NODE}" ]] || fail "runtime Node executable is invalid: ${RUNTIME_NODE}"
-[[ "$("${RUNTIME_NODE}" -p 'process.versions.node')" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] \
-  || fail "runtime Node must be ${EXPECTED_RUNTIME_NODE_VERSION}"
 export PAD_FORGE_NODE_BIN="${PACKAGE_NODE}"
 
 mkdir -p \
@@ -107,7 +102,6 @@ maximum = version(maximum_text)
 checked: list[tuple[str, str]] = []
 required_suffixes = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/bin/node",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
     "Contents/Frameworks/PAD Desktop Helper (GPU).app/Contents/MacOS/PAD Desktop Helper (GPU)",
@@ -192,6 +186,7 @@ PY
 
 prune_staged_pi() {
   /usr/bin/python3 - "$1" "$2" <<'PY'
+import json
 import os
 import pathlib
 import shutil
@@ -211,6 +206,19 @@ if bun_dist.is_symlink():
     bun_dist.unlink()
 elif bun_dist.is_dir():
     shutil.rmtree(bun_dist)
+bundle_dist = resolved_pi / "dist" / "bundle"
+if bundle_dist.is_symlink():
+    bundle_dist.unlink()
+elif bundle_dist.is_dir():
+    shutil.rmtree(bundle_dist)
+
+metadata_path = resolved_pi / "package.json"
+metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+metadata["bin"] = {"pi": "dist/cli.js"}
+exports = metadata.get("exports")
+if isinstance(exports, dict) and isinstance(exports.get("./rpc-entry"), dict):
+    exports["./rpc-entry"]["import"] = "./dist/rpc-entry.js"
+metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 for directory, directories, files in os.walk(resolved_pi, followlinks=False):
     for name in files:
@@ -236,6 +244,7 @@ PY
 
 verify_pruned_pi() {
   /usr/bin/python3 - "$1" <<'PY'
+import json
 import os
 import pathlib
 import sys
@@ -244,8 +253,14 @@ pi_root = pathlib.Path(sys.argv[1])
 for required in ("README.md", "CHANGELOG.md", "docs", "examples"):
     if not (pi_root / required).exists():
         raise SystemExit(f"Pi self-documentation was removed: {required}")
-if (pi_root / "dist" / "bun").exists():
-    raise SystemExit("Pi Bun entrypoint remains in the Node-only bundle")
+for removed in ("bun", "bundle"):
+    if (pi_root / "dist" / removed).exists():
+        raise SystemExit(f"Pi {removed} entrypoint remains in the utility-process bundle")
+metadata = json.loads((pi_root / "package.json").read_text(encoding="utf-8"))
+if metadata.get("bin") != {"pi": "dist/cli.js"}:
+    raise SystemExit("Pi CLI metadata does not point at the retained unbundled entrypoint")
+if metadata.get("exports", {}).get("./rpc-entry", {}).get("import") != "./dist/rpc-entry.js":
+    raise SystemExit("Pi RPC metadata does not point at the retained unbundled entrypoint")
 for directory, directories, files in os.walk(pi_root, followlinks=False):
     for name in files:
         if name.endswith((".map", ".d.ts", ".tsbuildinfo")):
@@ -292,14 +307,15 @@ NODE
 
 verify_auth_import_contract() {
   local resources="$1"
+  local node_program="$2"
   local marker
 
   # Keep this import exactly aligned with the Electron authentication helper.
   # This deliberately stops before
   # ModelRuntime.create(): no provider is contacted and no auth files or
-  # credentials are created.  Running from the packaged Pi root also proves
-  # that bare-package resolution works through the bundled Node runtime used
-  # by the TypeScript authentication helper.
+  # credentials are created. Running from the packaged Pi root proves that
+  # bare-package resolution remains valid before Electron takes ownership of
+  # the same module graph through its utility process.
   marker="$(
     cd "${resources}/pi"
     /usr/bin/env -i \
@@ -309,7 +325,7 @@ verify_auth_import_contract() {
       PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
       LANG="en_US.UTF-8" \
       TMPDIR="${TMPDIR:-/tmp}" \
-      "${resources}/bin/node" --input-type=module -e '
+      "${node_program}" --input-type=module -e '
         import { ModelRuntime } from "@earendil-works/pi-coding-agent";
         import * as clipboard from "@mariozechner/clipboard";
         if (typeof ModelRuntime !== "function") {
@@ -339,7 +355,7 @@ generate_runtime_evidence() {
     "${EVIDENCE_STAGE}/runtime-sbom.spdx.json" \
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_RUNTIME_NODE_VERSION}" \
+    "${EXPECTED_EMBEDDED_NODE_VERSION}" \
     "${electron_version}" \
     "${created_at}" <<'PY'
 import hashlib
@@ -354,7 +370,7 @@ namespace = "https://ghostcloud.cn/spdx/pad-desktop/runtime/" + hashlib.sha256(s
 packages = [
     ("SPDXRef-Package-PAD", "PAD Desktop control plane", app_version),
     ("SPDXRef-Package-Pi", "@earendil-works/pi-coding-agent", pi_version),
-    ("SPDXRef-Package-Node", "Node.js", node_version),
+    ("SPDXRef-Package-Node", "Node.js embedded in Electron", node_version),
     ("SPDXRef-Package-Electron", "Electron", electron_version),
 ]
 document = {
@@ -395,10 +411,10 @@ PY
   (
     cd "${RESOURCE_STAGE}"
     /usr/bin/shasum -a 256 \
-      bin/node \
-      bin/pi \
+      bin/pi-utility-host.cjs \
       pi/package.json \
-      pi/dist/bundle/cli.js \
+      pi/dist/cli.js \
+      pi/dist/rpc-entry.js \
       release-evidence/runtime-sbom.spdx.json \
       > release-evidence/runtime-SHA256SUMS.txt
   )
@@ -408,7 +424,7 @@ PY
     "${EVIDENCE_STAGE}/runtime-manifest.json" \
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_RUNTIME_NODE_VERSION}" \
+    "${EXPECTED_EMBEDDED_NODE_VERSION}" \
     "${electron_version}" \
     "${electron_zip_sha}" \
     "${checksum_sha}" \
@@ -438,7 +454,8 @@ manifest = {
     "components": [
         {"name": "PAD Desktop Electron control plane", "version": app_version, "runtime_path": "app.asar"},
         {"name": "Pi coding agent", "version": pi_version, "runtime_path": "pi/package.json"},
-        {"name": "Node.js", "version": node_version, "runtime_path": "bin/node"},
+        {"name": "Electron embedded Node.js", "version": node_version,
+         "runtime_path": "Frameworks/Electron Framework.framework"},
         {
             "name": "Electron",
             "version": electron_version,
@@ -469,7 +486,7 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_RUNTIME_NODE_VERSION}" \
+    "${EXPECTED_EMBEDDED_NODE_VERSION}" \
     "${SIGNING_MODE}" <<'PY'
 import json
 import pathlib
@@ -485,7 +502,7 @@ if manifest.get("minimum_macos") != "13.0" or manifest.get("target") != "darwin-
 if manifest.get("signing_mode") != signing_mode:
     raise SystemExit("runtime signing evidence does not match build mode")
 versions = {item.get("name"): item.get("version") for item in manifest.get("components", [])}
-if versions.get("Pi coding agent") != pi_version or versions.get("Node.js") != node_version:
+if versions.get("Pi coding agent") != pi_version or versions.get("Electron embedded Node.js") != node_version:
     raise SystemExit("runtime version evidence does not match pinned versions")
 if "Bun" in versions:
     raise SystemExit("runtime evidence still claims an unbundled Bun runtime")
@@ -496,8 +513,8 @@ if package_versions.get("@earendil-works/pi-coding-agent") != pi_version:
     raise SystemExit("Pi is missing or unpinned in runtime SBOM")
 if "Bun" in package_versions:
     raise SystemExit("runtime SBOM still claims an unbundled Bun runtime")
-if package_versions.get("Node.js") != node_version:
-    raise SystemExit("Node.js is missing or unpinned in runtime SBOM")
+if package_versions.get("Node.js embedded in Electron") != node_version:
+    raise SystemExit("Electron's embedded Node.js is missing or unpinned in runtime SBOM")
 PY
 }
 
@@ -508,17 +525,15 @@ refresh_packaged_runtime_evidence() {
   local entitlements="${PACKAGE_STAGE}/final-app-entitlements.plist"
   local checksum_sha
 
-  # electron-osx-sign signs the copied PAD and Node Mach-O files. Their final
-  # CodeDirectory bytes therefore differ from the unsigned staging copies.
   # Recompute evidence from the signed bundle, update the manifest, and then
   # re-seal only the top-level app; all nested signatures remain unchanged.
   (
     cd "${resources}"
     /usr/bin/shasum -a 256 \
-      bin/node \
-      bin/pi \
+      bin/pi-utility-host.cjs \
       pi/package.json \
-      pi/dist/bundle/cli.js \
+      pi/dist/cli.js \
+      pi/dist/rpc-entry.js \
       release-evidence/runtime-sbom.spdx.json \
       > release-evidence/runtime-SHA256SUMS.txt
   )
@@ -588,7 +603,6 @@ verify_app_bundle() {
   local resources="${app_bundle}/Contents/Resources"
   local info_plist="${app_bundle}/Contents/Info.plist"
   local entitlements_plist="${PACKAGE_STAGE}/app-entitlements.plist"
-  local node_version
   local pi_version
   local signature_details
 
@@ -612,25 +626,22 @@ verify_app_bundle() {
   done
 
   [[ -f "${resources}/app.asar" ]] || fail "app.asar is missing"
-  [[ ! -e "${resources}/bin/bun" ]] || fail "unbundled Bun executable is present"
+  for standalone in bun node pi; do
+    [[ ! -e "${resources}/bin/${standalone}" ]] || fail "standalone runtime is present: ${standalone}"
+  done
+  [[ -f "${resources}/bin/pi-utility-host.cjs" ]] || fail "Electron Pi utility host is missing"
   [[ -f "${resources}/pi/package.json" ]] || fail "bundled Pi package.json is missing"
-  [[ -f "${resources}/pi/dist/bundle/cli.js" ]] || fail "bundled Pi Node entrypoint is missing"
+  [[ -f "${resources}/pi/dist/cli.js" ]] || fail "bundled Pi CLI entrypoint is missing"
+  [[ -f "${resources}/pi/dist/rpc-entry.js" ]] || fail "bundled Pi RPC entrypoint is missing"
   for evidence in \
     runtime-manifest.json \
     runtime-sbom.spdx.json \
     runtime-SHA256SUMS.txt; do
     [[ -f "${resources}/release-evidence/${evidence}" ]] || fail "runtime evidence is missing: ${evidence}"
   done
-  for executable in \
-    "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/bin/node" \
-    "${resources}/bin/pi"; do
-    [[ -x "${executable}" ]] || fail "bundled executable is missing: ${executable}"
-  done
+  [[ -x "${app_bundle}/Contents/MacOS/PADDesktop" ]] || fail "bundled app executable is missing"
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/bin/node"
-  assert_system_linkage "${resources}/bin/node"
   assert_internal_symlinks "${resources}"
   verify_pruned_pi "${resources}/pi"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
@@ -649,12 +660,10 @@ verify_app_bundle() {
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     LANG="en_US.UTF-8" \
       TMPDIR="${TMPDIR:-/tmp}" \
-      "${resources}/bin/pi" --version)" || fail "bundled Pi runtime smoke test failed"
+      "${PACKAGE_NODE}" "${resources}/pi/dist/cli.js" --version)" || fail "bundled Pi runtime smoke test failed"
   pi_version="$(extract_semver "${pi_version}")" || fail "unexpected bundled Pi version output: ${pi_version}"
   [[ "${pi_version}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${pi_version}"
-  node_version="$("${resources}/bin/node" -p 'process.versions.node')" || fail "bundled Node did not report a version"
-  [[ "${node_version}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${node_version}"
-  verify_auth_import_contract "${resources}"
+  verify_auth_import_contract "${resources}" "${PACKAGE_NODE}"
   verify_runtime_evidence "${resources}"
 
   verify_fuses "${app_bundle}"
@@ -725,41 +734,22 @@ PI_SOURCE_VERSION="$("${PACKAGE_NODE}" -p "require(process.argv[1]).version" "${
 
 /usr/bin/ditto --noqtn "${PI_PACKAGE_SOURCE}" "${RESOURCE_STAGE}/pi"
 prune_staged_pi "${RESOURCE_STAGE}/pi" "${RESOURCE_STAGE}"
-/bin/cp -p "${RUNTIME_NODE}" "${RESOURCE_STAGE}/bin/node"
-/bin/cp -p "${APP_DIR}/Resources/pi" "${RESOURCE_STAGE}/bin/pi"
-chmod 755 "${RESOURCE_STAGE}/bin/node" "${RESOURCE_STAGE}/bin/pi"
-/usr/bin/strip -x "${RESOURCE_STAGE}/bin/node"
-/usr/bin/python3 - "${PACKAGE_STAGE}/node-stage-entitlements.plist" <<'PY'
-import pathlib
-import plistlib
-import sys
-
-with pathlib.Path(sys.argv[1]).open("wb") as output:
-    plistlib.dump(
-        {
-            "com.apple.security.cs.allow-jit": True,
-            "com.apple.security.cs.disable-library-validation": True,
-        },
-        output,
-    )
-PY
-/usr/bin/codesign \
-  --force \
-  --sign - \
-  --options runtime \
-  --timestamp=none \
-  --entitlements "${PACKAGE_STAGE}/node-stage-entitlements.plist" \
-  "${RESOURCE_STAGE}/bin/node"
+/bin/cp -p "${APP_DIR}/Resources/pi-utility-host.cjs" "${RESOURCE_STAGE}/bin/pi-utility-host.cjs"
+chmod 644 "${RESOURCE_STAGE}/bin/pi-utility-host.cjs"
 /usr/bin/xattr -cr "${RESOURCE_STAGE}" 2>/dev/null || true
 assert_internal_symlinks "${RESOURCE_STAGE}"
 verify_pruned_pi "${RESOURCE_STAGE}/pi"
 
-STAGED_PI_VERSION="$(extract_semver "$(/usr/bin/env -i HOME="${SMOKE_HOME}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${RESOURCE_STAGE}/bin/pi" --version)")" || fail "bundled Pi smoke test failed"
+STAGED_PI_VERSION="$(extract_semver "$(/usr/bin/env -i HOME="${SMOKE_HOME}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${PACKAGE_NODE}" "${RESOURCE_STAGE}/pi/dist/cli.js" --version)")" || fail "bundled Pi smoke test failed"
 [[ "${STAGED_PI_VERSION}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${STAGED_PI_VERSION}"
-STAGED_NODE_VERSION="$("${RESOURCE_STAGE}/bin/node" -p 'process.versions.node')" || fail "bundled Node smoke test failed"
-[[ "${STAGED_NODE_VERSION}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${STAGED_NODE_VERSION}"
 
 ELECTRON_VERSION="$("${PACKAGE_NODE}" -p "require('${APP_DIR}/node_modules/electron/package.json').version")"
+ELECTRON_BINARY="$("${PACKAGE_NODE}" -p "require('${APP_DIR}/node_modules/electron')")"
+[[ -x "${ELECTRON_BINARY}" ]] || fail "Electron executable is unavailable"
+EMBEDDED_NODE_VERSION="$(ELECTRON_RUN_AS_NODE=1 "${ELECTRON_BINARY}" -p 'process.versions.node')" \
+  || fail "Electron embedded Node.js did not report a version"
+[[ "${EMBEDDED_NODE_VERSION}" == "${EXPECTED_EMBEDDED_NODE_VERSION}" ]] \
+  || fail "Electron must embed Node.js ${EXPECTED_EMBEDDED_NODE_VERSION}, got ${EMBEDDED_NODE_VERSION}"
 ELECTRON_ZIP_NAME="electron-v${ELECTRON_VERSION}-darwin-arm64.zip"
 ELECTRON_CHECKSUMS="${APP_DIR}/node_modules/electron/checksums.json"
 [[ -f "${ELECTRON_CHECKSUMS}" ]] || fail "Electron checksum manifest is missing"
@@ -803,5 +793,5 @@ refresh_packaged_runtime_evidence "${APP_BUNDLE}"
 verify_app_bundle "${APP_BUNDLE}"
 
 echo "Created and verified PAD Desktop app: ${APP_BUNDLE}"
-echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Node ${EXPECTED_RUNTIME_NODE_VERSION}, ${SIGNING_MODE}"
+echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Electron Node ${EXPECTED_EMBEDDED_NODE_VERSION}, ${SIGNING_MODE}"
 echo "Desktop backend: Electron/TypeScript (no Rust sidecar)."

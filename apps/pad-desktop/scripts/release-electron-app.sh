@@ -8,7 +8,7 @@ RELEASE_STAGE="$(mktemp -d /tmp/pad-desktop-release.XXXXXX)"
 DMG_MOUNT="${RELEASE_STAGE}/dmg-mount"
 DMG_ATTACHED=0
 EXPECTED_PI_VERSION="0.84.4"
-EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
+EXPECTED_EMBEDDED_NODE_VERSION="24.18.1"
 SIGN_IDENTITY="${PAD_DESKTOP_SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${PAD_DESKTOP_NOTARY_PROFILE:-}"
 NOTARY_KEYCHAIN="${PAD_DESKTOP_NOTARY_KEYCHAIN:-}"
@@ -68,7 +68,7 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_RUNTIME_NODE_VERSION}" <<'PY'
+    "${EXPECTED_EMBEDDED_NODE_VERSION}" <<'PY'
 import json
 import pathlib
 import sys
@@ -80,12 +80,12 @@ components = {item.get("name"): item.get("version") for item in manifest.get("co
 packages = {item.get("name"): item.get("versionInfo") for item in sbom.get("packages", [])}
 if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime manifest schema")
-if components.get("Pi coding agent") != pi_version or components.get("Node.js") != node_version:
-    raise SystemExit("runtime manifest does not contain pinned Pi/Node.js versions")
+if components.get("Pi coding agent") != pi_version or components.get("Electron embedded Node.js") != node_version:
+    raise SystemExit("runtime manifest does not contain pinned Pi/Electron Node.js versions")
 if "Bun" in components:
     raise SystemExit("runtime manifest still claims an unbundled Bun runtime")
-if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js") != node_version:
-    raise SystemExit("SPDX SBOM does not contain pinned Pi/Node.js versions")
+if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js embedded in Electron") != node_version:
+    raise SystemExit("SPDX SBOM does not contain pinned Pi/Electron Node.js versions")
 if "Bun" in packages:
     raise SystemExit("SPDX SBOM still claims an unbundled Bun runtime")
 PY
@@ -156,13 +156,15 @@ if [[ ! -d "${APP_BUNDLE}" || -L "${APP_BUNDLE}" || ! -f "${INFO_PLIST}" ]]; the
   fail "final PAD Desktop bundle not found: ${APP_BUNDLE}"
 fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}"
-[[ ! -e "${RESOURCES}/bin/bun" ]] || fail "release bundle unexpectedly contains Bun"
+for standalone in bun node pi; do
+  [[ ! -e "${RESOURCES}/bin/${standalone}" ]] || fail "release bundle contains standalone ${standalone}"
+done
 for required in \
   "${RESOURCES}/app.asar" \
-  "${RESOURCES}/bin/node" \
-  "${RESOURCES}/bin/pi" \
+  "${RESOURCES}/bin/pi-utility-host.cjs" \
   "${RESOURCES}/pi/package.json" \
-  "${RESOURCES}/pi/dist/bundle/cli.js" \
+  "${RESOURCES}/pi/dist/cli.js" \
+  "${RESOURCES}/pi/dist/rpc-entry.js" \
   "${RESOURCES}/release-evidence/runtime-manifest.json" \
   "${RESOURCES}/release-evidence/runtime-sbom.spdx.json" \
   "${RESOURCES}/release-evidence/runtime-SHA256SUMS.txt"; do
@@ -226,7 +228,7 @@ fi
 mkdir -p "${ZIP_VERIFY}"
 /usr/bin/ditto -x -k "${ZIP_PATH}" "${ZIP_VERIFY}"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${ZIP_VERIFY}/PAD Desktop.app"
-[[ -x "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/bin/node" ]] || fail "ZIP lost the Node.js executable bit"
+[[ -f "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/bin/pi-utility-host.cjs" ]] || fail "ZIP lost the Pi utility host"
 verify_retained_locales "${ZIP_VERIFY}/PAD Desktop.app"
 
 mkdir -p "${DMG_STAGE}"
