@@ -31,6 +31,11 @@ const DEVELOPER_ID_PLUGIN_ENTITLEMENTS = [
 ] as const;
 
 function signingEntitlements(filePath: string): string[] | undefined {
+  if (filePath.endsWith(`${path.sep}Contents${path.sep}Resources${path.sep}bin${path.sep}node`)) {
+    return isDeveloperIdSigning
+      ? ['com.apple.security.cs.allow-jit']
+      : ['com.apple.security.cs.allow-jit', 'com.apple.security.cs.disable-library-validation'];
+  }
   if (!filePath.endsWith('.app')) return undefined;
   const plugin = filePath.includes('(Plugin).app');
   if (isDeveloperIdSigning) {
@@ -65,12 +70,12 @@ function resolveReleaseResources(): string[] {
   const root = path.resolve(resourceRoot);
   requirePath(root, 'directory');
   requirePath(path.join(root, 'bin'), 'directory');
-  for (const name of ['bun', 'node', 'pi']) {
+  for (const name of ['node', 'pi']) {
     requirePath(path.join(root, 'bin', name), 'file', true);
   }
   requirePath(path.join(root, 'pi'), 'directory');
   requirePath(path.join(root, 'release-evidence'), 'directory');
-  for (const relative of ['package.json', 'dist/bun/cli.js', 'dist/bundle/cli.js']) {
+  for (const relative of ['package.json', 'dist/bundle/cli.js']) {
     requirePath(path.join(root, 'pi', relative), 'file');
   }
   for (const name of [
@@ -116,11 +121,48 @@ function prepareUnsignedMacBundle(appPath: string): void {
   const infoPath = path.join(appPath, 'Contents', 'Info.plist');
   const resourcesPath = path.join(appPath, 'Contents', 'Resources');
   requirePath(infoPath, 'file');
-  requirePath(path.join(resourcesPath, 'bin', 'bun'), 'file', true);
   requirePath(path.join(resourcesPath, 'bin', 'node'), 'file', true);
   requirePath(path.join(resourcesPath, 'bin', 'pi'), 'file', true);
+  if (fs.existsSync(path.join(resourcesPath, 'bin', 'bun'))) {
+    throw new Error('Release bundle unexpectedly contains Bun');
+  }
   requirePath(path.join(resourcesPath, 'pi', 'package.json'), 'file');
-  requirePath(path.join(resourcesPath, 'pi', 'dist', 'bun', 'cli.js'), 'file');
+  requirePath(path.join(resourcesPath, 'pi', 'dist', 'bundle', 'cli.js'), 'file');
+  if (fs.existsSync(path.join(resourcesPath, 'pi', 'dist', 'bun'))) {
+    throw new Error('Release bundle unexpectedly contains the Pi Bun entrypoint');
+  }
+
+  const retainedLocale = /^(?:en|zh_CN|zh_TW)[^/]*\.lproj$/;
+  const bundleRoot = fs.realpathSync(appPath);
+  const pruneLocales = (localeRoot: string): void => {
+    const rootStat = fs.lstatSync(localeRoot);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      throw new Error(`Locale root is not a real directory: ${localeRoot}`);
+    }
+    const resolvedRoot = fs.realpathSync(localeRoot);
+    if (resolvedRoot !== bundleRoot && !resolvedRoot.startsWith(`${bundleRoot}${path.sep}`)) {
+      throw new Error(`Locale root resolves outside its bundle path: ${localeRoot}`);
+    }
+    for (const entry of fs.readdirSync(localeRoot, { withFileTypes: true })) {
+      if (!entry.name.endsWith('.lproj') || retainedLocale.test(entry.name)) continue;
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
+        throw new Error(`Unexpected locale entry type: ${path.join(localeRoot, entry.name)}`);
+      }
+      fs.rmSync(path.join(localeRoot, entry.name), { recursive: true });
+    }
+  };
+  pruneLocales(resourcesPath);
+  pruneLocales(
+    path.join(
+      appPath,
+      'Contents',
+      'Frameworks',
+      'Electron Framework.framework',
+      'Versions',
+      'A',
+      'Resources',
+    ),
+  );
 
   for (const key of [
     'NSAppTransportSecurity',

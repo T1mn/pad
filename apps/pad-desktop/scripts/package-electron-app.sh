@@ -9,7 +9,6 @@ ELECTRON_ZIP_STAGE="${PACKAGE_STAGE}/electron-zip"
 SMOKE_HOME="${PACKAGE_STAGE}/smoke-home"
 EVIDENCE_STAGE="${RESOURCE_STAGE}/release-evidence"
 EXPECTED_PI_VERSION="0.84.4"
-EXPECTED_BUN_VERSION="1.3.14"
 EXPECTED_NODE_VERSION="24.20.0"
 EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
 MINIMUM_MACOS_VERSION="13.0"
@@ -108,7 +107,6 @@ maximum = version(maximum_text)
 checked: list[tuple[str, str]] = []
 required_suffixes = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/bin/bun",
     "Contents/Resources/bin/node",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
@@ -192,6 +190,75 @@ for directory, directories, files in os.walk(root, followlinks=False):
 PY
 }
 
+prune_staged_pi() {
+  /usr/bin/python3 - "$1" "$2" <<'PY'
+import os
+import pathlib
+import shutil
+import sys
+
+pi_root = pathlib.Path(sys.argv[1])
+stage_root = pathlib.Path(sys.argv[2])
+if not pi_root.is_dir() or pi_root.is_symlink():
+    raise SystemExit(f"staged Pi root is not a real directory: {pi_root}")
+resolved_pi = pi_root.resolve()
+resolved_stage = stage_root.resolve()
+if os.path.commonpath((resolved_pi, resolved_stage)) != str(resolved_stage):
+    raise SystemExit(f"refusing to prune Pi outside the package stage: {resolved_pi}")
+
+bun_dist = resolved_pi / "dist" / "bun"
+if bun_dist.is_symlink():
+    bun_dist.unlink()
+elif bun_dist.is_dir():
+    shutil.rmtree(bun_dist)
+
+for directory, directories, files in os.walk(resolved_pi, followlinks=False):
+    for name in files:
+        if name.endswith((".map", ".d.ts", ".tsbuildinfo")):
+            pathlib.Path(directory, name).unlink()
+
+scope = resolved_pi / "node_modules" / "@mariozechner"
+base = scope / "clipboard"
+universal = scope / "clipboard-darwin-universal"
+if not base.is_dir() or base.is_symlink() or not universal.is_dir() or universal.is_symlink():
+    raise SystemExit("Pi clipboard base or darwin-universal package is missing")
+for candidate in scope.glob("clipboard-*"):
+    if candidate.name == "clipboard-darwin-universal":
+        continue
+    if candidate.is_symlink():
+        candidate.unlink()
+    elif candidate.is_dir():
+        shutil.rmtree(candidate)
+    else:
+        raise SystemExit(f"unexpected clipboard package type: {candidate}")
+PY
+}
+
+verify_pruned_pi() {
+  /usr/bin/python3 - "$1" <<'PY'
+import os
+import pathlib
+import sys
+
+pi_root = pathlib.Path(sys.argv[1])
+for required in ("README.md", "CHANGELOG.md", "docs", "examples"):
+    if not (pi_root / required).exists():
+        raise SystemExit(f"Pi self-documentation was removed: {required}")
+if (pi_root / "dist" / "bun").exists():
+    raise SystemExit("Pi Bun entrypoint remains in the Node-only bundle")
+for directory, directories, files in os.walk(pi_root, followlinks=False):
+    for name in files:
+        if name.endswith((".map", ".d.ts", ".tsbuildinfo")):
+            raise SystemExit(f"non-runtime Pi artifact remains: {pathlib.Path(directory, name)}")
+scope = pi_root / "node_modules" / "@mariozechner"
+packages = sorted(item.name for item in scope.glob("clipboard-*") if item.exists())
+if packages != ["clipboard-darwin-universal"]:
+    raise SystemExit(f"unexpected clipboard platform packages: {packages}")
+if not (scope / "clipboard").is_dir():
+    raise SystemExit("clipboard loader package is missing")
+PY
+}
+
 assert_plist_value() {
   local plist="$1"
   local key="$2"
@@ -244,11 +311,15 @@ verify_auth_import_contract() {
       TMPDIR="${TMPDIR:-/tmp}" \
       "${resources}/bin/node" --input-type=module -e '
         import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+        import * as clipboard from "@mariozechner/clipboard";
         if (typeof ModelRuntime !== "function") {
           throw new Error(`ModelRuntime named export has unexpected type: ${typeof ModelRuntime}`);
         }
         if (typeof ModelRuntime.create !== "function") {
           throw new Error("ModelRuntime.create is missing from the named export");
+        }
+        if (typeof clipboard.getText !== "function" || typeof clipboard.setText !== "function") {
+          throw new Error("clipboard native binding did not load");
         }
         process.stdout.write("PAD_AUTH_IMPORT_OK");
       '
@@ -268,7 +339,6 @@ generate_runtime_evidence() {
     "${EVIDENCE_STAGE}/runtime-sbom.spdx.json" \
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_BUN_VERSION}" \
     "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${electron_version}" \
     "${created_at}" <<'PY'
@@ -278,13 +348,12 @@ import pathlib
 import sys
 
 destination = pathlib.Path(sys.argv[1])
-app_version, pi_version, bun_version, node_version, electron_version, created_at = sys.argv[2:]
-seed = "|".join((app_version, pi_version, bun_version, node_version, electron_version))
+app_version, pi_version, node_version, electron_version, created_at = sys.argv[2:]
+seed = "|".join((app_version, pi_version, node_version, electron_version))
 namespace = "https://ghostcloud.cn/spdx/pad-desktop/runtime/" + hashlib.sha256(seed.encode()).hexdigest()
 packages = [
     ("SPDXRef-Package-PAD", "PAD Desktop control plane", app_version),
     ("SPDXRef-Package-Pi", "@earendil-works/pi-coding-agent", pi_version),
-    ("SPDXRef-Package-Bun", "Bun", bun_version),
     ("SPDXRef-Package-Node", "Node.js", node_version),
     ("SPDXRef-Package-Electron", "Electron", electron_version),
 ]
@@ -326,11 +395,9 @@ PY
   (
     cd "${RESOURCE_STAGE}"
     /usr/bin/shasum -a 256 \
-      bin/bun \
       bin/node \
       bin/pi \
       pi/package.json \
-      pi/dist/bun/cli.js \
       pi/dist/bundle/cli.js \
       release-evidence/runtime-sbom.spdx.json \
       > release-evidence/runtime-SHA256SUMS.txt
@@ -341,7 +408,6 @@ PY
     "${EVIDENCE_STAGE}/runtime-manifest.json" \
     "${app_version}" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_BUN_VERSION}" \
     "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${electron_version}" \
     "${electron_zip_sha}" \
@@ -356,7 +422,6 @@ import sys
     destination,
     app_version,
     pi_version,
-    bun_version,
     node_version,
     electron_version,
     electron_zip_sha,
@@ -373,7 +438,6 @@ manifest = {
     "components": [
         {"name": "PAD Desktop Electron control plane", "version": app_version, "runtime_path": "app.asar"},
         {"name": "Pi coding agent", "version": pi_version, "runtime_path": "pi/package.json"},
-        {"name": "Bun", "version": bun_version, "runtime_path": "bin/bun"},
         {"name": "Node.js", "version": node_version, "runtime_path": "bin/node"},
         {
             "name": "Electron",
@@ -405,7 +469,6 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_BUN_VERSION}" \
     "${EXPECTED_RUNTIME_NODE_VERSION}" \
     "${SIGNING_MODE}" <<'PY'
 import json
@@ -414,7 +477,7 @@ import sys
 
 manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 sbom = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-pi_version, bun_version, node_version, signing_mode = sys.argv[3:]
+pi_version, node_version, signing_mode = sys.argv[3:]
 if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime evidence schema")
 if manifest.get("minimum_macos") != "13.0" or manifest.get("target") != "darwin-arm64":
@@ -422,15 +485,17 @@ if manifest.get("minimum_macos") != "13.0" or manifest.get("target") != "darwin-
 if manifest.get("signing_mode") != signing_mode:
     raise SystemExit("runtime signing evidence does not match build mode")
 versions = {item.get("name"): item.get("version") for item in manifest.get("components", [])}
-if versions.get("Pi coding agent") != pi_version or versions.get("Bun") != bun_version or versions.get("Node.js") != node_version:
+if versions.get("Pi coding agent") != pi_version or versions.get("Node.js") != node_version:
     raise SystemExit("runtime version evidence does not match pinned versions")
+if "Bun" in versions:
+    raise SystemExit("runtime evidence still claims an unbundled Bun runtime")
 if sbom.get("spdxVersion") != "SPDX-2.3" or sbom.get("SPDXID") != "SPDXRef-DOCUMENT":
     raise SystemExit("invalid SPDX runtime SBOM")
 package_versions = {item.get("name"): item.get("versionInfo") for item in sbom.get("packages", [])}
 if package_versions.get("@earendil-works/pi-coding-agent") != pi_version:
     raise SystemExit("Pi is missing or unpinned in runtime SBOM")
-if package_versions.get("Bun") != bun_version:
-    raise SystemExit("Bun is missing or unpinned in runtime SBOM")
+if "Bun" in package_versions:
+    raise SystemExit("runtime SBOM still claims an unbundled Bun runtime")
 if package_versions.get("Node.js") != node_version:
     raise SystemExit("Node.js is missing or unpinned in runtime SBOM")
 PY
@@ -443,18 +508,16 @@ refresh_packaged_runtime_evidence() {
   local entitlements="${PACKAGE_STAGE}/final-app-entitlements.plist"
   local checksum_sha
 
-  # electron-osx-sign signs the copied PAD, Node and Bun Mach-O files. Their final
+  # electron-osx-sign signs the copied PAD and Node Mach-O files. Their final
   # CodeDirectory bytes therefore differ from the unsigned staging copies.
   # Recompute evidence from the signed bundle, update the manifest, and then
   # re-seal only the top-level app; all nested signatures remain unchanged.
   (
     cd "${resources}"
     /usr/bin/shasum -a 256 \
-      bin/bun \
       bin/node \
       bin/pi \
       pi/package.json \
-      pi/dist/bun/cli.js \
       pi/dist/bundle/cli.js \
       release-evidence/runtime-sbom.spdx.json \
       > release-evidence/runtime-SHA256SUMS.txt
@@ -492,12 +555,39 @@ PY
   fi
 }
 
+verify_retained_locales() {
+  /usr/bin/python3 - "$1" <<'PY'
+import pathlib
+import re
+import sys
+
+bundle = pathlib.Path(sys.argv[1])
+roots = [
+    bundle / "Contents" / "Resources",
+    bundle / "Contents" / "Frameworks" / "Electron Framework.framework" / "Versions" / "A" / "Resources",
+]
+allowed = re.compile(r"^(?:en|zh_CN|zh_TW)[^/]*\.lproj$")
+for root in roots:
+    if (
+        not root.is_dir()
+        or root.is_symlink()
+        or bundle.resolve() not in (root.resolve(), *root.resolve().parents)
+    ):
+        raise SystemExit(f"invalid locale root: {root}")
+    unexpected = sorted(
+        item.name for item in root.iterdir()
+        if item.name.endswith(".lproj") and not allowed.fullmatch(item.name)
+    )
+    if unexpected:
+        raise SystemExit(f"unexpected locales in {root}: {', '.join(unexpected)}")
+PY
+}
+
 verify_app_bundle() {
   local app_bundle="$1"
   local resources="${app_bundle}/Contents/Resources"
   local info_plist="${app_bundle}/Contents/Info.plist"
   local entitlements_plist="${PACKAGE_STAGE}/app-entitlements.plist"
-  local bun_version
   local node_version
   local pi_version
   local signature_details
@@ -522,8 +612,8 @@ verify_app_bundle() {
   done
 
   [[ -f "${resources}/app.asar" ]] || fail "app.asar is missing"
+  [[ ! -e "${resources}/bin/bun" ]] || fail "unbundled Bun executable is present"
   [[ -f "${resources}/pi/package.json" ]] || fail "bundled Pi package.json is missing"
-  [[ -f "${resources}/pi/dist/bun/cli.js" ]] || fail "bundled Pi Bun entrypoint is missing"
   [[ -f "${resources}/pi/dist/bundle/cli.js" ]] || fail "bundled Pi Node entrypoint is missing"
   for evidence in \
     runtime-manifest.json \
@@ -533,19 +623,18 @@ verify_app_bundle() {
   done
   for executable in \
     "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi"; do
     [[ -x "${executable}" ]] || fail "bundled executable is missing: ${executable}"
   done
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/bin/bun"
-  assert_system_linkage "${resources}/bin/bun"
   assert_arm64_only "${resources}/bin/node"
   assert_system_linkage "${resources}/bin/node"
   assert_internal_symlinks "${resources}"
+  verify_pruned_pi "${resources}/pi"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
+  verify_retained_locales "${app_bundle}"
 
   "${PACKAGE_NODE}" -e '
     const value = require(process.argv[1]);
@@ -563,8 +652,6 @@ verify_app_bundle() {
       "${resources}/bin/pi" --version)" || fail "bundled Pi runtime smoke test failed"
   pi_version="$(extract_semver "${pi_version}")" || fail "unexpected bundled Pi version output: ${pi_version}"
   [[ "${pi_version}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${pi_version}"
-  bun_version="$(extract_semver "$("${resources}/bin/bun" --version)")" || fail "bundled Bun did not report a semantic version"
-  [[ "${bun_version}" == "${EXPECTED_BUN_VERSION}" ]] || fail "bundled Bun must be ${EXPECTED_BUN_VERSION}, got ${bun_version}"
   node_version="$("${resources}/bin/node" -p 'process.versions.node')" || fail "bundled Node did not report a version"
   [[ "${node_version}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${node_version}"
   verify_auth_import_contract "${resources}"
@@ -629,32 +716,46 @@ APP_VERSION="$("${PACKAGE_NODE}" -p "require('${APP_DIR}/package.json').version"
 [[ "${APP_VERSION}" == <->.<->.<->* ]] || fail "invalid PAD Desktop package version: ${APP_VERSION}"
 
 PI_PACKAGE_SOURCE="$(real_path "${PAD_PI_PACKAGE:-/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent}")"
-BUN_SOURCE="$(real_path "${PAD_BUN_BIN:-/opt/homebrew/bin/bun}")"
 [[ -d "${PI_PACKAGE_SOURCE}" ]] || fail "bundled Pi package source is missing: ${PI_PACKAGE_SOURCE}"
-[[ -x "${BUN_SOURCE}" ]] || fail "bundled Bun source is missing: ${BUN_SOURCE}"
-assert_arm64_only "${BUN_SOURCE}"
-assert_system_linkage "${BUN_SOURCE}"
 [[ -f "${PI_PACKAGE_SOURCE}/package.json" ]] || fail "Pi package metadata is missing"
-[[ -f "${PI_PACKAGE_SOURCE}/dist/bun/cli.js" ]] || fail "Pi Bun entrypoint is missing"
 [[ -f "${PI_PACKAGE_SOURCE}/dist/bundle/cli.js" ]] || fail "Pi Node entrypoint is missing"
 assert_internal_symlinks "${PI_PACKAGE_SOURCE}"
 PI_SOURCE_VERSION="$("${PACKAGE_NODE}" -p "require(process.argv[1]).version" "${PI_PACKAGE_SOURCE}/package.json")"
 [[ "${PI_SOURCE_VERSION}" == "${EXPECTED_PI_VERSION}" ]] || fail "Pi source must be pinned to ${EXPECTED_PI_VERSION}, got ${PI_SOURCE_VERSION}"
-BUN_SOURCE_VERSION="$(extract_semver "$("${BUN_SOURCE}" --version)")" || fail "Bun source did not report a semantic version"
-[[ "${BUN_SOURCE_VERSION}" == "${EXPECTED_BUN_VERSION}" ]] || fail "Bun source must be pinned to ${EXPECTED_BUN_VERSION}, got ${BUN_SOURCE_VERSION}"
 
 /usr/bin/ditto --noqtn "${PI_PACKAGE_SOURCE}" "${RESOURCE_STAGE}/pi"
-/bin/cp -p "${BUN_SOURCE}" "${RESOURCE_STAGE}/bin/bun"
+prune_staged_pi "${RESOURCE_STAGE}/pi" "${RESOURCE_STAGE}"
 /bin/cp -p "${RUNTIME_NODE}" "${RESOURCE_STAGE}/bin/node"
 /bin/cp -p "${APP_DIR}/Resources/pi" "${RESOURCE_STAGE}/bin/pi"
-chmod 755 "${RESOURCE_STAGE}/bin/bun" "${RESOURCE_STAGE}/bin/node" "${RESOURCE_STAGE}/bin/pi"
+chmod 755 "${RESOURCE_STAGE}/bin/node" "${RESOURCE_STAGE}/bin/pi"
+/usr/bin/strip -x "${RESOURCE_STAGE}/bin/node"
+/usr/bin/python3 - "${PACKAGE_STAGE}/node-stage-entitlements.plist" <<'PY'
+import pathlib
+import plistlib
+import sys
+
+with pathlib.Path(sys.argv[1]).open("wb") as output:
+    plistlib.dump(
+        {
+            "com.apple.security.cs.allow-jit": True,
+            "com.apple.security.cs.disable-library-validation": True,
+        },
+        output,
+    )
+PY
+/usr/bin/codesign \
+  --force \
+  --sign - \
+  --options runtime \
+  --timestamp=none \
+  --entitlements "${PACKAGE_STAGE}/node-stage-entitlements.plist" \
+  "${RESOURCE_STAGE}/bin/node"
 /usr/bin/xattr -cr "${RESOURCE_STAGE}" 2>/dev/null || true
 assert_internal_symlinks "${RESOURCE_STAGE}"
+verify_pruned_pi "${RESOURCE_STAGE}/pi"
 
 STAGED_PI_VERSION="$(extract_semver "$(/usr/bin/env -i HOME="${SMOKE_HOME}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${RESOURCE_STAGE}/bin/pi" --version)")" || fail "bundled Pi smoke test failed"
 [[ "${STAGED_PI_VERSION}" == "${EXPECTED_PI_VERSION}" ]] || fail "bundled Pi must be ${EXPECTED_PI_VERSION}, got ${STAGED_PI_VERSION}"
-STAGED_BUN_VERSION="$(extract_semver "$("${RESOURCE_STAGE}/bin/bun" --version)")" || fail "bundled Bun smoke test failed"
-[[ "${STAGED_BUN_VERSION}" == "${EXPECTED_BUN_VERSION}" ]] || fail "bundled Bun must be ${EXPECTED_BUN_VERSION}, got ${STAGED_BUN_VERSION}"
 STAGED_NODE_VERSION="$("${RESOURCE_STAGE}/bin/node" -p 'process.versions.node')" || fail "bundled Node smoke test failed"
 [[ "${STAGED_NODE_VERSION}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "bundled Node must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${STAGED_NODE_VERSION}"
 
@@ -702,5 +803,5 @@ refresh_packaged_runtime_evidence "${APP_BUNDLE}"
 verify_app_bundle "${APP_BUNDLE}"
 
 echo "Created and verified PAD Desktop app: ${APP_BUNDLE}"
-echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Node ${EXPECTED_RUNTIME_NODE_VERSION}, Bun ${EXPECTED_BUN_VERSION}, ${SIGNING_MODE}"
+echo "Pinned runtime evidence: Pi ${EXPECTED_PI_VERSION}, Node ${EXPECTED_RUNTIME_NODE_VERSION}, ${SIGNING_MODE}"
 echo "Desktop backend: Electron/TypeScript (no Rust sidecar)."

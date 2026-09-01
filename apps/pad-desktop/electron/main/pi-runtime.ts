@@ -184,11 +184,6 @@ function piCommand(resourcesPath: string): { program: string; prefix: string[] }
   if (existsSync(bundledNode) && existsSync(bundledNodePi)) {
     return { program: bundledNode, prefix: [bundledNodePi] };
   }
-  const bundledBun = path.join(resourcesPath, 'bin', 'bun');
-  const bundledPi = path.join(resourcesPath, 'pi', 'dist', 'bun', 'cli.js');
-  if (existsSync(bundledBun) && existsSync(bundledPi)) {
-    return { program: bundledBun, prefix: [bundledPi] };
-  }
   const selected = [
     path.join(resourcesPath, 'bin', 'pi'),
     '/opt/homebrew/bin/pi',

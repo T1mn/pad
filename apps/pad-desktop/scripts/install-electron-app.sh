@@ -17,7 +17,7 @@ HEALTH_PID=""
 HEALTH_PROCESS_GROUP=""
 HEALTH_COMPLETE=0
 EXPECTED_PI_VERSION="0.84.4"
-EXPECTED_BUN_VERSION="1.3.14"
+EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
 MINIMUM_MACOS_VERSION="13.0"
 BACKUP_KEEP="${PAD_DESKTOP_BACKUP_KEEP:-3}"
 
@@ -149,7 +149,7 @@ def version(value: str) -> tuple[int, ...]:
 maximum = version(maximum_text)
 required = {
     "Contents/MacOS/PADDesktop",
-    "Contents/Resources/bin/bun",
+    "Contents/Resources/bin/node",
     "Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework",
     "Contents/Frameworks/PAD Desktop Helper.app/Contents/MacOS/PAD Desktop Helper",
     "Contents/Frameworks/PAD Desktop Helper (GPU).app/Contents/MacOS/PAD Desktop Helper (GPU)",
@@ -235,24 +235,79 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_BUN_VERSION}" <<'PY'
+    "${EXPECTED_RUNTIME_NODE_VERSION}" <<'PY'
 import json
 import pathlib
 import sys
 
 manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 sbom = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-pi_version, bun_version = sys.argv[3:]
+pi_version, node_version = sys.argv[3:]
 components = {item.get("name"): item.get("version") for item in manifest.get("components", [])}
 packages = {item.get("name"): item.get("versionInfo") for item in sbom.get("packages", [])}
 if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime evidence schema")
 if manifest.get("target") != "darwin-arm64" or manifest.get("minimum_macos") != "13.0":
     raise SystemExit("runtime evidence target does not match the install target")
-if components.get("Pi coding agent") != pi_version or components.get("Bun") != bun_version:
-    raise SystemExit("runtime evidence does not contain the pinned Pi/Bun versions")
-if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Bun") != bun_version:
-    raise SystemExit("runtime SPDX SBOM does not contain the pinned Pi/Bun versions")
+if components.get("Pi coding agent") != pi_version or components.get("Node.js") != node_version:
+    raise SystemExit("runtime evidence does not contain the pinned Pi/Node.js versions")
+if "Bun" in components:
+    raise SystemExit("runtime evidence still claims an unbundled Bun runtime")
+if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js") != node_version:
+    raise SystemExit("runtime SPDX SBOM does not contain the pinned Pi/Node.js versions")
+if "Bun" in packages:
+    raise SystemExit("runtime SPDX SBOM still claims an unbundled Bun runtime")
+PY
+}
+
+verify_retained_locales() {
+  /usr/bin/python3 - "$1" <<'PY'
+import pathlib
+import re
+import sys
+
+bundle = pathlib.Path(sys.argv[1])
+roots = [
+    bundle / "Contents" / "Resources",
+    bundle / "Contents" / "Frameworks" / "Electron Framework.framework" / "Versions" / "A" / "Resources",
+]
+allowed = re.compile(r"^(?:en|zh_CN|zh_TW)[^/]*\.lproj$")
+for root in roots:
+    if (
+        not root.is_dir()
+        or root.is_symlink()
+        or bundle.resolve() not in (root.resolve(), *root.resolve().parents)
+    ):
+        raise SystemExit(f"invalid locale root: {root}")
+    unexpected = sorted(
+        item.name for item in root.iterdir()
+        if item.name.endswith(".lproj") and not allowed.fullmatch(item.name)
+    )
+    if unexpected:
+        raise SystemExit(f"unexpected locales in {root}: {', '.join(unexpected)}")
+PY
+}
+
+verify_pruned_pi() {
+  /usr/bin/python3 - "$1" <<'PY'
+import os
+import pathlib
+import sys
+
+pi_root = pathlib.Path(sys.argv[1])
+for required in ("README.md", "CHANGELOG.md", "docs", "examples"):
+    if not (pi_root / required).exists():
+        raise SystemExit(f"Pi self-documentation is missing: {required}")
+if (pi_root / "dist" / "bun").exists():
+    raise SystemExit("Pi Bun entrypoint remains in the Node-only bundle")
+for directory, directories, files in os.walk(pi_root, followlinks=False):
+    for name in files:
+        if name.endswith((".map", ".d.ts", ".tsbuildinfo")):
+            raise SystemExit(f"non-runtime Pi artifact remains: {pathlib.Path(directory, name)}")
+scope = pi_root / "node_modules" / "@mariozechner"
+packages = sorted(item.name for item in scope.glob("clipboard-*") if item.exists())
+if packages != ["clipboard-darwin-universal"] or not (scope / "clipboard").is_dir():
+    raise SystemExit(f"unexpected clipboard runtime packages: {packages}")
 PY
 }
 
@@ -262,10 +317,11 @@ verify_bundle() {
   local resources="${app_bundle}/Contents/Resources"
   local entitlements
   local pi_version
-  local bun_version
+  local node_version
   local signature_details
 
   [[ -d "${app_bundle}" && ! -L "${app_bundle}" ]] || fail "app bundle is missing or is a symlink: ${app_bundle}"
+  [[ ! -e "${resources}/bin/bun" ]] || fail "unbundled Bun executable is present"
   /usr/bin/plutil -lint "${info}" >/dev/null
   [[ "$(plist_value "${info}" CFBundleIdentifier)" == cn.ghostcloud.pad.desktop ]] || fail "unexpected bundle identifier"
   [[ "$(plist_value "${info}" CFBundleExecutable)" == PADDesktop ]] || fail "unexpected bundle executable"
@@ -276,11 +332,9 @@ verify_bundle() {
 
   for required in \
     "${resources}/app.asar" \
-    "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi" \
     "${resources}/pi/package.json" \
-    "${resources}/pi/dist/bun/cli.js" \
     "${resources}/pi/dist/bundle/cli.js" \
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
@@ -289,20 +343,21 @@ verify_bundle() {
   done
   for executable in \
     "${app_bundle}/Contents/MacOS/PADDesktop" \
-    "${resources}/bin/bun" \
     "${resources}/bin/node" \
     "${resources}/bin/pi"; do
     [[ -x "${executable}" ]] || fail "bundle executable bit is missing: ${executable}"
   done
 
   assert_arm64_only "${app_bundle}/Contents/MacOS/PADDesktop"
-  assert_arm64_only "${resources}/bin/bun"
+  assert_arm64_only "${resources}/bin/node"
   assert_internal_symlinks "${resources}"
   assert_bundle_minos_at_most "${app_bundle}" "${MINIMUM_MACOS_VERSION}"
+  verify_retained_locales "${app_bundle}"
+  verify_pruned_pi "${resources}/pi"
   pi_version="$(extract_semver "$(/usr/bin/env -i HOME="${TMPDIR:-/tmp}" PATH="/usr/bin:/bin:/usr/sbin:/sbin" LANG="en_US.UTF-8" "${resources}/bin/pi" --version)")" || fail "Pi runtime did not report a semantic version"
-  bun_version="$(extract_semver "$("${resources}/bin/bun" --version)")" || fail "Bun runtime did not report a semantic version"
+  node_version="$("${resources}/bin/node" -p 'process.versions.node')" || fail "Node.js runtime did not report a version"
   [[ "${pi_version}" == "${EXPECTED_PI_VERSION}" ]] || fail "Pi must be ${EXPECTED_PI_VERSION}, got ${pi_version}"
-  [[ "${bun_version}" == "${EXPECTED_BUN_VERSION}" ]] || fail "Bun must be ${EXPECTED_BUN_VERSION}, got ${bun_version}"
+  [[ "${node_version}" == "${EXPECTED_RUNTIME_NODE_VERSION}" ]] || fail "Node.js must be ${EXPECTED_RUNTIME_NODE_VERSION}, got ${node_version}"
   /usr/bin/python3 - "${resources}/pi/package.json" "${EXPECTED_PI_VERSION}" <<'PY'
 import json
 import pathlib
@@ -439,7 +494,7 @@ const pending = new Map();
 function call(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = ++sequence;
-    // A cold packaged Bun/Pi runtime can still be compiling its first
+    // A cold packaged Node/Pi runtime can still be loading its first
     // provider module while the renderer is already reachable. Keep the
     // protocol probe alive for the same bounded window as the readiness loop.
     const timer = setTimeout(() => {
@@ -464,8 +519,8 @@ socket.addEventListener("open", async () => {
     const expression = `(async () => {
       const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
       let shell = null;
-      // The first Pi ModelRuntime catalog read may trigger Bun's lazy
-      // provider transpilation on a cold machine. Give the signed bundle a
+      // The first Pi ModelRuntime catalog read may load provider modules on a
+      // cold machine. Give the signed bundle a
       // generous window so install verification does not race that startup.
       for (let attempt = 0; attempt < 600; attempt += 1) {
         shell = document.querySelector(".app-shell");
@@ -521,7 +576,7 @@ setTimeout(() => {
 }, 90000).unref();
 JAVASCRIPT
 )"
-  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/bun" -e "${probe_script}" >"${result_file}"
+  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/node" -e "${probe_script}" >"${result_file}"
   /usr/bin/python3 - "${result_file}" <<'PY'
 import json
 import pathlib
@@ -545,7 +600,7 @@ close_health_app_over_cdp() {
   local websocket_url="$1"
   local close_script
   close_script='const url=process.env.PAD_CDP_WS; const socket=new WebSocket(url); socket.addEventListener("open",()=>socket.send(JSON.stringify({id:1,method:"Browser.close"}))); socket.addEventListener("message",()=>{socket.close();process.exit(0)}); setTimeout(()=>process.exit(0),1500);'
-  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/bun" -e "${close_script}" >/dev/null 2>&1 || true
+  PAD_CDP_WS="${websocket_url}" "${HEALTH_APP}/Contents/Resources/bin/node" -e "${close_script}" >/dev/null 2>&1 || true
 }
 
 run_isolated_health_probe() {

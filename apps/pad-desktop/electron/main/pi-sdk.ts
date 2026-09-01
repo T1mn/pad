@@ -157,8 +157,6 @@ export function modelCatalog(
       PAD_MODEL_CATALOG_REFRESH: refresh ? '1' : '0',
       PAD_MODEL_CATALOG_AUTHENTICATED_PROVIDERS: JSON.stringify(providers),
       PI_CODING_AGENT_DIR: profile.agent_dir,
-      BUN_INSTALL_CACHE_DIR: path.join(profile.agent_dir, 'bun-cache'),
-      BUN_RUNTIME_TRANSPILER_CACHE_PATH: path.join(profile.agent_dir, 'bun-transpiler-cache'),
     },
   });
   if (output.error || !output.stdout) throw new Error('Pi model catalog is unavailable');
@@ -202,8 +200,6 @@ export class AuthCoordinator {
         PAD_AUTH_TYPE: authType,
         PAD_AUTH_OPERATION: operation,
         PI_CODING_AGENT_DIR: profile.agent_dir,
-        BUN_INSTALL_CACHE_DIR: path.join(profile.agent_dir, 'bun-cache'),
-        BUN_RUNTIME_TRANSPILER_CACHE_PATH: path.join(profile.agent_dir, 'bun-transpiler-cache'),
       },
     });
     this.snapshot = {

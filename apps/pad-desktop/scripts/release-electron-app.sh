@@ -8,7 +8,7 @@ RELEASE_STAGE="$(mktemp -d /tmp/pad-desktop-release.XXXXXX)"
 DMG_MOUNT="${RELEASE_STAGE}/dmg-mount"
 DMG_ATTACHED=0
 EXPECTED_PI_VERSION="0.84.4"
-EXPECTED_BUN_VERSION="1.3.14"
+EXPECTED_RUNTIME_NODE_VERSION="22.19.0"
 SIGN_IDENTITY="${PAD_DESKTOP_SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${PAD_DESKTOP_NOTARY_PROFILE:-}"
 NOTARY_KEYCHAIN="${PAD_DESKTOP_NOTARY_KEYCHAIN:-}"
@@ -68,22 +68,54 @@ verify_runtime_evidence() {
     "${resources}/release-evidence/runtime-manifest.json" \
     "${resources}/release-evidence/runtime-sbom.spdx.json" \
     "${EXPECTED_PI_VERSION}" \
-    "${EXPECTED_BUN_VERSION}" <<'PY'
+    "${EXPECTED_RUNTIME_NODE_VERSION}" <<'PY'
 import json
 import pathlib
 import sys
 
 manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 sbom = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-pi_version, bun_version = sys.argv[3:]
+pi_version, node_version = sys.argv[3:]
 components = {item.get("name"): item.get("version") for item in manifest.get("components", [])}
 packages = {item.get("name"): item.get("versionInfo") for item in sbom.get("packages", [])}
 if manifest.get("schema") != "cn.ghostcloud.pad.desktop.runtime-evidence.v1":
     raise SystemExit("invalid runtime manifest schema")
-if components.get("Pi coding agent") != pi_version or components.get("Bun") != bun_version:
-    raise SystemExit("runtime manifest does not contain pinned Pi/Bun versions")
-if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Bun") != bun_version:
-    raise SystemExit("SPDX SBOM does not contain pinned Pi/Bun versions")
+if components.get("Pi coding agent") != pi_version or components.get("Node.js") != node_version:
+    raise SystemExit("runtime manifest does not contain pinned Pi/Node.js versions")
+if "Bun" in components:
+    raise SystemExit("runtime manifest still claims an unbundled Bun runtime")
+if packages.get("@earendil-works/pi-coding-agent") != pi_version or packages.get("Node.js") != node_version:
+    raise SystemExit("SPDX SBOM does not contain pinned Pi/Node.js versions")
+if "Bun" in packages:
+    raise SystemExit("SPDX SBOM still claims an unbundled Bun runtime")
+PY
+}
+
+verify_retained_locales() {
+  /usr/bin/python3 - "$1" <<'PY'
+import pathlib
+import re
+import sys
+
+bundle = pathlib.Path(sys.argv[1])
+roots = [
+    bundle / "Contents" / "Resources",
+    bundle / "Contents" / "Frameworks" / "Electron Framework.framework" / "Versions" / "A" / "Resources",
+]
+allowed = re.compile(r"^(?:en|zh_CN|zh_TW)[^/]*\.lproj$")
+for root in roots:
+    if (
+        not root.is_dir()
+        or root.is_symlink()
+        or bundle.resolve() not in (root.resolve(), *root.resolve().parents)
+    ):
+        raise SystemExit(f"invalid locale root: {root}")
+    unexpected = sorted(
+        item.name for item in root.iterdir()
+        if item.name.endswith(".lproj") and not allowed.fullmatch(item.name)
+    )
+    if unexpected:
+        raise SystemExit(f"unexpected locales in {root}: {', '.join(unexpected)}")
 PY
 }
 
@@ -124,18 +156,20 @@ if [[ ! -d "${APP_BUNDLE}" || -L "${APP_BUNDLE}" || ! -f "${INFO_PLIST}" ]]; the
   fail "final PAD Desktop bundle not found: ${APP_BUNDLE}"
 fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${APP_BUNDLE}"
+[[ ! -e "${RESOURCES}/bin/bun" ]] || fail "release bundle unexpectedly contains Bun"
 for required in \
   "${RESOURCES}/app.asar" \
-  "${RESOURCES}/bin/bun" \
+  "${RESOURCES}/bin/node" \
   "${RESOURCES}/bin/pi" \
   "${RESOURCES}/pi/package.json" \
-  "${RESOURCES}/pi/dist/bun/cli.js" \
+  "${RESOURCES}/pi/dist/bundle/cli.js" \
   "${RESOURCES}/release-evidence/runtime-manifest.json" \
   "${RESOURCES}/release-evidence/runtime-sbom.spdx.json" \
   "${RESOURCES}/release-evidence/runtime-SHA256SUMS.txt"; do
   [[ -f "${required}" ]] || fail "release resource is missing: ${required}"
 done
 verify_runtime_evidence "${RESOURCES}"
+verify_retained_locales "${APP_BUNDLE}"
 
 APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${INFO_PLIST}")"
 [[ "${APP_VERSION}" == <->.<->.<->* ]] || fail "invalid app version: ${APP_VERSION}"
@@ -192,7 +226,8 @@ fi
 mkdir -p "${ZIP_VERIFY}"
 /usr/bin/ditto -x -k "${ZIP_PATH}" "${ZIP_VERIFY}"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${ZIP_VERIFY}/PAD Desktop.app"
-[[ -x "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/bin/bun" ]] || fail "ZIP lost the Bun executable bit"
+[[ -x "${ZIP_VERIFY}/PAD Desktop.app/Contents/Resources/bin/node" ]] || fail "ZIP lost the Node.js executable bit"
+verify_retained_locales "${ZIP_VERIFY}/PAD Desktop.app"
 
 mkdir -p "${DMG_STAGE}"
 /usr/bin/ditto "${APP_BUNDLE}" "${DMG_STAGE}/PAD Desktop.app"
@@ -214,6 +249,7 @@ mkdir -p "${DMG_MOUNT}"
 /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "${DMG_MOUNT}" "${DMG_PATH}" >/dev/null
 DMG_ATTACHED=1
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${DMG_MOUNT}/PAD Desktop.app"
+verify_retained_locales "${DMG_MOUNT}/PAD Desktop.app"
 /usr/bin/hdiutil detach "${DMG_MOUNT}" >/dev/null
 DMG_ATTACHED=0
 
