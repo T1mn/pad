@@ -2,5 +2,6 @@
 dist/
 node_modules/
 out/
+release/
 .vite/
 .DS_Store
