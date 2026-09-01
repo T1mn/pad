@@ -144,6 +144,14 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+const AUTO_CONFIRM_INTENT = /\b(?:permission|allow|approve|authorize|permit|consent|grant|access|execute|execution)\b|权限|允许|批准|授权|许可|同意|执行/i;
+const PROTECTED_CONFIRM_TARGET = /(?:^|[/\\])\.(?:codex|pi|chatgpt)(?:[/\\]|$)|auth\.json|credential|api[ _-]?key|access[ _-]?token|secret|openai|Library[/\\]Application Support[/\\](?:Pi|Codex|ChatGPT)/i;
+
+export function shouldAutoConfirmExtensionRequest(message: Record<string, unknown>): boolean {
+  const text = JSON.stringify(message);
+  return AUTO_CONFIRM_INTENT.test(text) && !PROTECTED_CONFIRM_TARGET.test(text);
+}
+
 function childEnvironment(
   profile: StoredProfile,
   source: NodeJS.ProcessEnv,
@@ -380,7 +388,7 @@ class PiProcess extends EventEmitter {
       const permissionMode = this.task.policy?.mode ?? this.profile.policy?.mode;
       const unattended = this.task.policy?.unattended ?? this.profile.policy?.unattended;
       const fullAccess = permissionMode === 'system_full' && unattended === true;
-      if (method === 'confirm' && fullAccess) {
+      if (method === 'confirm' && fullAccess && shouldAutoConfirmExtensionRequest(message)) {
         this.child.stdin.write(`${JSON.stringify({ type: 'extension_ui_response', id, confirmed: true })}\n`);
       } else if (['confirm', 'select', 'input', 'editor'].includes(method)) {
         const optionsValue = Array.isArray(message.options)
@@ -470,10 +478,6 @@ export class PiRuntime {
     });
   }
 
-  isRunning(taskId: string): boolean {
-    return this.processes.has(taskId);
-  }
-
   async start(task: StoredTask, profile: StoredProfile, launch: {
     provider?: string;
     model?: string;
@@ -491,8 +495,14 @@ export class PiRuntime {
     this.processes.set(task.id, process);
     process.once('exit', () => this.processes.delete(task.id));
     this.options.onTaskChanged(task.id, { status: 'starting' });
-    await process.request({ type: 'get_state' });
-    return process;
+    try {
+      await process.request({ type: 'get_state' });
+      return process;
+    } catch (error) {
+      this.processes.delete(task.id);
+      await process.stop().catch(() => undefined);
+      throw error;
+    }
   }
 
   get(taskId: string): PiProcess | null {

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import path from 'node:path';
 import {
   DESKTOP_MAX_FRAME_BYTES,
   DESKTOP_PROTOCOL_VERSION,
@@ -24,6 +23,7 @@ import { LocalStore, publicProfile, publicTask, type StoredProfile, type StoredT
 import { PiRuntime } from './pi-runtime';
 import { AuthCoordinator, authenticatedProviders, modelCatalog } from './pi-sdk';
 import { RemoteGateway } from './remote-gateway';
+import packageMetadata from '../../package.json';
 
 export interface LocalBackendOptions {
   dataRoot: string;
@@ -119,30 +119,48 @@ export class LocalBackend extends EventEmitter {
 
   start(): void {
     if (this.started) return;
-    this.started = true;
     this.emitDesktop({ type: 'host_status', status: 'starting' });
-    this.store = new LocalStore(this.options.dataRoot);
-    this.pi = new PiRuntime({
-      resourcesPath: this.options.resourcesPath,
-      environment: this.options.environment,
-      onTaskChanged: (taskId, patch) => {
-        try { this.requireStore().updateTask(taskId, patch); } catch { /* task may have been removed */ }
-      },
-      onEvent: (taskId) => this.emitServer('task_changed', { task_id: taskId }),
-      onCollaborationAction: (sourceTaskId, action, params) => this.handleCollaborationAction(sourceTaskId, action, params),
-    });
-    this.auth = new AuthCoordinator(
-      this.options.resourcesPath,
-      this.options.environment ?? process.env,
-      () => this.emitServer('auth_changed', this.auth?.status() ?? {}),
-    );
-    this.remote = new RemoteGateway(
-      this.options.dataRoot,
-      (action, params) => this.handle(action, params),
-      () => this.emitServer('remote_changed', this.remote?.status() ?? {}),
-    );
-    void this.remote.startIfEnabled().catch(() => undefined);
-    this.emitDesktop({ type: 'host_status', status: 'ready' });
+    try {
+      this.store = new LocalStore(this.options.dataRoot);
+      this.pi = new PiRuntime({
+        resourcesPath: this.options.resourcesPath,
+        environment: this.options.environment,
+        onTaskChanged: (taskId, patch) => {
+          try { this.requireStore().updateTask(taskId, patch); } catch { /* task may have been removed */ }
+        },
+        onEvent: (taskId) => this.emitServer('task_changed', { task_id: taskId }),
+        onCollaborationAction: (sourceTaskId, action, params) => this.handleCollaborationAction(sourceTaskId, action, params),
+      });
+      this.auth = new AuthCoordinator(
+        this.options.resourcesPath,
+        this.options.environment ?? process.env,
+        () => this.emitServer('auth_changed', this.auth?.status() ?? {}),
+      );
+      this.remote = new RemoteGateway(
+        this.options.dataRoot,
+        (action, params, profileId) => this.handleRemote(action, params, profileId),
+        () => this.emitServer('remote_changed', this.remote?.status() ?? {}),
+        () => this.requireStore().getUiState().active_profile_id,
+      );
+      this.started = true;
+      void this.remote.startIfEnabled().catch(() => undefined);
+      this.emitDesktop({ type: 'host_status', status: 'ready' });
+    } catch (error) {
+      this.started = false;
+      this.auth?.stop();
+      void this.remote?.stop().catch(() => undefined);
+      this.remote = null;
+      this.auth = null;
+      this.pi = null;
+      try { this.store?.close(); } catch { /* keep the original startup error */ }
+      this.store = null;
+      this.emitDesktop({
+        type: 'host_status',
+        status: 'failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
@@ -278,7 +296,6 @@ export class LocalBackend extends EventEmitter {
       case 'terminal_snapshot': return this.terminalSnapshot(fields);
       case 'terminal_close': return this.terminalClose(fields);
       case 'runtime_snapshot': return this.runtimeSnapshot(requiredString(fields, 'task_id'));
-      case 'shutdown': await this.stop(); return { stopped: true };
       case 'remote_status': return { remote: this.requireRemote().status() };
       case 'remote_set_enabled': return { remote: await this.requireRemote().setEnabled(fields.enabled === true) };
       case 'remote_pair_begin': return this.requireRemote().beginPairing();
@@ -291,19 +308,31 @@ export class LocalBackend extends EventEmitter {
   private hello(): DesktopHelloResult {
     return {
       protocol: { current: DESKTOP_PROTOCOL_VERSION, supported: [1, 2], minimum_compatible: 1 },
-      server: { name: 'pad-electron-local', version: '0.7.7' },
+      server: { name: 'pad-electron-local', version: packageMetadata.version },
       capabilities: CAPABILITIES,
       limits: { max_frame_bytes: DESKTOP_MAX_FRAME_BYTES, max_request_id_bytes: 128 },
     };
   }
 
-  private bootstrap(): DesktopBootstrapResult {
+  private bootstrap(profileId?: string): DesktopBootstrapResult {
     const store = this.requireStore();
-    const fallback = store.ensureDefaultProfile();
+    const fallback = profileId ? this.profile(profileId) : store.ensureDefaultProfile();
     const state = store.getUiState();
-    const profile = state.active_profile_id ? store.getStoredProfile(state.active_profile_id) ?? fallback : fallback;
+    const profile = profileId ? fallback : state.active_profile_id ? store.getStoredProfile(state.active_profile_id) ?? fallback : fallback;
     store.ensureDefaultProject(profile.id);
-    if (!state.active_profile_id) store.setUiState({ ...state, active_profile_id: profile.id });
+    if (!profileId && !state.active_profile_id) store.setUiState({ ...state, active_profile_id: profile.id });
+    const selectedTask = state.selected_task_id ? store.getStoredTask(state.selected_task_id) : null;
+    const scopedProjectIds = profileId
+      ? new Set(store.records(profileId).projects.map((project) => project.id))
+      : null;
+    const uiState = profileId
+      ? {
+        ...state,
+        active_profile_id: profile.id,
+        selected_task_id: selectedTask?.profile_id === profile.id ? selectedTask.id : null,
+        collapsed_project_ids: state.collapsed_project_ids.filter((id) => scopedProjectIds?.has(id)),
+      }
+      : store.getUiState();
     const auth = this.authentication(profile);
     return {
       protocol_version: DESKTOP_PROTOCOL_VERSION,
@@ -317,9 +346,58 @@ export class LocalBackend extends EventEmitter {
       },
       profile: publicProfile(profile),
       capabilities: CAPABILITIES,
-      sidebar: store.sidebar(),
-      ui_state: store.getUiState(),
-      records: store.records(),
+      sidebar: store.sidebar(profileId),
+      ui_state: uiState,
+      records: store.records(profileId),
+    };
+  }
+
+  private async handleRemote(action: string, fields: Record<string, unknown>, profileId: string): Promise<unknown> {
+    const store = this.requireStore();
+    if (!store.getStoredProfile(profileId)) throw new Error('Paired profile is unavailable; pair this device again');
+    const requestedProfileId = optionalString(fields, 'profile_id');
+    if (requestedProfileId && requestedProfileId !== profileId) throw new Error('Remote command is outside the paired profile');
+    if (action === 'bootstrap') return this.bootstrap(profileId);
+    if (action === 'list_sidebar') {
+      const uiState = store.getUiState();
+      const selectedTask = uiState.selected_task_id ? store.getStoredTask(uiState.selected_task_id) : null;
+      const projectIds = new Set(store.records(profileId).projects.map((project) => project.id));
+      return {
+        sidebar: store.sidebar(profileId),
+        ui_state: {
+          ...uiState,
+          active_profile_id: profileId,
+          selected_task_id: selectedTask?.profile_id === profileId ? selectedTask.id : null,
+          collapsed_project_ids: uiState.collapsed_project_ids.filter((id) => projectIds.has(id)),
+        },
+        records: store.records(profileId),
+      };
+    }
+    if (action === 'create_task') {
+      const projectId = optionalString(fields, 'project_id');
+      if (projectId) {
+        const project = store.listProjects(true).find((candidate) => candidate.id === projectId);
+        if (!project || project.profile_id !== profileId) throw new Error('Project is outside the paired profile');
+      }
+      return this.scopeRemoteResult(await this.handle(action, { ...fields, profile_id: profileId }), profileId);
+    }
+    const taskId = requiredString(fields, 'task_id');
+    const task = store.getStoredTask(taskId);
+    if (!task || task.profile_id !== profileId) throw new Error('Task is outside the paired profile');
+    return this.scopeRemoteResult(await this.handle(action, fields), profileId);
+  }
+
+  private scopeRemoteResult(result: unknown, profileId: string): unknown {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+    const response = result as Record<string, unknown>;
+    return {
+      ...response,
+      ...(Object.prototype.hasOwnProperty.call(response, 'sidebar')
+        ? { sidebar: this.requireStore().sidebar(profileId) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(response, 'records')
+        ? { records: this.requireStore().records(profileId) }
+        : {}),
     };
   }
 
@@ -507,7 +585,7 @@ export class LocalBackend extends EventEmitter {
   private async prompt(fields: Record<string, unknown>): Promise<Record<string, unknown>> {
     const taskId = requiredString(fields, 'task_id');
     const directMessage = requiredString(fields, 'prompt');
-    const queuedMessages = this.requireStore().consumeMessages(taskId);
+    const queuedMessages = this.requireStore().pendingMessages(taskId);
     const queuedContext = queuedMessages.map((queued) =>
       `[来自 Session “${queued.sourceTitle}” (${queued.sourceTaskId}) 的消息]\n${queued.message}`,
     ).join('\n\n');
@@ -528,6 +606,7 @@ export class LocalBackend extends EventEmitter {
     }
     if (!process) throw new Error('Pi task failed to start');
     await process.request({ type: 'prompt', message, streamingBehavior: process.status === 'idle' ? undefined : 'followUp' });
+    this.requireStore().acknowledgeMessages(queuedMessages.map((queued) => queued.id));
     this.requireStore().updateTask(taskId, { status: 'running' });
     void process.request({ type: 'get_state' }).catch(() => undefined);
     this.emitServer('task_changed', { task_id: taskId });

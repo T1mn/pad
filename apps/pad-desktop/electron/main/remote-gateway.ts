@@ -14,6 +14,14 @@ import type {
 
 interface StoredDevice extends RemoteDeviceDto {
   token_hash: string;
+  /** The account selected when this device was paired. Missing on legacy state. */
+  profile_id?: string;
+  receipts?: StoredReceipt[];
+}
+
+interface StoredReceipt {
+  command_id: string;
+  response: Record<string, unknown>;
 }
 
 interface RemoteDiskState {
@@ -25,15 +33,17 @@ interface PairingTicket {
   id: string;
   secret: string;
   expiresAt: number;
+  profileId: string;
 }
 
 interface ConnectedClient {
   socket: WebSocket;
   deviceId: string;
+  profileId?: string;
   alive: boolean;
 }
 
-type RemoteExecutor = (action: string, params: Record<string, unknown>) => Promise<unknown>;
+type RemoteExecutor = (action: string, params: Record<string, unknown>, profileId: string) => Promise<unknown>;
 
 const REMOTE_ACTIONS = new Set([
   'bootstrap', 'list_sidebar', 'history', 'create_task', 'start_task', 'prompt',
@@ -93,6 +103,7 @@ export class RemoteGateway {
   private fingerprint = '';
   private pairing: PairingTicket | null = null;
   private readonly clients = new Map<WebSocket, ConnectedClient>();
+  private readonly pendingReceipts = new Map<string, Promise<Record<string, unknown>>>();
   private heartbeat: NodeJS.Timeout | null = null;
   private lastError: string | undefined;
   private readonly serverEpoch = randomUUID();
@@ -102,6 +113,7 @@ export class RemoteGateway {
     dataRoot: string,
     private readonly execute: RemoteExecutor,
     private readonly changed: () => void,
+    private readonly activeProfileId: () => string | null,
   ) {
     this.directory = path.join(dataRoot, 'v1', 'remote');
     this.stateFile = path.join(this.directory, 'state.json');
@@ -112,15 +124,23 @@ export class RemoteGateway {
   }
 
   async startIfEnabled(): Promise<void> {
-    if (this.state.enabled) await this.enable();
+    if (!this.state.enabled) return;
+    try {
+      await this.enable();
+    } finally {
+      this.changed();
+    }
   }
 
   async setEnabled(enabled: boolean): Promise<RemoteHostStatusDto> {
     this.state.enabled = enabled;
     this.persist();
-    if (enabled) await this.enable();
-    else await this.disable();
-    this.changed();
+    try {
+      if (enabled) await this.enable();
+      else await this.disable();
+    } finally {
+      this.changed();
+    }
     return this.status();
   }
 
@@ -128,10 +148,10 @@ export class RemoteGateway {
     const online = new Set([...this.clients.values()].map((client) => client.deviceId));
     return {
       enabled: this.state.enabled,
-      state: !this.state.enabled ? 'disabled' : this.server ? (this.lastError ? 'degraded' : 'ready') : 'starting',
+      state: !this.state.enabled ? 'disabled' : this.lastError ? 'degraded' : this.server ? 'ready' : 'starting',
       display_name: hostname(),
       active_connections: this.clients.size,
-      devices: this.state.devices.map(({ token_hash: _tokenHash, ...device }) => ({ ...device, online: online.has(device.id) })),
+      devices: this.state.devices.map(({ token_hash: _tokenHash, profile_id: _profileId, receipts: _receipts, ...device }) => ({ ...device, online: online.has(device.id) })),
       updated_at: Date.now(),
       error_code: this.lastError,
     };
@@ -139,10 +159,13 @@ export class RemoteGateway {
 
   beginPairing(): RemotePairBeginResultDto {
     if (!this.server || !this.state.enabled || !this.fingerprint) throw new Error('Enable remote connection before pairing');
+    const profileId = this.activeProfileId();
+    if (!profileId) throw new Error('Select a profile before pairing');
     const ticket: PairingTicket = {
       id: randomUUID(),
       secret: randomBytes(32).toString('base64url'),
       expiresAt: Date.now() + PAIRING_TTL_MS,
+      profileId,
     };
     this.pairing = ticket;
     const params = new URLSearchParams({
@@ -301,7 +324,7 @@ export class RemoteGateway {
         }
         authenticated = true;
         clearTimeout(timeout);
-        this.clients.set(socket, { socket, deviceId: device.id, alive: true });
+        this.clients.set(socket, { socket, deviceId: device.id, profileId: device.profileId, alive: true });
         this.send(socket, device.response);
         this.changed();
         return;
@@ -315,22 +338,40 @@ export class RemoteGateway {
         ? message.command_id
         : typeof message.id === 'string' ? message.id : randomUUID();
       const action = typeof message.action === 'string' ? message.action : '';
-      if (!REMOTE_ACTIONS.has(action)) {
+      const client = this.clients.get(socket);
+      const profileId = client?.profileId;
+      if (!profileId) {
         this.send(socket, {
           type: 'command_result', command_id: commandId, ok: false,
-          error: wireError('unsupported_action', '移动端不能执行这个操作。'),
+          error: wireError('profile_unavailable', '该设备未绑定可用账号，请重新配对。'),
         });
         return;
       }
-      try {
-        const result = await this.execute(action, record(message.params) ?? {});
-        this.send(socket, { type: 'command_result', command_id: commandId, ok: true, result });
-      } catch (error) {
-        this.send(socket, {
-          type: 'command_result', command_id: commandId, ok: false,
-          error: wireError('command_failed', error instanceof Error ? error.message : String(error)),
-        });
+      const receiptKey = `${client?.deviceId ?? ''}:${commandId}`;
+      const saved = client ? this.receipt(client.deviceId, commandId) : null;
+      if (saved) {
+        this.send(socket, saved);
+        return;
       }
+      if (!REMOTE_ACTIONS.has(action)) {
+        const response = {
+          type: 'command_result', command_id: commandId, ok: false,
+          error: wireError('unsupported_action', '移动端不能执行这个操作。'),
+        };
+        this.saveReceipt(client!.deviceId, commandId, response);
+        this.send(socket, response);
+        return;
+      }
+      let pending = this.pendingReceipts.get(receiptKey);
+      if (!pending) {
+        pending = this.executeCommand(client!.deviceId, profileId, commandId, action, record(message.params) ?? {});
+        this.pendingReceipts.set(receiptKey, pending);
+        void pending.then(
+          () => this.pendingReceipts.delete(receiptKey),
+          () => this.pendingReceipts.delete(receiptKey),
+        );
+      }
+      this.send(socket, await pending);
     });
     socket.once('close', () => {
       clearTimeout(timeout);
@@ -345,7 +386,7 @@ export class RemoteGateway {
     });
   }
 
-  private authenticate(message: Record<string, unknown>): { id: string; response: Record<string, unknown> } | null {
+  private authenticate(message: Record<string, unknown>): { id: string; profileId?: string; response: Record<string, unknown> } | null {
     if (message.type === 'pair') {
       const pairingId = typeof message.pairing_id === 'string' ? message.pairing_id : '';
       const secret = typeof message.secret === 'string'
@@ -368,14 +409,17 @@ export class RemoteGateway {
         paired_at: Date.now(),
         last_seen_at: Date.now(),
         token_hash: hashToken(deviceToken),
+        profile_id: ticket.profileId,
+        receipts: [],
       };
       this.state.devices.push(device);
       this.persist();
       return {
         id: device.id,
+        profileId: device.profile_id,
         response: {
           type: 'paired', device_id: device.id, device_token: deviceToken,
-          server_epoch: this.serverEpoch, latest_revision: this.revision, profile_available: true,
+          server_epoch: this.serverEpoch, latest_revision: this.revision, profile_available: Boolean(device.profile_id),
         },
       };
     }
@@ -388,9 +432,10 @@ export class RemoteGateway {
       this.persist();
       return {
         id,
+        profileId: device.profile_id,
         response: {
           type: 'welcome', server_epoch: this.serverEpoch,
-          latest_revision: this.revision, profile_available: true,
+          latest_revision: this.revision, profile_available: Boolean(device.profile_id),
         },
       };
     }
@@ -401,11 +446,63 @@ export class RemoteGateway {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
   }
 
+  private receipt(deviceId: string, commandId: string): Record<string, unknown> | null {
+    const device = this.state.devices.find((candidate) => candidate.id === deviceId);
+    const receipt = device?.receipts?.find((candidate) => candidate.command_id === commandId);
+    return receipt?.response ?? null;
+  }
+
+  private async executeCommand(
+    deviceId: string,
+    profileId: string,
+    commandId: string,
+    action: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    let response: Record<string, unknown>;
+    try {
+      const result = await this.execute(action, params, profileId);
+      response = { type: 'command_result', command_id: commandId, ok: true, result };
+    } catch (error) {
+      response = {
+        type: 'command_result', command_id: commandId, ok: false,
+        error: wireError('command_failed', error instanceof Error ? error.message : String(error)),
+      };
+    }
+    this.saveReceipt(deviceId, commandId, response);
+    return response;
+  }
+
+  private saveReceipt(deviceId: string, commandId: string, response: Record<string, unknown>): void {
+    const device = this.state.devices.find((candidate) => candidate.id === deviceId);
+    if (!device) return;
+    const receipts = Array.isArray(device.receipts) ? device.receipts : [];
+    device.receipts = [...receipts.filter((receipt) => receipt.command_id !== commandId), { command_id: commandId, response }].slice(-128);
+    this.persist();
+  }
+
   private load(): RemoteDiskState {
     if (!existsSync(this.stateFile)) return { enabled: false, devices: [] };
     try {
       const value = JSON.parse(readFileSync(this.stateFile, 'utf8')) as RemoteDiskState;
-      return { enabled: value.enabled === true, devices: Array.isArray(value.devices) ? value.devices : [] };
+      return {
+        enabled: value.enabled === true,
+        devices: Array.isArray(value.devices) ? value.devices.map((device) => {
+          const candidate = record(device) ?? {};
+          const receipts = Array.isArray(candidate.receipts)
+            ? candidate.receipts.map((receipt) => {
+              const parsed = record(receipt);
+              const commandId = typeof parsed?.command_id === 'string' ? parsed.command_id : '';
+              const response = record(parsed?.response);
+              return commandId && response ? { command_id: commandId, response } : null;
+            }).filter((receipt): receipt is StoredReceipt => receipt !== null).slice(-128)
+            : [];
+          return {
+            ...candidate,
+            receipts,
+          } as StoredDevice;
+        }) : [],
+      };
     } catch {
       return { enabled: false, devices: [] };
     }

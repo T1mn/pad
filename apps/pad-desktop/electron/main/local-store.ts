@@ -93,21 +93,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS sections (
-  id TEXT PRIMARY KEY NOT NULL,
-  name TEXT NOT NULL,
-  section_order INTEGER NOT NULL DEFAULT 0,
-  collapsed INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS section_items (
-  section_id TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
-  item_kind TEXT NOT NULL,
-  item_id TEXT NOT NULL,
-  item_order INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (section_id, item_kind, item_id)
-);
 CREATE TABLE IF NOT EXISTS desktop_ui_state (
   singleton_id INTEGER PRIMARY KEY NOT NULL,
   state_json TEXT NOT NULL,
@@ -516,14 +501,10 @@ export class LocalStore {
     return id;
   }
 
-  consumeMessages(targetTaskId: string): Array<{ id: string; sourceTaskId: string; sourceTitle: string; message: string }> {
+  pendingMessages(targetTaskId: string): Array<{ id: string; sourceTaskId: string; sourceTitle: string; message: string }> {
     const rows = this.database.prepare(`SELECT m.id,m.source_task_id,m.message,t.title AS source_title
       FROM session_messages m JOIN tasks t ON t.id=m.source_task_id
       WHERE m.target_task_id=? AND m.delivered_at IS NULL ORDER BY m.created_at,m.id`).all(targetTaskId) as Array<Record<string, unknown>>;
-    if (!rows.length) return [];
-    const deliveredAt = now();
-    const mark = this.database.prepare('UPDATE session_messages SET delivered_at=? WHERE id=?');
-    for (const row of rows) mark.run(deliveredAt, text(row.id));
     return rows.map((row) => ({
       id: text(row.id),
       sourceTaskId: text(row.source_task_id),
@@ -532,11 +513,21 @@ export class LocalStore {
     }));
   }
 
-  records(): DesktopRecords {
+  acknowledgeMessages(ids: readonly string[]): void {
+    if (!ids.length) return;
+    const deliveredAt = now();
+    const mark = this.database.prepare('UPDATE session_messages SET delivered_at=? WHERE id=? AND delivered_at IS NULL');
+    for (const id of ids) mark.run(deliveredAt, id);
+  }
+
+  records(profileId?: string): DesktopRecords {
+    const profiles = profileId
+      ? this.listProfiles().filter((profile) => profile.id === profileId)
+      : this.listProfiles();
     return {
-      profiles: this.listProfiles(),
-      projects: this.listProjects(true),
-      tasks: this.listStoredTasks(true).map(publicTask),
+      profiles,
+      projects: this.listProjects(true).filter((project) => profileId === undefined || project.profile_id === profileId),
+      tasks: this.listStoredTasks(true).filter((task) => profileId === undefined || task.profile_id === profileId).map(publicTask),
     };
   }
 
@@ -573,11 +564,11 @@ export class LocalStore {
     return normalized;
   }
 
-  sidebar(): Record<string, unknown> {
+  sidebar(profileId?: string): Record<string, unknown> {
     const state = this.getUiState();
-    const profileId = state.active_profile_id;
-    const projects = this.listProjects(true).filter((project) => project.profile_id === profileId);
-    const tasks = this.listStoredTasks(true).filter((task) => task.profile_id === profileId);
+    const scopedProfileId = profileId ?? state.active_profile_id;
+    const projects = this.listProjects(true).filter((project) => project.profile_id === scopedProfileId);
+    const tasks = this.listStoredTasks(true).filter((task) => task.profile_id === scopedProfileId);
     const visibleTask = (task: StoredTask) => state.sidebar_view === 'archive'
       ? task.archived
       : state.sidebar_view === 'pinned'
@@ -615,8 +606,9 @@ export class LocalStore {
     return {
       view: state.sidebar_view,
       query: '',
-      active_profile_id: profileId,
-      selected_key: state.selected_task_id ? `task:${state.selected_task_id}` : null,
+      active_profile_id: scopedProfileId,
+      selected_key: state.selected_task_id && tasks.some((task) => task.id === state.selected_task_id)
+        ? `task:${state.selected_task_id}` : null,
       rows,
     };
   }
