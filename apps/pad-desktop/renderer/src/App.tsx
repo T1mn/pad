@@ -121,8 +121,12 @@ export default function App() {
   const sidebarOpenRef = useRef(true);
   const rightPanelOpenRef = useRef(false);
   const bottomPanelOpenRef = useRef(false);
+  const routeRef = useRef<Route>("task");
+  const searchOpenRef = useRef(false);
   const tasksRef = useRef<TaskSummary[]>([]);
   tasksRef.current = snapshot.tasks;
+  routeRef.current = route;
+  searchOpenRef.current = searchOpen;
   const theme = themePreference === "system" ? systemTheme : themePreference;
 
   function applyPersistedUiState(state: DesktopUiState, tasks: TaskSummary[], fallbackToFirst = false): string | null {
@@ -193,6 +197,20 @@ export default function App() {
     }
   }
 
+  function closeActiveSurface(): void {
+    if (bottomPanelOpenRef.current) {
+      void setPanelVisibility("bottom", false);
+    } else if (rightPanelOpenRef.current) {
+      void setPanelVisibility("right", false);
+    } else if (searchOpenRef.current) {
+      searchOpenRef.current = false;
+      setSearchOpen(false);
+    } else if (routeRef.current === "settings") {
+      routeRef.current = "task";
+      setRoute("task");
+    }
+  }
+
   useEffect(() => {
     let alive = true;
     void desktop.loadSnapshot().then((initial) => {
@@ -228,6 +246,7 @@ export default function App() {
           setSearchOpen(true);
         }
         else if (event.action === "settings") { setSettingsSection("general"); setRoute("settings"); }
+        else if (event.action === "close_active") closeActiveSurface();
         else if (event.action === "toggle_sidebar") void setSidebarVisibility(!sidebarOpenRef.current);
         else if (event.action === "toggle_terminal") void setPanelVisibility("bottom", !bottomPanelOpenRef.current);
       }
@@ -791,7 +810,6 @@ export default function App() {
                     await desktop.respondInteraction(taskId, requestId, response);
                   }}
                   onUpdateTask={handleUpdateTask}
-                  onOpenSettings={() => setRoute("settings")}
                 />}
                 </div>
                 {compactWindow && rightPanelOpen && <button className="right-panel-backdrop" aria-label="关闭任务详情面板" onClick={() => void setPanelVisibility("right", false)} />}

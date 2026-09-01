@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import packageMetadata from "../../../package.json";
 import type { AccountSummary, AuthSession, AuthType, BackendSummary, RemoteHostStatus, RemotePairing } from "../types";
 import { toUserFacingError, type UserFacingError } from "../lib/errors";
 import { backendStatusLabel, localizePiAuthOption, localizePiAuthPrompt, permissionModeLabel } from "../lib/labels";
@@ -522,7 +523,7 @@ export function SettingsView({
               <div className="about-logo"><Icon name="sparkles" /></div>
               <h2>PAD Desktop</h2>
               <p>Electron + React · TypeScript 本地服务 · Pi 运行内核</p>
-              <span>0.7.6</span>
+              <span>{packageMetadata.version}</span>
             </section>
           </>}
         </div>

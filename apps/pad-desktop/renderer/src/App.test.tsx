@@ -179,6 +179,41 @@ describe("App account isolation and compact layout", () => {
     expect(screen.getByRole("button", { name: "切换终端" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("Command+W 菜单动作依次关闭终端和右侧面板，不关闭窗口", async () => {
+    const initial = snapshot("personal");
+    let persisted = { ...initial.uiState, rightPanelOpen: true, bottomPanelOpen: true };
+    initial.uiState = persisted;
+    desktopMock.loadSnapshot.mockResolvedValueOnce(initial);
+    desktopMock.updateUiState.mockImplementation(async (patch) => {
+      persisted = { ...persisted, ...patch };
+      return persisted;
+    });
+    desktopMock.openTerminal.mockResolvedValueOnce({
+      paneId: "terminal-1",
+      taskId: "personal-task",
+      label: "任务终端",
+      status: "running",
+    });
+    desktopMock.getTerminalSnapshot.mockResolvedValue({
+      paneId: "terminal-1",
+      taskId: "personal-task",
+      label: "任务终端",
+      status: "running",
+      lines: [],
+    });
+    desktopMock.closeTerminal.mockResolvedValue(undefined);
+    render(<App />);
+
+    expect(await screen.findByLabelText("终端面板")).toBeInTheDocument();
+    expect(screen.getByLabelText("任务详情面板")).toBeInTheDocument();
+    act(() => emitDesktopEvent?.({ type: "menu-action", action: "close_active" }));
+    await waitFor(() => expect(screen.queryByLabelText("终端面板")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("任务详情面板")).toBeInTheDocument();
+
+    act(() => emitDesktopEvent?.({ type: "menu-action", action: "close_active" }));
+    await waitFor(() => expect(screen.queryByLabelText("任务详情面板")).not.toBeInTheDocument());
+  });
+
   it("任务选择与右侧面板持久化失败时回滚并给出可见错误", async () => {
     const initial = snapshot("personal");
     initial.tasks.push({ ...initial.tasks[0]!, id: "second-task", title: "第二任务" });

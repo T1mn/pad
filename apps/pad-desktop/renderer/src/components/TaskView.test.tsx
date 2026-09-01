@@ -706,7 +706,6 @@ function renderTaskView(overrides: {
       onStop={overrides.onStop ?? vi.fn().mockResolvedValue(undefined)}
       onRespondInteraction={overrides.onRespondInteraction ?? vi.fn().mockResolvedValue(undefined)}
       onUpdateTask={overrides.onUpdateTask ?? vi.fn().mockResolvedValue(undefined)}
-      onOpenSettings={vi.fn()}
     />,
   );
 }

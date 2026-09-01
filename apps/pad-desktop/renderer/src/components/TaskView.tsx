@@ -59,7 +59,6 @@ interface TaskViewProps {
   onStop(): Promise<void>;
   onRespondInteraction(taskId: string, interactionId: string, value: InteractionResponse): Promise<void>;
   onUpdateTask(patch: { pinned?: boolean; archived?: boolean; unread?: boolean }): Promise<void>;
-  onOpenSettings(): void;
 }
 
 function Turn({ turn, last }: { turn: TurnEntry; last: boolean }) {

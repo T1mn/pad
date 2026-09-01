@@ -38,7 +38,6 @@ import type {
   TaskStatus,
   TaskSummary,
   TerminalPane,
-  TerminalSize,
   TerminalSnapshot,
   TurnArtifact,
   TurnArtifactKind,
@@ -182,8 +181,8 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
     const rawEvent = event as unknown as Record<string, unknown>;
     if (rawEvent.type === "menu_action") {
       const action = textValue(rawEvent.action);
-      if (["new_task", "search", "settings", "toggle_sidebar", "toggle_terminal"].includes(action)) {
-        emit({ type: "menu-action", action: action as "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" });
+      if (["new_task", "search", "settings", "toggle_sidebar", "toggle_terminal", "close_active"].includes(action)) {
+        emit({ type: "menu-action", action: action as "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" | "close_active" });
       }
     } else if (event.type === "backend_event") {
       if (desktopServerEventKind(event.payload) === "remote_changed") {
@@ -566,16 +565,6 @@ export function createBridgeAdapter(api: PadDesktopApi): DesktopAdapter {
       const task = snapshot.tasks.find((candidate) => candidate.id === taskId);
       if (!task) throw new Error("当前账号无权访问该任务。");
       await api.request("stop_task", { task_id: taskId });
-      const next = await refresh(false);
-      emit({ type: "snapshot", snapshot: next });
-      return next;
-    },
-    async retryTask(taskId) {
-      requireStableAccount();
-      const task = snapshot.tasks.find((candidate) => candidate.id === taskId);
-      if (!task) throw new Error("当前账号无权访问该任务。");
-      await api.request("retry_task", { task_id: taskId });
-      scheduleTaskPoll(taskId);
       const next = await refresh(false);
       emit({ type: "snapshot", snapshot: next });
       return next;
@@ -1560,10 +1549,6 @@ function authSessionFromEvent(value: unknown, fallbackProfileId: string): AuthSe
   );
 }
 
-function idleAuth(profileId: string): AuthSession {
-  return { profileId, provider: null, phase: "idle", title: "登录模型账号", message: "通过 Pi 的安全登录流程连接模型提供商。" };
-}
-
 function emptySnapshot(): DesktopSnapshot {
   return {
     accounts: [], modelCatalogByProfile: {}, projects: [], tasks: [], turnsByTask: {}, interactionsByTask: {},
@@ -1776,7 +1761,6 @@ function createUnavailableAdapter(): DesktopAdapter {
     cancelLogin: unavailable,
     logout: unavailable,
     abortTask: unavailable,
-    retryTask: unavailable,
     respondInteraction: unavailable,
     updateTask: unavailable,
     openTerminal: unavailable,

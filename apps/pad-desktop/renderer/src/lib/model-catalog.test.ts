@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  MODEL_CATALOG_ACTION,
-  availableModelIds,
   modelCatalogWithFallback,
   parseModelCatalog,
 } from "./model-catalog";
@@ -25,7 +23,6 @@ describe("Pi model_catalog renderer contract", () => {
     expect(catalog.selectedModel).toBe("gpt-5.4");
     expect(catalog.source).toBe("live");
     expect(catalog.checkedAt).toBe(1_788_068_570_947);
-    expect(availableModelIds(catalog)).toEqual(["auto", "gpt-5.4", "gpt-5.5"]);
   });
 
   it("识别 Pi ModelRuntime 的 pi_model_runtime 来源", () => {
@@ -48,7 +45,6 @@ describe("Pi model_catalog renderer contract", () => {
 
     expect(catalog.models).toEqual([]);
     expect(catalog.providers).toEqual([]);
-    expect(availableModelIds(catalog)).toEqual(["auto"]);
   });
 
   it("兼容多个 provider 分组，仅显示已认证 provider 的模型", () => {
@@ -119,9 +115,5 @@ describe("Pi model_catalog renderer contract", () => {
     ]);
     expect(catalog.source).toBe("cache");
     expect(catalog.stale).toBe(true);
-  });
-
-  it("固定 model_catalog action 名，避免 renderer 与 sidecar 请求字符串漂移", () => {
-    expect(MODEL_CATALOG_ACTION).toBe("model_catalog");
   });
 });

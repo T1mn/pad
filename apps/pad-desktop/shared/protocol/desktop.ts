@@ -376,24 +376,9 @@ export interface DesktopRendererRequest<A extends DesktopAction = DesktopAction>
   params: DesktopRequestParams[A];
 }
 
-export interface DesktopHostRequest {
-  id: string;
-  action: string;
-  protocol_version?: DesktopProtocolVersion;
-  [key: string]: unknown;
-}
-
-export interface DesktopHostResponse<T = unknown> {
-  id?: string | null;
-  ok: boolean;
-  result?: T;
-  error?: { code: string; message: string };
-}
-
 export type DesktopServerEventKind =
   | 'task_changed'
   | 'account_changed'
-  | 'runtime_changed'
   | 'auth_changed'
   | 'remote_changed';
 
@@ -408,6 +393,7 @@ export type DesktopMenuAction =
   | 'new_task'
   | 'search'
   | 'settings'
+  | 'close_active'
   | 'toggle_sidebar'
   | 'toggle_terminal';
 

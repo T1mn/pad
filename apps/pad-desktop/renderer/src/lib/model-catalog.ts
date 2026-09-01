@@ -12,8 +12,6 @@
  * UI never reads Pi's private JSON files.
  */
 
-export const MODEL_CATALOG_ACTION = "model_catalog" as const;
-
 export type ModelCatalogSource = "live" | "cache" | "fallback" | "unknown";
 
 export interface ModelCatalogModel {
@@ -109,11 +107,6 @@ export function modelCatalogWithFallback(current: unknown, cached: unknown, defa
     source: "fallback",
     stale: false,
   };
-}
-
-/** The visible picker always keeps Pi's automatic selection as its first item. */
-export function availableModelIds(catalog: ModelCatalog): string[] {
-  return ["auto", ...catalog.models.map((model) => model.id).filter((id, index, values) => values.indexOf(id) === index)];
 }
 
 function parseProviders(value: unknown, selectedProvider: string | null): ModelCatalogProvider[] {

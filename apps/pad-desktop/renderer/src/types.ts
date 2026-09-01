@@ -271,7 +271,7 @@ export type DesktopEvent =
   | { type: "turn-added"; taskId: string; turn: TurnEntry }
   | { type: "auth-updated"; session: AuthSession }
   | { type: "remote-updated"; status: RemoteHostStatus | null }
-  | { type: "menu-action"; action: "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" };
+  | { type: "menu-action"; action: "new_task" | "search" | "settings" | "toggle_sidebar" | "toggle_terminal" | "close_active" };
 
 export type ThinkingLevel = "default" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -307,7 +307,6 @@ export interface DesktopAdapter {
   cancelLogin(accountId: string): Promise<void>;
   logout(accountId: string, provider?: string): Promise<DesktopSnapshot>;
   abortTask(taskId: string): Promise<DesktopSnapshot>;
-  retryTask(taskId: string): Promise<DesktopSnapshot>;
   respondInteraction(taskId: string, interactionId: string, value: InteractionResponse): Promise<void>;
   updateTask(taskId: string, patch: { title?: string; pinned?: boolean; archived?: boolean; unread?: boolean }): Promise<DesktopSnapshot>;
   openTerminal(taskId: string, size: TerminalSize): Promise<TerminalPane>;

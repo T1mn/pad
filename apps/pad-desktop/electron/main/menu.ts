@@ -1,15 +1,8 @@
 import { BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
-import { DESKTOP_IPC } from '../../shared/protocol';
-
-export type MenuAction =
-  | 'new_task'
-  | 'search'
-  | 'settings'
-  | 'toggle_sidebar'
-  | 'toggle_terminal';
+import { DESKTOP_IPC, type DesktopMenuAction } from '../../shared/protocol';
 
 export function installApplicationMenu(): void {
-  const send = (action: MenuAction) => {
+  const send = (action: DesktopMenuAction) => {
     const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
     window?.webContents.send(DESKTOP_IPC.event, { type: 'menu_action', action });
   };
@@ -36,7 +29,7 @@ export function installApplicationMenu(): void {
         { label: '新建任务', accelerator: 'CommandOrControl+N', click: () => send('new_task') },
         { label: '搜索任务', accelerator: 'CommandOrControl+K', click: () => send('search') },
         { type: 'separator' },
-        { label: '关闭窗口', role: 'close' },
+        { label: '关闭当前面板', accelerator: 'CommandOrControl+W', click: () => send('close_active') },
       ],
     },
     {
