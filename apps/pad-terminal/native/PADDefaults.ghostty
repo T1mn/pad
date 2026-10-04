@@ -1,0 +1,6 @@
+# PAD workbench presentation defaults. User config and CLI options override these.
+background = 262722
+foreground = d8d8d4
+font-size = 14
+window-padding-x = 10
+window-padding-y = 8

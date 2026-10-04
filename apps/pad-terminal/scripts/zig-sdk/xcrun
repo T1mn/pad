@@ -1,0 +1,8 @@
+#!/bin/sh
+# Zig 0.15.2 needs SDK stubs with arm64 targets (Xcode 26.5 has arm64e only).
+# Override just macOS SDK discovery, not Metal, iOS SDKs, or xcodebuild.
+if [ "$#" = 3 ] && [ "$1" = --sdk ] && [ "$2" = macosx ] && [ "$3" = --show-sdk-path ] && [ -n "${PAD_ZIG_MACOS_SDK:-}" ]; then
+    printf '%s\n' "$PAD_ZIG_MACOS_SDK"
+else
+    exec /usr/bin/xcrun "$@"
+fi

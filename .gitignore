@@ -1,2 +1,6 @@
 **/__pycache__/
 *.py[cod]
+
+# Prevent accidental repository-local credential/data copies.
+/.pi/agent/auth.json
+/.pad/

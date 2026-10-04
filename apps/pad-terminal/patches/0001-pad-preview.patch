@@ -1,0 +1,294 @@
+diff --git a/macos/Ghostty.xcodeproj/project.pbxproj b/macos/Ghostty.xcodeproj/project.pbxproj
+index 3758c325d9482f4f1b6d7301031620b9f183d8f1..a02e987a82f3cc8e45d1758d5a47fe4b46a8e358 100644
+--- a/macos/Ghostty.xcodeproj/project.pbxproj
++++ b/macos/Ghostty.xcodeproj/project.pbxproj
+@@ -750,9 +750,9 @@
+ 				GCC_OPTIMIZATION_LEVEL = fast;
+ 				GENERATE_INFOPLIST_FILE = YES;
+ 				INFOPLIST_FILE = "Ghostty-Info.plist";
+-				INFOPLIST_KEY_CFBundleDisplayName = Ghostty;
++				INFOPLIST_KEY_CFBundleDisplayName = "PAD Terminal Preview";
+ 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "A program running within Ghostty would like to use AppleScript.";
++				INFOPLIST_KEY_NSAppleEventsUsageDescription = "A program running within PAD Terminal would like to use AppleScript.";
+ 				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "A program running within Ghostty would like to access your system's audio.";
+ 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "A program running within Ghostty would like to use Bluetooth.";
+ 				INFOPLIST_KEY_NSCalendarsUsageDescription = "A program running within Ghostty would like to access your Calendar.";
+@@ -777,7 +777,7 @@
+ 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+ 				MARKETING_VERSION = 0.1;
+ 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
+-				PRODUCT_BUNDLE_IDENTIFIER = com.mitchellh.ghostty;
++				PRODUCT_BUNDLE_IDENTIFIER = cn.ghostcloud.pad.terminal.preview;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				SWIFT_EMIT_LOC_STRINGS = YES;
+ 				SWIFT_OBJC_BRIDGING_HEADER = "Sources/App/macOS/ghostty-bridging-header.h";
+@@ -929,7 +929,7 @@
+ 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+ 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+ 				MARKETING_VERSION = 0.1;
+-				PRODUCT_BUNDLE_IDENTIFIER = "com.mitchellh.ghostty-dock-tile";
++				PRODUCT_BUNDLE_IDENTIFIER = "cn.ghostcloud.pad.terminal.preview.dock-tile";
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				PROVISIONING_PROFILE_SPECIFIER = "";
+ 				SKIP_INSTALL = YES;
+diff --git a/macos/Sources/Features/Custom App Icon/DockTilePlugin.swift b/macos/Sources/Features/Custom App Icon/DockTilePlugin.swift
+index 990cd8bb24290dc76355c79b34e7bc08e1ef5ec6..cbd4fb089075079c91b718df01e534d90c8456c3 100644
+--- a/macos/Sources/Features/Custom App Icon/DockTilePlugin.swift	
++++ b/macos/Sources/Features/Custom App Icon/DockTilePlugin.swift	
+@@ -10,9 +10,9 @@ class DockTilePlugin: NSObject, NSDockTilePlugIn {
+     // Separate defaults based on debug vs release builds so we can test icons
+     // without messing up releases.
+     #if DEBUG
+-    private let ghosttyUserDefaults = UserDefaults(suiteName: "com.mitchellh.ghostty.debug")
++    private let ghosttyUserDefaults = UserDefaults(suiteName: "cn.ghostcloud.pad.terminal.preview.debug")
+     #else
+-    private let ghosttyUserDefaults = UserDefaults(suiteName: "com.mitchellh.ghostty")
++    private let ghosttyUserDefaults = UserDefaults(suiteName: "cn.ghostcloud.pad.terminal.preview")
+     #endif
+ 
+     private var iconChangeObserver: Any?
+diff --git a/macos/Sources/Features/Custom App Icon/Extensions/Notification+AppIcon.swift b/macos/Sources/Features/Custom App Icon/Extensions/Notification+AppIcon.swift
+index e492f1a7759bf533af03f0ba34bd11b75d959ae0..a3f0ff87c8a478ef596aa8da2c418eafa4b450ba 100644
+--- a/macos/Sources/Features/Custom App Icon/Extensions/Notification+AppIcon.swift	
++++ b/macos/Sources/Features/Custom App Icon/Extensions/Notification+AppIcon.swift	
+@@ -1,5 +1,5 @@
+ import AppKit
+ 
+ extension Notification.Name {
+-    static let ghosttyIconDidChange = Notification.Name("com.mitchellh.ghostty.iconDidChange")
++    static let ghosttyIconDidChange = Notification.Name("cn.ghostcloud.pad.terminal.preview.iconDidChange")
+ }
+diff --git a/macos/Sources/Features/Terminal/TerminalController.swift b/macos/Sources/Features/Terminal/TerminalController.swift
+index 56b0b40ad74e5dccb723e9c5bfc56b5614fcdfb0..6afbc9ba0348b344393c73ecab4f4fd695de1bec 100644
+--- a/macos/Sources/Features/Terminal/TerminalController.swift
++++ b/macos/Sources/Features/Terminal/TerminalController.swift
+@@ -1034,16 +1034,39 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
+             focusedSurface = view
+         }
+ 
++        // Install PAD chrome before attaching the hosting view so its initial
++        // safe-area geometry includes the native titlebar.
++        window.titleVisibility = .hidden
++        window.titlebarAppearsTransparent = true
++        window.styleMask.insert(.fullSizeContentView)
++
+         // Initialize our content view to the SwiftUI root
+-        let container = TerminalViewContainer {
+-            TerminalView(ghostty: ghostty, viewModel: self, delegate: self)
++        let container = TerminalViewContainer(extendsIntoTitlebar: true) {
++            PADWorkbenchView(openTerminal: { [weak self] directory in
++                guard let self else { return }
++                var base = Ghostty.SurfaceConfiguration()
++                base.workingDirectory = directory
++                _ = TerminalController.newTab(self.ghostty, from: self.window, withBaseConfig: base)
++            }, splitTerminal: { [weak self] down in
++                guard let self, let surface = self.focusedSurface else { return }
++                self.performAction(down ? "new_split:down" : "new_split:right", on: surface)
++            }, openSession: { [weak self] launch in
++                guard let self else { return }
++                var base = Ghostty.SurfaceConfiguration()
++                base.workingDirectory = launch.cwd
++                base.command = launch.shellCommand
++                TerminalController.newWindow(self.ghostty, withBaseConfig: base)
++            }) {
++                TerminalView(ghostty: self.ghostty, viewModel: self, delegate: self)
++            }
+         }
+ 
+         // Set the initial content size on the container so that
+         // intrinsicContentSize returns the correct value immediately,
+         // without waiting for @FocusedValue to propagate through the
+         // SwiftUI focus chain.
+-        container.initialContentSize = focusedSurface?.initialSize
++        let terminalSize = focusedSurface?.initialSize ?? .zero
++        container.initialContentSize = NSSize(width: max(1100, terminalSize.width), height: max(760, terminalSize.height))
+ 
+         window.contentView = container
+ 
+diff --git a/macos/Sources/Features/Terminal/TerminalViewContainer.swift b/macos/Sources/Features/Terminal/TerminalViewContainer.swift
+index dd0190c4c61e6407e2688964a9a10fa58f44cf35..8060993fb8a2211e177e78cb18ddd39b3ae2ee66 100644
+--- a/macos/Sources/Features/Terminal/TerminalViewContainer.swift
++++ b/macos/Sources/Features/Terminal/TerminalViewContainer.swift
+@@ -4,6 +4,7 @@ import SwiftUI
+ /// Use this container to achieve a glass effect at the window level.
+ /// Modifying `NSThemeFrame` can sometimes be unpredictable.
+ class TerminalViewContainer: NSView {
++    let extendsIntoTitlebar: Bool
+     private let terminalView: NSView
+ 
+     /// Combined glass effect and inactive tint overlay view
+@@ -22,8 +23,13 @@ class TerminalViewContainer: NSView {
+         return window.value(forKey: "_cornerRadius") as? CGFloat
+     }
+ 
+-    init<Root: View>(@ViewBuilder rootView: () -> Root) {
+-        self.terminalView = NSHostingView(rootView: rootView())
++    init<Root: View>(extendsIntoTitlebar: Bool = false, @ViewBuilder rootView: () -> Root) {
++        self.extendsIntoTitlebar = extendsIntoTitlebar
++        let hostingView = NSHostingView(rootView: rootView())
++        if extendsIntoTitlebar, #available(macOS 14.0, *) {
++            hostingView.safeAreaRegions = []
++        }
++        self.terminalView = hostingView
+         super.init(frame: .zero)
+         setup()
+     }
+diff --git a/macos/Sources/Features/Terminal/Window Styles/TransparentTitlebarTerminalWindow.swift b/macos/Sources/Features/Terminal/Window Styles/TransparentTitlebarTerminalWindow.swift
+index c0e506c349ba21e01f5dfb8ee0a431dc6d377509..af800769f2c82a3ad5320a881d41bef07f8af765 100644
+--- a/macos/Sources/Features/Terminal/Window Styles/TransparentTitlebarTerminalWindow.swift	
++++ b/macos/Sources/Features/Terminal/Window Styles/TransparentTitlebarTerminalWindow.swift	
+@@ -95,7 +95,8 @@ class TransparentTitlebarTerminalWindow: TerminalWindow {
+             let isTransparentTitlebar = derivedConfig.macosTitlebarStyle == .transparent ||
+             derivedConfig.macosTitlebarStyle == .tabs
+ 
+-            titlebarView.layer?.backgroundColor = (isGlassStyle && isTransparentTitlebar)
++            let hasContentToolbar = terminalController?.terminalViewContainer?.extendsIntoTitlebar == true
++            titlebarView.layer?.backgroundColor = (hasContentToolbar || (isGlassStyle && isTransparentTitlebar))
+                 ? NSColor.clear.cgColor
+                 : preferredBackgroundColor?.cgColor
+         }
+@@ -111,7 +112,8 @@ class TransparentTitlebarTerminalWindow: TerminalWindow {
+ 
+         // Setup the titlebar background color to match ours
+         titlebarContainer.wantsLayer = true
+-        titlebarContainer.layer?.backgroundColor = preferredBackgroundColor?.cgColor
++        titlebarContainer.layer?.backgroundColor = terminalController?.terminalViewContainer?.extendsIntoTitlebar == true
++            ? NSColor.clear.cgColor : preferredBackgroundColor?.cgColor
+ 
+         // See the docs for the function that sets this to true on why
+         effectViewIsHidden = false
+diff --git a/macos/Sources/Features/Update/UpdateController.swift b/macos/Sources/Features/Update/UpdateController.swift
+index 1ca218c8b3b4d61c577340a26870663da29fe9ea..0498ebde504bf7a81c8d457dbd56c0e7affb31ba 100644
+--- a/macos/Sources/Features/Update/UpdateController.swift
++++ b/macos/Sources/Features/Update/UpdateController.swift
+@@ -8,6 +8,8 @@ import Combine
+ /// for managing updates with Ghostty's custom driver and delegate. It handles
+ /// initialization, starting the updater, and provides the check for updates action.
+ class UpdateController {
++    // PAD previews must never install upstream Ghostty updates.
++    private let updatesEnabled = false
+     private(set) var updater: SPUUpdater
+     private let userDriver: UpdateDriver
+     private var installCancellable: AnyCancellable?
+@@ -44,6 +46,7 @@ class UpdateController {
+     /// This must be called before the updater can check for updates. If starting fails,
+     /// the error will be shown to the user.
+     func startUpdater() {
++        guard updatesEnabled else { return }
+         do {
+             try updater.start()
+         } catch {
+@@ -63,6 +66,7 @@ class UpdateController {
+     /// Force install the current update. As long as we're in some "update available" state this will
+     /// trigger all the steps necessary to complete the update.
+     func installUpdate() {
++        guard updatesEnabled else { return }
+         // Must be in an installable state
+         guard viewModel.state.isInstallable else { return }
+ 
+@@ -92,6 +96,7 @@ class UpdateController {
+     ///
+     /// This is typically connected to a menu item action.
+     @objc func checkForUpdates() {
++        guard updatesEnabled else { return }
+         // If we're already idle, then just check for updates immediately.
+         if viewModel.state == .idle {
+             updater.checkForUpdates()
+@@ -116,7 +121,7 @@ class UpdateController {
+     /// - Returns: Whether the menu item should be enabled
+     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+         if item.action == #selector(checkForUpdates) {
+-            return updater.canCheckForUpdates
++            return updatesEnabled && updater.canCheckForUpdates
+         }
+         return true
+     }
+diff --git a/macos/Sources/Ghostty/Ghostty.Config.swift b/macos/Sources/Ghostty/Ghostty.Config.swift
+index 160894b18cffb905e39d0e5160089078e28846c3..0d255f14f32055e03fd0a0d34a7b6ffa0732080d 100644
+--- a/macos/Sources/Ghostty/Ghostty.Config.swift
++++ b/macos/Sources/Ghostty/Ghostty.Config.swift
+@@ -64,6 +64,10 @@ extension Ghostty {
+             // We only do this on macOS because other Apple platforms do not have the
+             // same filesystem concept.
+ #if os(macOS)
++            // PAD's bundled presentation defaults are weaker than user/CLI configuration.
++            if let defaults = Bundle.main.path(forResource: "PADDefaults", ofType: "ghostty") {
++                ghostty_config_load_file(cfg, defaults)
++            }
+             if let path {
+                 ghostty_config_load_file(cfg, path)
+             } else {
+diff --git a/macos/build.nu b/macos/build.nu
+index 8c456d9b61fdf626ae7d0b29915796846f5b84e0..d1c3860c4bdba62621a036aa257167bbc811188f 100755
+--- a/macos/build.nu
++++ b/macos/build.nu
+@@ -10,6 +10,7 @@ def main [
+ ] {
+     let project = ($env.FILE_PWD | path join "Ghostty.xcodeproj")
+     let build_dir = ($env.FILE_PWD | path join "build")
++    let arch = (^uname -m | str trim)
+ 
+     # Skip UI tests for CLI-based invocations because it requires
+     # special permissions.
+@@ -26,6 +27,9 @@ def main [
+         -project $project
+         -scheme $scheme
+         -configuration $configuration
++        -derivedDataPath ($build_dir | path join "DerivedData")
++        -arch $arch
++        -jobs 2
+         $"SYMROOT=($build_dir)"
+         ...$skip_testing
+         $action)
+diff --git a/src/build/LibtoolStep.zig b/src/build/LibtoolStep.zig
+index d2b5149275f007b210a9ef3e6d4b4ef9087d2b86..8343170fd2d2c16f9bf6ffdb5f0da5253744db72 100644
+--- a/src/build/LibtoolStep.zig
++++ b/src/build/LibtoolStep.zig
+@@ -31,7 +31,10 @@ pub fn create(b: *std.Build, opts: Options) *LibtoolStep {
+     const self = b.allocator.create(LibtoolStep) catch @panic("OOM");
+ 
+     const run_step = RunStep.create(b, b.fmt("libtool {s}", .{opts.name}));
+-    run_step.addArgs(&.{ "libtool", "-static", "-o" });
++    // Xcode 26.6 libtool drops some Zig 0.15.2 archive members. Allow a
++    // compatible installed archiver; the path is part of the build step hash.
++    const libtool = b.graph.env_map.get("PAD_ZIG_LIBTOOL") orelse "libtool";
++    run_step.addArgs(&.{ libtool, "-static", "-o" });
+     const output = run_step.addOutputFileArg(opts.out_name);
+     for (opts.sources) |source| run_step.addFileArg(source);
+ 
+diff --git a/src/build_config.zig b/src/build_config.zig
+index c19f7372b1102d56e7fde09fa02030bf56f374ee..e411e70ddbd91db91729421e3456deb861d9481b 100644
+--- a/src/build_config.zig
++++ b/src/build_config.zig
+@@ -55,7 +55,7 @@ pub const i18n: bool = config.i18n;
+ /// There are many places that don't use this variable so simply swapping
+ /// this variable is NOT ENOUGH to change the bundle ID. I just wanted to
+ /// avoid it in Zig coe as much as possible.
+-pub const bundle_id = "com.mitchellh.ghostty";
++pub const bundle_id = "cn.ghostcloud.pad.terminal.preview";
+ 
+ /// True if we should have "slow" runtime safety checks. The initial motivation
+ /// for this was terminal page/pagelist integrity checks. These were VERY
+diff --git a/src/config/file_load.zig b/src/config/file_load.zig
+index 7885de32a9ba2fe9e029b51418feb1134d1833f3..527579c6cc81a90ac79ae4ae5805eb14b8327b64 100644
+--- a/src/config/file_load.zig
++++ b/src/config/file_load.zig
+@@ -11,7 +11,7 @@ const log = std.log.scoped(.config);
+ pub fn defaultXdgPath(alloc: Allocator) ![]const u8 {
+     return try internal_os.xdg.config(
+         alloc,
+-        .{ .subdir = "ghostty/config.ghostty" },
++        .{ .subdir = "pad-terminal-preview/config.ghostty" },
+     );
+ }
+ 
+@@ -20,7 +20,7 @@ pub fn defaultXdgPath(alloc: Allocator) ![]const u8 {
+ pub fn legacyDefaultXdgPath(alloc: Allocator) ![]const u8 {
+     return try internal_os.xdg.config(
+         alloc,
+-        .{ .subdir = "ghostty/config" },
++        .{ .subdir = "pad-terminal-preview/config" },
+     );
+ }
+ 
