@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isThinkingLevel } from './thinking-levels.mjs';
 
 export const STATE_VERSION = 1;
 export const TASK_STATUSES = ['idle', 'starting', 'running', 'error'];
@@ -80,6 +81,10 @@ function validateTask(value, index) {
   if (provider !== undefined) task.provider = provider;
   if (modelId !== undefined) task.modelId = modelId;
   if (sessionFile !== undefined) task.sessionFile = sessionFile;
+  if (value.thinkingLevel !== undefined) {
+    if (!isThinkingLevel(value.thinkingLevel)) fail('tasks thinkingLevel is unknown');
+    task.thinkingLevel = value.thinkingLevel;
+  }
   return task;
 }
 

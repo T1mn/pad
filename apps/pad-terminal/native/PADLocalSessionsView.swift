@@ -38,8 +38,7 @@ struct PADLocalSessionsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Label("本地会话", systemImage: "clock.arrow.circlepath").padFont(size: 13, weight: .semibold)
-                Text("Codex · Claude Code · Pi").foregroundStyle(PADWorkbenchStyle.muted)
+                Label("本地会话 · Codex / Pi", systemImage: "clock.arrow.circlepath").padFont(size: 13, weight: .semibold)
                 Spacer()
                 PADTextSizeMenu()
                 Button("完成") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -101,7 +100,7 @@ struct PADLocalSessionsView: View {
             HStack {
                 Picker("来源", selection: $source) {
                     Text("全部").tag("all"); Text("Codex").tag("codex")
-                    Text("Claude Code").tag("claude"); Text("Pi").tag("pi")
+                    Text("Pi").tag("pi")
                 }.pickerStyle(.segmented).frame(width: 360)
                 Toggle("当前项目", isOn: $currentProjectOnly).toggleStyle(.checkbox)
                     .disabled(workbench.selectedWorkspace == nil)
@@ -155,7 +154,7 @@ struct PADLocalSessionsView: View {
                             .disabled(workbench.defaultProfileId == nil)
                     }
                 }.disabled(local.acting || local.loadingHistory)
-                Text("只读同步源会话；不会把 Codex / Claude 的执行状态转换成 Pi。")
+                Text("只读同步 Codex / Pi 源会话；不会把 Codex 的执行状态转换成 Pi。")
                     .padFont(size: 10).foregroundStyle(PADWorkbenchStyle.muted)
                 Divider()
                 if local.loadingHistory { ProgressView("读取历史…") }

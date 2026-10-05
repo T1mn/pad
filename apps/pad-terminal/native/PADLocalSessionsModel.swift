@@ -10,7 +10,8 @@ struct PADLocalSession: Codable, Identifiable, Equatable {
     let cwd: String
     let file: String
     let updatedAt: String
-    var toolName: String { tool == "claude" ? "Claude Code" : tool.capitalized }
+    var isSupported: Bool { tool == "codex" || tool == "pi" }
+    var toolName: String { tool.capitalized }
 }
 struct PADLocalRoot: Codable {
     let tool: String
@@ -77,7 +78,8 @@ final class PADLocalSessionsModel: ObservableObject {
             self.refreshing = false
             switch result {
             case .success(let list):
-                self.sessions = list.sessions; self.roots = list.roots
+                self.sessions = list.sessions.filter { $0.isSupported }
+                self.roots = list.roots.filter { $0.tool == "codex" || $0.tool == "pi" }
                 self.listTruncated = list.truncated; self.lastSync = Date(); self.error = nil
                 if let id = self.selectedId {
                     if let current = self.selected {
@@ -90,6 +92,7 @@ final class PADLocalSessionsModel: ObservableObject {
     }
 
     func select(_ id: String) {
+        guard sessions.contains(where: { $0.id == id && $0.isSupported }) else { clearSelection(); return }
         generation += 1
         let token = generation
         selectedId = id; messages = []; loadingHistory = true; error = nil
@@ -108,7 +111,7 @@ final class PADLocalSessionsModel: ObservableObject {
     }
 
     func resume(_ session: PADLocalSession, open: @escaping (PADTerminalLaunch) -> Void) {
-        guard !acting else { return }; acting = true
+        guard session.isSupported, !acting else { return }; acting = true
         workbench.localSessionRequest("local_session_resume", fields: ["sessionId": .string(session.id)]) { [weak self] (result: Result<PADTerminalLaunch, Error>) in
             guard let self, self.alive else { return }; self.acting = false
             switch result {
@@ -119,7 +122,7 @@ final class PADLocalSessionsModel: ObservableObject {
     }
 
     func importPi(_ session: PADLocalSession, done: @escaping () -> Void) {
-        guard !acting, let profile = workbench.defaultProfileId else { return }; acting = true
+        guard session.tool == "pi", !acting, let profile = workbench.defaultProfileId else { return }; acting = true
         workbench.localSessionRequest("local_session_import_pi", fields: ["sessionId": .string(session.id), "profileId": .string(profile)]) { [weak self] (result: Result<PADLocalImport, Error>) in
             guard let self, self.alive else { return }; self.acting = false
             switch result {

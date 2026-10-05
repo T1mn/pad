@@ -2,7 +2,19 @@
 
 2026-10-04，本机 Apple Silicon / macOS 26.2；不是正式发布验收。
 
-## 官方 OpenAI 账号模型目录（2026-10-04，当前未发布预览）
+## Controls / session 集成（2026-10-04，当前未发布预览）
+
+- 产物：`out/agent-controls/PAD Terminal Preview.app`；未覆盖/退出正在运行的旧 App，未启动 GUI、真实 CLI/登录/模型或网络请求，未读取用户凭据/会话/日志，Desktop/iOS 与此前功能保持不动；无提交/推送/发布。
+- 按指定一次 Node 调用跑 3 个文件、11 条 fake 测试：初始退出 1，4 passed / 7 failed。原因仅为 thinking fake store 缺少 `root`（6 条）及 session-info macOS `/var` 规范路径预期（1 条）；补齐 fake root、临时根使用 `realpath(os.tmpdir())`，未改生产逻辑。只重跑 7 条失败测试，退出 0、7 passed / 0 failed；已通过的 SDK capability/local-session 测试未重跑。日志 `.cache/logs/agent-controls-node-{tests,retry}.log`。含 failed teardown / deferred abort 两条 fake 守卫回归；不验证真实 Pi 推理。
+- 两个 Swift 纯 helper smoke 各编译/运行一次，均退出 0：`.cache/bin/agent-controls-{composer,model-search}`，日志 `.cache/logs/agent-controls-{composer,model-search}.log`。仅键盘策略和本地过滤，不需 DTO 依赖；不等于真实 Chinese IME、popover 或 live RPC 交互验收。未运行 broad model harness / full typecheck / 既有 auth、proxy、catalog 套件。
+- 一次 prepare、一次 `build --native-only --output-dir out/agent-controls` 均退出 0、`BUILD SUCCEEDED`；指定本地 CLT SDK/libtool 环境、复用 GhosttyKit，无 Zig 重编/clean/full build。日志 `.cache/logs/agent-controls-{prepare,build}.log`。上游 unused result、Sendable/actor、调试符号警告仍在，未阻断编译签名。
+- 唯一产物检查记录：`.cache/logs/agent-controls-artifact.log`（bundle ID `cn.ghostcloud.pad.terminal.preview`、非测试 host / 两个 CLI 与源码一致、strict deep codesign、upstream check、仅改动 source/docs 的 whitespace；排除 patch/cache/reference）。
+- 当前合同：Enter/⌘Enter 发送、Shift+Enter 换行、marked text 交回 AppKit；模型搜索为名称/ID/Provider 的本地部分匹配，保留目录顺序/上下文，点击才选。UI 「内置模型目录 · 账号权限未验证」技术来源仍是 Pi SDK，不伪称账号端点。
+- thinking 按配置模型实际 capability 提供受支持级别（包括 max），task 可选值不猜默认、显式保存/下次 argv；已有 runtime setter 后必须 `get_state` 回读实际值。配置/认证/发送/abort 互斥，未知配置回收失败阻止后续操作。只读 `session_info` 只取现有 runtime 或安全有界首行，区分 Pi ID / PAD ID，不启动 Pi/写 metadata；新任务不保证 Pi 已创建 ID/文件。
+- 本地发现/预览/续接仅 Codex/Pi；Anthropic API Key 仍保留。普通 Pi 凭据继续隔离，仅此前用户授权的 Go Key 已复制到本地 PAD，本轮无读取/复制/同步；未披露值或身份路径。
+- 人工剩余：真实中文 IME 候选/组合文本；模型搜索与会话信息 popover 的焦点、关闭、复制和切换；实际 thinking getter/clamp、真实认证/模型发送/停止/重启恢复。不得将编译/fake 回归当成真实 GUI 或模型成功证明。
+
+## 官方 OpenAI 账号模型目录（2026-10-04，历史未发布预览）
 
 - 新产物：`out/upstream-models/PAD Terminal Preview.app`；未覆盖旧 App、启动 GUI、改变用户进程或迁移数据。已有 OpenAI 登录保留，无需重迁移/重登录；不静默改选模型或任务账号。
 - 唯一审查修复：SDK `getAuth` 期间凭据文件绑定变化不再接受旧 bearer 配新元数据；删除旧缓存并提示「凭据已更新，请再次同步模型」，本次不 fetch/发布。新增一条 fake 回归覆盖已有缓存、bearer 解析后更换元数据、无额外 fetch/无缓存发布。
@@ -11,7 +23,7 @@
 - 产物检查：bundle ID、所有非测试 host / 两个 CLI 字节一致、strict deep codesign、`upstream.py check`、scoped whitespace（排除 patch/cache/reference）记录在 `.cache/logs/artifact-upstream-models.log`。
 - [官方 SIWC](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference/) `GET https://api.openai.com/v1/models` 使用账号 `models[]`：仅 `visibility:"list"`，上游顺序、`display_name` 名称、`slug` ID；不是通用 `data[]`。仅显式「同步 OpenAI 模型」联网，启动/菜单离线，无静态 OpenAI OAuth fallback；API Key/其他 provider 仍用 SDK 目录。
 - 私有 0600 profile 缓存只存元数据，重启为 stale；同绑定同步失败可显示 stale。UI 区分官方账号/SDK 来源与未加载/fresh/stale/error；runtime 不支持 slug 禁用，目录不是推理权限/成功保证。保守文件元数据绑定会因 token 轮换/并发更改失效，可能需再显式同步；不解码 JWT/读取原始 token 判断身份。
-- Swift DTO 可选字段编译已验证，JSON roundtrip 未执行。现有 `scripts/native-smoke.swift` 可在 isolated fake host 夹具下扩展旧/新 catalog JSON decode/encode 断言，但当前 harness 依赖 transport/root；没有为此额外运行或修改它。推理强度控制明确延期/未实现。
+- Swift DTO 可选字段编译已验证，JSON roundtrip 未执行。现有 `scripts/native-smoke.swift` 可在 isolated fake host 夹具下扩展旧/新 catalog JSON decode/encode 断言，但当前 harness 依赖 transport/root；没有为此额外运行或修改它。该历史阶段推理强度控制延期/未实现；当前实现与验证边界见顶部。
 - 未调用真实凭据、账号端点、登录或模型；不声称端点成功/真实模型数量。未重跑已通过的 auth/proxy/root 检查，无全量套件/E2E。下一步用户正常退出旧 App，在已有代理环境的终端直接启动新 bundle `Contents/MacOS/ghostty`，显式点击「同步 OpenAI 模型」。
 
 ## HTTP / 安全 token 分类集成（2026-10-04，历史未发布预览）

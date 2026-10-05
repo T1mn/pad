@@ -21,7 +21,6 @@ export class LocalSessions {
     this.home = home;
     this.roots = [
       { tool: 'codex', path: path.join(home, '.codex/sessions') },
-      { tool: 'claude', path: path.join(home, '.claude/projects') },
       { tool: 'pi', path: path.join(home, '.pi/agent/sessions') },
     ];
     this.records = new Map();
@@ -78,7 +77,6 @@ export class LocalSessions {
             const file = path.join(dir, entry.name);
             if (entry.isSymbolicLink()) continue;
             if (entry.isDirectory() && depth < 8) {
-              // Claude subagents are not independently resumable sessions.
               if (entry.name !== 'subagents') queue.push({ dir: file, depth: depth + 1 });
               continue;
             }
@@ -127,6 +125,7 @@ export class LocalSessions {
   require(id) {
     const record = this.records.get(id);
     if (!record) throw new Error('本地会话已不存在或列表过期，请刷新后重试');
+    if (!['codex', 'pi'].includes(record.tool)) throw new Error('本地会话仅支持 Codex / Pi，请刷新列表');
     return record;
   }
 
@@ -161,14 +160,13 @@ export class LocalSessions {
       try { await fs.access(candidate, constants.X_OK); if ((await fs.stat(candidate)).isFile()) { executable = candidate; break; } } catch { /* next location */ }
     }
     if (!executable) throw new Error(`未找到 ${record.tool} CLI，请先安装原工具或从普通终端使用其 resume 命令`);
-    const args = record.tool === 'codex' ? ['resume', record.sessionId]
-      : record.tool === 'claude' ? ['--resume', record.sessionId] : ['--session', record.file];
+    const args = record.tool === 'codex' ? ['resume', record.sessionId] : ['--session', record.file];
     return { cwd: record.cwd, executable, args };
   }
 
   async piCopy(id) {
     const record = this.require(id);
-    if (record.tool !== 'pi') throw new Error('只有 Pi 会话可导入原生 Pi 面板；Codex/Claude 请使用原工具续接');
+    if (record.tool !== 'pi') throw new Error('只有 Pi 会话可导入原生 Pi 面板；Codex 请使用原工具续接');
     const { handle, stat } = await this.open(record);
     try {
       if (stat.size > 32 * 1024 * 1024) throw new Error('此会话超过 32 MiB，请用原 Pi 续接，避免不完整导入');

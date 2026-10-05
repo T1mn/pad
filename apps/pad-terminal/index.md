@@ -15,7 +15,8 @@ Ghostty 薄 fork + SwiftUI 原生工作台实验线；不替换 `pad-desktop`，
 - `host/`：Node 后台、任务持久化、隔离 Pi RPC 和 SDK 认证；`openai-model-catalog.mjs` 提供显式官方 SIWC 账号模型同步与私有离线缓存，不回退静态 OAuth 表；`http-client.mjs` 在 SDK 前初始化公共已安装 Pi Undici，`auth-diagnostics.mjs` 提供有界安全 OAuth 分类，`PROTOCOL.md` 定义接口；原生 `PADProxyEnvironment.swift` 有限适配系统代理并警告不支持的路由。
 - `scripts/workbench-smoke.mjs`、`native-smoke.swift`：工作台离线主路径及 Swift transport/流式夹具。
 - `scripts/readability-smoke.swift`、`host/local-sessions.test.mjs`：搜索/DTO/argv 与本地会话格式、只读刷新、Pi 副本的离线回归。
+- `scripts/composer-key-smoke.swift`、`model-search-smoke.swift`：输入区键盘策略 / 模型本地过滤的纯 helper 离线回归，不覆盖真实中文输入法或 popover 交互。
 - `patches/`：可审阅的最小上游改动，不改终端解析或渲染核心。
 - `README.md`：开发命令、新根/显式迁移、单默认账号与历史 profile 保留、认证策略及剩余范围。
-- `VALIDATION.md`：真实构建/smoke 证据、官方账号模型离线回归与 `out/upstream-models/` 原生增量产物、未验证真实端点和人工验收项。
+- `VALIDATION.md`：controls/session 指定离线回归、两处测试夹具修复与 `out/agent-controls/` 原生增量产物；保留历史证据，真实 IME/popover/模型端点待人工验收。
 - `.cache/`、`out/`：忽略的上游源码、构建产物；不进入正式 release。

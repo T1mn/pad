@@ -67,16 +67,16 @@ SDK 设置只覆写 Zig 的 macOS SDK 路径查询；iOS SDK 查询、Metal 和�
 
 ## 本地会话
 
-侧栏「本地会话 · Codex / Claude / Pi」读取本机标准目录，无需先在 PAD 登录：
+侧栏「本地会话 · Codex / Pi」仅接入 Codex/Pi 本机标准目录，无需先在 PAD 登录：
 
-- Codex：`~/.codex/sessions/`；Claude Code：`~/.claude/projects/`（不列 subagents）；Pi：`~/.pi/agent/sessions/`。
+- Codex：`~/.codex/sessions/`；Pi：`~/.pi/agent/sessions/`。不扫描、预览或续接 Claude 本地会话，也不改动 `~/.claude` 文件或凭据。此限制不影响 Anthropic API Key 账号入口、Pi 模型/后端或已有 Pi 历史中提及 Claude 的内容。
 - 搜索标题/路径/ID，按工具或当前项目筛选；面板打开且 App 活跃时每 15 秒刷新，关闭停止定时同步。只读本地文件，不上传、不读凭据。
 - **在原工具中继续**：确认后在新终端窗口运行对应 CLI 的 resume，沿用该工具自己的会话/账号/配置。请先停止其他终端中的同一会话；PAD 不提供外部 CLI 的写入互斥或退出后保活。
 - **Pi 导入原生面板**：完整会话树/压缩状态复制到 PAD 默认账号的私有目录，不改源文件、不复制凭据。副本并非双向同步，需显式登录/选模型才可继续。
-- Codex/Claude 不转换成 Pi，也不声称原生面板已接入它们的执行后端。历史预览只显示文本/工具摘要，图片保留在原工具。
+- Codex 不转换成 Pi，也不声称原生面板已接入其执行后端。历史预览只显示文本/工具摘要，图片保留在原工具。
 - 当前只发现标准目录；不扫描自定义数据根或 Codex 归档目录。扫描上限 5000 文件/30000 目录项，列表最多 2000 条/4 MiB，历史最多 200 条/8 MiB，截断会提示；Pi 副本上限 32 MiB。
 
-不打断已运行预览的构建方式：`upstream.py build --native-only --output-dir out/usability`（路径相对本目录，仍禁止覆盖）。当前产物为 `out/upstream-models/PAD Terminal Preview.app`（原生增量构建）；正常退出旧 App 后打开新版。已完成的数据根迁移不需重做；只有仍使用旧根时才按下方条件显式迁移。`out/usability/` 是历史产物，不要在迁移后继续使用。
+不打断已运行预览的构建方式：`upstream.py build --native-only --output-dir out/usability`（路径相对本目录，仍禁止覆盖）。当前 controls/session 集成产物为 `out/agent-controls/PAD Terminal Preview.app`（原生增量构建）；正常退出旧 App 后打开新版。已完成的数据根迁移不需重做；只有仍使用旧根时才按下方条件显式迁移。`out/usability/` 是历史产物，不要在迁移后继续使用。
 
 ## 原生工作台
 
@@ -84,13 +84,17 @@ SDK 设置只覆写 Zig 的 macOS SDK 路径查询；iOS SDK 查询、Metal 和�
 
 1. 打开 App，点「选择目录…」加入项目，然后「新建任务…」。
 2. 「账号与登录」只显示一个默认账号，不再创建/切换 profile；手动发起受支持的 API Key 或 OAuth 登录，授权链接只在点击后打开，认证可取消。历史任务仍使用其原 profile。
-3. 为任务选模型，输入多行消息并点击「发送」。普通 Return 只换行；可点击「停止」，查看流式文本、工具状态及任务历史。
+3. 为任务选模型，在输入区按 Enter / ⌘Enter 或点击「发送」提交，Shift+Enter 换行；marked text 的候选确认按实现交回 AppKit，不发送（真实中文 IME 尚未验收）。发送不可用时 Enter 保留草稿；可点击「停止」，查看流式文本、工具状态及任务历史。
 4. 任务切换不往已有 shell 注入 `cd`。「项目终端」显式创建该目录的新 Ghostty 标签页；原生分屏快捷键仍保留。Agent 与终端的分隔条可拖动调整宽度，终端内部继续支持横/纵分屏。
 
-架构：**SwiftUI → 应用级 Node JSONL host → 每任务 Pi RPC**；账号登录/目录由同一 host 调 Pi SDK，只有用户点击发送才提交模型 prompt。共享接口见 [`host/PROTOCOL.md`](host/PROTOCOL.md)。
+架构：**SwiftUI → 应用级 Node JSONL host → 每任务 Pi RPC**；账号登录/目录由同一 host 调 Pi SDK，只有用户在输入区按发送键或点击发送才提交模型 prompt。共享接口见 [`host/PROTOCOL.md`](host/PROTOCOL.md)。
 
+- 普通 Pi 凭据仍隔离、不自动导入；仅此前用户明确授权的 Go Key 已复制到本地 PAD，不扩展为同步或复制其他凭据。本轮不读取凭据、用户会话或日志。
 - 独立元数据：`~/.pad/preview/v1/workbench.json`；profile 仍使用各自的 `pi-agent/` / `pi-sessions/`。原子写入、私有权限及单宿主锁；首次创建隔离默认账号，不捡取 CLI 默认账号。
 - 新任务/Pi 导入使用默认账号；历史任务固定原 workspace/profile，登录/模型目录按该任务的有效 profile 获取，不重绑任务。已有多余 profile（包括无任务的）保留在磁盘但不进入正常账号 UI。会话路径按任务固定；浏览历史不启动常驻 Pi 子进程。
+- 模型 popover 支持名称/ID/Provider 的本地多词部分匹配，保留上游顺序与分组；搜索 Enter 不选择/发送，点击才选择。切换任务/账号/目录会关闭并拒绝过期上下文。
+- thinking 菜单按当前模型的实际运行时能力展示 `off/minimal/low/medium/high/xhigh/max` 的受支持子集，不硬编码所有模型支持 max。选择按任务保存；未选择时保持可选字段缺失，不猜默认值。已有 Pi 使用 setter 后的 `get_state` 实际级别（可能被 clamp），空 setter 回应不算确认；忙碌/认证/配置/abort 期间禁止冲突操作。未知配置先回收子进程，回收失败阻止继续发送/配置，需重启 PAD。
+- 「会话信息」只读显示真实 Pi 会话 ID、PAD 任务 ID、目录/账号名、会话文件状态，点击才复制；不启动子进程或写入元数据。未启动的新任务不承诺已创建/持久化 Pi ID/文件；不从 PAD ID 或文件名推断 Pi ID。
 - 目录读取离线，未登录时模型列表为空。不得自动切换模型/provider；登录/退出会回收该 profile 的空闲 Pi，下一次重读账号状态。
 - GUI 退出通过 stdin EOF 关闭自建子进程；不提供脱离 App 的 daemon/保活。认证仍由 Pi SDK 保存于预览 profile，本轮不是 Keychain 方案。
 - 开发/测试可显式覆盖 `PAD_TERMINAL_DATA_ROOT`；不设置时使用上面的独立预览目录。`PAD_TERMINAL_HOST` 仅作宿主脚本开发覆盖。
@@ -99,11 +103,11 @@ SDK 设置只覆写 Zig 的 macOS SDK 路径查询；iOS SDK 查询、Metal 和�
 
 - OpenAI/ChatGPT OAuth 使用 [官方 SIWC 账号目录](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference/)：仅点击「同步 OpenAI 模型」才经 SDK 解析 OAuth bearer，发起 `GET https://api.openai.com/v1/models`。启动、打开菜单、切换任务/账号不联网；不回退到静态 OpenAI OAuth 模型表。
 - 解析官方 `models[]`（不是通用 API 的 `data[]`），仅展示 `visibility: "list"`，保留上游顺序，以 `display_name` 展示名称、`slug` 作为模型 ID，按 slug 去重。API Key 和其他 provider 仍用 Pi SDK 模型目录，语义不同。
-- 每个 profile 的 `pi-agent/pad-openai-models.json` 是原子写入的 0600 私有离线元数据缓存，不保存 bearer。UI 区分官方账号目录 / Pi SDK 来源，以及未加载、fresh、stale、error；重启读取为 stale，同一凭据绑定同步失败可保留 stale 列表。列表不保证推理权限或成功；runtime 不支持的 slug 可见但禁用，host 也拒绝选择。
+- 每个 profile 的 `pi-agent/pad-openai-models.json` 是原子写入的 0600 私有离线元数据缓存，不保存 bearer。UI 使用「官方账号目录」/「内置模型目录 · 账号权限未验证」；后者技术来源仍为 Pi SDK，并非账号端点，以及未加载、fresh、stale、error；重启读取为 stale，同一凭据绑定同步失败可保留 stale 列表。列表不保证推理权限或成功；runtime 不支持的 slug 可见但禁用，host 也拒绝选择。
 - 凭据文件元数据变化会丢弃旧缓存；SDK token 轮换或并发凭据变化可能要求再显式同步一次。认证解析期间变更会提示「凭据已更新，请再次同步模型」，本次不请求/发布目录。不解析 JWT、不读原始 token 来推断身份。
-- 已有 OpenAI 登录保留，无需迁移或重新登录；不静默改选模型或任务账号。**推理强度（reasoning-strength）控制明确延期，尚未实现。** 本轮未验证真实认证端点、账号模型数量或推理请求。
+- 已有 OpenAI 登录保留，无需迁移或重新登录；不静默改选模型或任务账号。thinking 控制使用安装的 Pi SDK 对配置模型提供的能力，不从账号目录猜测强度或权限。 本轮未验证真实认证端点、账号模型数量或推理请求。
 
-下一步：正常退出旧 App，在已配置好代理环境的终端直接运行 `apps/pad-terminal/out/upstream-models/PAD Terminal Preview.app/Contents/MacOS/ghostty`，再显式点击「同步 OpenAI 模型」。不要把真实代理值/凭据写进命令参数或日志。
+下一步：正常退出旧 App，在已配置好代理环境的终端直接运行 `apps/pad-terminal/out/agent-controls/PAD Terminal Preview.app/Contents/MacOS/ghostty`，再显式点击「同步 OpenAI 模型」。不要把真实代理值/凭据写进命令参数或日志。
 
 ### 数据根与显式迁移
 
@@ -176,4 +180,4 @@ GHOSTTY_MAC_LAUNCH_SOURCE=cli \
 
 若命令来自后台 launchd 会话，需在已登录用户的 Aqua 会话运行，例如 `launchctl asuser "$(id -u)" /usr/bin/env GHOSTTY_MAC_LAUNCH_SOURCE=cli /absolute/path/to/ghostty ...`。无需修改系统权限。无头运行不能替代真实显示器验收。本机 ReleaseLocal 会产生 LLVM profiling 文件，上例将其限定到开发缓存；本轮不作性能基准结论。
 
-人工待确认：中文 IME、画面流畅度/混排、字号、拖拽、剪贴板、Vim，以及真实账号登录→选模型→回复→停止→重启恢复。已验证元数据/离线历史夹具恢复，但不是付费会话全链验收。未改动用户剪贴板，不做全量 E2E、压力测试、正式发布或 GUI 退出后保活承诺。
+人工待确认：真实中文 IME 的候选确认/组合文本、模型与会话信息 popover 焦点/关闭/复制、thinking 菜单与真实 getter/模型请求、画面流畅度/混排、字号、拖拽、剪贴板、Vim，以及真实账号登录→选模型→回复→停止→重启恢复。已验证元数据/离线历史夹具恢复，但不是付费会话全链验收。未改动用户剪贴板，不做全量 E2E、压力测试、正式发布或 GUI 退出后保活承诺。

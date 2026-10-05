@@ -13,6 +13,8 @@ import { createInstallationIdGetter } from './installation-id.mjs';
 import { LocalSessions } from './local-sessions.mjs';
 import { importLocalPi } from './local-session-import.mjs';
 import { nativeProfileId, nowIso } from './workbench-store.mjs';
+import { isThinkingLevel, clampToThinkingLevels } from './thinking-levels.mjs';
+import { sessionInfo } from './session-info.mjs';
 
 const SNAPSHOT_COALESCE_MS = 60;
 const MAX_HISTORY_MESSAGES = 200;
@@ -57,6 +59,9 @@ export class WorkbenchHost {
     // Per-task send reservation; its token cancels a prompt/set_model that has
     // not reached its Pi RPC yet.
     this.taskOps = new Map();
+    this.taskAborts = new Map();
+    // Independent of runtime.get(): a closed child may still be alive.
+    this.blockedTasks = new Set();
     this.snapshotTimer = null;
     this.closed = false;
     this.auth = new AuthManager({
@@ -76,7 +81,7 @@ export class WorkbenchHost {
     });
     this.runtime = new PiTaskRuntime({
       createLaunch: (task) => this.createLaunch(task),
-      onPiEvent: (taskId, message) => this.onPiEvent(taskId, message),
+      onPiEvent: (taskId, message, process) => this.onPiEvent(taskId, message, process),
       onExit: (taskId, info) => this.onTaskExit(taskId, info),
       onDiagnostic: (taskId, message) => this.diagnostic(`[pi ${taskId}] ${message}`),
     });
@@ -203,11 +208,13 @@ export class WorkbenchHost {
   profileBusy(profileId) {
     return this.store.state.tasks.some((task) => task.profileId === profileId
       && (this.activeRuns.has(task.id) || this.taskOps.has(task.id)
+        || this.taskAborts.has(task.id) || this.blockedTasks.has(task.id)
         || task.status === 'starting' || task.status === 'running'));
   }
 
   /** Reserve a task synchronously so concurrent sends cannot both pass checks. */
   beginTaskOp(taskId, kind) {
+    this.checkTaskBarrier(taskId);
     const token = { kind, cancelled: false };
     this.taskOps.set(taskId, token);
     return token;
@@ -223,9 +230,31 @@ export class WorkbenchHost {
     if (this.closed) throw new CommandError('The host is shutting down');
   }
 
+  checkTaskBarrier(taskId) {
+    if (this.blockedTasks.has(taskId)) {
+      throw new CommandError('Pi teardown could not be confirmed; restart PAD');
+    }
+    if (this.taskAborts.has(taskId)) throw new CommandError('Task abort is in progress');
+  }
+
+  /** Only a successful, confirmed stop releases this task-level barrier. */
+  async stopTaskProcess(taskId) {
+    // Never turn a previous failed teardown into success via a now-hidden child.
+    if (this.blockedTasks.has(taskId)) throw new CommandError('Pi teardown could not be confirmed; restart PAD');
+    this.blockedTasks.add(taskId);
+    try {
+      await this.runtime.stop(taskId);
+      this.blockedTasks.delete(taskId);
+    } catch {
+      this.setTaskStatus(taskId, 'error');
+      throw new CommandError('Pi teardown could not be confirmed; restart PAD');
+    }
+  }
+
   // ------------------------------------------------------------ Pi lifecycle
 
   createLaunch(task) {
+    this.checkTaskBarrier(task.id);
     const profile = this.requireProfile(task.profileId);
     const workspace = this.requireWorkspace(task.workspaceId);
     const dirs = this.profileDirs(profile.id);
@@ -250,11 +279,23 @@ export class WorkbenchHost {
     if (typeof task.provider === 'string' && typeof task.modelId === 'string') {
       args.push('--provider', task.provider, '--model', task.modelId);
     }
+    if (isThinkingLevel(task.thinkingLevel)) args.push('--thinking', task.thinkingLevel);
     return { command: process.execPath, args: [dirs.cli, ...args], cwd: path.resolve(workspace.path), env: dirs.env };
   }
 
   async ensureTaskProcess(task) {
-    const process = await this.runtime.ensure(task);
+    this.checkTaskBarrier(task.id);
+    let process;
+    try {
+      process = await this.runtime.ensure(task);
+    } catch (error) {
+      if (error?.teardownUnconfirmed) {
+        this.blockedTasks.add(task.id);
+        this.setTaskStatus(task.id, 'error');
+        throw new CommandError('Pi teardown could not be confirmed; restart PAD');
+      }
+      throw error;
+    }
     const sessionFile = process.state?.sessionFile;
     if (typeof sessionFile === 'string' && sessionFile.length > 0) {
       const dirs = this.profileDirs(task.profileId);
@@ -269,7 +310,17 @@ export class WorkbenchHost {
     return process;
   }
 
-  onPiEvent(taskId, message) {
+  onPiEvent(taskId, message, process) {
+    if (process && this.runtime.get(taskId) !== process) return;
+    if (message?.type === 'thinking_level_changed') {
+      // Config RPC events are intermediate; commit only the final get_state.
+      if (!this.closed && !this.taskOps.has(taskId) && !process?.configUnknown
+        && this.findTask(taskId) && isThinkingLevel(message.level)) {
+        if (process?.state) process.state.thinkingLevel = message.level;
+        this.mutateTask(taskId, { thinkingLevel: message.level });
+      }
+      return;
+    }
     this.emit({ type: 'event', event: 'pi', taskId, data: message });
     const task = this.findTask(taskId);
     if (!task || this.closed) return;
@@ -292,7 +343,8 @@ export class WorkbenchHost {
 
   onTaskExit(taskId, info) {
     this.activeRuns.delete(taskId);
-    this.taskOps.delete(taskId);
+    const token = this.taskOps.get(taskId);
+    if (token) token.cancelled = true; // Owner releases the reservation in finally.
     const task = this.findTask(taskId);
     if (!task || this.closed) return;
     const failed = info.error !== null || (typeof info.code === 'number' && info.code !== 0);
@@ -316,6 +368,8 @@ export class WorkbenchHost {
         return this.catalog(message.profileId, message.refreshOpenAI === true);
       case 'history':
         return this.history(message.taskId);
+      case 'session_info':
+        return this.sessionInfo(message.taskId);
       case 'local_sessions':
         return this.localSessions.list();
       case 'local_session_history':
@@ -326,6 +380,8 @@ export class WorkbenchHost {
         return importLocalPi(this, message.sessionId, message.profileId);
       case 'set_model':
         return this.setModel(message.taskId, message.provider, message.modelId);
+      case 'set_thinking_level':
+        return this.setThinkingLevel(message.taskId, message.level);
       case 'prompt':
         return this.prompt(message.taskId, message.message);
       case 'abort':
@@ -445,6 +501,14 @@ export class WorkbenchHost {
     return pending;
   }
 
+  sessionInfo(taskId) {
+    const task = this.requireTask(taskId);
+    const workspace = this.requireWorkspace(task.workspaceId);
+    const profile = this.requireProfile(task.profileId);
+    return sessionInfo({ root: this.root, task, cwd: workspace.path,
+      profileName: profile.name, runtime: this.runtime });
+  }
+
   async history(taskId) {
     const task = this.requireTask(taskId);
     let messages = [];
@@ -494,9 +558,10 @@ export class WorkbenchHost {
 
   async setModel(taskId, provider, modelId) {
     const task = this.requireTask(taskId);
+    this.checkTaskBarrier(task.id);
     if (typeof provider !== 'string' || provider.trim().length === 0) throw new CommandError('provider is required');
     if (typeof modelId !== 'string' || modelId.trim().length === 0) throw new CommandError('modelId is required');
-    if (this.activeRuns.has(task.id) || this.taskOps.has(task.id) || task.status === 'starting') {
+    if (this.activeRuns.has(task.id) || this.taskOps.has(task.id) || task.status === 'starting' || task.status === 'running') {
       throw new CommandError('Cannot change the model while the task is running');
     }
     if (this.auth.isAuthBusy(task.profileId)) throw new CommandError('Cannot change the model while authentication is in progress');
@@ -513,23 +578,80 @@ export class WorkbenchHost {
       }
       this.checkTaskOp(token);
       if (!available) throw new CommandError(`Model ${nextProvider}/${nextModel} is not available in this profile's catalog`);
+      const levels = await this.sdkClient().modelThinkingLevels(agentDir, nextProvider, nextModel);
+      this.checkTaskOp(token);
+      const level = isThinkingLevel(task.thinkingLevel) ? clampToThinkingLevels(task.thinkingLevel, levels) : undefined;
+      if (level !== undefined && !levels.includes(level)) throw new CommandError('Model has no supported thinking levels');
       const process = this.runtime.get(task.id);
       if (process) {
-        await process.request({ type: 'set_model', provider: nextProvider, modelId: nextModel });
-        this.checkTaskOp(token);
-        process.currentProvider = nextProvider;
-        process.currentModel = nextModel;
+        return await this.configureTask(task, process, token, nextProvider, nextModel, async () => {
+          await process.request({ type: 'set_model', provider: nextProvider, modelId: nextModel });
+          this.checkTaskOp(token);
+          if (level !== undefined) await process.request({ type: 'set_thinking_level', level });
+        });
       }
-      return this.mutateTask(task.id, { provider: nextProvider, modelId: nextModel });
+      return this.mutateTask(task.id, { provider: nextProvider, modelId: nextModel,
+        ...(level !== undefined ? { thinkingLevel: level } : {}) });
     } finally {
       this.endTaskOp(task.id, token);
     }
   }
 
+  async setThinkingLevel(taskId, level) {
+    const task = this.requireTask(taskId);
+    this.checkTaskBarrier(task.id);
+    if (!isThinkingLevel(level)) throw new CommandError('Invalid thinking level');
+    if (this.activeRuns.has(task.id) || this.taskOps.has(task.id) || task.status === 'starting' || task.status === 'running') {
+      throw new CommandError('Cannot change thinking while the task is running');
+    }
+    if (this.auth.isAuthBusy(task.profileId)) throw new CommandError('Cannot change thinking while authentication is in progress');
+    if (this.closed) throw new CommandError('The host is shutting down');
+    if (!task.provider || !task.modelId) throw new CommandError('Select a model before choosing thinking');
+    const token = this.beginTaskOp(task.id, 'set_thinking_level');
+    try {
+      const levels = await this.sdkClient().modelThinkingLevels(this.profileDirs(task.profileId).agent, task.provider, task.modelId);
+      this.checkTaskOp(token);
+      if (!levels.includes(level)) throw new CommandError('Thinking level is not supported by the selected model');
+      const process = this.runtime.get(task.id);
+      if (!process) return this.mutateTask(task.id, { thinkingLevel: level });
+      return await this.configureTask(task, process, token, task.provider, task.modelId,
+        () => process.request({ type: 'set_thinking_level', level }));
+    } finally {
+      this.endTaskOp(task.id, token);
+    }
+  }
+
+  /** Empty setter responses/events never establish the effective configuration. */
+  async configureTask(task, process, token, provider, modelId, apply) {
+    try {
+      this.checkTaskBarrier(task.id);
+      if (process.configUnknown) throw new CommandError('Pi configuration is uncertain; restart the task');
+      await apply();
+      this.checkTaskOp(token);
+      const state = await process.request({ type: 'get_state' });
+      this.checkTaskOp(token);
+      if (this.runtime.get(task.id) !== process) throw new CommandError('Pi task runtime changed');
+      if (state.model?.provider !== provider || state.model?.id !== modelId || !isThinkingLevel(state.thinkingLevel)) {
+        throw new CommandError('Pi did not confirm the selected model and thinking configuration');
+      }
+      process.state = state;
+      process.currentProvider = state.model.provider;
+      process.currentModel = state.model.id;
+      return this.mutateTask(task.id, { provider, modelId, thinkingLevel: state.thinkingLevel });
+    } catch (error) {
+      // A timed-out setter may still execute later. Stop this child before any
+      // later prompt; failed teardown retains the independent task barrier.
+      process.configUnknown = true;
+      await this.stopTaskProcess(task.id);
+      throw error;
+    }
+  }
+
   async prompt(taskId, message) {
     const task = this.requireTask(taskId);
+    this.checkTaskBarrier(task.id);
     if (typeof message !== 'string' || message.trim().length === 0) throw new CommandError('Prompt message must not be empty');
-    if (this.activeRuns.has(task.id) || this.taskOps.has(task.id) || task.status === 'starting') {
+    if (this.activeRuns.has(task.id) || this.taskOps.has(task.id) || task.status === 'starting' || task.status === 'running') {
       throw new CommandError('This task already has an active prompt');
     }
     if (this.auth.isAuthBusy(task.profileId)) throw new CommandError('Cannot send a prompt while authentication is in progress');
@@ -547,12 +669,9 @@ export class WorkbenchHost {
       if (!available) throw new CommandError(`Model ${task.provider}/${task.modelId} has no credentials in this profile`);
       const process = await this.ensureTaskProcess(task);
       this.checkTaskOp(token);
-      if (process.currentProvider !== task.provider || process.currentModel !== task.modelId) {
-        await process.request({ type: 'set_model', provider: task.provider, modelId: task.modelId });
-        this.checkTaskOp(token);
-        process.currentProvider = task.provider;
-        process.currentModel = task.modelId;
-      }
+      // Bootstrap/restored Pi state is authoritative. Missing metadata inherits
+      // it, never an assumed default. Refuse any silent startup model fallback.
+      await this.configureTask(task, process, token, task.provider, task.modelId, async () => {});
       // No await between this check and the request, so a concurrent abort can
       // never let a paid prompt slip out after it returned.
       this.checkTaskOp(token);
@@ -562,6 +681,10 @@ export class WorkbenchHost {
       try {
         data = await process.request({ type: 'prompt', message });
       } catch (error) {
+        // A deadline is not a rejected prompt: Pi may still be running. Keep
+        // the reservation until the owned child is stopped, not merely idle.
+        process.configUnknown = true;
+        await this.stopTaskProcess(task.id);
         this.activeRuns.delete(task.id);
         this.setTaskStatus(task.id, 'idle');
         throw new CommandError(error instanceof Error ? error.message : String(error));
@@ -579,41 +702,43 @@ export class WorkbenchHost {
 
   async abort(taskId) {
     const task = this.requireTask(taskId);
-    // Synchronously cancel any in-flight send that has not reached its RPC yet.
+    if (this.taskAborts.has(task.id)) throw new CommandError('Task abort is in progress');
+    const reservation = {};
+    this.taskAborts.set(task.id, reservation);
+    // Cancel the captured owner synchronously, but do not reject an existing run.
     const token = this.taskOps.get(task.id);
     if (token) token.cancelled = true;
-    const process = this.runtime.get(task.id);
-    if (!process) {
-      if (!token && !this.activeRuns.has(task.id) && task.status !== 'error') this.setTaskStatus(task.id, 'idle');
-      return {};
-    }
     try {
-      await process.request({ type: 'clear_queue' }, 5_000);
-    } catch {
-      // Nothing queued or the process is already idle.
-    }
-    let abortConfirmed = false;
-    try {
-      await process.request({ type: 'abort' }, 30_000);
-      abortConfirmed = true;
-    } catch (error) {
-      this.diagnostic(`[pi ${task.id}] abort failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    this.activeRuns.delete(task.id);
-    if (abortConfirmed) {
-      if (task.status !== 'error') this.setTaskStatus(task.id, 'idle');
-      return {};
-    }
-    // Fallback: we own this child, so stop it rather than pretend the task is
-    // idle while the run may still be going. Surface an explicit error.
-    try {
-      await this.runtime.stop(task.id);
-    } catch (stopError) {
+      const process = this.runtime.get(task.id);
+      if (!process) {
+        if (!token && !this.activeRuns.has(task.id) && task.status !== 'error') this.setTaskStatus(task.id, 'idle');
+        return {};
+      }
+      try {
+        await process.request({ type: 'clear_queue' }, 5_000);
+      } catch {
+        // Nothing queued or the process is already idle.
+      }
+      let abortConfirmed = false;
+      try {
+        await process.request({ type: 'abort' }, 30_000);
+        abortConfirmed = true;
+      } catch {
+        this.diagnostic(`[pi ${task.id}] abort failed`);
+      }
+      if (abortConfirmed) {
+        // Abort acknowledgement is not agent_settled. Keep the run barrier.
+        if (!this.activeRuns.has(task.id) && task.status !== 'error') this.setTaskStatus(task.id, 'idle');
+        return {};
+      }
+      // A failed stop retains blockedTasks even after this reservation releases.
+      await this.stopTaskProcess(task.id);
+      this.activeRuns.delete(task.id);
       this.setTaskStatus(task.id, 'error');
-      throw new CommandError(`Abort failed and the Pi process could not be stopped: ${stopError instanceof Error ? stopError.message : String(stopError)}`);
+      throw new CommandError('Abort could not be confirmed; the Pi process was stopped');
+    } finally {
+      if (this.taskAborts.get(task.id) === reservation) this.taskAborts.delete(task.id);
     }
-    this.setTaskStatus(task.id, 'error');
-    throw new CommandError('Abort could not be confirmed; the Pi process was stopped');
   }
 
   // ------------------------------------------------------------------- auth
@@ -637,7 +762,7 @@ export class WorkbenchHost {
       if (this.activeRuns.has(task.id) || this.taskOps.has(task.id)) continue;
       if (task.status === 'running' || task.status === 'starting') continue;
       try {
-        await this.runtime.stop(task.id);
+        await this.stopTaskProcess(task.id);
       } catch {
         throw new CommandError('Credential cleanup failed. Restart PAD before using this profile.');
       }

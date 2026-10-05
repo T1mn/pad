@@ -20,6 +20,7 @@ export class PiTaskProcess extends EventEmitter {
     this.taskId = taskId;
     this.state = null;
     this.closed = false;
+    this.terminated = false;
     this.currentProvider = undefined;
     this.currentModel = undefined;
     this.pending = new Map();
@@ -143,6 +144,7 @@ export class PiTaskProcess extends EventEmitter {
   }
 
   finish(code, signal) {
+    this.terminated = true;
     if (this.closed) return;
     this.closed = true;
     this.rejectPending(new Error(`Pi exited (code ${String(code)}, signal ${String(signal)})`));
@@ -150,7 +152,8 @@ export class PiTaskProcess extends EventEmitter {
   }
 
   async stop() {
-    if (this.closed) return;
+    // closed only means RPC is unusable, not that the child has terminated.
+    if (this.terminated) return;
     try {
       await this.request({ type: 'clear_queue' }, 2_000);
     } catch {
@@ -161,6 +164,7 @@ export class PiTaskProcess extends EventEmitter {
     } catch {
       // Abort is best effort during teardown.
     }
+    if (this.terminated) return;
     this.closed = true;
     this.rejectPending(new Error('Pi task was stopped'));
     this.child.kill('SIGTERM');
@@ -202,6 +206,12 @@ export class PiTaskRuntime {
     }
     const existing = this.get(task.id);
     if (existing) return existing;
+    // A synthetic failure/closed RPC is not evidence that the owned child exited.
+    const owned = this.processes.get(task.id);
+    if (owned && !owned.terminated) {
+      await this.stop(task.id);
+      return this.ensure(task);
+    }
     const starting = this.starting.get(task.id);
     if (starting) return starting;
     const pending = this.launch(task);
@@ -222,21 +232,29 @@ export class PiTaskRuntime {
       cwd: spec.cwd,
       env: spec.env,
     });
-    process.currentProvider = task.provider;
-    process.currentModel = task.modelId;
     this.processes.set(task.id, process);
     process.on('pi', (message) => this.onPiEvent(task.id, message, process));
     process.on('diagnostic', (message) => this.onDiagnostic(task.id, message));
     process.on('exit', (info) => {
-      if (this.processes.get(task.id) === process) this.processes.delete(task.id);
+      if (this.processes.get(task.id) !== process) return;
+      if (process.terminated) this.processes.delete(task.id);
       this.onExit(task.id, info, process);
     });
     try {
       process.state = await process.request({ type: 'get_state' });
+      process.currentProvider = process.state.model?.provider;
+      process.currentModel = process.state.model?.id;
       return process;
     } catch (error) {
+      try {
+        await process.stop();
+      } catch {
+        // Let the host retain its task barrier even though get() hides closed RPCs.
+        const cleanupError = new Error('Pi teardown could not be confirmed; restart PAD');
+        cleanupError.teardownUnconfirmed = true;
+        throw cleanupError;
+      }
       if (this.processes.get(task.id) === process) this.processes.delete(task.id);
-      await process.stop().catch(() => undefined);
       throw error;
     }
   }
@@ -254,6 +272,10 @@ export class PiTaskRuntime {
     this.stopping.set(taskId, pending);
     try {
       await pending;
+    } catch {
+      const cleanupError = new Error('Pi teardown could not be confirmed; restart PAD');
+      cleanupError.teardownUnconfirmed = true;
+      throw cleanupError;
     } finally {
       if (this.stopping.get(taskId) === pending) this.stopping.delete(taskId);
     }

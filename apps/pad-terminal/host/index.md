@@ -10,7 +10,9 @@
 - `pi-sdk.mjs`：按 profile 懒加载 Pi SDK `ModelRuntime`，账号/catalog 仅用显式 auth/models 路径，`refreshOnCreate:false`、`allowModelNetwork:false`；OpenAI OAuth 目录不回退静态表，API Key/其他 provider 保留 SDK 目录。
 - `openai-model-catalog.mjs`、`openai-model-catalog.test.mjs`：显式同步官方 SIWC `models[]` 账号元数据、私有离线/stale 缓存、凭据变更失效与 runtime 不支持 slug 禁用；fake SDK/fetch 回归。
 - `pi-task.mjs`：单个 Pi RPC 子进程封装与去重启动；LF 分帧、请求关联、事件透传、未知 extension UI 一律 cancel。
-- `local-sessions.mjs`、`local-session-formats.mjs`：标准目录的只读会话发现/有界历史，缓存、路径校验与原 CLI argv 准备。
+- `thinking-levels.mjs`、`thinking-levels.test.mjs`：实际配置模型能力、可选 task thinking 持久化、live setter/getter 回读与配置/abort/teardown 守卫的 fake 回归；不推断模型权限。
+- `session-info.mjs`、`session-info.test.mjs`：只读 Pi 会话 ID / 本地路径 DTO，现有 RPC 状态或有界首行 header，拒绝越界/符号链接；离线 fake runtime 夹具。
+- `local-sessions.mjs`、`local-session-formats.mjs`：仅 Codex/Pi 标准目录的只读会话发现/有界历史，缓存、路径校验与原 CLI argv 准备；Claude 格式解析仅保留纯只读兼容，不接入发现/预览/续接。
 - `local-session-import.mjs`：显式复制 Pi 完整会话到私有任务目录；不改源文件、不复制凭据。
 - `host-env.mjs`：环境清洗、`~/.pad/preview` / 显式覆盖的数据根与已安装 Pi 包发现（只读，不安装）。
 - `data-root-migration.mjs`：默认启动根校验、独立桥租约与显式离线迁移（源保留，目标排他发布）。

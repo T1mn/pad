@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { AuthError, callableAuthTypes, credentialAllowed } from './auth-policy.mjs';
 import { OpenAIModelCatalog } from './openai-model-catalog.mjs';
 
@@ -95,6 +96,10 @@ export class PiSdk {
       }
       this.CredentialSynchronizationError = typeof module.CredentialSynchronizationError === 'function'
         ? module.CredentialSynchronizationError : null;
+      const require = createRequire(path.join(this.packageRoot, 'package.json'));
+      const ai = await import(pathToFileURL(require.resolve('@earendil-works/pi-ai')).href);
+      if (typeof ai.getSupportedThinkingLevels !== 'function') throw new PiSdkError('Installed Pi SDK lacks thinking capabilities');
+      this.getSupportedThinkingLevels = ai.getSupportedThinkingLevels;
       this.ModelRuntime = module.ModelRuntime;
       this.SessionManager = typeof module.SessionManager === 'function' ? module.SessionManager : null;
       return this.ModelRuntime;
@@ -201,7 +206,11 @@ export class PiSdk {
       });
       if (!authenticated) continue;
       if (provider.id === 'openai' && oauthOpenAI) {
-        models.push(...discovery.models);
+        const configuredModels = runtime.getModels(provider.id);
+        models.push(...discovery.models.map((entry) => {
+          const model = configuredModels.find((candidate) => candidate.id === entry.id);
+          return { ...entry, thinkingLevels: entry.selectable && model ? this.getSupportedThinkingLevels(model) : [] };
+        }));
         continue;
       }
       for (const model of runtime.getModels(provider.id)) {
@@ -214,6 +223,7 @@ export class PiSdk {
           name: typeof model.name === 'string' && model.name.length > 0 ? model.name : model.id,
           source: 'sdk',
           selectable: true,
+          thinkingLevels: this.getSupportedThinkingLevels(model),
         });
       }
     }
@@ -244,6 +254,13 @@ export class PiSdk {
       return catalog.models.some((model) => model.id === modelId && model.selectable);
     }
     return runtime.getModels(providerId).some((model) => model.id === modelId);
+  }
+
+  /** Offline, profile-policy-filtered capabilities for an existing upstream identity. */
+  async modelThinkingLevels(agentDir, providerId, modelId) {
+    const { models } = await this.catalog(agentDir);
+    const model = models.find((entry) => entry.provider === providerId && entry.id === modelId && entry.selectable);
+    return model?.thinkingLevels ?? [];
   }
 
   invalidateOpenAI(agentDir) { this.openaiCatalog.invalidate(agentDir); }

@@ -189,7 +189,7 @@ struct PADWorkbenchView<TerminalContent: View>: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            sidebarActionRow("本地会话 · Codex / Claude / Pi", systemImage: "clock.arrow.circlepath") {
+            sidebarActionRow("本地会话 · Codex / Pi", systemImage: "clock.arrow.circlepath") {
                 activeSheet = .localSessions
             }.padding(.horizontal, 6).padding(.vertical, 8)
             hline

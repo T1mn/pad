@@ -27,6 +27,11 @@ final class PADWorkbenchModel: ObservableObject {
     @Published private(set) var historyLoading = false
     @Published private(set) var catalogLoading = false
     @Published private(set) var openaiRefreshing = false
+    @Published private(set) var sessionInfoPresented = false
+    @Published private(set) var sessionInfoLoading = false
+    @Published private(set) var sessionInfo: PADSessionInfo?
+    @Published private(set) var sessionInfoError: String?
+    // Shared by model and thinking changes: neither may race with send/auth/sync.
     @Published private var pendingModelTaskIds: Set<String> = []
     @Published private var pendingAccountProfileIds: Set<String> = []
 
@@ -69,6 +74,21 @@ final class PADWorkbenchModel: ObservableObject {
             !catalogLoading && !authInProgress(for: profileId) &&
             !pendingAccountProfileIds.contains(profileId) && !hasActiveTask(profileId: profileId) &&
             !snapshot.tasks.contains { $0.profileId == profileId && pendingModelTaskIds.contains($0.id) }
+    }
+
+    var selectedModel: PADModelInfo? {
+        guard let task = selectedTask, catalog.profileId == task.profileId else { return nil }
+        return catalog.models.first { $0.provider == task.provider && $0.id == task.modelId }
+    }
+
+    var thinkingLevels: [String] { selectedModel?.supportedThinkingLevels ?? [] }
+
+    var canConfigureThinking: Bool {
+        selectedTask != nil && canConfigureModels && thinkingLevels.count > 1
+    }
+
+    var isConfiguringTask: Bool {
+        selectedTaskId.map { pendingModelTaskIds.contains($0) } ?? false
     }
 
     var canSyncOpenAI: Bool { hasOpenAIDiscovery && canConfigureModels }
@@ -114,6 +134,7 @@ final class PADWorkbenchModel: ObservableObject {
     private var catalogGeneration = 0
     private var accountContextGeneration = 0
     private var connectionGeneration = 0
+    private var sessionInfoGeneration = 0
     private var authGeneration = 0
     private var activeAuthAttemptId: String?
     private var authSuppressedProfile: String?
@@ -261,21 +282,89 @@ final class PADWorkbenchModel: ObservableObject {
             guard let self else { return }
             guard self.connectionGeneration == connectionGeneration else { return }
             self.pendingModelTaskIds.remove(task.id)
-            guard self.accountContextGeneration == contextGeneration,
-                  self.selectedTaskId == task.id, self.activeProfileId == task.profileId,
-                  self.connectionStatus == "ready" else { return }
+            guard self.connectionStatus == "ready" else { return }
+            let isCurrentContext = self.accountContextGeneration == contextGeneration &&
+                self.selectedTaskId == task.id && self.activeProfileId == task.profileId
             switch result {
             case let .success(data):
                 guard let updated = data.decoded(PADTask.self),
                       updated.id == task.id, updated.profileId == task.profileId else {
-                    self.setError("模型切换返回格式无效。")
+                    if isCurrentContext { self.setError("模型切换返回格式无效。") }
+                    return
+                }
+                // Includes Pi's authoritative clamped thinking level, even if
+                // the user has since selected another task. Never touch draft.
+                self.replace(task: updated)
+            case let .failure(error):
+                if isCurrentContext { self.fail(error) }
+            }
+        }
+    }
+
+    func setThinkingLevel(_ level: String) {
+        guard let task = selectedTask, canConfigureThinking,
+              thinkingLevels.contains(level) else { return }
+        pendingModelTaskIds.insert(task.id)
+        let contextGeneration = accountContextGeneration
+        let connectionGeneration = self.connectionGeneration
+        request("set_thinking_level", fields: [
+            "taskId": .string(task.id), "level": .string(level),
+        ]) { [weak self] result in
+            guard let self, self.connectionGeneration == connectionGeneration else { return }
+            self.pendingModelTaskIds.remove(task.id)
+            guard self.connectionStatus == "ready" else { return }
+            let isCurrentContext = self.accountContextGeneration == contextGeneration &&
+                self.selectedTaskId == task.id && self.activeProfileId == task.profileId
+            switch result {
+            case let .success(data):
+                guard let updated = data.decoded(PADTask.self),
+                      updated.id == task.id, updated.profileId == task.profileId else {
+                    if isCurrentContext { self.setError("推理设置返回格式无效。") }
                     return
                 }
                 self.replace(task: updated)
             case let .failure(error):
-                self.fail(error)
+                if isCurrentContext { self.fail(error) }
             }
         }
+    }
+
+    // MARK: - Explicit read-only Pi identity
+
+    func openSessionInfo() {
+        guard let taskId = selectedTaskId, connectionStatus == "ready" else { return }
+        closeSessionInfo()
+        sessionInfoPresented = true
+        sessionInfoLoading = true
+        let generation = sessionInfoGeneration
+        let connection = connectionGeneration
+        request("session_info", fields: ["taskId": .string(taskId)]) { [weak self] result in
+            guard let self, self.sessionInfoPresented,
+                  self.sessionInfoGeneration == generation,
+                  self.connectionGeneration == connection,
+                  self.connectionStatus == "ready", self.selectedTaskId == taskId else { return }
+            self.sessionInfoLoading = false
+            switch result {
+            case let .success(data):
+                guard let info = data.decoded(PADSessionInfo.self), info.taskId == taskId,
+                      info.engine == "pi", ["not_created", "available", "unavailable"].contains(info.state),
+                      ["present", "absent", "unavailable"].contains(info.fileState) else {
+                    self.sessionInfoError = "会话信息暂不可用。"
+                    return
+                }
+                self.sessionInfo = info
+            case .failure:
+                self.sessionInfoError = "会话信息暂不可用。"
+            }
+        }
+    }
+
+    func closeSessionInfo() {
+        sessionInfoGeneration += 1
+        sessionInfoPresented = false
+        sessionInfoLoading = false
+        sessionInfo = nil
+        sessionInfoError = nil
     }
 
     // MARK: - Explicit local history integration (no credentials / model work)
@@ -316,6 +405,7 @@ final class PADWorkbenchModel: ObservableObject {
 
     func selectTask(_ id: String) {
         guard let task = snapshot.tasks.first(where: { $0.id == id }) else { return }
+        closeSessionInfo()
         selectionGeneration += 1
         selectedTaskId = id
         selectedWorkspaceId = task.workspaceId
@@ -331,6 +421,7 @@ final class PADWorkbenchModel: ObservableObject {
     /// Leave a task's historical account context without exposing a profile picker.
     func selectDefaultAccount() {
         let id = defaultProfileId
+        closeSessionInfo()
         selectionGeneration += 1
         selectedTaskId = nil
         setEffectiveProfile(id)
@@ -691,6 +782,7 @@ final class PADWorkbenchModel: ObservableObject {
 
         if let id = selectedWorkspaceId, !workspaceIds.contains(id) { selectedWorkspaceId = nil }
         if let id = selectedTaskId, !taskIds.contains(id) {
+            closeSessionInfo()
             selectionGeneration += 1
             selectedTaskId = nil
             historyLoading = false
@@ -748,6 +840,9 @@ final class PADWorkbenchModel: ObservableObject {
     }
 
     private func handlePi(taskId: String, data: PADJSONValue) {
+        // Configuration is published by the host's authoritative snapshot path.
+        // A raw Pi notification is not a validated task update or chat message.
+        if data.objectValue?["type"]?.stringValue == "thinking_level_changed" { return }
         var transcript = taskMessages[taskId] ?? []
         var stream = streams[taskId]
         let result = PADMessageReducer.applyPiEvent(
@@ -802,6 +897,7 @@ final class PADWorkbenchModel: ObservableObject {
     }
 
     private func handleExit(_ status: Int32?) {
+        closeSessionInfo()
         connectionStatus = (status ?? 0) == 0 ? "offline" : "error"
         if let status, status != 0 {
             setError("工作台宿主已退出（code \(status)）。")

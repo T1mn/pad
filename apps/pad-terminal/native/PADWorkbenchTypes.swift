@@ -20,8 +20,22 @@ struct PADTask: Codable, Identifiable, Equatable {
     var status: String
     var provider: String?
     var modelId: String?
+    var thinkingLevel: String? = nil
     var sessionFile: String?
     var updatedAt: String
+}
+
+/// Pi identity is distinct from PAD task IDs and provider/OAuth identifiers.
+struct PADSessionInfo: Decodable {
+    let taskId: String
+    let engine: String
+    let cwd: String
+    let state: String
+    let fileState: String
+    var sessionId: String? = nil
+    var sessionFile: String? = nil
+    var profileName: String? = nil
+    var source: String? = nil
 }
 
 struct PADSnapshot: Codable {
@@ -43,6 +57,15 @@ struct PADModelInfo: Codable, Hashable {
     let name: String
     var source: String? = nil
     var selectable: Bool? = nil
+    var thinkingLevels: [String]? = nil
+
+    /// Intersect only advertised capabilities with Pi's ordered wire values.
+    /// Missing metadata and unsupported runtime models have no inferred levels.
+    var supportedThinkingLevels: [String] {
+        guard isSelectable, let thinkingLevels else { return [] }
+        return ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+            .filter { thinkingLevels.contains($0) }
+    }
     var isSelectable: Bool { selectable ?? true }
     var selectionKey: String { "\(provider)/\(id)" }
 }

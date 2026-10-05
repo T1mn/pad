@@ -19,8 +19,11 @@
 - 会话用密集、左对齐的日志式排版；用户输入/工具行轻底色矩形、无左右聊天气泡。字体 SF Mono 14pt 起，内容留白小而整齐。
 - 可用性修订：cmux 官方外观文档的侧栏默认 12.5pt、tab 11pt，并支持整体缩放；不再把 PAD 主文字压到 9–11pt。正文默认 14pt、次要文字通常 ≥12pt，原生「aA」菜单支持正文 14/16/18pt；终端默认 14pt，沿用独立字号快捷键。
 - 登录页搜索固定在列表上方，支持别名/已登录筛选和常用快捷入口；搜索不会登录，Return 不关闭账号页。
-- 侧栏新增本地会话入口：只读同步、搜索、原工具续接；Pi 副本导入不等于双向同步，不改本地凭据。
-- 输入区紧凑 3–5 行，底部状态行含模型/账号入口及发送/停止；普通 Return 仍只换行，发送仅显式点击。
+- 侧栏本地会话入口「本地会话 · Codex / Pi」：仅 Codex/Pi 的只读同步、搜索、原工具续接，不发现/预览/续接 Claude；Pi 副本导入不等于双向同步，不改本地凭据。
+- 输入区紧凑 3–5 行，底部状态行含模型/账号入口及发送/停止；仅输入区 Enter / ⌘Enter 发送、Shift+Enter 换行，也可点击发送；输入法 marked text 的 Enter 确认交回 AppKit，不发送。
+- 模型入口锚定搜索 popover：名称/ID/Provider 本地部分匹配，保留上游顺序/分组；搜索 Return 不选模型或发送。切换任务/账号/目录关闭，并在点击时检查捕获上下文。UI 只称「官方账号目录」或「内置模型目录 · 账号权限未验证」；技术来源仍按 `openai_account|sdk` 区分，不伪称账号授权。
+- thinking 菜单来自当前配置模型的实际 SDK 能力，含受支持的 max；按任务保存，未选不猜默认。运行中/认证/配置/abort 互斥；已有 Pi 以 setter 后 `get_state` 实际级别为准。
+- 「会话信息」popover 区分真实 Pi ID / PAD 任务 ID，展示目录、账号名和文件状态，仅显式复制；只读缓存状态或安全首行，不启动 Pi、不写数据。新任务在 Pi 创建前不承诺已有会话 ID/文件，切换/关闭丢弃迟到响应。
 - 共用色板 `PADWorkbenchStyle`：暗色 sidebar #20211f / canvas #262722 / chrome #232420 / border #3a3b36 / text #d8d8d4 / muted #a4a79f / accent #3478f6；提供对应浅色模式。
 - 账号 sheet 只调整视觉密度/色板，保留所有 API Key/OAuth、取消、SecureField、URL 安全和认证状态逻辑。
 
@@ -32,4 +35,4 @@
 - cmux 视觉阶段不改业务层；后续本地会话增量只扩展 Model/host 的显式命令，不改 transport / reducer / Desktop / iOS，仅运行相关离线回归。
 - `PADDefaults.ghostty` 在 Swift 配置入口先加载，仅控制终端配色/字号/边距，用户设置和 CLI 可覆盖。
 - 保持 TerminalContent 结构稳定；侧栏隐藏/任务切换都不得重建 PTY。入口增加可选 `splitTerminal: (Bool)->Void`，true=下方，false=右方，由上游现有 binding action 执行。
-- 主 agent 一次整合 Swift typecheck、必要的原生增量构建、一条窗口截图/交互主路径；子 agent 不构建或重复测试。
+- 本 controls/session 集成只运行指定的 fake Node 测试、两个 Swift 纯 helper smoke 和一次原生增量构建/产物检查，不追加全量 typecheck 或 GUI。真实中文 IME、popover 焦点/复制、thinking 真实 getter 与模型请求均待人工验收；键盘策略夹具不等于输入法验收。

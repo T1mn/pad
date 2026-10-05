@@ -4,12 +4,30 @@ import SwiftUI
 /// 右上：PAD Agent 会话。cmux 风格窄 tab strip + 左对齐日志流 + 紧凑输入区。
 ///
 /// 只通过共享 Model 工作：不持有进程、不读写凭据、不自动发送；所有请求都由
-/// 用户显式点击「发送」触发。普通 Return 只换行，不新增任何快捷键。
+/// 用户点击「发送」或在输入区按 Enter 触发；Shift+Enter 换行，IME 确认不发送。
 struct PADConversationView: View {
     @ObservedObject var model: PADWorkbenchModel
     var onOpenAccount: () -> Void
 
     @State private var dismissedError: String?
+    @State private var modelPickerPresented = false
+    @State private var capturedModelContext: ModelPickerContext?
+
+    private struct ModelPickerContext: Equatable {
+        let taskId: String?
+        let profileId: String?
+        let catalogData: Data?
+        let loading: Bool
+        let connection: String
+    }
+
+    private var modelPickerContext: ModelPickerContext {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return ModelPickerContext(taskId: model.selectedTaskId, profileId: model.activeProfileId,
+                                  catalogData: try? encoder.encode(model.catalog),
+                                  loading: model.catalogLoading, connection: model.connectionStatus)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,6 +37,10 @@ struct PADConversationView: View {
             composer
         }
         .background(PADWorkbenchStyle.canvas)
+        .onChange(of: modelPickerContext) { _ in
+            modelPickerPresented = false
+            capturedModelContext = nil
+        }
     }
 
     // MARK: - 窄 tab strip（30px）
@@ -53,6 +75,20 @@ struct PADConversationView: View {
             .contentShape(Rectangle())
 
             Spacer(minLength: 0)
+            Button { model.openSessionInfo() } label: {
+                Label("会话信息", systemImage: "info.circle")
+                    .padFont(size: 10.5)
+            }
+            .buttonStyle(.plain)
+            .help("查看 Pi 会话 ID、PAD 任务 ID 与本地路径")
+            .disabled(model.selectedTask == nil || model.connectionStatus != "ready")
+            .padding(.horizontal, 10)
+            .popover(isPresented: Binding(
+                get: { model.sessionInfoPresented },
+                set: { if !$0 { model.closeSessionInfo() } }
+            )) {
+                PADSessionInfoView(model: model)
+            }
         }
         .frame(height: PADWorkbenchStyle.barHeight)
         .background(PADWorkbenchStyle.chrome)
@@ -230,7 +266,7 @@ struct PADConversationView: View {
             logPlaceholder(
                 icon: "chevron.right",
                 title: "还没有对话",
-                message: "输入消息后点击「发送」提交；多行输入按 Return 只换行。"
+                message: "输入消息后按 Enter 或点击「发送」提交；Shift+Enter 换行。"
             )
         } else {
             LazyVStack(alignment: .leading, spacing: 3) {
@@ -273,10 +309,12 @@ struct PADConversationView: View {
     private var composer: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $model.draft)
-                    .padFont(size: 12, design: .monospaced)
-                    .foregroundStyle(PADWorkbenchStyle.text)
-                    .scrollContentBackground(.hidden)
+                PADComposerInput(
+                    text: $model.draft,
+                    isEditable: model.selectedTask != nil,
+                    canSend: { model.canSend },
+                    onSend: { model.send() }
+                )
                     .padding(.horizontal, 4)
                     .padding(.vertical, 3)
                     .frame(minHeight: 76, maxHeight: 110)
@@ -309,8 +347,9 @@ struct PADConversationView: View {
     }
 
     private var statusRow: some View {
-        HStack(spacing: 6) {
+        PADComposerControlLayout(spacing: 6) {
             modelPicker
+            thinkingPicker
             if model.hasOpenAIDiscovery {
                 Button(model.openaiRefreshing ? "同步中…" : "同步 OpenAI 模型") {
                     model.syncOpenAIModels()
@@ -327,10 +366,7 @@ struct PADConversationView: View {
             Text(statusText)
                 .padFont(size: 10, design: .monospaced)
                 .foregroundStyle(statusColor)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer(minLength: 4)
+                .fixedSize(horizontal: false, vertical: true)
 
             if model.isBusy {
                 ProgressView().controlSize(.mini)
@@ -342,42 +378,89 @@ struct PADConversationView: View {
                 model.send()
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+
+    // MARK: - 推理选择（只使用当前模型声明的能力）
+
+    private func thinkingLabel(_ level: String) -> String {
+        switch level {
+        case "off": return "关闭"
+        case "minimal": return "最低"
+        case "low": return "低"
+        case "medium": return "中"
+        case "high": return "高"
+        case "xhigh": return "超高"
+        case "max": return "最大"
+        default: return "未知（\(level)）"
+        }
+    }
+
+    private var currentThinkingLabel: String {
+        guard let task = model.selectedTask else { return "未选择任务" }
+        guard task.modelId != nil else { return "未选择模型" }
+        guard !model.thinkingLevels.isEmpty else { return "能力未知" }
+        if model.thinkingLevels == ["off"] { return "不支持推理 · 关闭" }
+        // nil is inherited / not yet confirmed, never an implicit medium.
+        if let level = task.thinkingLevel { return thinkingLabel(level) }
+        if model.thinkingLevels.count == 1, let level = model.thinkingLevels.first {
+            return "\(thinkingLabel(level)) · 跟随会话"
+        }
+        return "跟随会话"
+    }
+
+    private var thinkingPicker: some View {
+        Menu {
+            ForEach(model.thinkingLevels, id: \.self) { level in
+                Button {
+                    model.setThinkingLevel(level)
+                } label: {
+                    if model.selectedTask?.thinkingLevel == level {
+                        Label(thinkingLabel(level), systemImage: "checkmark")
+                    } else {
+                        Text(thinkingLabel(level))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text("推理：\(currentThinkingLabel)")
+                    .padFont(size: 10.5)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.thinkingLevels.count > 1 {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 7, weight: .semibold))
+                }
+            }
+            .foregroundStyle(model.canConfigureThinking ? PADWorkbenchStyle.text : PADWorkbenchStyle.muted)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 4).fill(PADWorkbenchStyle.input))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(PADWorkbenchStyle.border))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .disabled(!model.canConfigureThinking)
+        .help(thinkingPickerHelp)
+    }
+
+    private var thinkingPickerHelp: String {
+        if model.selectedTask == nil { return "请先选择任务" }
+        if model.thinkingLevels.isEmpty { return "当前模型没有已确认的推理能力信息" }
+        if model.thinkingLevels == ["off"] { return "当前模型不支持推理，推理关闭" }
+        if model.thinkingLevels.count == 1 { return "当前模型仅支持固定推理等级" }
+        if !model.canConfigureThinking { return "账号或任务仍有进行中的操作，暂时无法切换推理等级" }
+        return "设置当前任务的推理等级；跟随会话表示尚未确认，不代表默认中。与 Fast / service_tier 无关。"
     }
 
     // MARK: - 模型选择
 
     private var modelPicker: some View {
-        Menu {
-            if model.hasOpenAIDiscovery {
-                Text(openaiDirectoryStatus)
-                Button("同步 OpenAI 模型") { model.syncOpenAIModels() }
-                    .disabled(!model.canSyncOpenAI)
-                Divider()
-            }
-            if model.catalogLoading && model.catalog.models.isEmpty {
-                Text("正在加载模型…")
-            } else if model.catalog.models.isEmpty {
-                Text("没有可用模型")
-            } else {
-                ForEach(modelProviderIds, id: \.self) { providerId in
-                    Section(modelProviderLabel(providerId)) {
-                        ForEach(model.catalog.models.filter { $0.provider == providerId }, id: \.selectionKey) { info in
-                            Button {
-                                model.setModel(provider: info.provider, modelId: info.id)
-                            } label: {
-                                if isCurrent(info) {
-                                    Label(modelRowLabel(info), systemImage: "checkmark")
-                                } else {
-                                    Text(modelRowLabel(info))
-                                }
-                            }
-                            .disabled(!info.isSelectable || !model.canConfigureModels)
-                        }
-                    }
-                }
-            }
+        Button {
+            capturedModelContext = modelPickerContext
+            modelPickerPresented = true
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
@@ -404,33 +487,31 @@ struct PADConversationView: View {
                     .stroke(PADWorkbenchStyle.border)
             )
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .disabled(!canPickModel)
+        .buttonStyle(.plain)
         .help(modelPickerHelp)
-    }
-
-    // Group providers without sorting the upstream account visibility list.
-    private var modelProviderIds: [String] {
-        model.catalog.models.reduce(into: [String]()) { ids, info in
-            if !ids.contains(info.provider) { ids.append(info.provider) }
+        .popover(isPresented: $modelPickerPresented, arrowEdge: .bottom) {
+            PADModelPicker(
+                catalog: model.catalog,
+                selectedProvider: model.selectedTask?.provider,
+                selectedModelId: model.selectedTask?.modelId,
+                canSelect: model.selectedTask != nil && model.canConfigureModels,
+                loading: model.catalogLoading,
+                directoryStatus: openaiDirectoryStatus,
+                showsOpenAISync: model.hasOpenAIDiscovery,
+                canSyncOpenAI: model.canSyncOpenAI,
+                onSyncOpenAI: {
+                    guard capturedModelContext == modelPickerContext else { return }
+                    model.syncOpenAIModels()
+                },
+                onSelect: { info in
+                    guard capturedModelContext == modelPickerContext,
+                          capturedModelContext?.taskId != nil,
+                          model.canConfigureModels, info.isSelectable else { return }
+                    modelPickerPresented = false
+                    model.setModel(provider: info.provider, modelId: info.id)
+                }
+            )
         }
-    }
-
-    private func modelProviderLabel(_ providerId: String) -> String {
-        let name = model.catalog.providers.first { $0.id == providerId }?.name ?? providerId
-        let accountModels = model.catalog.models.filter { $0.provider == providerId }
-        if providerId == "openai", model.hasOpenAIDiscovery,
-           accountModels.allSatisfy({ $0.source == "openai_account" }) {
-            return "OpenAI 官方账号目录"
-        }
-        return "\(name) · Pi SDK 目录（非账号权限验证）"
-    }
-
-    private func modelRowLabel(_ info: PADModelInfo) -> String {
-        let source = info.source == "openai_account" ? "官方账号目录" : "Pi SDK"
-        let unsupported = info.isSelectable ? "" : " · 当前 Pi 版本暂不支持"
-        return "\(info.name) · \(source)\(unsupported)"
     }
 
     private var openaiDirectoryStatus: String {
@@ -458,15 +539,9 @@ struct PADConversationView: View {
         return task.modelId ?? "选择模型"
     }
 
-    private func isCurrent(_ info: PADModelInfo) -> Bool {
-        guard let task = model.selectedTask else { return false }
-        return task.provider == info.provider && task.modelId == info.id
-    }
-
     private var canPickModel: Bool {
-        // Keep the menu readable even when every upstream row is unsupported.
-        model.selectedTask != nil && model.canConfigureModels &&
-            (!model.catalog.models.isEmpty || model.hasOpenAIDiscovery)
+        // Browsing and explicit sync remain reachable without a selected task.
+        model.selectedTask != nil && model.canConfigureModels
     }
 
     private var modelPickerHelp: String {
@@ -513,7 +588,7 @@ struct PADConversationView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .help(title == "发送" ? "点击才会请求模型；Return 只换行" : "清空排队消息并中止当前执行，历史保留")
+        .help(title == "发送" ? "Enter / ⌘Enter 发送；Shift+Enter 换行；输入法确认不发送" : "清空排队消息并中止当前执行，历史保留")
     }
 
     private func buttonForeground(style: ComposerButtonStyle, enabled: Bool) -> Color {
@@ -542,7 +617,7 @@ struct PADConversationView: View {
 
     private var draftPlaceholder: String {
         if model.selectedTask == nil { return "请先选择或新建任务" }
-        return "输入消息…（Return 换行，点击「发送」提交）"
+        return "输入消息…（Enter 发送，Shift+Enter 换行）"
     }
 
     private var canSendNow: Bool {
@@ -553,15 +628,16 @@ struct PADConversationView: View {
 
     private var sendDisabledReason: String {
         if model.selectedTask == nil { return "请先选择任务" }
-        if PADWorkbenchUI.trimmed(model.draft).isEmpty { return "输入内容后才能发送" }
         if model.isBusy { return "任务执行中，请先停止或等待完成" }
+        if model.isConfiguringTask { return "正在更新模型 / 推理设置" }
+        if PADWorkbenchUI.trimmed(model.draft).isEmpty { return "输入内容后才能发送" }
         if model.openaiRefreshing { return "正在同步 OpenAI 模型" }
         if model.hasOpenAIDiscovery && model.catalog.openaiDiscovery?.state == "not_loaded" {
             return "账号已登录，请先同步 OpenAI 模型"
         }
         if let task = model.selectedTask,
            let info = model.catalog.models.first(where: { $0.provider == task.provider && $0.id == task.modelId }),
-           !info.isSelectable { return "当前 Pi 版本暂不支持所选模型" }
+           !info.isSelectable { return "当前版本暂不支持所选模型" }
         return "不可发送：请检查账号状态并选择可用模型"
     }
 
@@ -577,6 +653,7 @@ struct PADConversationView: View {
         if model.selectedTask == nil { return .noTask }
         if PADWorkbenchUI.isOffline(model.connectionStatus) { return .offline }
         if model.isBusy { return .busy }
+        if model.isConfiguringTask { return .blocked }
         if model.canSend { return .ready }
         if PADWorkbenchUI.trimmed(model.draft).isEmpty { return .ready }
         return .blocked
@@ -587,7 +664,7 @@ struct PADConversationView: View {
         case .noTask: return "未选择任务"
         case .offline: return "宿主离线 · 请重新加载"
         case .busy: return "执行中 · 可停止"
-        case .ready: return "Return 换行 · 点击发送提交"
+        case .ready: return "Enter 发送 · Shift+Enter 换行"
         case .blocked: return sendDisabledReason
         }
     }
@@ -598,6 +675,52 @@ struct PADConversationView: View {
         case .offline: return .red
         case .busy: return PADWorkbenchStyle.accent
         case .blocked: return .orange
+        }
+    }
+}
+
+/// Wrap whole controls rather than squeezing a growing horizontal toolbar.
+/// Intrinsic labels remain readable at all supported text sizes and pane widths.
+private struct PADComposerControlLayout: Layout {
+    let spacing: CGFloat
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> (size: CGSize, origins: [CGPoint], sizes: [CGSize]) {
+        var origins: [CGPoint] = []
+        var sizes: [CGSize] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+        for subview in subviews {
+            let intrinsic = subview.sizeThatFits(.unspecified)
+            let size = subview.sizeThatFits(ProposedViewSize(width: min(intrinsic.width, width), height: nil))
+            if x > 0 && x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            sizes.append(size)
+            usedWidth = max(usedWidth, x + size.width)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: usedWidth, height: y + rowHeight), origins, sizes)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrange(subviews, width: bounds.width)
+        for index in subviews.indices {
+            let origin = layout.origins[index]
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: layout.sizes[index].width, height: layout.sizes[index].height)
+            )
         }
     }
 }
